@@ -1,0 +1,16 @@
+---
+description: Enforce implementation coding standards and module boundaries
+alwaysApply: true
+---
+
+# Implementation Coding Standards
+
+- Keep modules plug-and-play with explicit interfaces and dependency injection.
+- Do not couple core orchestration to UI, API transport, or provider-specific SDK internals.
+- Prefer composition over inheritance for runtime adapters, tools, and policies.
+- Require a top-of-file docstring/header that documents file path, role, and key file relations.
+- Every state-changing operation must include validation, policy checks, and structured logs.
+- Require typed schemas for inter-module inputs/outputs and error envelopes.
+- Include tests for happy path, failure path, and retry/timeout behavior.
+- Keep changes incremental; avoid big-bang rewrites unless explicitly approved.
+- Keep code simple (KISS) and event-oriented where orchestration benefits from decoupling.

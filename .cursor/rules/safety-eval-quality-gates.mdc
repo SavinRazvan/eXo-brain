@@ -1,0 +1,12 @@
+---
+description: Enforce safety, observability, and evaluation gates for architecture and implementation
+alwaysApply: true
+---
+
+# Safety Eval Quality Gates
+
+- Treat model tool calls as intent; deterministic runtime executes side effects.
+- Require policy gates for risky or state-changing tools.
+- Add correlation IDs across job, task, agent, and tool execution.
+- Define acceptance checks for correctness, safety, and performance.
+- Add regression tests for handoffs, schema validity, and failure fallback.

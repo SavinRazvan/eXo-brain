@@ -1,0 +1,14 @@
+---
+description: Enforce execution workflow gates from plan to release evidence
+alwaysApply: true
+---
+
+# Execution Workflow Gates
+
+- Follow sequence: plan -> interfaces -> implementation -> tests -> evidence -> docs update.
+- Before coding, confirm target module boundary and acceptance criteria.
+- For each task, define rollback/fallback behavior before merging.
+- Block release when any P0 security/quality/reliability gate fails.
+- Require deterministic replay tests for high-risk workflows and tool side effects.
+- Require CI/CD evidence bundle links for release candidates.
+- Update relevant research docs when architecture, policies, or runtime behavior changes.

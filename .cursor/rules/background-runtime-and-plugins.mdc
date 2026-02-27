@@ -1,0 +1,12 @@
+---
+description: Require background runtime, dynamic scaling, and plugin lifecycle design
+alwaysApply: true
+---
+
+# Background Runtime And Plugins
+
+- Design for background multi-agent execution, not request-only flows.
+- Include scheduler, worker pool, cancellation, retries, and checkpoint/resume.
+- Define plugin lifecycle APIs: load, unload, reload, compatibility validation.
+- Block risky plugin/tool operations without explicit policy approval.
+- Require concurrency limits, backpressure, and failure recovery behavior.
