@@ -86,7 +86,7 @@ Define a runtime model that supports dynamic, scalable, background execution of 
   - `agent_id`
   - `plugin_id`
   - `tool_name`
-  - `run_mode` (`openai_native` | `deterministic`)
+  - `run_mode` (`provider_native` | `deterministic`)
   - `event_type`
   - `status`
   - `latency_ms`
@@ -170,7 +170,7 @@ Define a runtime model that supports dynamic, scalable, background execution of 
   - tool call
   - plugin
 - Mandatory log dimensions:
-  - execution mode (`openai_native` / `deterministic`)
+  - execution mode (`provider_native` / `deterministic`)
   - scheduler decision reason
   - plugin version
   - retry attempt

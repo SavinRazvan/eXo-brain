@@ -96,9 +96,11 @@ new-agent-system/
 ### `RuntimeAdapter`
 - Goal: isolate runtime backend (OpenAI Agents SDK, Assistants compatibility, others).
 - Contract:
-  - `start_session(session_id: str) -> SessionHandle`
+  - `start_session(session_id: str, metadata: dict | None = None) -> SessionHandle`
   - `run_turn(session_id: str, user_input: str, context: dict) -> AsyncIterator[RuntimeEvent]`
   - `submit_tool_results(session_id: str, run_id: str, tool_results: list[ToolResult]) -> AsyncIterator[RuntimeEvent]`
+  - `get_capabilities() -> ProviderCapabilityMap`
+  - `healthcheck() -> HealthStatus`
 
 ### `ToolRuntime`
 - Goal: deterministic tool execution independent from model runtime.
@@ -140,8 +142,8 @@ new-agent-system/
 - The framework is a module/SDK, not a standalone UI product.
 - Any host app (API, mobile backend, worker service, chat UI) integrates through `integration/host_adapter.py`.
 - Agent plugins and tool plugins must be hot-swappable.
-- Runtime mode can switch per task between OpenAI-native and deterministic tool execution.
-- Default OpenAI-native tool calling stays available, with deterministic mode used when policies require stricter execution control.
+- Runtime mode can switch per task between provider-native and deterministic tool execution.
+- Default provider-native tool calling stays available, with deterministic mode used when policies require stricter execution control.
 - MCP support is first-class: plug external MCP servers or custom internal MCP servers without changing orchestration core.
 - Decorator-based customization is supported for tools (validation, authz, audit, rate limit, PII redaction, retries).
 - Persistence is first-class through provider-agnostic stores, supporting local and remote database backends with the same contracts.

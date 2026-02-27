@@ -27,7 +27,7 @@ Define how architecture/planning agents collaborate efficiently with clear hando
 - Stage 1 architecture proposal + reuse map.
 
 **Output (required)**
-- Tool/runtime mode strategy (`openai_native` vs `deterministic`)
+- Tool/runtime mode strategy (`provider_native` vs `deterministic`)
 - Plugin contracts (`agents`, `tools`)
 - Policy and safety execution model
 

@@ -14,6 +14,7 @@ This `.cursor` folder is prepared to be copied into a new project.
 - `rules/`:
   - `architecture-research-first.mdc`
   - `multilayer-boundaries-contracts.mdc`
+  - `provider-neutral-adapter-wall.mdc`
   - `background-runtime-and-plugins.mdc`
   - `safety-eval-quality-gates.mdc`
   - `implementation-coding-standards.mdc`

@@ -39,7 +39,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
 
 ## Day 2: Provider and Mode Selection
 - [ ] Implement `src/runtime/mode_selector.py` with policy-aware routing:
-  - [ ] `openai_native`
+  - [ ] `provider_native`
   - [ ] `deterministic`
   - [ ] fallback behavior
 - [ ] Add initial adapters:
@@ -47,6 +47,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
   - [ ] `openai_compatible_runtime.py`
   - [ ] `custom_runtime.py`
 - [ ] Add provider registry in `src/config/provider_registry.py`.
+- [ ] Implement settings schema + startup validation in `src/config/settings.py` and `src/config/provider_registry.py` (see `34-provider-registry-and-settings-schema.md`).
 
 ## Day 3: Deterministic Tool Runtime
 - [ ] Implement descriptor-based registry in `src/tools/registry.py`.
