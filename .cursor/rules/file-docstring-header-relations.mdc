@@ -1,0 +1,36 @@
+---
+description: Require top-of-file docstring header with role and file relations
+alwaysApply: true
+---
+
+# File Docstring Header and Relations
+
+- Every new source file must start with a top-of-file module docstring/header.
+- The header must be accurate and updated when file responsibilities change.
+- Minimum required fields:
+  - `File:` file name
+  - `Path:` repository-relative path
+  - `Role:` what this file is responsible for
+  - `Used By:` key files/modules that call or import this file
+  - `Depends On:` key files/modules this file relies on
+  - `Notes:` optional debugging hints, invariants, or lifecycle constraints
+- Keep entries concise and factual; do not add speculative relations.
+- If a relation is unknown at creation time, mark as `TBD` and update when known.
+
+## Python Template
+```python
+"""
+File: example_module.py
+Path: src/example/example_module.py
+Role: Short description of responsibilities.
+Used By:
+  - src/core/orchestrator.py
+Depends On:
+  - src/schemas/events.py
+Notes:
+  - Keep deterministic behavior for retry paths.
+"""
+```
+
+## Non-Python Files
+- Apply the same metadata as a top comment block using the language-appropriate comment syntax.

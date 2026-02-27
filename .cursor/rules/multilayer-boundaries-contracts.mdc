@@ -1,0 +1,12 @@
+---
+description: Enforce clean multi-layer boundaries and typed contracts
+alwaysApply: true
+---
+
+# Multi-Layer Boundaries And Contracts
+
+- Keep layers separate: runtime, orchestration, routing, tools, policies, observability.
+- Runtime/provider specifics must stay behind adapter interfaces.
+- Tool execution must use typed input/output contracts.
+- Do not let controllers own orchestration logic.
+- Prevent cross-layer shortcuts that bypass policy middleware.
