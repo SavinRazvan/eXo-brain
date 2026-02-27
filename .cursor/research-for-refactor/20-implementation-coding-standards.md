@@ -10,6 +10,7 @@ Translate architecture plans into consistent production code with strict modular
 - Standardize structured errors and output envelopes across modules.
 - Require explicit timeout/retry/idempotency behavior for external calls.
 - Emit structured logs and correlation IDs for all runtime paths.
+- Keep modules narrowly scoped; split responsibilities before files become orchestration/provider/tooling hybrids.
 
 ## Module Boundary Rules
 - `core/` orchestrates only; no provider-specific logic.
@@ -17,6 +18,8 @@ Translate architecture plans into consistent production code with strict modular
 - `tools/` executes deterministic tool runtime + plugin hooks.
 - `policies/` owns allow/deny/escalate decisions and risk gates.
 - `observability/` owns logs, traces, metrics, and timeline reconstruction.
+- `integration/` remains a thin host boundary; do not move orchestration or policy ownership into controllers.
+- Cross-layer calls must flow through contracts; direct shortcuts are architecture violations.
 
 ## Quality Requirements Per Change
 - unit tests for new logic
@@ -30,6 +33,7 @@ Translate architecture plans into consistent production code with strict modular
 - rollback path documented
 - test evidence attached
 - no hidden architecture drift
+- no new monolithic module or hidden cross-layer coupling introduced
 
 ## Related Docs
 - `08-module-requirements-matrix.md`

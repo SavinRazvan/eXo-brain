@@ -33,6 +33,13 @@ This folder contains architecture research and planning artifacts for building a
 - `28-persistence-module-and-hybrid-db-strategy.md`: first-class persistence module design and hybrid local/remote DB adapter strategy.
 - `29-versioning-and-release-roadmap.md`: semantic versioning strategy and phased roadmap (`v1` foundation -> `v1.x` hardening -> `v2` expansion).
 - `30-project-naming-and-conventions.md`: canonical naming conventions for brand/repo/package/symbols, including ready-to-paste sections for README and architecture docs.
+- `31-tool-calling-contracts-and-mode-selection.md`: concrete schema shapes and deterministic mode-selection rules for hybrid tool execution.
+- `32-adapter-conformance-checklist.md`: pass/fail adapter promotion gates and required evidence pack.
+- `33-mode-selection-policy-examples.md`: practical routing examples for `provider_native` vs `deterministic` execution.
+- `34-provider-registry-and-settings-schema.md`: implementation-ready settings and provider registry contract for adapter enablement and rollout.
+- `35-architecture-fitness-ci-checklist.md`: copy-ready CI checklist to block monolith drift and enforce modular architecture boundaries.
+- `36-github-actions-architecture-fitness-skeleton.md`: ready-to-paste GitHub Actions workflow skeleton mapped to architecture fitness CI jobs.
+- `37-doc-ownership-and-precedence-map.md`: single-source-of-truth precedence map to avoid cross-doc contradictions and duplicates.
 
 ## Current Direction
 - Use proven orchestration and deterministic tool execution patterns from `flexiai`.

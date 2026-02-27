@@ -23,7 +23,8 @@ Define explicit requirements per module so architecture and implementation stay 
 - Purpose: model/runtime abstraction.
 - Must:
   - provide `RuntimeAdapter` contract
-  - support runtime mode selector (`openai_native` / `deterministic`)
+  - implement `start_session`, `run_turn`, `submit_tool_results`, `get_capabilities`, `healthcheck`
+  - support runtime mode selector (`provider_native` / `deterministic`)
   - expose OpenAI Agents SDK capabilities via feature flags/capability map
   - support plug-in adapters for open-source/openai-compatible runtimes
   - expose provider capability metadata (`tool_calling`, `structured_output`, `handoffs`, `streaming`)
@@ -40,6 +41,7 @@ Define explicit requirements per module so architecture and implementation stay 
 - Purpose: deterministic tool execution.
 - Must:
   - use descriptor-driven registry
+  - enforce tool intent/output contracts (`ToolCallContext`, `ToolResult`, normalized error envelope)
   - support tool plugin lifecycle
   - support decorator-based extension points (security, validation, retries, audit)
   - enforce standardized output envelope
@@ -65,6 +67,7 @@ Define explicit requirements per module so architecture and implementation stay 
 - Purpose: safety and control gates.
 - Must:
   - run pre/post tool execution checks
+  - return explicit decisions (`allow`, `deny`, `escalate`) with reason codes
   - run policy checks for MCP-routed tool calls
   - support risk-based escalation
   - produce auditable decisions

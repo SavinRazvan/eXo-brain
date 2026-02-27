@@ -34,6 +34,11 @@ Enforce consistent quality/security evidence for implementation PRs and release 
 - CI run:
 - Test report:
 - Gate results:
+- Architecture fitness CI report:
+- Adapter conformance checklist:
+- Workflow parity report:
+- Mode-selection decision trace sample:
+- Provider registry/settings validation report:
 
 ## Release Candidate Evidence Template
 
@@ -51,6 +56,7 @@ Enforce consistent quality/security evidence for implementation PRs and release 
 - SLO snapshot:
 - Canary result:
 - Rollback verification status:
+- Adapter latency/cost benchmark snapshot:
 
 ## Compliance and Audit
 - Audit integrity check:
@@ -66,3 +72,7 @@ Enforce consistent quality/security evidence for implementation PRs and release 
 - `16-enterprise-testing-strategy.md`
 - `17-enterprise-cicd-governance.md`
 - `19-enterprise-security-baseline-controls.md`
+- `32-adapter-conformance-checklist.md`
+- `33-mode-selection-policy-examples.md`
+- `34-provider-registry-and-settings-schema.md`
+- `35-architecture-fitness-ci-checklist.md`

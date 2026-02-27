@@ -53,6 +53,7 @@ Required:
 - run quality thresholds from `15-enterprise-quality-gates.md`
 - policy regression tests for high-risk operations
 - adapter compatibility matrix checks
+- architecture fitness CI checklist from `35-architecture-fitness-ci-checklist.md`
 
 Fail action:
 - block promotion to next environment.
@@ -187,3 +188,4 @@ Week 4:
 - `15-enterprise-quality-gates.md`
 - `16-enterprise-testing-strategy.md`
 - `18-enterprise-operational-runbooks.md`
+- `35-architecture-fitness-ci-checklist.md`

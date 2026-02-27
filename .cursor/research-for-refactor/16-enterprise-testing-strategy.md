@@ -28,6 +28,8 @@ Define a practical, enterprise-grade testing system for the new framework so rel
    - concurrency, throughput, latency, autoscaling convergence
 7. **Canary and progressive-delivery tests**
    - staged rollout validation with automatic rollback triggers
+8. **Architecture fitness tests**
+   - enforce layer boundaries and anti-monolith import rules in CI
 
 ## Core Test Tracks
 
@@ -110,6 +112,20 @@ Pass criteria:
 - canary stays within acceptable error/latency/cost deviation thresholds
 - rollback path verified before wider rollout
 
+## 7) Architecture Fitness Testing
+Purpose: prevent architecture drift into monolithic coupling over time.
+
+Must cover:
+- forbidden imports from `core/` into provider SDKs or transport layers
+- forbidden cross-layer shortcuts that bypass policy middleware
+- module dependency direction checks (`integration -> core -> runtime/tools/policies/observability/persistence`)
+- adapter/plugin additions without orchestrator internals modification
+
+Pass criteria:
+- 0 boundary violations in protected branches
+- no bypass of policy middleware in side-effect tool paths
+- architecture fitness suite required in PR pipeline for core/runtime/policy changes
+
 ## Environment Strategy
 - `dev`: fast feedback, contract + unit + targeted integration.
 - `stage`: full pre-prod gates, resilience drills, synthetic load, security scans.
@@ -126,7 +142,7 @@ Use production-like data shapes with strict sanitization/anonymization.
 ## CI/CD Test Pipeline Blueprint
 
 1. **PR pipeline (fast)**  
-   unit + contract + policy lint + secret scan
+   unit + contract + policy lint + secret scan + architecture fitness checks
 2. **Pre-merge protected pipeline**  
    integration + deterministic replay for critical scenarios
 3. **Release candidate pipeline**  

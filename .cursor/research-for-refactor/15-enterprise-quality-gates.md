@@ -21,6 +21,7 @@ Use this file as the final pass/fail checklist before onboarding production tena
 |---|---|---|---|---|---|
 | Tenant Isolation | P0 | Cross-tenant read/write attempts blocked | 100% blocked in tests | Isolation integration suite + chaos scenarios | Block release |
 | AuthN/AuthZ | P0 | Unauthorized privileged actions denied | 100% denied | Policy tests + audit replay | Block release |
+| Architecture Fitness (Anti-Monolith) | P0 | Forbidden cross-layer/provider imports and god-module growth | 0 violations in protected branches | Static dependency rule checks + architecture tests | Block release |
 | Secret Hygiene | P0 | Secrets leaked in logs/artifacts | 0 incidents in CI scans | Secret scanner + log redaction tests | Block release |
 | Audit Integrity | P0 | Tamper-evident audit chain validation | 100% valid chain segments | Audit verifier job | Block release |
 | Critical Reliability | P0 | Workflow success rate (critical class) | >= 99.5% rolling 7d | SLO dashboard + synthetic canaries | Freeze rollout / incident response |
@@ -45,6 +46,7 @@ Define and publish these SLOs per environment (`stage`, `prod`):
 
 ## Quality Gate Execution Pipeline
 1. **Static gates**: schema checks, policy linting, secret scanning, dependency/license checks.
+   - include architecture dependency rules (layer import boundaries and forbidden provider imports in core).
 2. **Contract gates**: adapter/tool/plugin contract tests and compatibility matrix checks.
 3. **Scenario gates**: deterministic workflow replay and high-risk action simulations.
 4. **Resilience gates**: retry/circuit-breaker/DLQ and recovery drills.

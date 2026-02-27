@@ -24,7 +24,7 @@ Rule:
 ## V1.0.0 (Foundation Release)
 Scope:
 - core orchestration boundaries
-- runtime mode selector (`openai_native` + deterministic)
+- runtime mode selector (`provider_native` + deterministic)
 - first runtime adapters (OpenAI + OpenAI-compatible)
 - deterministic tool runtime + policy middleware
 - persistence module baseline (`sqlite` + `postgres`)

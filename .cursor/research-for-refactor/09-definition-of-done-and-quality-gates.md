@@ -46,3 +46,10 @@ Standardize release readiness for architecture and implementation phases.
 - Core module remains embeddable.
 - No hard dependency on specific UI or transport.
 - Host adapter examples compile and run.
+
+## Gate G: Anti-Monolith Architecture Fitness
+- No provider SDK imports outside adapter modules.
+- No cross-layer shortcuts that bypass policy middleware.
+- Static dependency check confirms allowed import directions only.
+- No new "god module" that combines orchestration + provider + tool + policy responsibilities.
+- Plugin/adapter additions require no core orchestrator rewrite.

@@ -61,7 +61,14 @@ Provide a reusable template for defining stable module interfaces (adapters, too
 - Rollback trigger:
 - Safe fallback behavior:
 
+## Contract Pack Recommendation (For Runtime + Tooling)
+- Runtime boundary: include `get_capabilities` and `healthcheck` in adapter contracts.
+- Tool call path: define `ToolCallContext`, `PolicyDecision`, and `ToolResult` as versioned schemas.
+- Execution policy: document explicit mode selection rules (`provider_native` vs `deterministic`) with reason codes.
+- Auditability: require correlation IDs and normalized error categories in every envelope.
+
 ## Related Docs
 - `08-module-requirements-matrix.md`
 - `10-provider-capability-matrix.md`
 - `16-enterprise-testing-strategy.md`
+- `31-tool-calling-contracts-and-mode-selection.md`

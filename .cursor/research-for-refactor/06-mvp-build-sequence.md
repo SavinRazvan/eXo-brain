@@ -39,10 +39,12 @@ Create:
 
 Deliverables:
 - Adapter interface for session start, turn execution, and tool result submission.
+- Adapter health and capability contract (`healthcheck`, `get_capabilities`).
 - First OpenAI Agents SDK adapter implementation (minimal happy-path).
 
 Acceptance:
 - Integration test with mocked adapter events.
+- Adapter contract test for capability + health responses.
 
 ### Day 4: Deterministic Tool Runtime
 Create:
@@ -174,6 +176,7 @@ Acceptance:
 ### Day 14: End-to-End Vertical Slice
 Create:
 - `tests/integration/test_background_agent_pipeline.py`
+- `tests/integration/test_multi_adapter_workflow_parity.py` (initial OpenAI + one mock adapter)
 
 Deliverables:
 - One full scenario:
@@ -185,6 +188,7 @@ Deliverables:
 
 Acceptance:
 - Test passes with deterministic outputs and stable runtime envelope.
+- Same workflow contract passes on OpenAI adapter and mock/fallback adapter.
 
 ### Day 15: Hardening and Documentation
 Create:

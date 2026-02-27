@@ -6,7 +6,7 @@ Define a capability-based model/provider selection strategy so the framework can
 ## Why This Matters
 - OpenAI Agents SDK is high-capability but provider-specific.
 - Open-source models and OpenAI-compatible endpoints vary in tool-calling and schema reliability.
-- A capability matrix lets runtime choose safe execution mode per task (`openai_native` vs `deterministic`).
+- A capability matrix lets runtime choose safe execution mode per task (`provider_native` vs `deterministic`).
 
 ## Runtime Adapter Strategy
 - Keep OpenAI Agents SDK behind `OpenAIAgentsRuntimeAdapter`.
@@ -24,7 +24,7 @@ Define a capability-based model/provider selection strategy so the framework can
 - `max_context_tokens`
 - `reliability_score` (1-5)
 - `security_tier` (`managed_vendor`, `self_managed`, `local_only`)
-- `recommended_runtime_mode` (`openai_native`, `deterministic`, `hybrid`)
+- `recommended_runtime_mode` (`provider_native`, `deterministic`, `hybrid`)
 
 ## V1 Provider Matrix (Initial Defaults)
 
@@ -60,7 +60,7 @@ recommended_runtime_mode: "deterministic"
 ```
 
 ## Required Adapter Contract
-- `start_session(session_id: str, metadata: dict) -> SessionHandle`
+- `start_session(session_id: str, metadata: dict | None = None) -> SessionHandle`
 - `run_turn(session_id: str, user_input: str, context: dict) -> AsyncIterator[RuntimeEvent]`
 - `submit_tool_results(session_id: str, run_id: str, tool_results: list[ToolResult]) -> AsyncIterator[RuntimeEvent]`
 - `get_capabilities() -> ProviderCapabilityMap`
