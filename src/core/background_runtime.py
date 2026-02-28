@@ -7,6 +7,7 @@ Used By:
 Depends On:
  - src/core/task_graph.py
  - src/core/scheduler.py
+ - src/observability/tracing.py
 Notes:
  - Runtime keeps execution state separate from orchestration logic.
 """
@@ -23,6 +24,7 @@ from src.core.scheduler import SchedulerResult, TaskScheduler
 from src.core.task_graph import TaskGraph
 from src.observability.logging import LogLevel, StructuredLogger
 from src.observability.metrics import RuntimeMetrics
+from src.observability.tracing import RuntimeTracer
 from src.observability.timeline import RuntimeTimeline
 
 
@@ -50,6 +52,7 @@ class BackgroundRuntime:
         logger: StructuredLogger | None = None,
         metrics: RuntimeMetrics | None = None,
         timeline: RuntimeTimeline | None = None,
+        tracer: RuntimeTracer | None = None,
     ) -> None:
         self._scheduler = scheduler
         self._jobs: dict[str, BackgroundJob] = {}
@@ -57,6 +60,7 @@ class BackgroundRuntime:
         self._logger = logger
         self._metrics = metrics
         self._timeline = timeline
+        self._tracer = tracer
 
     def submit(self, graph: TaskGraph, payload: dict[str, Any] | None = None, job_id: str | None = None) -> str:
         resolved_job_id = job_id or f"job_{uuid.uuid4().hex}"
@@ -132,6 +136,11 @@ class BackgroundRuntime:
         return job_id
 
     async def _run_job(self, graph: TaskGraph, job: BackgroundJob, resume: bool) -> None:
+        job_span_id = self._start_span(
+            correlation_id=job.job_id,
+            name="background.run_job",
+            attributes={"resume": resume},
+        )
         try:
             job.status = JobStatus.RUNNING
             self._emit(
@@ -143,7 +152,11 @@ class BackgroundRuntime:
             )
             payload = dict(job.metadata.get("payload", {}))
             result = await self._scheduler.execute(
-                job_id=job.job_id, graph=graph, initial_payload=payload, resume=resume
+                job_id=job.job_id,
+                graph=graph,
+                initial_payload=payload,
+                resume=resume,
+                parent_span_id=job_span_id or None,
             )
             job.result = result
             job.status = JobStatus.FAILED if result.failed else JobStatus.COMPLETED
@@ -159,6 +172,11 @@ class BackgroundRuntime:
                     self._metrics.inc("background.job.failed")
                 else:
                     self._metrics.inc("background.job.completed")
+            self._finish_span(
+                span_id=job_span_id,
+                status="error" if result.failed else "ok",
+                attributes={"failed": result.failed, "outcomes": len(result.outcomes)},
+            )
         except asyncio.CancelledError:
             job.status = JobStatus.CANCELLED
             self._emit(
@@ -169,6 +187,7 @@ class BackgroundRuntime:
             )
             if self._metrics is not None:
                 self._metrics.inc("background.job.cancelled")
+            self._finish_span(span_id=job_span_id, status="cancelled")
         except Exception as exc:  # pragma: no cover - defensive runtime boundary
             job.status = JobStatus.FAILED
             job.error = str(exc)
@@ -181,6 +200,7 @@ class BackgroundRuntime:
             )
             if self._metrics is not None:
                 self._metrics.inc("background.job.error")
+            self._finish_span(span_id=job_span_id, status="error", error=str(exc))
         finally:
             task = self._job_tasks.get(job.job_id)
             if task is asyncio.current_task():
@@ -204,3 +224,33 @@ class BackgroundRuntime:
             )
         if self._timeline is not None:
             self._timeline.append(correlation_id=correlation_id, event=event, payload=context)
+
+    def _start_span(
+        self,
+        correlation_id: str,
+        name: str,
+        attributes: dict[str, Any] | None = None,
+    ) -> str:
+        if self._tracer is None:
+            return ""
+        return self._tracer.start_span(
+            correlation_id=correlation_id,
+            name=name,
+            attributes=attributes,
+        )
+
+    def _finish_span(
+        self,
+        span_id: str,
+        status: str,
+        attributes: dict[str, Any] | None = None,
+        error: str = "",
+    ) -> None:
+        if self._tracer is None or not span_id:
+            return
+        self._tracer.finish_span(
+            span_id=span_id,
+            status=status,
+            attributes=attributes,
+            error=error,
+        )
