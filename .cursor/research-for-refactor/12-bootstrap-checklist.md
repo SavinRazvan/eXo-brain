@@ -18,11 +18,11 @@ Provide a concrete startup checklist for creating the new repository and reachin
   - [x] `src/runtime`
   - [ ] `src/agents`
   - [x] `src/tools`
-  - [ ] `src/mcp`
+  - [x] `src/mcp`
   - [x] `src/persistence`
   - [x] `src/policies`
   - [x] `src/schemas`
-  - [ ] `src/observability`
+  - [x] `src/observability`
   - [x] `src/config`
 - [ ] Create test structure:
   - [x] `tests/integration`
@@ -52,21 +52,21 @@ Provide a concrete startup checklist for creating the new repository and reachin
 ## Day 3: Deterministic Tool Runtime
 - [x] Implement descriptor-based registry in `src/tools/registry.py`.
 - [x] Implement deterministic tool executor in `src/tools/executor.py`.
-- [ ] Add plugin lifecycle API:
-  - [ ] `load_plugin`
-  - [ ] `unload_plugin`
-  - [ ] `reload_plugin`
-  - [ ] `validate_compatibility`
+- [x] Add plugin lifecycle API:
+  - [x] `load_plugin`
+  - [x] `unload_plugin`
+  - [x] `reload_plugin`
+  - [x] `validate_compatibility`
 - [x] Add standardized tool output envelope in `src/schemas/tool_io.py`.
 
 ## Day 4: Policy + Decorators + Safety
 - [x] Implement pre/post policy checks in `src/policies/middleware.py`.
-- [ ] Add `src/tools/decorators.py` with hooks for:
-  - [ ] validation
-  - [ ] authz
-  - [ ] retries
-  - [ ] audit logging
-  - [ ] redaction
+- [x] Add `src/tools/decorators.py` with hooks for:
+  - [x] validation
+  - [x] authz
+  - [x] retries
+  - [x] audit logging
+  - [x] redaction
 - [x] Enforce deterministic execution for risky/state-changing calls.
 
 ## Day 5: Core Orchestration + Event Routing
@@ -83,20 +83,20 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [ ] Add cancel/resume API surface.
 
 ## Day 7: Observability Baseline
-- [ ] Implement structured logger in `src/observability/logging.py`.
-- [ ] Implement timeline reconstruction in `src/observability/timeline.py`.
-- [ ] Add minimal metrics in `src/observability/metrics.py`:
-  - [ ] queue depth
-  - [ ] runtime latency
+- [x] Implement structured logger in `src/observability/logging.py`.
+- [x] Implement timeline reconstruction in `src/observability/timeline.py`.
+- [x] Add minimal metrics in `src/observability/metrics.py`:
+  - [x] queue depth
+  - [x] runtime latency
   - [ ] tool failure rate
   - [ ] retries
-- [ ] Ensure all runtime events include correlation IDs.
+- [x] Ensure all runtime events include correlation IDs.
 
 ## Day 8: MCP Integration Baseline
-- [ ] Implement `src/mcp/mcp_registry.py`.
-- [ ] Implement `src/mcp/mcp_client_adapter.py`.
-- [ ] Implement `src/mcp/mcp_tool_adapter.py`.
-- [ ] Add trust tiers (`trusted`, `restricted`, `sandboxed`) and policy enforcement.
+- [x] Implement `src/mcp/mcp_registry.py`.
+- [x] Implement `src/mcp/mcp_client_adapter.py`.
+- [x] Implement `src/mcp/mcp_tool_adapter.py`.
+- [x] Add trust tiers (`trusted`, `restricted`, `sandboxed`) and policy enforcement.
 
 ## First Vertical Slice (Must Pass)
 - [ ] Host adapter receives input.
@@ -104,22 +104,22 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] Runtime emits a tool request.
 - [x] Deterministic tool runtime executes through policy/decorator chain.
 - [x] Result is returned to runtime.
-- [ ] Structured logs + timeline show the full path with correlation IDs.
+- [x] Structured logs + timeline show the full path with correlation IDs.
 
 ## Quality Gates Before Iterating
 - [x] Unit tests for runtime mode selector and capability routing.
-- [ ] Unit tests for tool executor and decorators.
+- [x] Unit tests for tool executor and decorators.
 - [x] Integration test for one full turn with deterministic tool call.
 - [x] Concurrency test with at least 5 parallel jobs.
-- [ ] Failure-path test: tool error -> retry/fallback -> auditable log.
-- [ ] MCP adapter test with one mocked MCP server.
+- [x] Failure-path test: tool error -> retry/fallback -> auditable log.
+- [x] MCP adapter test with one mocked MCP server.
 
 ## Non-Negotiable Rules
 - [ ] No UI/controller logic inside core runtime modules.
 - [x] No direct provider calls from orchestration core (only adapters).
 - [x] No state-changing tool execution without policy gates.
 - [x] No provider-native assumptions without capability map checks.
-- [ ] No silent failures (all failures must emit structured log events).
+- [x] No silent failures (all failures must emit structured log events).
 
 ## Done Definition for Bootstrap
 - [ ] New repo builds and runs tests.

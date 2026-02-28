@@ -30,6 +30,7 @@ from src.schemas.tool_io import (
     blocked_result,
 )
 from src.tools.registry import ToolRegistry
+from src.tools.decorators import AuditSink, apply_execution_decorators
 
 
 def _utc_now() -> str:
@@ -37,9 +38,10 @@ def _utc_now() -> str:
 
 
 class DeterministicToolExecutor:
-    def __init__(self, registry: ToolRegistry, policy: PolicyMiddleware) -> None:
+    def __init__(self, registry: ToolRegistry, policy: PolicyMiddleware, audit_sink: AuditSink | None = None) -> None:
         self._registry = registry
         self._policy = policy
+        self._audit_sink = audit_sink
 
     def execute(self, call: ToolCallContext) -> ToolResult:
         decision = self._policy.before_tool_call(call)
@@ -49,7 +51,17 @@ class DeterministicToolExecutor:
         started = _utc_now()
         try:
             descriptor = self._registry.resolve(call.tool_name)
-            output = descriptor.handler(**call.arguments)
+            handler = apply_execution_decorators(
+                descriptor.handler,
+                required_args=list(descriptor.metadata.get("required_args", [])),
+                allow_state_changing=bool(descriptor.metadata.get("allow_state_changing", True)),
+                is_state_changing_call=call.is_state_changing,
+                max_attempts=int(descriptor.metadata.get("max_retries", 1)),
+                redact_keys=list(descriptor.metadata.get("redact_keys", [])),
+                audit_sink=self._audit_sink,
+                event_prefix=f"tool.{call.tool_name}",
+            )
+            output = handler(**call.arguments)
             result = ToolResult(
                 schema_version="1.0",
                 call_id=call.call_id,

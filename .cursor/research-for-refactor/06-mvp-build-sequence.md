@@ -28,9 +28,9 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Architecture fitness CI baseline | Implemented | workflow + architecture boundary scripts are present. |
 | Week 2 background runtime primitives | Implemented | `task_graph`, `scheduler`, `worker_pool`, `checkpoint_store`, and `background_runtime` are implemented with checkpoint-aware execution. |
 | Scheduler replay + failure-path tests | Implemented | Added tests for resume replay, failure reason codes, retries, and bounded concurrency. |
-| Plugin lifecycle/decorators | Pending | Plugin contract/manager and decorator chain not yet implemented. |
-| MCP baseline | Pending | MCP registry/client/tool adapter not yet implemented. |
-| Observability baseline | Pending | logging/tracing/metrics modules not yet implemented. |
+| Observability baseline | Implemented (MVP baseline) | Added `observability/logging.py`, `timeline.py`, `metrics.py` and wired scheduler/background runtime structured emissions with correlation IDs. |
+| Plugin lifecycle/decorators | Implemented (MVP baseline) | Added plugin contract/manager (`load`, `unload`, `reload`, compatibility checks) plus execution decorators for validation/authz/retries/audit/redaction. |
+| MCP baseline | Implemented (MVP baseline) | Added MCP registry/client/tool adapter with trust tiers and policy-aware execution plus integration tests with mocked MCP server calls. |
 | Full background E2E vertical slice | In Progress | runtime primitives are implemented; host-driven background pipeline and observability hooks are pending. |
 
 ## Week 1: Core Runtime Skeleton

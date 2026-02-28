@@ -48,6 +48,7 @@ class OpenAIAgentsRuntimeAdapter(RuntimeAdapter):
         context: dict[str, Any],
     ) -> AsyncIterator[RuntimeEvent]:
         run_id = str(context.get("run_id", f"run_{uuid.uuid4().hex[:8]}"))
+        correlation_id = str(context.get("correlation_id", run_id))
         planned_call = context.get("planned_tool_call")
         if planned_call:
             call = ToolCallContext(
@@ -65,18 +66,25 @@ class OpenAIAgentsRuntimeAdapter(RuntimeAdapter):
                 is_state_changing=bool(planned_call.get("is_state_changing", False)),
                 timestamp_utc=str(context.get("timestamp_utc", "")),
             )
-            yield RuntimeEvent.tool_intent(session_id=session_id, run_id=run_id, call=call)
+            yield RuntimeEvent.tool_intent(
+                session_id=session_id,
+                run_id=run_id,
+                call=call,
+                correlation_id=correlation_id,
+            )
             return
 
         yield RuntimeEvent.output_delta(
             session_id=session_id,
             run_id=run_id,
             text=f"openai-adapter-echo: {user_input}",
+            correlation_id=correlation_id,
         )
         yield RuntimeEvent.run_complete(
             session_id=session_id,
             run_id=run_id,
             output={"status": "completed", "provider_id": self._provider_id},
+            correlation_id=correlation_id,
         )
 
     async def submit_tool_results(
@@ -85,10 +93,12 @@ class OpenAIAgentsRuntimeAdapter(RuntimeAdapter):
         run_id: str,
         tool_results: list[ToolResult],
     ) -> AsyncIterator[RuntimeEvent]:
+        correlation_id = run_id
         yield RuntimeEvent.output_delta(
             session_id=session_id,
             run_id=run_id,
             text=f"processed {len(tool_results)} tool result(s)",
+            correlation_id=correlation_id,
         )
         yield RuntimeEvent.run_complete(
             session_id=session_id,
@@ -98,6 +108,7 @@ class OpenAIAgentsRuntimeAdapter(RuntimeAdapter):
                 "tool_results_count": len(tool_results),
                 "provider_id": self._provider_id,
             },
+            correlation_id=correlation_id,
         )
 
     def get_capabilities(self) -> ProviderCapabilityMap:
