@@ -3,16 +3,17 @@ File: registry.py
 Path: src/agents/registry.py
 Role: Registry and routing helpers for agent contracts and handoff rules.
 Used By:
+ - src/agents/plugin_manager.py
  - tests/unit/test_agent_registry.py
 Depends On:
  - src/agents/contracts.py
 Notes:
- - Validates role-based handoff routes and capability constraints.
+ - Validates role-based handoff routes, fallback paths, and capability constraints.
 """
 
 from __future__ import annotations
 
-from src.agents.contracts import AgentCapabilityTag, AgentSpec, HandoffRoute
+from src.agents.contracts import AgentCapabilityTag, AgentSpec, HandoffFallbackPolicy, HandoffRoute
 
 
 class AgentRegistry:
@@ -20,6 +21,7 @@ class AgentRegistry:
         self._agents: dict[str, AgentSpec] = {}
         self._roles: dict[str, str] = {}
         self._routes: dict[tuple[str, str], HandoffRoute] = {}
+        self._fallback_roles: dict[tuple[str, str], list[str]] = {}
 
     def register(self, agent: AgentSpec) -> None:
         if not agent.agent_id.strip():
@@ -44,6 +46,23 @@ class AgentRegistry:
         if agent_id is None:
             raise KeyError(f"Unknown role '{role}'")
         return self._agents[agent_id]
+
+    def unregister(self, agent_id: str) -> None:
+        agent = self.get(agent_id)
+        role = agent.role
+        del self._agents[agent_id]
+        del self._roles[role]
+
+        self._routes = {
+            key: route
+            for key, route in self._routes.items()
+            if role not in key
+        }
+        self._fallback_roles = {
+            key: [fallback_role for fallback_role in fallback_roles if fallback_role != role]
+            for key, fallback_roles in self._fallback_roles.items()
+            if role != key[0]
+        }
 
     def list_agents(self) -> list[AgentSpec]:
         return [self._agents[agent_id] for agent_id in sorted(self._agents.keys())]
@@ -73,6 +92,26 @@ class AgentRegistry:
                 + ", ".join(missing)
             )
         self._routes[(route.source_role, route.target_role)] = route
+
+    def set_handoff_fallback_policy(self, policy: HandoffFallbackPolicy) -> None:
+        if policy.source_role not in self._roles:
+            raise ValueError(f"Cannot configure fallback from unknown source role '{policy.source_role}'")
+        if policy.target_role not in self._roles:
+            raise ValueError(f"Cannot configure fallback for unknown target role '{policy.target_role}'")
+
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for role in policy.fallback_target_roles:
+            role_name = role.strip()
+            if not role_name:
+                continue
+            if role_name == policy.target_role:
+                continue
+            if role_name in seen:
+                continue
+            seen.add(role_name)
+            normalized.append(role_name)
+        self._fallback_roles[(policy.source_role, policy.target_role)] = normalized
 
     def can_handoff(self, source_agent_id: str, target_agent_id: str) -> bool:
         source = self.get(source_agent_id)
@@ -104,3 +143,35 @@ class AgentRegistry:
             ):
                 targets.append(target)
         return sorted(targets, key=lambda agent: agent.agent_id)
+
+    def resolve_handoff_target(
+        self,
+        source_agent_id: str,
+        target_role: str | None = None,
+        required_capability: AgentCapabilityTag | None = None,
+    ) -> AgentSpec | None:
+        source = self.get(source_agent_id)
+        if not target_role:
+            targets = self.handoff_targets(
+                source_agent_id=source_agent_id,
+                required_capability=required_capability,
+            )
+            return targets[0] if targets else None
+
+        candidate_roles = [target_role]
+        candidate_roles.extend(self._fallback_roles.get((source.role, target_role), []))
+        seen_roles: set[str] = set()
+        for role in candidate_roles:
+            if role in seen_roles:
+                continue
+            seen_roles.add(role)
+            target_agent_id = self._roles.get(role)
+            if target_agent_id is None:
+                continue
+            target = self._agents[target_agent_id]
+            if not self.can_handoff(source_agent_id, target.agent_id):
+                continue
+            if required_capability and required_capability not in target.capability_tags:
+                continue
+            return target
+        return None
