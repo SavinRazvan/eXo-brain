@@ -17,6 +17,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.identity.contracts import IdentityContext
+from src.identity.resolver import resolve_identity
+
 
 @dataclass(slots=True)
 class SessionContext:
@@ -27,6 +30,7 @@ class SessionContext:
     agent_id: str
     provider_id: str = "default"
     correlation_id: str = ""
+    identity: IdentityContext | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -39,5 +43,6 @@ class SessionContext:
             agent_id=str(context.get("agent_id", "agent_unknown")),
             provider_id=str(context.get("provider_id", "default")),
             correlation_id=str(context.get("correlation_id", context.get("run_id", "corr_unknown"))),
+            identity=resolve_identity(context.get("identity")),
             metadata=dict(context.get("session_metadata", {})),
         )

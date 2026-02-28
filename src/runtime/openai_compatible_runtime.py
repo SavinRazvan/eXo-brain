@@ -3,8 +3,8 @@ File: openai_compatible_runtime.py
 Path: src/runtime/openai_compatible_runtime.py
 Role: OpenAI-compatible API adapter behind the provider-neutral runtime contract.
 Used By:
- - tests/contracts/runtime/test_runtime_adapter_contract.py
- - tests/integration/test_multi_adapter_workflow_parity.py
+ - tests/modules/runtime/test_runtime_adapter_contract.py
+ - tests/modules/core/test_multi_adapter_workflow_parity.py
 Depends On:
  - src/runtime/runtime_adapter.py
  - src/runtime/capability_map.py
@@ -45,18 +45,27 @@ class OpenAICompatibleRuntimeAdapter(RuntimeAdapter):
         context: dict[str, Any],
     ) -> AsyncIterator[RuntimeEvent]:
         run_id = str(context.get("run_id", f"run_{uuid.uuid4().hex[:8]}"))
-        yield RuntimeEvent.output_delta(
-            session_id=session_id,
-            run_id=run_id,
-            text=f"openai-compatible-echo: {user_input}",
-            correlation_id=run_id,
-        )
-        yield RuntimeEvent.run_complete(
-            session_id=session_id,
-            run_id=run_id,
-            output={"status": "completed", "provider_id": self._provider_id},
-            correlation_id=run_id,
-        )
+        try:
+            yield RuntimeEvent.output_delta(
+                session_id=session_id,
+                run_id=run_id,
+                text=f"openai-compatible-echo: {user_input}",
+                correlation_id=run_id,
+            )
+            yield RuntimeEvent.run_complete(
+                session_id=session_id,
+                run_id=run_id,
+                output={"status": "completed", "provider_id": self._provider_id},
+                correlation_id=run_id,
+            )
+        except Exception as exc:  # pragma: no cover - defensive adapter boundary
+            yield RuntimeEvent.error(
+                session_id=session_id,
+                run_id=run_id,
+                code="RUNTIME_TURN_ERROR",
+                message=str(exc),
+                correlation_id=run_id,
+            )
 
     async def submit_tool_results(
         self,
@@ -64,16 +73,25 @@ class OpenAICompatibleRuntimeAdapter(RuntimeAdapter):
         run_id: str,
         tool_results: list[ToolResult],
     ) -> AsyncIterator[RuntimeEvent]:
-        yield RuntimeEvent.run_complete(
-            session_id=session_id,
-            run_id=run_id,
-            output={
-                "status": "completed",
-                "tool_results_count": len(tool_results),
-                "provider_id": self._provider_id,
-            },
-            correlation_id=run_id,
-        )
+        try:
+            yield RuntimeEvent.run_complete(
+                session_id=session_id,
+                run_id=run_id,
+                output={
+                    "status": "completed",
+                    "tool_results_count": len(tool_results),
+                    "provider_id": self._provider_id,
+                },
+                correlation_id=run_id,
+            )
+        except Exception as exc:  # pragma: no cover
+            yield RuntimeEvent.error(
+                session_id=session_id,
+                run_id=run_id,
+                code="RUNTIME_TOOL_RESULT_ERROR",
+                message=str(exc),
+                correlation_id=run_id,
+            )
 
     def get_capabilities(self) -> ProviderCapabilityMap:
         return ProviderCapabilityMap(

@@ -22,6 +22,8 @@ from typing import Any
 from src.mcp.mcp_client_adapter import McpClientAdapter
 from src.mcp.mcp_registry import McpHealthState, McpRegistry, McpTrustTier
 from src.policies.middleware import PolicyMiddleware
+from src.resilience.circuit_breaker import CircuitBreaker
+from src.resilience.dlq import DeadLetterQueue, DlqRecord
 from src.schemas.tool_io import (
     ExecutionMetadata,
     NormalizedError,
@@ -40,10 +42,19 @@ def _utc_now() -> str:
 
 
 class McpToolAdapter:
-    def __init__(self, registry: McpRegistry, client: McpClientAdapter, policy: PolicyMiddleware) -> None:
+    def __init__(
+        self,
+        registry: McpRegistry,
+        client: McpClientAdapter,
+        policy: PolicyMiddleware,
+        circuit_breaker: CircuitBreaker | None = None,
+        dlq: DeadLetterQueue | None = None,
+    ) -> None:
         self._registry = registry
         self._client = client
         self._policy = policy
+        self._circuit_breaker = circuit_breaker or CircuitBreaker()
+        self._dlq = dlq or DeadLetterQueue()
 
     async def execute(
         self,
@@ -56,6 +67,26 @@ class McpToolAdapter:
             return blocked_result(context, decision.reason_code, decision.message)
 
         started = _utc_now()
+        circuit_key = f"{server_id}:{tool_name}"
+        if not self._circuit_breaker.allow(circuit_key):
+            return ToolResult(
+                schema_version="1.0",
+                call_id=context.call_id,
+                tool_name=context.tool_name,
+                status=ToolStatus.ERROR,
+                error=NormalizedError(
+                    code="MCP_CIRCUIT_OPEN",
+                    category="mcp_adapter",
+                    message=f"Circuit is open for '{circuit_key}'",
+                    retryable=True,
+                ),
+                execution=ExecutionMetadata(
+                    mode_used=ToolExecutionMode.DETERMINISTIC,
+                    started_at_utc=started,
+                    finished_at_utc=_utc_now(),
+                ),
+                audit=ToolAudit(correlation_id=context.call_id, decision_reason_code=decision.reason_code),
+            )
         try:
             server = self._registry.get_server(server_id)
             await self._sync_server_health(server_id)
@@ -78,8 +109,17 @@ class McpToolAdapter:
                     decision_reason_code=decision.reason_code,
                 ),
             )
+            self._circuit_breaker.record_success(circuit_key)
             return self._policy.after_tool_call(result)
         except (KeyError, ValueError) as exc:
+            self._circuit_breaker.record_failure(circuit_key)
+            self._dlq.push(
+                DlqRecord(
+                    correlation_id=context.call_id,
+                    reason_code="MCP_VALIDATION_ERROR",
+                    payload={"server_id": server_id, "tool_name": tool_name, "error": str(exc)},
+                )
+            )
             return ToolResult(
                 schema_version="1.0",
                 call_id=context.call_id,
@@ -99,6 +139,14 @@ class McpToolAdapter:
                 audit=ToolAudit(correlation_id=context.call_id, decision_reason_code=decision.reason_code),
             )
         except Exception as exc:  # pragma: no cover - defensive path
+            self._circuit_breaker.record_failure(circuit_key)
+            self._dlq.push(
+                DlqRecord(
+                    correlation_id=context.call_id,
+                    reason_code="MCP_EXECUTION_ERROR",
+                    payload={"server_id": server_id, "tool_name": tool_name, "error": str(exc)},
+                )
+            )
             return ToolResult(
                 schema_version="1.0",
                 call_id=context.call_id,

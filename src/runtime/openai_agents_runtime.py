@@ -62,6 +62,12 @@ class OpenAIAgentsRuntimeAdapter(RuntimeAdapter):
                 provider_id=self._provider_id,
                 tool_name=str(planned_call["tool_name"]),
                 arguments=dict(planned_call.get("arguments", {})),
+                identity_subject=str((context.get("identity") or {}).get("subject", "")),
+                identity_roles=[
+                    str(role)
+                    for role in ((context.get("identity") or {}).get("roles", []) or [])
+                    if str(role).strip()
+                ],
                 risk_tier=RiskTier(str(planned_call.get("risk_tier", "low"))),
                 is_state_changing=bool(planned_call.get("is_state_changing", False)),
                 timestamp_utc=str(context.get("timestamp_utc", "")),
