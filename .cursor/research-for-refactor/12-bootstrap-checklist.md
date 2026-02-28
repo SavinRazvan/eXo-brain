@@ -16,7 +16,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
   - [x] `src/integration`
   - [x] `src/core`
   - [x] `src/runtime`
-  - [ ] `src/agents`
+  - [x] `src/agents`
   - [x] `src/tools`
   - [x] `src/mcp`
   - [x] `src/persistence`
