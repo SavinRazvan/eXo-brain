@@ -22,6 +22,7 @@ class AgentRegistry:
         self._roles: dict[str, str] = {}
         self._routes: dict[tuple[str, str], HandoffRoute] = {}
         self._fallback_roles: dict[tuple[str, str], list[str]] = {}
+        self._fallback_role_priorities: dict[tuple[str, str], dict[str, int]] = {}
 
     def register(self, agent: AgentSpec) -> None:
         if not agent.agent_id.strip():
@@ -61,6 +62,15 @@ class AgentRegistry:
         self._fallback_roles = {
             key: [fallback_role for fallback_role in fallback_roles if fallback_role != role]
             for key, fallback_roles in self._fallback_roles.items()
+            if role != key[0]
+        }
+        self._fallback_role_priorities = {
+            key: {
+                role_name: priority
+                for role_name, priority in priority_map.items()
+                if role_name != role
+            }
+            for key, priority_map in self._fallback_role_priorities.items()
             if role != key[0]
         }
 
@@ -112,6 +122,15 @@ class AgentRegistry:
             seen.add(role_name)
             normalized.append(role_name)
         self._fallback_roles[(policy.source_role, policy.target_role)] = normalized
+        normalized_priorities: dict[str, int] = {}
+        for role, priority in policy.target_role_priorities.items():
+            role_name = role.strip()
+            if not role_name:
+                continue
+            if role_name not in self._roles:
+                raise ValueError(f"Cannot configure priority for unknown target role '{role_name}'")
+            normalized_priorities[role_name] = int(priority)
+        self._fallback_role_priorities[(policy.source_role, policy.target_role)] = normalized_priorities
 
     def can_handoff(self, source_agent_id: str, target_agent_id: str) -> bool:
         source = self.get(source_agent_id)
@@ -158,20 +177,54 @@ class AgentRegistry:
             )
             return targets[0] if targets else None
 
-        candidate_roles = [target_role]
-        candidate_roles.extend(self._fallback_roles.get((source.role, target_role), []))
-        seen_roles: set[str] = set()
-        for role in candidate_roles:
+        primary_target = self._agent_for_role(target_role)
+        if primary_target is not None and self._is_candidate_eligible(
+            source_agent_id=source_agent_id,
+            target=primary_target,
+            required_capability=required_capability,
+        ):
+            return primary_target
+
+        fallback_roles = self._fallback_roles.get((source.role, target_role), [])
+        priorities = self._fallback_role_priorities.get((source.role, target_role), {})
+        fallback_candidates: list[AgentSpec] = []
+        seen_roles: set[str] = {target_role}
+        for role in fallback_roles:
             if role in seen_roles:
                 continue
             seen_roles.add(role)
-            target_agent_id = self._roles.get(role)
-            if target_agent_id is None:
+            target = self._agent_for_role(role)
+            if target is None:
                 continue
-            target = self._agents[target_agent_id]
-            if not self.can_handoff(source_agent_id, target.agent_id):
+            if not self._is_candidate_eligible(
+                source_agent_id=source_agent_id,
+                target=target,
+                required_capability=required_capability,
+            ):
                 continue
-            if required_capability and required_capability not in target.capability_tags:
-                continue
-            return target
+            fallback_candidates.append(target)
+
+        fallback_candidates.sort(
+            key=lambda agent: (-priorities.get(agent.role, 0), agent.agent_id)
+        )
+        if fallback_candidates:
+            return fallback_candidates[0]
         return None
+
+    def _agent_for_role(self, role: str) -> AgentSpec | None:
+        agent_id = self._roles.get(role)
+        if agent_id is None:
+            return None
+        return self._agents.get(agent_id)
+
+    def _is_candidate_eligible(
+        self,
+        source_agent_id: str,
+        target: AgentSpec,
+        required_capability: AgentCapabilityTag | None,
+    ) -> bool:
+        if not self.can_handoff(source_agent_id, target.agent_id):
+            return False
+        if required_capability and required_capability not in target.capability_tags:
+            return False
+        return True
