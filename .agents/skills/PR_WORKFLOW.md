@@ -48,3 +48,7 @@ Each file should include:
 - decisions/findings
 - verification evidence
 - remaining risks or follow-ups
+- action attribution:
+  - `Action-By: @<github_username>`
+  - `GitHub-Profile: https://github.com/<github_username>`
+  - role labels by phase (`Reviewed-By`, `Prepared-By`, `Merged-By`)
