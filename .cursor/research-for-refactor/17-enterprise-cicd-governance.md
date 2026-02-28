@@ -8,6 +8,19 @@ This document operationalizes release flow using:
 - `15-enterprise-quality-gates.md` (go/no-go thresholds)
 - `16-enterprise-testing-strategy.md` (test architecture and gate execution)
 
+## Current Repository Implementation Status
+- CI architecture fitness workflow: implemented in `.github/workflows/architecture-fitness.yml`.
+- Automated full test execution (`python -m pytest -q`): implemented in CI.
+- Release candidate workflow: implemented in `.github/workflows/release-candidate.yml`.
+- Progressive deploy workflow with rollback hook: implemented in `.github/workflows/progressive-deploy.yml`.
+- Release governance scripts:
+  - `scripts/release/verify_gates.py`
+  - `scripts/release/verify_provenance.py`
+  - `scripts/release/rollback_release.py`
+- Release config baselines:
+  - `configs/release/gate_thresholds.yaml`
+  - `configs/release/rollout_policies.yaml`
+
 ## Delivery Principles
 - Every deployment is traceable to signed source + signed artifacts.
 - Promotion across environments is evidence-based, not manual guesswork.

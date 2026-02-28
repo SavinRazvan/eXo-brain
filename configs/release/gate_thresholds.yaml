@@ -1,0 +1,25 @@
+# File: gate_thresholds.yaml
+# Path: configs/release/gate_thresholds.yaml
+# Role: Defines release gate threshold policy by severity and category.
+# Used By:
+#  - .github/workflows/release-candidate.yml
+# Depends On:
+#  - scripts/release/verify_gates.py
+# Notes:
+#  - Extend as quality/security tooling is integrated.
+
+quality:
+  required_tests: true
+  architecture_checks_required: true
+
+security:
+  block_on_p0: true
+  block_on_unresolved_secrets: true
+
+reliability:
+  require_canary_healthcheck: true
+  max_error_rate_percent: 2.0
+
+governance:
+  require_evidence_bundle: true
+  require_release_notes: true

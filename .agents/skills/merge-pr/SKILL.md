@@ -23,6 +23,8 @@ Merge safely and deterministically after review and preparation are complete.
    - merge SHA
    - checks used as evidence
    - any follow-up issue/work item
+   - initialize/update artifact with:
+     - `python scripts/pr/merge.py --pr <pr-number-or-url> --actor <github_username>`
 
 ## No-Go Conditions
 
