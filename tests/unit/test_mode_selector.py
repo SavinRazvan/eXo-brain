@@ -9,7 +9,7 @@ Depends On:
  - src/runtime/capability_map.py
  - src/schemas/tool_io.py
 Notes:
- - Verifies policy and capability rules route risky calls safely.
+ - Verifies policy and capability rules route state-changing/high-impact calls safely.
 """
 
 from src.runtime.capability_map import ProviderCapabilityMap

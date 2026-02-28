@@ -10,7 +10,7 @@ Define a concrete, implementation-ready configuration contract for provider adap
 
 ## Design Principles
 - Provider-neutral core: config selects adapters; orchestration never branches on provider name.
-- Safety-first defaults: deterministic execution is mandatory for risky/state-changing tool calls.
+- Safety-first defaults: deterministic execution is mandatory for state-changing/high-impact tool calls.
 - Explicit enablement: providers are disabled unless declared and validated.
 - Environment parity: the same schema works for managed and self-hosted providers.
 
@@ -42,7 +42,7 @@ observability:
 
 limits:
   max_parallel_jobs: 20
-  max_concurrent_risky_tools_per_session: 1
+  max_concurrent_risky_tools_per_session: 1   # legacy key name; "risky" means state-changing/high-impact
   default_tool_timeout_ms: 30000
 ```
 
