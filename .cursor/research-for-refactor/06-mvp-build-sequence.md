@@ -23,7 +23,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Day 1-2 foundation (`schemas`, `orchestrator`) | Implemented | `events.py`, `tool_io.py`, `orchestrator.py` are present with tests. |
 | Day 3 adapter boundary | Implemented | `runtime_adapter.py`, `openai_agents_runtime.py`, adapter contract tests are present. |
 | Day 4 deterministic tool runtime | Implemented | `registry.py` and `executor.py` implemented with success/failure test coverage. |
-| Day 5 policy middleware | Implemented | `policies/middleware.py` exists with deterministic-first policy flow. |
+| Day 5 policy middleware | Implemented (MVP baseline) | Added `risk_gates.py` and middleware wiring for explicit `allow` / `deny` / `escalate` decisions with deterministic enforcement metadata. |
 | Provider settings + registry follow-up | Implemented | `config/settings.py`, `config/provider_registry.py` and startup validation are present. |
 | Architecture fitness CI baseline | Implemented | workflow + architecture boundary scripts are present. |
 | Week 2 background runtime primitives | Implemented | `task_graph`, `scheduler`, `worker_pool`, `checkpoint_store`, and `background_runtime` are implemented with checkpoint-aware execution. |
@@ -32,7 +32,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Observability baseline | Implemented (MVP baseline) | Added `observability/logging.py`, `timeline.py`, `metrics.py` and wired scheduler/background runtime structured emissions with correlation IDs. |
 | Plugin lifecycle/decorators | Implemented (MVP baseline) | Added plugin contract/manager (`load`, `unload`, `reload`, compatibility checks) plus execution decorators for validation/authz/retries/audit/redaction. |
 | MCP baseline | Implemented (MVP baseline) | Added MCP registry/client/tool adapter with trust tiers and policy-aware execution plus integration tests with mocked MCP server calls. |
-| Full background E2E vertical slice | In Progress | runtime primitives are implemented; host-driven background pipeline and observability hooks are pending. |
+| Full background E2E vertical slice | Implemented (MVP baseline) | Added `tests/integration/test_background_agent_pipeline.py` to validate host input, multi-node background execution, deterministic tool execution, policy gating, and observability signals. |
 
 ## Week 1: Core Runtime Skeleton
 
