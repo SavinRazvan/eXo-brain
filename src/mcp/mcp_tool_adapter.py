@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from src.mcp.mcp_client_adapter import McpClientAdapter
-from src.mcp.mcp_registry import McpRegistry, McpTrustTier
+from src.mcp.mcp_registry import McpHealthState, McpRegistry, McpTrustTier
 from src.policies.middleware import PolicyMiddleware
 from src.schemas.tool_io import (
     ExecutionMetadata,
@@ -58,6 +58,7 @@ class McpToolAdapter:
         started = _utc_now()
         try:
             server = self._registry.get_server(server_id)
+            await self._sync_server_health(server_id)
             self._enforce_trust_tier(server.trust_tier, context)
             output = await self._client.call_tool(server_id=server_id, tool_name=tool_name, arguments=context.arguments)
             result = ToolResult(
@@ -116,6 +117,19 @@ class McpToolAdapter:
                 ),
                 audit=ToolAudit(correlation_id=context.call_id, decision_reason_code=decision.reason_code),
             )
+
+    async def _sync_server_health(self, server_id: str) -> None:
+        response = await self._client.healthcheck(server_id)
+        raw_state = str(response.get("state", "healthy")).strip().lower()
+        reason = str(response.get("reason", "")).strip()
+        state = {
+            "healthy": McpHealthState.HEALTHY,
+            "degraded": McpHealthState.DEGRADED,
+            "unavailable": McpHealthState.UNAVAILABLE,
+        }.get(raw_state, McpHealthState.DEGRADED)
+        self._registry.set_server_health(server_id=server_id, state=state, reason=reason)
+        if state == McpHealthState.UNAVAILABLE:
+            raise ValueError(f"MCP server '{server_id}' is unavailable: {reason or 'healthcheck failed'}")
 
     def _enforce_trust_tier(self, trust_tier: McpTrustTier, context: ToolCallContext) -> None:
         if trust_tier == McpTrustTier.TRUSTED:

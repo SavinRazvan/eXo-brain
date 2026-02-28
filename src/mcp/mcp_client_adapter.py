@@ -21,6 +21,10 @@ class McpClientAdapter(ABC):
     async def call_tool(self, server_id: str, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one MCP tool call and return normalized JSON-like output."""
 
+    @abstractmethod
+    async def healthcheck(self, server_id: str) -> dict[str, Any]:
+        """Return health metadata for one MCP server."""
+
 
 class LocalCallableMcpClientAdapter(McpClientAdapter):
     def __init__(self, tools: dict[tuple[str, str], Callable[[dict[str, Any]], dict[str, Any]]]) -> None:
@@ -32,3 +36,6 @@ class LocalCallableMcpClientAdapter(McpClientAdapter):
         if handler is None:
             raise KeyError(f"MCP tool '{tool_name}' not registered for server '{server_id}'")
         return handler(arguments)
+
+    async def healthcheck(self, server_id: str) -> dict[str, Any]:
+        return {"state": "healthy", "server_id": server_id}
