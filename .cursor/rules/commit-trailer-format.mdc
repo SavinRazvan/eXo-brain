@@ -1,0 +1,12 @@
+---
+description: Enforce commit trailer format with author and Cursor marker
+alwaysApply: true
+---
+
+# Commit Trailer Format
+
+- For every git commit created in this repository, include the trailer block exactly at the end of the commit message body:
+  - `Author: <commit author name>`
+  - `Made-with: Cursor`
+- `Author` must match the commit author identity used by git for that commit.
+- Do not use alternative labels (`Made by`, `Made-by`, `Made with`) or one-line variants.
