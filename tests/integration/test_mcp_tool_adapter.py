@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 
 from src.mcp.mcp_client_adapter import LocalCallableMcpClientAdapter
-from src.mcp.mcp_registry import McpRegistry, McpServerRecord, McpTrustTier
+from src.mcp.mcp_registry import McpHealthState, McpRegistry, McpServerRecord, McpTrustTier
 from src.mcp.mcp_tool_adapter import McpToolAdapter
 from src.policies.middleware import DeterministicFirstPolicyMiddleware
 from src.schemas.tool_io import RiskTier, ToolCallContext, ToolStatus
@@ -80,3 +80,29 @@ def test_mcp_adapter_blocks_state_change_on_restricted_server() -> None:
     result = asyncio.run(adapter.execute("restricted_server", "lookup", _context(is_state_changing=True)))
     assert result.status == ToolStatus.ERROR
     assert result.error.code == "MCP_VALIDATION_ERROR"
+
+
+def test_mcp_adapter_blocks_unavailable_server_from_healthcheck() -> None:
+    class UnavailableMcpClient(LocalCallableMcpClientAdapter):
+        async def healthcheck(self, server_id: str) -> dict[str, str]:
+            return {"state": "unavailable", "reason": "maintenance"}
+
+    registry = McpRegistry()
+    registry.register_server(
+        McpServerRecord(
+            server_id="degraded_server",
+            endpoint="local://degraded",
+            trust_tier=McpTrustTier.TRUSTED,
+        )
+    )
+    client = UnavailableMcpClient(
+        tools={
+            ("degraded_server", "lookup"): lambda args: {"result": args["value"]},
+        }
+    )
+    adapter = McpToolAdapter(registry=registry, client=client, policy=DeterministicFirstPolicyMiddleware())
+    result = asyncio.run(adapter.execute("degraded_server", "lookup", _context()))
+    assert result.status == ToolStatus.ERROR
+    assert result.error.code == "MCP_VALIDATION_ERROR"
+    assert "unavailable" in (result.error.message or "")
+    assert registry.get_server_health("degraded_server").state == McpHealthState.UNAVAILABLE

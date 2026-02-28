@@ -97,6 +97,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] Implement `src/mcp/mcp_client_adapter.py`.
 - [x] Implement `src/mcp/mcp_tool_adapter.py`.
 - [x] Add trust tiers (`trusted`, `restricted`, `sandboxed`) and policy enforcement.
+- [x] Add per-server health controls integrated with MCP execution path.
 
 ## First Vertical Slice (Must Pass)
 - [x] Host adapter receives input.
