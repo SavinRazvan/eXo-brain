@@ -14,6 +14,25 @@ Build a working MVP for a modular, dynamic, multi-layer background agent system 
 - Checkpoint and resume for unfinished jobs.
 - Structured logging + metrics + traces (parallel-safe).
 
+## Implementation Status Snapshot
+
+Legend: `Implemented`, `In Progress`, `Pending`.
+
+| Area | Status | Notes |
+|---|---|---|
+| Day 1-2 foundation (`schemas`, `orchestrator`) | Implemented | `events.py`, `tool_io.py`, `orchestrator.py` are present with tests. |
+| Day 3 adapter boundary | Implemented | `runtime_adapter.py`, `openai_agents_runtime.py`, adapter contract tests are present. |
+| Day 4 deterministic tool runtime | Implemented | `registry.py` and `executor.py` implemented with success/failure test coverage. |
+| Day 5 policy middleware | Implemented | `policies/middleware.py` exists with deterministic-first policy flow. |
+| Provider settings + registry follow-up | Implemented | `config/settings.py`, `config/provider_registry.py` and startup validation are present. |
+| Architecture fitness CI baseline | Implemented | workflow + architecture boundary scripts are present. |
+| Week 2 background runtime primitives | Implemented | `task_graph`, `scheduler`, `worker_pool`, `checkpoint_store`, and `background_runtime` are implemented with checkpoint-aware execution. |
+| Scheduler replay + failure-path tests | Implemented | Added tests for resume replay, failure reason codes, retries, and bounded concurrency. |
+| Plugin lifecycle/decorators | Pending | Plugin contract/manager and decorator chain not yet implemented. |
+| MCP baseline | Pending | MCP registry/client/tool adapter not yet implemented. |
+| Observability baseline | Pending | logging/tracing/metrics modules not yet implemented. |
+| Full background E2E vertical slice | In Progress | runtime primitives are implemented; host-driven background pipeline and observability hooks are pending. |
+
 ## Week 1: Core Runtime Skeleton
 
 ### Day 1-2: Foundation and Contracts

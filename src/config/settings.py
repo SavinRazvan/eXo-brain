@@ -64,6 +64,14 @@ class LimitsSettings:
 
 
 @dataclass(slots=True)
+class BackgroundRuntimeSettings:
+    enabled: bool = False
+    resume_enabled: bool = True
+    checkpoint_store_backend: str = "in_memory"
+    scheduler_fail_closed: bool = True
+
+
+@dataclass(slots=True)
 class AppSettings:
     schema_version: str
     environment: str
@@ -71,3 +79,4 @@ class AppSettings:
     policy: PolicySettings = field(default_factory=PolicySettings)
     observability: ObservabilitySettings = field(default_factory=ObservabilitySettings)
     limits: LimitsSettings = field(default_factory=LimitsSettings)
+    background_runtime: BackgroundRuntimeSettings = field(default_factory=BackgroundRuntimeSettings)
