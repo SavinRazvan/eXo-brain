@@ -21,6 +21,7 @@ from src.core.checkpoint_store import InMemoryCheckpointStore
 from src.core.scheduler import TaskScheduler
 from src.core.task_graph import TaskGraph, TaskNode, TaskStatus
 from src.core.worker_pool import WorkerPool
+from src.observability.metrics import RuntimeMetrics
 
 
 def test_scheduler_runs_dependency_chain() -> None:
@@ -61,7 +62,12 @@ def test_scheduler_retries_and_marks_downstream_cancelled() -> None:
             TaskNode(node_id="dependent", handler=dependent, depends_on=["boom"]),
         ]
     )
-    scheduler = TaskScheduler(worker_pool=WorkerPool(max_concurrency=2), checkpoint_store=InMemoryCheckpointStore())
+    metrics = RuntimeMetrics()
+    scheduler = TaskScheduler(
+        worker_pool=WorkerPool(max_concurrency=2),
+        checkpoint_store=InMemoryCheckpointStore(),
+        metrics=metrics,
+    )
     result = asyncio.run(scheduler.execute(job_id="job_retry", graph=graph))
 
     assert calls["boom"] == 2
@@ -69,6 +75,7 @@ def test_scheduler_retries_and_marks_downstream_cancelled() -> None:
     assert result.outcomes["boom"].reason_code == "TASK_EXECUTION_ERROR"
     assert result.outcomes["dependent"].status == TaskStatus.CANCELLED
     assert result.outcomes["dependent"].reason_code == "UPSTREAM_FAILED"
+    assert metrics.counters["scheduler.node.retries"] == 1
 
 
 def test_scheduler_respects_worker_pool_concurrency_bound() -> None:

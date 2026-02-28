@@ -88,8 +88,8 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] Add minimal metrics in `src/observability/metrics.py`:
   - [x] queue depth
   - [x] runtime latency
-  - [ ] tool failure rate
-  - [ ] retries
+  - [x] tool failure rate
+  - [x] retries
 - [x] Ensure all runtime events include correlation IDs.
 
 ## Day 8: MCP Integration Baseline
