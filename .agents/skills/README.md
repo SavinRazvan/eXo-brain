@@ -29,3 +29,21 @@ Optional per-skill folders:
 
 - Active skills currently live in `.cursor/skills/`.
 - You can mirror/migrate them here over time for cross-tool compatibility.
+
+## Maintainer Workflow Skills
+
+This repository also defines PR maintainer workflow skills:
+
+- `review-pr`
+- `prepare-pr`
+- `merge-pr`
+
+Shared maintainer guidance is in:
+
+- `.agents/skills/PR_WORKFLOW.md`
+
+Local wrapper scripts for these skills:
+
+- `scripts/pr/review.py`
+- `scripts/pr/prepare.py`
+- `scripts/pr/merge.py`
