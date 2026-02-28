@@ -44,8 +44,8 @@ Provide a concrete startup checklist for creating the new repository and reachin
   - [ ] fallback behavior
 - [ ] Add initial adapters:
   - [x] `openai_agents_runtime.py`
-  - [ ] `openai_compatible_runtime.py`
-  - [ ] `custom_runtime.py`
+  - [x] `openai_compatible_runtime.py`
+  - [x] `custom_runtime.py`
 - [x] Add provider registry in `src/config/provider_registry.py`.
 - [x] Implement settings schema + startup validation in `src/config/settings.py` and `src/config/provider_registry.py` (see `34-provider-registry-and-settings-schema.md`).
 
