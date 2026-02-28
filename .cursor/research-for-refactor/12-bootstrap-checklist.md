@@ -99,7 +99,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] Add trust tiers (`trusted`, `restricted`, `sandboxed`) and policy enforcement.
 
 ## First Vertical Slice (Must Pass)
-- [ ] Host adapter receives input.
+- [x] Host adapter receives input.
 - [x] Orchestrator starts a session and selects runtime mode.
 - [x] Runtime emits a tool request.
 - [x] Deterministic tool runtime executes through policy/decorator chain.
