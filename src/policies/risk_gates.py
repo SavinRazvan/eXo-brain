@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from src.access_control.contracts import AccessRequest
+from src.access_control.policy_engine import AccessPolicyEngine
 from src.schemas.tool_io import PolicyAction, PolicyAudit, PolicyDecision, RiskTier, ToolCallContext, ToolExecutionMode
 
 
@@ -25,6 +27,7 @@ class RiskGateConfig:
     escalate_tools: set[str] = field(default_factory=set)
     escalate_state_changing: bool = False
     review_channel: str = "security-review"
+    access_policy_engine: AccessPolicyEngine | None = None
 
 
 class RiskGatePolicy:
@@ -37,6 +40,29 @@ class RiskGatePolicy:
         policy_id: str,
         policy_version: str,
     ) -> PolicyDecision:
+        if self._config.access_policy_engine is not None:
+            access = self._config.access_policy_engine.evaluate(
+                AccessRequest(
+                    subject=context.identity_subject,
+                    roles=list(context.identity_roles),
+                    tool_name=context.tool_name,
+                    is_state_changing=context.is_state_changing,
+                    is_high_impact=context.risk_tier in {RiskTier.HIGH, RiskTier.CRITICAL},
+                )
+            )
+            if access.decision != PolicyAction.ALLOW:
+                return self._decision(
+                    context=context,
+                    action=access.decision,
+                    reason_code=access.reason_code,
+                    message=access.message,
+                    policy_id=policy_id,
+                    policy_version=policy_version,
+                    review_required=access.review_required,
+                    review_channel=access.review_channel,
+                    enforced_mode=ToolExecutionMode.DETERMINISTIC,
+                )
+
         if context.tool_name in self._config.deny_tools:
             return self._decision(
                 context=context,

@@ -22,6 +22,8 @@ from typing import Any
 from src.config.settings import AppSettings
 from src.runtime.capability_map import HealthState, HealthStatus
 from src.runtime.runtime_adapter import RuntimeAdapter
+from src.secrets.env_provider import EnvSecretsProvider
+from src.secrets.provider import SecretsProvider
 
 
 class ProviderProfile(str, Enum):
@@ -77,10 +79,17 @@ class ProviderRecord:
 
 
 class ProviderRegistry:
-    def __init__(self, settings: AppSettings, providers: list[ProviderRecord], adapters: dict[str, RuntimeAdapter]) -> None:
+    def __init__(
+        self,
+        settings: AppSettings,
+        providers: list[ProviderRecord],
+        adapters: dict[str, RuntimeAdapter],
+        secrets_provider: SecretsProvider | None = None,
+    ) -> None:
         self._settings = settings
         self._providers = {provider.provider_id: provider for provider in providers}
         self._adapters = adapters
+        self._secrets_provider = secrets_provider or EnvSecretsProvider()
 
     def get(self, provider_id: str) -> ProviderRecord:
         if provider_id not in self._providers:
@@ -111,6 +120,13 @@ class ProviderRegistry:
         for provider_id in active_ids:
             if provider_id not in enabled_ids:
                 continue
+            provider = self._providers[provider_id]
+            if provider.auth.api_key_env_var:
+                api_key = self._secrets_provider.get(provider.auth.api_key_env_var)
+                if api_key is None:
+                    raise ValueError(
+                        f"Missing provider secret for '{provider_id}' from '{provider.auth.api_key_env_var}'"
+                    )
             adapter = self._adapters.get(provider_id)
             if adapter is None:
                 raise ValueError(f"Missing adapter binding for provider '{provider_id}'")

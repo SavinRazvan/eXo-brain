@@ -26,6 +26,7 @@ from src.observability.logging import LogLevel, StructuredLogger
 from src.observability.metrics import RuntimeMetrics
 from src.observability.tracing import RuntimeTracer
 from src.observability.timeline import RuntimeTimeline
+from src.tenancy.quotas import TenantQuotaManager
 
 
 class JobStatus(str, Enum):
@@ -53,6 +54,7 @@ class BackgroundRuntime:
         metrics: RuntimeMetrics | None = None,
         timeline: RuntimeTimeline | None = None,
         tracer: RuntimeTracer | None = None,
+        tenant_quota_manager: TenantQuotaManager | None = None,
     ) -> None:
         self._scheduler = scheduler
         self._jobs: dict[str, BackgroundJob] = {}
@@ -61,16 +63,27 @@ class BackgroundRuntime:
         self._metrics = metrics
         self._timeline = timeline
         self._tracer = tracer
+        self._tenant_quota_manager = tenant_quota_manager or TenantQuotaManager()
 
     def submit(self, graph: TaskGraph, payload: dict[str, Any] | None = None, job_id: str | None = None) -> str:
         resolved_job_id = job_id or f"job_{uuid.uuid4().hex}"
-        job = BackgroundJob(job_id=resolved_job_id, metadata={"payload": dict(payload or {}), "graph": graph})
+        resolved_payload = dict(payload or {})
+        tenant_id = str(resolved_payload.get("tenant_id", "default"))
+        active_jobs = self._count_active_jobs(tenant_id)
+        quota_decision = self._tenant_quota_manager.check_submission(tenant_id=tenant_id, active_jobs=active_jobs)
+        if not quota_decision.allowed:
+            raise ValueError(f"{quota_decision.reason_code}: {quota_decision.message}")
+        job = BackgroundJob(
+            job_id=resolved_job_id,
+            metadata={"payload": resolved_payload, "graph": graph, "tenant_id": tenant_id},
+        )
         self._jobs[resolved_job_id] = job
         self._emit(
             correlation_id=resolved_job_id,
+            tenant_id=tenant_id,
             event="background.job_submitted",
             message="Background job submitted",
-            context={"node_count": len(graph.node_ids())},
+            context={"node_count": len(graph.node_ids()), "quota_reason": quota_decision.reason_code},
             level=LogLevel.INFO,
         )
         if self._metrics is not None:
@@ -96,6 +109,7 @@ class BackgroundRuntime:
 
         self._emit(
             correlation_id=job_id,
+            tenant_id=str(job.metadata.get("tenant_id", "default")),
             event="background.job_cancel_requested",
             message="Background job cancel requested",
             level=LogLevel.WARNING,
@@ -125,6 +139,7 @@ class BackgroundRuntime:
 
         self._emit(
             correlation_id=job_id,
+            tenant_id=str(job.metadata.get("tenant_id", "default")),
             event="background.job_resume_requested",
             message="Background job resume requested",
             level=LogLevel.INFO,
@@ -143,8 +158,10 @@ class BackgroundRuntime:
         )
         try:
             job.status = JobStatus.RUNNING
+            tenant_id = str(job.metadata.get("tenant_id", "default"))
             self._emit(
                 correlation_id=job.job_id,
+                tenant_id=tenant_id,
                 event="background.job_started",
                 message="Background job execution started",
                 context={"resume": resume},
@@ -162,6 +179,7 @@ class BackgroundRuntime:
             job.status = JobStatus.FAILED if result.failed else JobStatus.COMPLETED
             self._emit(
                 correlation_id=job.job_id,
+                tenant_id=tenant_id,
                 event="background.job_finished",
                 message="Background job execution completed",
                 context={"failed": result.failed, "outcomes": len(result.outcomes)},
@@ -181,6 +199,7 @@ class BackgroundRuntime:
             job.status = JobStatus.CANCELLED
             self._emit(
                 correlation_id=job.job_id,
+                tenant_id=str(job.metadata.get("tenant_id", "default")),
                 event="background.job_cancelled",
                 message="Background job execution cancelled",
                 level=LogLevel.WARNING,
@@ -193,6 +212,7 @@ class BackgroundRuntime:
             job.error = str(exc)
             self._emit(
                 correlation_id=job.job_id,
+                tenant_id=str(job.metadata.get("tenant_id", "default")),
                 event="background.job_error",
                 message="Background job execution error",
                 context={"error": str(exc)},
@@ -209,6 +229,7 @@ class BackgroundRuntime:
     def _emit(
         self,
         correlation_id: str,
+        tenant_id: str,
         event: str,
         message: str,
         context: dict[str, Any] | None = None,
@@ -220,10 +241,19 @@ class BackgroundRuntime:
                 event=event,
                 message=message,
                 correlation_id=correlation_id,
+                tenant_id=tenant_id,
                 context=context,
             )
         if self._timeline is not None:
             self._timeline.append(correlation_id=correlation_id, event=event, payload=context)
+
+    def _count_active_jobs(self, tenant_id: str) -> int:
+        active_statuses = {JobStatus.PENDING, JobStatus.RUNNING}
+        return sum(
+            1
+            for job in self._jobs.values()
+            if str(job.metadata.get("tenant_id", "default")) == tenant_id and job.status in active_statuses
+        )
 
     def _start_span(
         self,

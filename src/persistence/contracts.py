@@ -33,6 +33,7 @@ class CheckpointStatus(str, Enum):
 @dataclass(slots=True)
 class SessionRecord:
     session: SessionContext
+    tenant_id: str = "default"
     state: str = "active"
     data: dict[str, Any] = field(default_factory=dict)
 
@@ -42,6 +43,7 @@ class CheckpointRecord:
     job_id: str
     node_id: str
     status: CheckpointStatus
+    tenant_id: str = "default"
     attempt: int = 1
     reason_code: str = ""
     payload: dict[str, Any] = field(default_factory=dict)
@@ -69,3 +71,58 @@ class CheckpointStoreContract(ABC):
     @abstractmethod
     async def get_checkpoint(self, job_id: str, node_id: str) -> CheckpointRecord | None:
         """Fetch a single checkpoint by composite key."""
+
+
+@dataclass(slots=True)
+class WorkflowRecord:
+    workflow_id: str
+    version: str
+    tenant_id: str = "default"
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class AuditRecord:
+    event_id: str
+    correlation_id: str
+    tenant_id: str = "default"
+    event_type: str = ""
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class EventRecord:
+    event_id: str
+    correlation_id: str
+    tenant_id: str = "default"
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+class WorkflowStore(ABC):
+    @abstractmethod
+    async def save_workflow(self, record: WorkflowRecord) -> None:
+        """Persist one workflow version."""
+
+    @abstractmethod
+    async def load_workflow(self, workflow_id: str, version: str, tenant_id: str = "default") -> WorkflowRecord | None:
+        """Load a workflow record for one tenant."""
+
+
+class AuditStore(ABC):
+    @abstractmethod
+    async def append_audit_event(self, record: AuditRecord) -> None:
+        """Append one audit event."""
+
+    @abstractmethod
+    async def query_audit_events(self, correlation_id: str, tenant_id: str = "default") -> list[AuditRecord]:
+        """Query audit records by correlation."""
+
+
+class EventStore(ABC):
+    @abstractmethod
+    async def append_event(self, record: EventRecord) -> None:
+        """Append one runtime event."""
+
+    @abstractmethod
+    async def query_events(self, correlation_id: str, tenant_id: str = "default") -> list[EventRecord]:
+        """Query runtime events by correlation."""

@@ -34,6 +34,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Plugin lifecycle/decorators | Implemented (MVP baseline) | Added plugin contract/manager (`load`, `unload`, `reload`, compatibility checks) plus execution decorators for validation/authz/retries/audit/redaction. |
 | MCP baseline | Implemented (MVP baseline) | Added MCP registry/client/tool adapter with trust tiers, per-server health and timeout controls, and policy-aware execution plus integration tests with mocked MCP server calls. |
 | Full background E2E vertical slice | Implemented (MVP baseline) | Added `tests/integration/test_background_agent_pipeline.py` to validate host input, multi-node background execution, deterministic tool execution, policy gating, and observability signals. |
+| Enterprise modular safety slice | Implemented | Added identity/access-control/tenancy/secrets/resilience/audit/compliance modules, persistence store expansion, and broader replay/security/resilience/quality-gates test tracks. |
 
 ## Week 1: Core Runtime Skeleton
 

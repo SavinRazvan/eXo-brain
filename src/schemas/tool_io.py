@@ -68,6 +68,8 @@ class ToolCallContext:
     provider_id: str
     tool_name: str
     arguments: dict[str, Any]
+    identity_subject: str = ""
+    identity_roles: list[str] = field(default_factory=list)
     risk_tier: RiskTier = RiskTier.LOW
     is_state_changing: bool = False
     requested_mode: ToolExecutionMode = ToolExecutionMode.AUTO

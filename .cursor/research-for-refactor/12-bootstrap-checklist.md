@@ -10,9 +10,9 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - `11-port-matrix.md`
 
 ## Day 0: Repository Initialization
-- [ ] Create new repository with Python project scaffolding (`src/`, `tests/`, `pyproject.toml`, `README.md`).
+- [x] Create new repository with Python project scaffolding (`src/`, `tests/`, `pyproject.toml`, `README.md`).
 - [x] Add `.cursor/` portable pack into new repo root.
-- [ ] Create package structure:
+- [x] Create package structure:
   - [x] `src/integration`
   - [x] `src/core`
   - [x] `src/runtime`
@@ -24,7 +24,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
   - [x] `src/schemas`
   - [x] `src/observability`
   - [x] `src/config`
-- [ ] Create test structure:
+- [x] Create test structure:
   - [x] `tests/integration`
   - [x] `tests/regression`
   - [x] `tests/performance`
@@ -42,7 +42,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
   - [x] `provider_native`
   - [x] `deterministic`
   - [x] fallback behavior
-- [ ] Add initial adapters:
+- [x] Add initial adapters:
   - [x] `openai_agents_runtime.py`
   - [x] `openai_compatible_runtime.py`
   - [x] `custom_runtime.py`
@@ -116,15 +116,15 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] MCP adapter test with one mocked MCP server.
 
 ## Non-Negotiable Rules
-- [ ] No UI/controller logic inside core runtime modules.
+- [x] No UI/controller logic inside core runtime modules.
 - [x] No direct provider calls from orchestration core (only adapters).
 - [x] No state-changing tool execution without policy gates.
 - [x] No provider-native assumptions without capability map checks.
 - [x] No silent failures (all failures must emit structured log events).
 
 ## Done Definition for Bootstrap
-- [ ] New repo builds and runs tests.
-- [ ] First vertical slice demo works end-to-end.
-- [ ] Architecture boundaries are preserved by code layout and interfaces.
-- [ ] `.cursor` docs and rules are present and used by agents.
-- [ ] Team can begin feature work without revisiting core architecture assumptions.
+- [x] New repo builds and runs tests.
+- [x] First vertical slice demo works end-to-end.
+- [x] Architecture boundaries are preserved by code layout and interfaces.
+- [x] `.cursor` docs and rules are present and used by agents.
+- [x] Team can begin feature work without revisiting core architecture assumptions.
