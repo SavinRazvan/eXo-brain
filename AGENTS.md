@@ -39,8 +39,22 @@ The core principle is **AI as a commodity**: model providers are pluggable adapt
 - This format is enforced by:
   - `.cursor/rules/commit-trailer-format.mdc`
 
+## Branching and Release Safety
+
+- Always create a dedicated working branch before coding:
+  - `feature/<scope>`, `fix/<scope>`, `chore/<scope>`
+- Keep `main` stable and merge-ready; avoid direct implementation commits on `main`.
+- Before merge, require:
+  - tests and architecture checks passing
+  - checklist/research status updates for implemented scope
+- Use `git push --force-with-lease` only for intentional history rewrites on your own branch.
+
 ## Skills and Agent Extensions
 
 - Primary project skills location: `.cursor/skills/`
 - Standards-friendly project skills location: `.agents/skills/`
 - Keep skill names stable and use `SKILL.md` per skill directory.
+- Maintainer PR workflow is defined in `.agents/skills/PR_WORKFLOW.md` and uses:
+  - `.agents/skills/review-pr/SKILL.md`
+  - `.agents/skills/prepare-pr/SKILL.md`
+  - `.agents/skills/merge-pr/SKILL.md`
