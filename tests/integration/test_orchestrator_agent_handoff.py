@@ -201,15 +201,30 @@ def test_orchestrator_handoff_uses_fallback_after_primary_plugin_unload() -> Non
     )
     registry.register(
         AgentSpec(
-            agent_id="agent_backup_reviewer",
-            role="backup_reviewer",
+            agent_id="agent_backup_reviewer_a",
+            role="backup_reviewer_a",
+            capability_tags={AgentCapabilityTag.REVIEW, AgentCapabilityTag.TOOL_USE},
+        )
+    )
+    registry.register(
+        AgentSpec(
+            agent_id="agent_backup_reviewer_b",
+            role="backup_reviewer_b",
             capability_tags={AgentCapabilityTag.REVIEW, AgentCapabilityTag.TOOL_USE},
         )
     )
     registry.add_handoff_route(
         HandoffRoute(
             source_role="router",
-            target_role="backup_reviewer",
+            target_role="backup_reviewer_a",
+            reason="backup-review-stage",
+            required_target_capabilities={AgentCapabilityTag.REVIEW},
+        )
+    )
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="backup_reviewer_b",
             reason="backup-review-stage",
             required_target_capabilities={AgentCapabilityTag.REVIEW},
         )
@@ -241,7 +256,11 @@ def test_orchestrator_handoff_uses_fallback_after_primary_plugin_unload() -> Non
                 HandoffFallbackPolicy(
                     source_role="router",
                     target_role="reviewer",
-                    fallback_target_roles=["backup_reviewer"],
+                    fallback_target_roles=["backup_reviewer_a", "backup_reviewer_b"],
+                    target_role_priorities={
+                        "backup_reviewer_a": 10,
+                        "backup_reviewer_b": 100,
+                    },
                 )
             ],
         )
@@ -264,5 +283,5 @@ def test_orchestrator_handoff_uses_fallback_after_primary_plugin_unload() -> Non
     }
 
     events = asyncio.run(_collect_events(orchestrator, context))
-    assert policy.seen_agent_ids == ["agent_backup_reviewer"]
+    assert policy.seen_agent_ids == ["agent_backup_reviewer_b"]
     assert RuntimeEventType.RUN_COMPLETE in [event.event_type for event in events]

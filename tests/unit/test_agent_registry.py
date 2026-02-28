@@ -170,6 +170,137 @@ def test_resolve_handoff_target_uses_fallback_when_primary_unavailable() -> None
     assert resolved.agent_id == "agent_backup_reviewer"
 
 
+def test_resolve_handoff_target_prefers_highest_priority_fallback() -> None:
+    registry = _build_registry()
+    registry.register(
+        AgentSpec(
+            agent_id="agent_backup_reviewer_a",
+            role="backup_reviewer_a",
+            capability_tags={AgentCapabilityTag.REVIEW, AgentCapabilityTag.TOOL_USE},
+        )
+    )
+    registry.register(
+        AgentSpec(
+            agent_id="agent_backup_reviewer_b",
+            role="backup_reviewer_b",
+            capability_tags={AgentCapabilityTag.REVIEW, AgentCapabilityTag.TOOL_USE},
+        )
+    )
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="reviewer",
+            reason="review-stage",
+            required_target_capabilities={AgentCapabilityTag.REVIEW},
+        )
+    )
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="backup_reviewer_a",
+            reason="fallback-review-stage",
+            required_target_capabilities={AgentCapabilityTag.REVIEW},
+        )
+    )
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="backup_reviewer_b",
+            reason="fallback-review-stage",
+            required_target_capabilities={AgentCapabilityTag.REVIEW},
+        )
+    )
+    registry.set_handoff_fallback_policy(
+        HandoffFallbackPolicy(
+            source_role="router",
+            target_role="reviewer",
+            fallback_target_roles=["backup_reviewer_a", "backup_reviewer_b"],
+            target_role_priorities={"backup_reviewer_a": 10, "backup_reviewer_b": 100},
+        )
+    )
+    registry.unregister("agent_reviewer")
+
+    resolved = registry.resolve_handoff_target(
+        source_agent_id="agent_router",
+        target_role="reviewer",
+        required_capability=AgentCapabilityTag.REVIEW,
+    )
+    assert resolved is not None
+    assert resolved.agent_id == "agent_backup_reviewer_b"
+
+
+def test_resolve_handoff_target_tie_breaks_by_agent_id() -> None:
+    registry = _build_registry()
+    registry.register(
+        AgentSpec(
+            agent_id="agent_backup_reviewer_a",
+            role="backup_reviewer_a",
+            capability_tags={AgentCapabilityTag.REVIEW, AgentCapabilityTag.TOOL_USE},
+        )
+    )
+    registry.register(
+        AgentSpec(
+            agent_id="agent_backup_reviewer_b",
+            role="backup_reviewer_b",
+            capability_tags={AgentCapabilityTag.REVIEW, AgentCapabilityTag.TOOL_USE},
+        )
+    )
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="reviewer",
+            reason="review-stage",
+            required_target_capabilities={AgentCapabilityTag.REVIEW},
+        )
+    )
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="backup_reviewer_a",
+            reason="fallback-review-stage",
+            required_target_capabilities={AgentCapabilityTag.REVIEW},
+        )
+    )
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="backup_reviewer_b",
+            reason="fallback-review-stage",
+            required_target_capabilities={AgentCapabilityTag.REVIEW},
+        )
+    )
+    registry.set_handoff_fallback_policy(
+        HandoffFallbackPolicy(
+            source_role="router",
+            target_role="reviewer",
+            fallback_target_roles=["backup_reviewer_b", "backup_reviewer_a"],
+            target_role_priorities={"backup_reviewer_a": 100, "backup_reviewer_b": 100},
+        )
+    )
+    registry.unregister("agent_reviewer")
+
+    resolved = registry.resolve_handoff_target(
+        source_agent_id="agent_router",
+        target_role="reviewer",
+        required_capability=AgentCapabilityTag.REVIEW,
+    )
+    assert resolved is not None
+    assert resolved.agent_id == "agent_backup_reviewer_a"
+
+
+def test_fallback_priority_map_rejects_unknown_role() -> None:
+    registry = _build_registry()
+    with pytest.raises(ValueError, match="unknown target role"):
+        registry.set_handoff_fallback_policy(
+            HandoffFallbackPolicy(
+                source_role="router",
+                target_role="reviewer",
+                fallback_target_roles=["worker"],
+                target_role_priorities={"missing_role": 5},
+            )
+        )
+
+
 def test_unregister_removes_agent_and_associated_routes() -> None:
     registry = _build_registry()
     registry.add_handoff_route(
