@@ -27,6 +27,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Provider settings + registry follow-up | Implemented | `config/settings.py`, `config/provider_registry.py` and startup validation are present. |
 | Architecture fitness CI baseline | Implemented | workflow + architecture boundary scripts are present. |
 | Week 2 background runtime primitives | Implemented | `task_graph`, `scheduler`, `worker_pool`, `checkpoint_store`, and `background_runtime` are implemented with checkpoint-aware execution. |
+| Day 10 workflow loading contracts | Implemented | `workflow_schema.py` and `workflow_loader.py` are present with unit/integration validation coverage. |
 | Scheduler replay + failure-path tests | Implemented | Added tests for resume replay, failure reason codes, retries, and bounded concurrency. |
 | Observability baseline | Implemented (MVP baseline) | Added `observability/logging.py`, `timeline.py`, `metrics.py` and wired scheduler/background runtime structured emissions with correlation IDs. |
 | Plugin lifecycle/decorators | Implemented (MVP baseline) | Added plugin contract/manager (`load`, `unload`, `reload`, compatibility checks) plus execution decorators for validation/authz/retries/audit/redaction. |
