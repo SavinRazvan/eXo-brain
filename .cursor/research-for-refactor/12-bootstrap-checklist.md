@@ -26,8 +26,8 @@ Provide a concrete startup checklist for creating the new repository and reachin
   - [x] `src/config`
 - [ ] Create test structure:
   - [x] `tests/integration`
-  - [ ] `tests/regression`
-  - [ ] `tests/performance`
+  - [x] `tests/regression`
+  - [x] `tests/performance`
 
 ## Day 1: Contracts First
 - [x] Define `RuntimeAdapter` contract in `src/runtime/runtime_adapter.py`.
@@ -44,8 +44,8 @@ Provide a concrete startup checklist for creating the new repository and reachin
   - [ ] fallback behavior
 - [ ] Add initial adapters:
   - [x] `openai_agents_runtime.py`
-  - [ ] `openai_compatible_runtime.py`
-  - [ ] `custom_runtime.py`
+  - [x] `openai_compatible_runtime.py`
+  - [x] `custom_runtime.py`
 - [x] Add provider registry in `src/config/provider_registry.py`.
 - [x] Implement settings schema + startup validation in `src/config/settings.py` and `src/config/provider_registry.py` (see `34-provider-registry-and-settings-schema.md`).
 
@@ -74,13 +74,13 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] Implement `src/core/event_router.py` (event map pattern).
 - [x] Implement session and correlation context in `src/core/session_context.py`.
 - [x] Ensure integration boundary in `src/integration/host_adapter.py` remains transport-agnostic.
-- [ ] Implement persistence adapters in `src/persistence/adapters/` (`postgres`, `sqlite`) with parity tests.
+- [x] Implement persistence adapters in `src/persistence/adapters/` (`postgres`, `sqlite`) with parity tests.
 
 ## Day 6: Background Runtime Foundation
 - [x] Define `TaskGraph` model and scheduler contract.
 - [x] Implement initial bounded worker pool.
 - [x] Implement checkpoint state model for `pending/running/completed/failed/cancelled`.
-- [ ] Add cancel/resume API surface.
+- [x] Add cancel/resume API surface.
 
 ## Day 7: Observability Baseline
 - [x] Implement structured logger in `src/observability/logging.py`.
@@ -99,7 +99,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] Add trust tiers (`trusted`, `restricted`, `sandboxed`) and policy enforcement.
 
 ## First Vertical Slice (Must Pass)
-- [ ] Host adapter receives input.
+- [x] Host adapter receives input.
 - [x] Orchestrator starts a session and selects runtime mode.
 - [x] Runtime emits a tool request.
 - [x] Deterministic tool runtime executes through policy/decorator chain.
