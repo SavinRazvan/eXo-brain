@@ -31,14 +31,21 @@ def select_execution_mode(
     if policy_decision.decision != PolicyAction.ALLOW:
         return ToolExecutionMode.DETERMINISTIC
 
-    if policy_decision.enforced_mode is not None:
-        return policy_decision.enforced_mode
+    # Deterministic mode enforced by policy is always honored.
+    if policy_decision.enforced_mode == ToolExecutionMode.DETERMINISTIC:
+        return ToolExecutionMode.DETERMINISTIC
 
+    # Safety fallback: risky calls are never allowed to run provider-native.
+    # This applies even if policy accidentally enforces provider_native.
     if tool_call.is_state_changing or tool_call.risk_tier in {RiskTier.HIGH, RiskTier.CRITICAL}:
         return ToolExecutionMode.DETERMINISTIC
 
+    # Capability uncertainty also forces deterministic mode.
     if capability_map.should_force_deterministic():
         return ToolExecutionMode.DETERMINISTIC
+
+    if policy_decision.enforced_mode is not None:
+        return policy_decision.enforced_mode
 
     if tool_call.requested_mode == ToolExecutionMode.DETERMINISTIC:
         return ToolExecutionMode.DETERMINISTIC
