@@ -31,5 +31,5 @@ Review-only phase that identifies issues and decides if the PR is ready for prep
 
 - provider SDK isolation preserved (`runtime/*adapter*` only)
 - core has no provider-name routing logic
-- policy gates exist for risky/state-changing operations
+- policy gates exist for state-changing/high-impact operations
 - tests are sufficient for changed behavior

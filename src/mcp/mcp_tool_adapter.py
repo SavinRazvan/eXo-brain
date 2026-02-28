@@ -11,7 +11,7 @@ Depends On:
  - src/policies/middleware.py
  - src/schemas/tool_io.py
 Notes:
- - High-risk or state-changing calls on restricted tiers are blocked by default.
+ - State-changing or high-impact calls on restricted tiers are blocked by default.
 """
 
 from __future__ import annotations
@@ -123,4 +123,4 @@ class McpToolAdapter:
         if trust_tier == McpTrustTier.RESTRICTED and context.is_state_changing:
             raise ValueError("Restricted MCP tier blocks state-changing tool calls")
         if trust_tier == McpTrustTier.SANDBOXED and (context.is_state_changing or context.risk_tier.value in {"high", "critical"}):
-            raise ValueError("Sandboxed MCP tier blocks high-risk or state-changing calls")
+            raise ValueError("Sandboxed MCP tier blocks high-impact or state-changing calls")

@@ -16,7 +16,7 @@ Do not skip steps.
 
 - Validate the problem before accepting the proposed fix.
 - Prefer provider-neutral, modular solutions over quick patches.
-- Keep risky/state-changing paths policy-governed and auditable.
+- Keep state-changing/high-impact paths policy-governed and auditable.
 - Reject changes that bypass architecture boundaries.
 
 ## Required Verification Before Merge

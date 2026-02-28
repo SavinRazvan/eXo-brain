@@ -35,7 +35,7 @@ def select_execution_mode(
     if policy_decision.enforced_mode == ToolExecutionMode.DETERMINISTIC:
         return ToolExecutionMode.DETERMINISTIC
 
-    # Safety fallback: risky calls are never allowed to run provider-native.
+    # Safety fallback: state-changing or high-impact calls never run provider-native.
     # This applies even if policy accidentally enforces provider_native.
     if tool_call.is_state_changing or tool_call.risk_tier in {RiskTier.HIGH, RiskTier.CRITICAL}:
         return ToolExecutionMode.DETERMINISTIC
