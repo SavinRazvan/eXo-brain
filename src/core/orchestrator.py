@@ -136,42 +136,25 @@ class Orchestrator:
         if isinstance(required_capability, dict):
             return required_capability
 
-        target_role = str(raw_handoff.get("target_role", "")).strip()
-        if target_role:
-            try:
-                target_agent = self._agent_registry.get_by_role(target_role)
-            except KeyError:
-                return {
-                    "code": "ORCH_HANDOFF_TARGET_ROLE_UNKNOWN",
-                    "message": f"Unknown handoff target role '{target_role}'.",
-                }
-            if not self._agent_registry.can_handoff(source_agent_id, target_agent.agent_id):
+        target_role = str(raw_handoff.get("target_role", "")).strip() or None
+        target_agent = self._agent_registry.resolve_handoff_target(
+            source_agent_id=source_agent_id,
+            target_role=target_role,
+            required_capability=required_capability,
+        )
+        if target_agent is None:
+            if target_role:
                 return {
                     "code": "ORCH_HANDOFF_ROUTE_DENIED",
                     "message": (
                         f"No allowed handoff route from '{source_agent_id}' "
-                        f"to role '{target_role}'."
+                        f"to role '{target_role}' (including fallback candidates)."
                     ),
                 }
-            if required_capability and required_capability not in target_agent.capability_tags:
-                return {
-                    "code": "ORCH_HANDOFF_REQUIRED_CAPABILITY_MISSING",
-                    "message": (
-                        f"Target role '{target_role}' does not satisfy required "
-                        f"capability '{required_capability.value}'."
-                    ),
-                }
-        else:
-            targets = self._agent_registry.handoff_targets(
-                source_agent_id=source_agent_id,
-                required_capability=required_capability,
-            )
-            if not targets:
-                return {
-                    "code": "ORCH_HANDOFF_TARGET_NOT_FOUND",
-                    "message": "No handoff target available for requested constraints.",
-                }
-            target_agent = targets[0]
+            return {
+                "code": "ORCH_HANDOFF_TARGET_NOT_FOUND",
+                "message": "No handoff target available for requested constraints.",
+            }
 
         context["agent_id"] = target_agent.agent_id
         metadata = dict(context.get("session_metadata", {}))
