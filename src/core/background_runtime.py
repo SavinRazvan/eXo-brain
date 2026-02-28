@@ -31,6 +31,7 @@ class JobStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass(slots=True)
@@ -52,13 +53,14 @@ class BackgroundRuntime:
     ) -> None:
         self._scheduler = scheduler
         self._jobs: dict[str, BackgroundJob] = {}
+        self._job_tasks: dict[str, asyncio.Task[None]] = {}
         self._logger = logger
         self._metrics = metrics
         self._timeline = timeline
 
     def submit(self, graph: TaskGraph, payload: dict[str, Any] | None = None, job_id: str | None = None) -> str:
         resolved_job_id = job_id or f"job_{uuid.uuid4().hex}"
-        job = BackgroundJob(job_id=resolved_job_id, metadata={"payload": dict(payload or {})})
+        job = BackgroundJob(job_id=resolved_job_id, metadata={"payload": dict(payload or {}), "graph": graph})
         self._jobs[resolved_job_id] = job
         self._emit(
             correlation_id=resolved_job_id,
@@ -69,7 +71,7 @@ class BackgroundRuntime:
         )
         if self._metrics is not None:
             self._metrics.inc("background.job.submitted")
-        asyncio.create_task(self._run_job(graph=graph, job=job))
+        self._job_tasks[resolved_job_id] = asyncio.create_task(self._run_job(graph=graph, job=job, resume=False))
         return resolved_job_id
 
     def get_job(self, job_id: str) -> BackgroundJob:
@@ -77,17 +79,63 @@ class BackgroundRuntime:
             raise KeyError(f"Job '{job_id}' was not found")
         return self._jobs[job_id]
 
-    async def _run_job(self, graph: TaskGraph, job: BackgroundJob) -> None:
+    def cancel_job(self, job_id: str) -> bool:
+        if job_id not in self._jobs:
+            return False
+        job = self._jobs[job_id]
+        task = self._job_tasks.get(job_id)
+        if task is None or task.done():
+            return False
+        if job.status not in {JobStatus.PENDING, JobStatus.RUNNING}:
+            return False
+        task.cancel()
+        self._emit(
+            correlation_id=job_id,
+            event="background.job_cancel_requested",
+            message="Background job cancellation requested",
+            level=LogLevel.WARNING,
+        )
+        if self._metrics is not None:
+            self._metrics.inc("background.job.cancel_requested")
+        return True
+
+    def resume_job(self, job_id: str) -> str:
+        if job_id not in self._jobs:
+            raise KeyError(f"Job '{job_id}' was not found")
+        job = self._jobs[job_id]
+        if job.status not in {JobStatus.FAILED, JobStatus.CANCELLED}:
+            raise ValueError(f"Job '{job_id}' cannot be resumed from status '{job.status.value}'")
+        task = self._job_tasks.get(job_id)
+        if task is not None and not task.done():
+            raise ValueError(f"Job '{job_id}' is still running")
+        graph = job.metadata.get("graph")
+        if not isinstance(graph, TaskGraph):
+            raise ValueError(f"Job '{job_id}' cannot be resumed because no task graph is available")
+        job.status = JobStatus.PENDING
+        job.error = ""
+        self._emit(
+            correlation_id=job_id,
+            event="background.job_resume_requested",
+            message="Background job resume requested",
+            level=LogLevel.INFO,
+        )
+        if self._metrics is not None:
+            self._metrics.inc("background.job.resume_requested")
+        self._job_tasks[job_id] = asyncio.create_task(self._run_job(graph=graph, job=job, resume=True))
+        return job_id
+
+    async def _run_job(self, graph: TaskGraph, job: BackgroundJob, resume: bool) -> None:
         try:
             job.status = JobStatus.RUNNING
             self._emit(
                 correlation_id=job.job_id,
                 event="background.job_started",
                 message="Background job execution started",
+                context={"resume": resume},
                 level=LogLevel.INFO,
             )
             payload = dict(job.metadata.get("payload", {}))
-            result = await self._scheduler.execute(job_id=job.job_id, graph=graph, initial_payload=payload)
+            result = await self._scheduler.execute(job_id=job.job_id, graph=graph, initial_payload=payload, resume=resume)
             job.result = result
             job.status = JobStatus.FAILED if result.failed else JobStatus.COMPLETED
             self._emit(
@@ -102,6 +150,16 @@ class BackgroundRuntime:
                     self._metrics.inc("background.job.failed")
                 else:
                     self._metrics.inc("background.job.completed")
+        except asyncio.CancelledError:
+            job.status = JobStatus.CANCELLED
+            self._emit(
+                correlation_id=job.job_id,
+                event="background.job_cancelled",
+                message="Background job execution cancelled",
+                level=LogLevel.WARNING,
+            )
+            if self._metrics is not None:
+                self._metrics.inc("background.job.cancelled")
         except Exception as exc:  # pragma: no cover - defensive runtime boundary
             job.status = JobStatus.FAILED
             job.error = str(exc)
@@ -114,6 +172,10 @@ class BackgroundRuntime:
             )
             if self._metrics is not None:
                 self._metrics.inc("background.job.error")
+        finally:
+            task = self._job_tasks.get(job.job_id)
+            if task is asyncio.current_task():
+                self._job_tasks.pop(job.job_id, None)
 
     def _emit(
         self,

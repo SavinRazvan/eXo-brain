@@ -80,7 +80,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] Define `TaskGraph` model and scheduler contract.
 - [x] Implement initial bounded worker pool.
 - [x] Implement checkpoint state model for `pending/running/completed/failed/cancelled`.
-- [ ] Add cancel/resume API surface.
+- [x] Add cancel/resume API surface.
 
 ## Day 7: Observability Baseline
 - [x] Implement structured logger in `src/observability/logging.py`.
