@@ -1,0 +1,93 @@
+"""
+File: openai_compatible_runtime.py
+Path: src/runtime/openai_compatible_runtime.py
+Role: OpenAI-compatible API adapter behind the provider-neutral runtime contract.
+Used By:
+ - tests/contracts/runtime/test_runtime_adapter_contract.py
+ - tests/integration/test_multi_adapter_workflow_parity.py
+Depends On:
+ - src/runtime/runtime_adapter.py
+ - src/runtime/capability_map.py
+ - src/schemas/events.py
+ - src/schemas/tool_io.py
+Notes:
+ - Keep provider-specific HTTP/client details isolated in this adapter layer.
+"""
+
+from __future__ import annotations
+
+import uuid
+from typing import Any, AsyncIterator
+
+from src.runtime.capability_map import HealthState, HealthStatus, ProviderCapabilityMap, SecurityTier
+from src.runtime.runtime_adapter import RuntimeAdapter, SessionHandle
+from src.schemas.events import RuntimeEvent
+from src.schemas.tool_io import ToolResult
+
+
+class OpenAICompatibleRuntimeAdapter(RuntimeAdapter):
+    def __init__(self, provider_id: str = "openai_compatible") -> None:
+        self._provider_id = provider_id
+        self._sessions: set[str] = set()
+
+    async def start_session(
+        self,
+        session_id: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> SessionHandle:
+        self._sessions.add(session_id)
+        return SessionHandle(session_id=session_id, provider_id=self._provider_id, metadata=metadata or {})
+
+    async def run_turn(
+        self,
+        session_id: str,
+        user_input: str,
+        context: dict[str, Any],
+    ) -> AsyncIterator[RuntimeEvent]:
+        run_id = str(context.get("run_id", f"run_{uuid.uuid4().hex[:8]}"))
+        yield RuntimeEvent.output_delta(
+            session_id=session_id,
+            run_id=run_id,
+            text=f"openai-compatible-echo: {user_input}",
+            correlation_id=run_id,
+        )
+        yield RuntimeEvent.run_complete(
+            session_id=session_id,
+            run_id=run_id,
+            output={"status": "completed", "provider_id": self._provider_id},
+            correlation_id=run_id,
+        )
+
+    async def submit_tool_results(
+        self,
+        session_id: str,
+        run_id: str,
+        tool_results: list[ToolResult],
+    ) -> AsyncIterator[RuntimeEvent]:
+        yield RuntimeEvent.run_complete(
+            session_id=session_id,
+            run_id=run_id,
+            output={
+                "status": "completed",
+                "tool_results_count": len(tool_results),
+                "provider_id": self._provider_id,
+            },
+            correlation_id=run_id,
+        )
+
+    def get_capabilities(self) -> ProviderCapabilityMap:
+        return ProviderCapabilityMap(
+            provider_id=self._provider_id,
+            supports_agents_sdk_native=False,
+            supports_openai_compatible_api=True,
+            supports_streaming=True,
+            supports_function_calling=True,
+            supports_structured_output=True,
+            supports_handoffs=False,
+            reliability_score=4,
+            security_tier=SecurityTier.SELF_MANAGED,
+            recommended_runtime_mode="hybrid",
+        )
+
+    async def healthcheck(self) -> HealthStatus:
+        return HealthStatus(state=HealthState.HEALTHY, reason="adapter-initialized")

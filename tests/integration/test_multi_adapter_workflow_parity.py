@@ -21,8 +21,10 @@ from typing import Any
 
 from src.core.orchestrator import Orchestrator
 from src.policies.middleware import DeterministicFirstPolicyMiddleware
+from src.runtime.custom_runtime import CustomRuntimeAdapter
 from src.runtime.capability_map import HealthState, HealthStatus, ProviderCapabilityMap
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
+from src.runtime.openai_compatible_runtime import OpenAICompatibleRuntimeAdapter
 from src.runtime.runtime_adapter import RuntimeAdapter, SessionHandle
 from src.schemas.events import RuntimeEvent
 from src.schemas.tool_io import ToolResult
@@ -70,7 +72,13 @@ def _build_orchestrator(runtime_adapter: RuntimeAdapter) -> Orchestrator:
 
 def test_multi_adapter_event_parity_for_simple_turn() -> None:
     openai_events = asyncio.run(_collect(_build_orchestrator(OpenAIAgentsRuntimeAdapter()), "sess_a", {"run_id": "run_a"}))
-    mock_events = asyncio.run(_collect(_build_orchestrator(MockRuntimeAdapter()), "sess_b", {"run_id": "run_b"}))
+    compatible_events = asyncio.run(
+        _collect(_build_orchestrator(OpenAICompatibleRuntimeAdapter()), "sess_b", {"run_id": "run_b"})
+    )
+    custom_events = asyncio.run(_collect(_build_orchestrator(CustomRuntimeAdapter()), "sess_c", {"run_id": "run_c"}))
+    mock_events = asyncio.run(_collect(_build_orchestrator(MockRuntimeAdapter()), "sess_d", {"run_id": "run_d"}))
 
     assert [event.event_type.value for event in openai_events] == ["output_delta", "run_complete"]
+    assert [event.event_type.value for event in compatible_events] == ["output_delta", "run_complete"]
+    assert [event.event_type.value for event in custom_events] == ["output_delta", "run_complete"]
     assert [event.event_type.value for event in mock_events] == ["output_delta", "run_complete"]
