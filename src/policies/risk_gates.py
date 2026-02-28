@@ -101,7 +101,7 @@ class RiskGatePolicy:
                 context=context,
                 action=PolicyAction.ALLOW,
                 reason_code="RISK_WRITE_REQUIRES_DETERMINISTIC",
-                message="State-changing or high-risk tools require deterministic mode.",
+                message="State-changing or high-impact tools require deterministic mode.",
                 policy_id=policy_id,
                 policy_version=policy_version,
                 enforced_mode=ToolExecutionMode.DETERMINISTIC,

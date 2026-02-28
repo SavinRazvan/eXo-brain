@@ -67,7 +67,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
   - [x] retries
   - [x] audit logging
   - [x] redaction
-- [x] Enforce deterministic execution for risky/state-changing calls.
+- [x] Enforce deterministic execution for state-changing/high-impact calls.
 
 ## Day 5: Core Orchestration + Event Routing
 - [x] Implement `src/core/orchestrator.py` with clear boundaries.

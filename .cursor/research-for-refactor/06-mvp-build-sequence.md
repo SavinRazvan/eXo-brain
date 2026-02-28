@@ -91,7 +91,7 @@ Deliverables:
 - Risk gate enforcement by tool metadata.
 
 Acceptance:
-- Tests for blocked risky tools and approved low-risk tools.
+- Tests for blocked high-impact tools and approved low-risk tools.
 
 ## Week 2: Background Execution + Plugins + Reliability
 
