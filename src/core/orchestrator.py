@@ -27,7 +27,7 @@ from src.policies.middleware import PolicyMiddleware
 from src.runtime.mode_selector import select_execution_mode
 from src.runtime.runtime_adapter import RuntimeAdapter
 from src.schemas.events import RuntimeEvent, RuntimeEventType
-from src.schemas.tool_io import PolicyAction, ToolExecutionMode
+from src.schemas.tool_io import PolicyAction, RiskTier, ToolCallContext, ToolExecutionMode, blocked_result
 from src.tools.executor import DeterministicToolExecutor
 
 
@@ -101,6 +101,22 @@ class Orchestrator:
                 ):
                     yield self._apply_output_policy(follow_up)
             else:
+                if self._requires_deterministic_envelope(event.tool_call):
+                    blocked = blocked_result(
+                        context=event.tool_call,
+                        reason_code="PROVIDER_NATIVE_STATE_CHANGE_BLOCKED",
+                        message=(
+                            "Provider-native execution is blocked for state-changing or high-impact operations; "
+                            "a deterministic envelope is enforced."
+                        ),
+                    )
+                    async for follow_up in self._runtime_adapter.submit_tool_results(
+                        session_id=session_id,
+                        run_id=event.run_id,
+                        tool_results=[blocked],
+                    ):
+                        yield self._apply_output_policy(follow_up)
+                    continue
                 # Provider-native execution path is left to adapter behavior.
                 yield self._apply_output_policy(event)
 
@@ -108,6 +124,9 @@ class Orchestrator:
         if event.event_type in {RuntimeEventType.OUTPUT_DELTA, RuntimeEventType.RUN_COMPLETE}:
             event.payload = self._policy.before_output(dict(event.payload))
         return event
+
+    def _requires_deterministic_envelope(self, tool_call: ToolCallContext) -> bool:
+        return tool_call.is_state_changing or tool_call.risk_tier in {RiskTier.HIGH, RiskTier.CRITICAL}
 
     def _apply_agent_handoff(self, context: dict[str, Any]) -> dict[str, str] | None:
         if self._agent_registry is None:

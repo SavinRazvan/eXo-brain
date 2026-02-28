@@ -59,6 +59,7 @@ class ObservabilitySettings:
 @dataclass(slots=True)
 class LimitsSettings:
     max_parallel_jobs: int = 20
+    # Legacy field name retained for compatibility; "risky" means state-changing/high-impact operations.
     max_concurrent_risky_tools_per_session: int = 1
     default_tool_timeout_ms: int = 30000
 
