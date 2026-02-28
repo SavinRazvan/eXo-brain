@@ -6,6 +6,8 @@ Used By:
  - pytest
 Depends On:
  - src/agents/contracts.py
+ - src/agents/plugin_contract.py
+ - src/agents/plugin_manager.py
  - src/agents/registry.py
  - src/core/orchestrator.py
  - src/runtime/openai_agents_runtime.py
@@ -15,7 +17,7 @@ Depends On:
  - src/schemas/events.py
  - src/schemas/tool_io.py
 Notes:
- - Verifies both successful routing and fail-closed handoff validation errors.
+ - Verifies handoff routing, fallback behavior, and fail-closed validation errors.
 """
 
 from __future__ import annotations
@@ -23,7 +25,9 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from src.agents.contracts import AgentCapabilityTag, AgentSpec, HandoffRoute
+from src.agents.contracts import AgentCapabilityTag, AgentSpec, HandoffFallbackPolicy, HandoffRoute
+from src.agents.plugin_contract import AgentPlugin, AgentPluginManifest
+from src.agents.plugin_manager import AgentPluginManager
 from src.agents.registry import AgentRegistry
 from src.core.orchestrator import Orchestrator
 from src.policies.middleware import DeterministicFirstPolicyMiddleware, PolicyMiddleware
@@ -184,3 +188,81 @@ def test_orchestrator_handoff_route_denied_emits_error_event() -> None:
     assert len(events) == 1
     assert events[0].event_type == RuntimeEventType.ERROR
     assert events[0].payload["code"] == "ORCH_HANDOFF_ROUTE_DENIED"
+
+
+def test_orchestrator_handoff_uses_fallback_after_primary_plugin_unload() -> None:
+    registry = AgentRegistry()
+    registry.register(
+        AgentSpec(
+            agent_id="agent_router",
+            role="router",
+            capability_tags={AgentCapabilityTag.WORKFLOW_ROUTING},
+        )
+    )
+    registry.register(
+        AgentSpec(
+            agent_id="agent_backup_reviewer",
+            role="backup_reviewer",
+            capability_tags={AgentCapabilityTag.REVIEW, AgentCapabilityTag.TOOL_USE},
+        )
+    )
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="backup_reviewer",
+            reason="backup-review-stage",
+            required_target_capabilities={AgentCapabilityTag.REVIEW},
+        )
+    )
+    plugin_manager = AgentPluginManager(registry=registry, core_major_version=1)
+    plugin_manager.load_plugin(
+        AgentPlugin(
+            manifest=AgentPluginManifest(
+                plugin_id="review-primary",
+                version="1.0.0",
+                compatible_core_major=1,
+            ),
+            agents=[
+                AgentSpec(
+                    agent_id="agent_reviewer",
+                    role="reviewer",
+                    capability_tags={AgentCapabilityTag.REVIEW, AgentCapabilityTag.TOOL_USE},
+                )
+            ],
+            routes=[
+                HandoffRoute(
+                    source_role="router",
+                    target_role="reviewer",
+                    reason="review-stage",
+                    required_target_capabilities={AgentCapabilityTag.REVIEW},
+                )
+            ],
+            fallback_policies=[
+                HandoffFallbackPolicy(
+                    source_role="router",
+                    target_role="reviewer",
+                    fallback_target_roles=["backup_reviewer"],
+                )
+            ],
+        )
+    )
+    plugin_manager.unload_plugin("review-primary")
+
+    policy = RecordingAllowPolicy()
+    orchestrator = _orchestrator_with_registry(registry=registry, policy=policy)
+    context = {
+        "run_id": "run_handoff_fallback",
+        "job_id": "job_handoff_fallback",
+        "task_id": "task_handoff_fallback",
+        "agent_id": "agent_router",
+        "handoff": {"target_role": "reviewer", "reason": "prefer-primary-reviewer"},
+        "planned_tool_call": {
+            "call_id": "tc_handoff_fallback",
+            "tool_name": "echo_tool",
+            "arguments": {"text": "payload"},
+        },
+    }
+
+    events = asyncio.run(_collect_events(orchestrator, context))
+    assert policy.seen_agent_ids == ["agent_backup_reviewer"]
+    assert RuntimeEventType.RUN_COMPLETE in [event.event_type for event in events]

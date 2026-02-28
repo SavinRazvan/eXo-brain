@@ -8,14 +8,14 @@ Depends On:
  - src/agents/contracts.py
  - src/agents/registry.py
 Notes:
- - Validates explicit handoff gates before integrating routes into orchestrator logic.
+ - Validates explicit handoff gates, fallback routing, and unregister behavior.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from src.agents.contracts import AgentCapabilityTag, AgentSpec, HandoffRoute
+from src.agents.contracts import AgentCapabilityTag, AgentSpec, HandoffFallbackPolicy, HandoffRoute
 from src.agents.registry import AgentRegistry
 
 
@@ -125,3 +125,64 @@ def test_handoff_targets_support_optional_capability_filter() -> None:
 
     assert [target.agent_id for target in all_targets] == ["agent_reviewer", "agent_worker"]
     assert [target.agent_id for target in review_targets] == ["agent_reviewer"]
+
+
+def test_resolve_handoff_target_uses_fallback_when_primary_unavailable() -> None:
+    registry = _build_registry()
+    registry.register(
+        AgentSpec(
+            agent_id="agent_backup_reviewer",
+            role="backup_reviewer",
+            capability_tags={AgentCapabilityTag.REVIEW, AgentCapabilityTag.TOOL_USE},
+        )
+    )
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="reviewer",
+            reason="review-stage",
+            required_target_capabilities={AgentCapabilityTag.REVIEW},
+        )
+    )
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="backup_reviewer",
+            reason="fallback-review-stage",
+            required_target_capabilities={AgentCapabilityTag.REVIEW},
+        )
+    )
+    registry.set_handoff_fallback_policy(
+        HandoffFallbackPolicy(
+            source_role="router",
+            target_role="reviewer",
+            fallback_target_roles=["backup_reviewer"],
+        )
+    )
+    registry.unregister("agent_reviewer")
+
+    resolved = registry.resolve_handoff_target(
+        source_agent_id="agent_router",
+        target_role="reviewer",
+        required_capability=AgentCapabilityTag.REVIEW,
+    )
+    assert resolved is not None
+    assert resolved.agent_id == "agent_backup_reviewer"
+
+
+def test_unregister_removes_agent_and_associated_routes() -> None:
+    registry = _build_registry()
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="worker",
+            reason="execution-stage",
+            required_target_capabilities={AgentCapabilityTag.BACKGROUND_EXECUTION},
+        )
+    )
+
+    registry.unregister("agent_worker")
+
+    with pytest.raises(KeyError, match="Unknown agent_id"):
+        registry.get("agent_worker")
+    assert registry.resolve_handoff_target("agent_router", target_role="worker") is None
