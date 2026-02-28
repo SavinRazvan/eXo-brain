@@ -74,7 +74,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] Implement `src/core/event_router.py` (event map pattern).
 - [x] Implement session and correlation context in `src/core/session_context.py`.
 - [x] Ensure integration boundary in `src/integration/host_adapter.py` remains transport-agnostic.
-- [ ] Implement persistence adapters in `src/persistence/adapters/` (`postgres`, `sqlite`) with parity tests.
+- [x] Implement persistence adapters in `src/persistence/adapters/` (`postgres`, `sqlite`) with parity tests.
 
 ## Day 6: Background Runtime Foundation
 - [x] Define `TaskGraph` model and scheduler contract.
