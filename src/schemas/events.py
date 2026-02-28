@@ -35,41 +35,71 @@ class RuntimeEvent:
     event_type: RuntimeEventType
     session_id: str
     run_id: str
+    correlation_id: str = ""
     payload: dict[str, Any] = field(default_factory=dict)
     tool_call: ToolCallContext | None = None
 
     @classmethod
-    def tool_intent(cls, session_id: str, run_id: str, call: ToolCallContext) -> "RuntimeEvent":
+    def tool_intent(
+        cls,
+        session_id: str,
+        run_id: str,
+        call: ToolCallContext,
+        correlation_id: str = "",
+    ) -> "RuntimeEvent":
         return cls(
             event_type=RuntimeEventType.TOOL_INTENT,
             session_id=session_id,
             run_id=run_id,
+            correlation_id=correlation_id or run_id,
             tool_call=call,
         )
 
     @classmethod
-    def output_delta(cls, session_id: str, run_id: str, text: str) -> "RuntimeEvent":
+    def output_delta(
+        cls,
+        session_id: str,
+        run_id: str,
+        text: str,
+        correlation_id: str = "",
+    ) -> "RuntimeEvent":
         return cls(
             event_type=RuntimeEventType.OUTPUT_DELTA,
             session_id=session_id,
             run_id=run_id,
+            correlation_id=correlation_id or run_id,
             payload={"text": text},
         )
 
     @classmethod
-    def run_complete(cls, session_id: str, run_id: str, output: dict[str, Any] | None = None) -> "RuntimeEvent":
+    def run_complete(
+        cls,
+        session_id: str,
+        run_id: str,
+        output: dict[str, Any] | None = None,
+        correlation_id: str = "",
+    ) -> "RuntimeEvent":
         return cls(
             event_type=RuntimeEventType.RUN_COMPLETE,
             session_id=session_id,
             run_id=run_id,
+            correlation_id=correlation_id or run_id,
             payload=output or {},
         )
 
     @classmethod
-    def error(cls, session_id: str, run_id: str, code: str, message: str) -> "RuntimeEvent":
+    def error(
+        cls,
+        session_id: str,
+        run_id: str,
+        code: str,
+        message: str,
+        correlation_id: str = "",
+    ) -> "RuntimeEvent":
         return cls(
             event_type=RuntimeEventType.ERROR,
             session_id=session_id,
             run_id=run_id,
+            correlation_id=correlation_id or run_id,
             payload={"code": code, "message": message},
         )

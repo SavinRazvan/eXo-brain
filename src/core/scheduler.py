@@ -16,10 +16,14 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from time import perf_counter
 from typing import Any
 
 from src.core.task_graph import TaskGraph, TaskNode, TaskOutcome, TaskStatus
 from src.core.worker_pool import WorkerPool
+from src.observability.logging import LogLevel, StructuredLogger
+from src.observability.metrics import RuntimeMetrics
+from src.observability.timeline import RuntimeTimeline
 from src.persistence.contracts import CheckpointRecord, CheckpointStatus, CheckpointStoreContract
 
 
@@ -34,9 +38,19 @@ class SchedulerResult:
 
 
 class TaskScheduler:
-    def __init__(self, worker_pool: WorkerPool, checkpoint_store: CheckpointStoreContract) -> None:
+    def __init__(
+        self,
+        worker_pool: WorkerPool,
+        checkpoint_store: CheckpointStoreContract,
+        logger: StructuredLogger | None = None,
+        metrics: RuntimeMetrics | None = None,
+        timeline: RuntimeTimeline | None = None,
+    ) -> None:
         self._worker_pool = worker_pool
         self._checkpoints = checkpoint_store
+        self._logger = logger
+        self._metrics = metrics
+        self._timeline = timeline
 
     async def execute(
         self,
@@ -45,11 +59,19 @@ class TaskScheduler:
         initial_payload: dict[str, Any] | None = None,
         resume: bool = False,
     ) -> SchedulerResult:
+        started_at = perf_counter()
         result = SchedulerResult(job_id=job_id)
         completed: set[str] = set()
         running: set[str] = set()
         failed: set[str] = set()
         cancelled: set[str] = set()
+        self._emit(
+            job_id=job_id,
+            event="scheduler.job_started",
+            message="Scheduler execution started",
+            context={"resume": resume, "node_count": len(graph.node_ids())},
+        )
+        self._set_queue_depth(job_id, len(graph.node_ids()))
 
         if resume:
             checkpoints = await self._checkpoints.list_checkpoints(job_id)
@@ -95,7 +117,17 @@ class TaskScheduler:
                 elif outcome.status == TaskStatus.FAILED:
                     failed.add(outcome.node_id)
                     self._mark_downstream_cancelled(graph, outcome.node_id, cancelled, result)
+            self._set_queue_depth(job_id, len(graph.node_ids()) - len(result.outcomes))
 
+        self._emit(
+            job_id=job_id,
+            event="scheduler.job_completed",
+            message="Scheduler execution finished",
+            context={"failed": result.failed, "outcomes": len(result.outcomes)},
+            level=LogLevel.ERROR if result.failed else LogLevel.INFO,
+        )
+        if self._metrics is not None:
+            self._metrics.observe_latency((perf_counter() - started_at) * 1000)
         return result
 
     async def _run_node(
@@ -105,9 +137,16 @@ class TaskScheduler:
         result: SchedulerResult,
         base_payload: dict[str, Any],
     ) -> TaskOutcome:
+        started_at = perf_counter()
         attempts = 0
         max_attempts = max(1, node.retry_limit + 1)
         input_payload = self._build_input_payload(node, result, base_payload)
+        self._emit(
+            job_id=job_id,
+            event="scheduler.node_started",
+            message=f"Node '{node.node_id}' started",
+            context={"node_id": node.node_id, "retry_limit": node.retry_limit},
+        )
         await self._checkpoints.save_checkpoint(
             CheckpointRecord(
                 job_id=job_id,
@@ -131,6 +170,15 @@ class TaskScheduler:
                         payload=output,
                     )
                 )
+                self._emit(
+                    job_id=job_id,
+                    event="scheduler.node_completed",
+                    message=f"Node '{node.node_id}' completed",
+                    context={"node_id": node.node_id, "attempts": attempts},
+                )
+                if self._metrics is not None:
+                    self._metrics.inc("scheduler.node.success")
+                    self._metrics.observe_latency((perf_counter() - started_at) * 1000)
                 return TaskOutcome(
                     node_id=node.node_id,
                     status=TaskStatus.COMPLETED,
@@ -154,6 +202,16 @@ class TaskScheduler:
                         reason_code=reason,
                     )
                 )
+                self._emit(
+                    job_id=job_id,
+                    event="scheduler.node_failed",
+                    message=f"Node '{node.node_id}' failed",
+                    context={"node_id": node.node_id, "reason_code": reason, "attempts": attempts},
+                    level=LogLevel.ERROR,
+                )
+                if self._metrics is not None:
+                    self._metrics.inc("scheduler.node.failure")
+                    self._metrics.observe_latency((perf_counter() - started_at) * 1000)
                 return TaskOutcome(
                     node_id=node.node_id,
                     status=TaskStatus.FAILED,
@@ -201,8 +259,45 @@ class TaskScheduler:
                         status=TaskStatus.CANCELLED,
                         reason_code="UPSTREAM_FAILED",
                     )
+                    self._emit(
+                        job_id=result.job_id,
+                        event="scheduler.node_cancelled",
+                        message=f"Node '{node_id}' cancelled due to upstream failure",
+                        context={"node_id": node_id, "failed_upstream": failed_node_id},
+                        level=LogLevel.WARNING,
+                    )
                     pending_ids.remove(node_id)
                     changed = True
+
+    def _emit(
+        self,
+        job_id: str,
+        event: str,
+        message: str,
+        context: dict[str, Any] | None = None,
+        level: LogLevel = LogLevel.INFO,
+    ) -> None:
+        if self._logger is not None:
+            self._logger.log(
+                level=level,
+                event=event,
+                message=message,
+                correlation_id=job_id,
+                context=context,
+            )
+        if self._timeline is not None:
+            self._timeline.append(correlation_id=job_id, event=event, payload=context)
+
+    def _set_queue_depth(self, job_id: str, queue_depth: int) -> None:
+        if self._metrics is not None:
+            self._metrics.set_gauge("scheduler.queue_depth", float(max(queue_depth, 0)))
+        self._emit(
+            job_id=job_id,
+            event="scheduler.queue_depth",
+            message="Updated scheduler queue depth",
+            context={"queue_depth": max(queue_depth, 0)},
+            level=LogLevel.DEBUG,
+        )
 
 
 def _task_status_from_checkpoint(status: CheckpointStatus) -> TaskStatus:
