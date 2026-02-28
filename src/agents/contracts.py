@@ -4,6 +4,7 @@ Path: src/agents/contracts.py
 Role: Provider-neutral contracts for agent registration, capability tags, and handoff routes.
 Used By:
  - src/agents/registry.py
+ - src/agents/plugin_contract.py
  - tests/unit/test_agent_registry.py
 Depends On:
  - dataclasses
@@ -45,3 +46,10 @@ class HandoffRoute:
     target_role: str
     reason: str
     required_target_capabilities: set[AgentCapabilityTag] = field(default_factory=set)
+
+
+@dataclass(slots=True)
+class HandoffFallbackPolicy:
+    source_role: str
+    target_role: str
+    fallback_target_roles: list[str] = field(default_factory=list)
