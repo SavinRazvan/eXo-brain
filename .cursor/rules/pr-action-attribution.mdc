@@ -1,0 +1,16 @@
+---
+description: Require actor attribution in PR workflow artifacts
+alwaysApply: true
+---
+
+# PR Action Attribution
+
+- For PR workflow actions, always capture the acting user identity in artifacts and summaries:
+  - `Action-By: @<github_username>`
+  - `GitHub-Profile: https://github.com/<github_username>`
+- Use role-specific labels where applicable:
+  - review phase: `Reviewed-By: @<github_username>`
+  - prepare phase: `Prepared-By: @<github_username>`
+  - merge phase: `Merged-By: @<github_username>`
+- The username must represent the person who performed that specific action.
+- Apply this to `.local/review.md`, `.local/prep.md`, and `.local/merge.md`.
