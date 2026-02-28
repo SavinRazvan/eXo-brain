@@ -7,6 +7,7 @@ Used By:
 Depends On:
  - src/core/task_graph.py
  - src/core/worker_pool.py
+ - src/observability/tracing.py
  - src/persistence/contracts.py
 Notes:
  - Scheduler stops dependents when an upstream node fails.
@@ -23,6 +24,7 @@ from src.core.task_graph import TaskGraph, TaskNode, TaskOutcome, TaskStatus
 from src.core.worker_pool import WorkerPool
 from src.observability.logging import LogLevel, StructuredLogger
 from src.observability.metrics import RuntimeMetrics
+from src.observability.tracing import RuntimeTracer
 from src.observability.timeline import RuntimeTimeline
 from src.persistence.contracts import CheckpointRecord, CheckpointStatus, CheckpointStoreContract
 
@@ -45,12 +47,14 @@ class TaskScheduler:
         logger: StructuredLogger | None = None,
         metrics: RuntimeMetrics | None = None,
         timeline: RuntimeTimeline | None = None,
+        tracer: RuntimeTracer | None = None,
     ) -> None:
         self._worker_pool = worker_pool
         self._checkpoints = checkpoint_store
         self._logger = logger
         self._metrics = metrics
         self._timeline = timeline
+        self._tracer = tracer
 
     async def execute(
         self,
@@ -58,8 +62,15 @@ class TaskScheduler:
         graph: TaskGraph,
         initial_payload: dict[str, Any] | None = None,
         resume: bool = False,
+        parent_span_id: str | None = None,
     ) -> SchedulerResult:
         started_at = perf_counter()
+        execute_span_id = self._start_span(
+            correlation_id=job_id,
+            name="scheduler.execute",
+            parent_span_id=parent_span_id,
+            attributes={"resume": resume, "node_count": len(graph.node_ids())},
+        )
         result = SchedulerResult(job_id=job_id)
         completed: set[str] = set()
         running: set[str] = set()
@@ -73,62 +84,75 @@ class TaskScheduler:
         )
         self._set_queue_depth(job_id, len(graph.node_ids()))
 
-        if resume:
-            checkpoints = await self._checkpoints.list_checkpoints(job_id)
-            for checkpoint in checkpoints:
-                outcome = TaskOutcome(
-                    node_id=checkpoint.node_id,
-                    status=_task_status_from_checkpoint(checkpoint.status),
-                    output=dict(checkpoint.payload),
-                    reason_code=checkpoint.reason_code,
-                    attempts=checkpoint.attempt,
-                )
-                result.outcomes[checkpoint.node_id] = outcome
-                if checkpoint.status == CheckpointStatus.COMPLETED:
-                    completed.add(checkpoint.node_id)
-                elif checkpoint.status == CheckpointStatus.FAILED:
-                    failed.add(checkpoint.node_id)
-
-        base_payload = dict(initial_payload or {})
-        while True:
-            ready = [
-                node
-                for node in graph.ready_nodes(completed=completed, running=running, failed=failed)
-                if node.node_id not in cancelled
-            ]
-            if not ready:
-                break
-
-            tasks = []
-            for node in ready:
-                running.add(node.node_id)
-                tasks.append(
-                    asyncio.create_task(
-                        self._worker_pool.run(lambda node=node: self._run_node(job_id, node, result, base_payload))
+        try:
+            if resume:
+                checkpoints = await self._checkpoints.list_checkpoints(job_id)
+                for checkpoint in checkpoints:
+                    outcome = TaskOutcome(
+                        node_id=checkpoint.node_id,
+                        status=_task_status_from_checkpoint(checkpoint.status),
+                        output=dict(checkpoint.payload),
+                        reason_code=checkpoint.reason_code,
+                        attempts=checkpoint.attempt,
                     )
-                )
-            wave_outcomes = await asyncio.gather(*tasks)
+                    result.outcomes[checkpoint.node_id] = outcome
+                    if checkpoint.status == CheckpointStatus.COMPLETED:
+                        completed.add(checkpoint.node_id)
+                    elif checkpoint.status == CheckpointStatus.FAILED:
+                        failed.add(checkpoint.node_id)
 
-            for outcome in wave_outcomes:
-                running.discard(outcome.node_id)
-                result.outcomes[outcome.node_id] = outcome
-                if outcome.status == TaskStatus.COMPLETED:
-                    completed.add(outcome.node_id)
-                elif outcome.status == TaskStatus.FAILED:
-                    failed.add(outcome.node_id)
-                    self._mark_downstream_cancelled(graph, outcome.node_id, cancelled, result)
-            self._set_queue_depth(job_id, len(graph.node_ids()) - len(result.outcomes))
+            base_payload = dict(initial_payload or {})
+            while True:
+                ready = [
+                    node
+                    for node in graph.ready_nodes(completed=completed, running=running, failed=failed)
+                    if node.node_id not in cancelled
+                ]
+                if not ready:
+                    break
 
-        self._emit(
-            job_id=job_id,
-            event="scheduler.job_completed",
-            message="Scheduler execution finished",
-            context={"failed": result.failed, "outcomes": len(result.outcomes)},
-            level=LogLevel.ERROR if result.failed else LogLevel.INFO,
-        )
-        if self._metrics is not None:
-            self._metrics.observe_latency((perf_counter() - started_at) * 1000)
-        return result
+                tasks = []
+                for node in ready:
+                    running.add(node.node_id)
+                    tasks.append(
+                        asyncio.create_task(
+                            self._worker_pool.run(lambda node=node: self._run_node(job_id, node, result, base_payload))
+                        )
+                    )
+                wave_outcomes = await asyncio.gather(*tasks)
+
+                for outcome in wave_outcomes:
+                    running.discard(outcome.node_id)
+                    result.outcomes[outcome.node_id] = outcome
+                    if outcome.status == TaskStatus.COMPLETED:
+                        completed.add(outcome.node_id)
+                    elif outcome.status == TaskStatus.FAILED:
+                        failed.add(outcome.node_id)
+                        self._mark_downstream_cancelled(graph, outcome.node_id, cancelled, result)
+                self._set_queue_depth(job_id, len(graph.node_ids()) - len(result.outcomes))
+
+            self._emit(
+                job_id=job_id,
+                event="scheduler.job_completed",
+                message="Scheduler execution finished",
+                context={"failed": result.failed, "outcomes": len(result.outcomes)},
+                level=LogLevel.ERROR if result.failed else LogLevel.INFO,
+            )
+            if self._metrics is not None:
+                self._metrics.observe_latency((perf_counter() - started_at) * 1000)
+            self._finish_span(
+                span_id=execute_span_id,
+                status="error" if result.failed else "ok",
+                attributes={"outcomes": len(result.outcomes), "failed": result.failed},
+            )
+            return result
+        except Exception as exc:
+            self._finish_span(
+                span_id=execute_span_id,
+                status="error",
+                error=str(exc),
+            )
+            raise
 
     async def _run_node(
         self,
@@ -138,6 +162,11 @@ class TaskScheduler:
         base_payload: dict[str, Any],
     ) -> TaskOutcome:
         started_at = perf_counter()
+        node_span_id = self._start_span(
+            correlation_id=job_id,
+            name="scheduler.run_node",
+            attributes={"node_id": node.node_id},
+        )
         attempts = 0
         max_attempts = max(1, node.retry_limit + 1)
         input_payload = self._build_input_payload(node, result, base_payload)
@@ -179,6 +208,11 @@ class TaskScheduler:
                 if self._metrics is not None:
                     self._metrics.inc("scheduler.node.success")
                     self._metrics.observe_latency((perf_counter() - started_at) * 1000)
+                self._finish_span(
+                    span_id=node_span_id,
+                    status="ok",
+                    attributes={"node_id": node.node_id, "attempts": attempts},
+                )
                 return TaskOutcome(
                     node_id=node.node_id,
                     status=TaskStatus.COMPLETED,
@@ -212,6 +246,12 @@ class TaskScheduler:
                 if self._metrics is not None:
                     self._metrics.inc("scheduler.node.failure")
                     self._metrics.observe_latency((perf_counter() - started_at) * 1000)
+                self._finish_span(
+                    span_id=node_span_id,
+                    status="error",
+                    attributes={"node_id": node.node_id, "attempts": attempts, "reason_code": reason},
+                    error=message,
+                )
                 return TaskOutcome(
                     node_id=node.node_id,
                     status=TaskStatus.FAILED,
@@ -229,6 +269,12 @@ class TaskScheduler:
                 level=LogLevel.WARNING,
             )
 
+        self._finish_span(
+            span_id=node_span_id,
+            status="error",
+            attributes={"node_id": node.node_id, "reason_code": "UNEXPECTED_SCHEDULER_STATE"},
+            error="Unexpected scheduler state",
+        )
         return TaskOutcome(node_id=node.node_id, status=TaskStatus.FAILED, reason_code="UNEXPECTED_SCHEDULER_STATE")
 
     def _build_input_payload(
@@ -306,6 +352,38 @@ class TaskScheduler:
             message="Updated scheduler queue depth",
             context={"queue_depth": max(queue_depth, 0)},
             level=LogLevel.DEBUG,
+        )
+
+    def _start_span(
+        self,
+        correlation_id: str,
+        name: str,
+        parent_span_id: str | None = None,
+        attributes: dict[str, Any] | None = None,
+    ) -> str:
+        if self._tracer is None:
+            return ""
+        return self._tracer.start_span(
+            correlation_id=correlation_id,
+            name=name,
+            parent_span_id=parent_span_id,
+            attributes=attributes,
+        )
+
+    def _finish_span(
+        self,
+        span_id: str,
+        status: str,
+        attributes: dict[str, Any] | None = None,
+        error: str = "",
+    ) -> None:
+        if self._tracer is None or not span_id:
+            return
+        self._tracer.finish_span(
+            span_id=span_id,
+            status=status,
+            attributes=attributes,
+            error=error,
         )
 
 

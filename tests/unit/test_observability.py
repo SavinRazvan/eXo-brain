@@ -8,6 +8,7 @@ Depends On:
  - src/observability/logging.py
  - src/observability/metrics.py
  - src/observability/timeline.py
+ - src/observability/tracing.py
 Notes:
  - Verifies deterministic local observability behavior before backend export wiring.
 """
@@ -16,6 +17,7 @@ from __future__ import annotations
 
 from src.observability.logging import LogLevel, StructuredLogger
 from src.observability.metrics import RuntimeMetrics
+from src.observability.tracing import RuntimeTracer
 from src.observability.timeline import RuntimeTimeline
 
 
@@ -60,3 +62,25 @@ def test_runtime_timeline_filters_entries_by_correlation() -> None:
     timeline.append(correlation_id="job_1", event="job.finished")
     job_entries = timeline.entries_for("job_1")
     assert [entry.event for entry in job_entries] == ["job.started", "job.finished"]
+
+
+def test_runtime_tracer_records_span_lifecycle() -> None:
+    tracer = RuntimeTracer()
+    span_id = tracer.start_span(
+        correlation_id="job_1",
+        name="scheduler.execute",
+        attributes={"node_count": 2},
+    )
+    tracer.finish_span(
+        span_id=span_id,
+        status="ok",
+        attributes={"outcomes": 2},
+    )
+
+    spans = tracer.spans_for("job_1")
+    assert len(spans) == 1
+    assert spans[0].name == "scheduler.execute"
+    assert spans[0].status == "ok"
+    assert spans[0].attributes["node_count"] == 2
+    assert spans[0].attributes["outcomes"] == 2
+    assert spans[0].finished_at_utc != ""
