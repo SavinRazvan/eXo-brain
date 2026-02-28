@@ -24,6 +24,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Day 3 adapter boundary | Implemented | `runtime_adapter.py`, `openai_agents_runtime.py`, adapter contract tests are present. |
 | Day 4 deterministic tool runtime | Implemented | `registry.py` and `executor.py` implemented with success/failure test coverage. |
 | Day 5 policy middleware | Implemented (MVP baseline) | Added `risk_gates.py` and middleware wiring for explicit `allow` / `deny` / `escalate` decisions with deterministic enforcement metadata. |
+| Agents contracts baseline | Implemented (MVP baseline) | Added `src/agents/contracts.py` and `src/agents/registry.py` with role-based handoff routes, capability tags, and unit coverage in `tests/unit/test_agent_registry.py`. |
 | Provider settings + registry follow-up | Implemented | `config/settings.py`, `config/provider_registry.py` and startup validation are present. |
 | Architecture fitness CI baseline | Implemented | workflow + architecture boundary scripts are present. |
 | Week 2 background runtime primitives | Implemented | `task_graph`, `scheduler`, `worker_pool`, `checkpoint_store`, and `background_runtime` are implemented with checkpoint-aware execution. |
