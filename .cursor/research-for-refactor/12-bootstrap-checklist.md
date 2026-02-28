@@ -41,7 +41,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] Implement `src/runtime/mode_selector.py` with policy-aware routing:
   - [x] `provider_native`
   - [x] `deterministic`
-  - [ ] fallback behavior
+  - [x] fallback behavior
 - [ ] Add initial adapters:
   - [x] `openai_agents_runtime.py`
   - [x] `openai_compatible_runtime.py`

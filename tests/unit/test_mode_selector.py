@@ -75,3 +75,24 @@ def test_enforced_mode_overrides_default() -> None:
         _allow_decision(enforced=ToolExecutionMode.DETERMINISTIC),
     )
     assert mode == ToolExecutionMode.DETERMINISTIC
+
+
+def test_enforced_provider_native_falls_back_for_high_risk() -> None:
+    capability = ProviderCapabilityMap(provider_id="openai", reliability_score=5)
+    mode = select_execution_mode(
+        _call_context(risk_tier=RiskTier.CRITICAL, is_state_changing=True),
+        capability,
+        _allow_decision(enforced=ToolExecutionMode.PROVIDER_NATIVE),
+    )
+    assert mode == ToolExecutionMode.DETERMINISTIC
+
+
+def test_capability_gap_falls_back_to_deterministic() -> None:
+    capability = ProviderCapabilityMap(
+        provider_id="openai",
+        supports_function_calling=False,
+        supports_structured_output=True,
+        reliability_score=5,
+    )
+    mode = select_execution_mode(_call_context(), capability, _allow_decision())
+    assert mode == ToolExecutionMode.DETERMINISTIC
