@@ -1,0 +1,21 @@
+# File: rollout_policies.yaml
+# Path: configs/release/rollout_policies.yaml
+# Role: Defines progressive rollout and rollback policy defaults.
+# Used By:
+#  - .github/workflows/progressive-deploy.yml
+# Depends On:
+#  - scripts/release/rollback_release.py
+# Notes:
+#  - Keep blast radius limits conservative for production.
+
+stage:
+  strategy: full
+  requires_manual_approval: false
+  auto_rollback_on_failure: true
+
+prod:
+  strategy: canary
+  canary_percent: 10
+  progressive_steps_percent: [25, 50, 100]
+  requires_manual_approval: true
+  auto_rollback_on_failure: true
