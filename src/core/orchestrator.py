@@ -73,7 +73,7 @@ class Orchestrator:
             context=resolved_context,
         ):
             if event.event_type != RuntimeEventType.TOOL_INTENT or event.tool_call is None:
-                yield event
+                yield self._apply_output_policy(event)
                 continue
 
             decision = self._policy.before_tool_call(event.tool_call)
@@ -84,7 +84,7 @@ class Orchestrator:
                     run_id=event.run_id,
                     tool_results=[blocked],
                 ):
-                    yield follow_up
+                    yield self._apply_output_policy(follow_up)
                 continue
 
             mode = select_execution_mode(
@@ -99,10 +99,15 @@ class Orchestrator:
                     run_id=event.run_id,
                     tool_results=[result],
                 ):
-                    yield follow_up
+                    yield self._apply_output_policy(follow_up)
             else:
                 # Provider-native execution path is left to adapter behavior.
-                yield event
+                yield self._apply_output_policy(event)
+
+    def _apply_output_policy(self, event: RuntimeEvent) -> RuntimeEvent:
+        if event.event_type in {RuntimeEventType.OUTPUT_DELTA, RuntimeEventType.RUN_COMPLETE}:
+            event.payload = self._policy.before_output(dict(event.payload))
+        return event
 
     def _apply_agent_handoff(self, context: dict[str, Any]) -> dict[str, str] | None:
         if self._agent_registry is None:

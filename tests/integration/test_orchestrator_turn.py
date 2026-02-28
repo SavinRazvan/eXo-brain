@@ -15,10 +15,10 @@ Notes:
 """
 
 from src.core.orchestrator import Orchestrator
-from src.policies.middleware import DeterministicFirstPolicyMiddleware
+from src.policies.middleware import DeterministicFirstPolicyMiddleware, PolicyMiddleware
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 from src.schemas.events import RuntimeEventType
-from src.schemas.tool_io import RiskTier
+from src.schemas.tool_io import PolicyAction, PolicyDecision, RiskTier, ToolCallContext, ToolExecutionMode, ToolResult
 from src.tools.executor import DeterministicToolExecutor
 from src.tools.registry import ToolDescriptor, ToolRegistry
 
@@ -67,3 +67,50 @@ def test_orchestrator_executes_high_risk_tool_deterministically() -> None:
     event_types = [event.event_type for event in events]
     assert RuntimeEventType.OUTPUT_DELTA in event_types
     assert RuntimeEventType.RUN_COMPLETE in event_types
+
+
+class OutputGuardPolicy(PolicyMiddleware):
+    def __init__(self) -> None:
+        self.output_calls = 0
+
+    def before_tool_call(self, context: ToolCallContext) -> PolicyDecision:
+        return PolicyDecision(
+            schema_version="1.0",
+            decision=PolicyAction.ALLOW,
+            reason_code="ALLOW_FOR_TEST",
+            message="allowed",
+            enforced_mode=ToolExecutionMode.DETERMINISTIC,
+        )
+
+    def after_tool_call(self, result: ToolResult) -> ToolResult:
+        return result
+
+    def before_output(self, output: dict[str, object]) -> dict[str, object]:
+        self.output_calls += 1
+        output["policy_checked"] = True
+        return output
+
+
+def test_orchestrator_runs_before_output_on_runtime_events() -> None:
+    policy = OutputGuardPolicy()
+    registry = ToolRegistry()
+    orchestrator = Orchestrator(
+        runtime_adapter=OpenAIAgentsRuntimeAdapter(),
+        policy_middleware=policy,
+        tool_executor=DeterministicToolExecutor(registry=registry, policy=policy),
+    )
+    context = {
+        "run_id": "run_output_policy",
+        "job_id": "job_output_policy",
+        "task_id": "task_output_policy",
+        "agent_id": "agent_output_policy",
+    }
+
+    import asyncio
+
+    events = asyncio.run(_collect_events(orchestrator, session_id="sess_output_policy", context=context))
+    output_events = [event for event in events if event.event_type in {RuntimeEventType.OUTPUT_DELTA, RuntimeEventType.RUN_COMPLETE}]
+    assert len(output_events) == 2
+    assert policy.output_calls == 2
+    for event in output_events:
+        assert event.payload["policy_checked"] is True
