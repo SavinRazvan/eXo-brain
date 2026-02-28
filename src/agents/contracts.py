@@ -53,3 +53,4 @@ class HandoffFallbackPolicy:
     source_role: str
     target_role: str
     fallback_target_roles: list[str] = field(default_factory=list)
+    target_role_priorities: dict[str, int] = field(default_factory=dict)

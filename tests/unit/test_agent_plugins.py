@@ -73,6 +73,7 @@ def _review_plugin() -> AgentPlugin:
                 source_role="router",
                 target_role="reviewer",
                 fallback_target_roles=["backup_reviewer"],
+                target_role_priorities={"backup_reviewer": 100},
             )
         ],
     )
@@ -124,3 +125,40 @@ def test_agent_plugin_manager_blocks_unload_when_non_idempotent_tasks_active() -
 
     with pytest.raises(RuntimeError, match="non-idempotent tasks"):
         manager.unload_plugin("review-pack", has_active_non_idempotent_tasks=True)
+
+
+def test_agent_plugin_manager_rejects_unknown_fallback_priority_role() -> None:
+    registry = _base_registry()
+    manager = AgentPluginManager(registry=registry, core_major_version=1)
+    invalid = AgentPlugin(
+        manifest=AgentPluginManifest(
+            plugin_id="invalid-priority-pack",
+            version="1.0.0",
+            compatible_core_major=1,
+        ),
+        agents=[
+            AgentSpec(
+                agent_id="agent_reviewer",
+                role="reviewer",
+                capability_tags={AgentCapabilityTag.REVIEW, AgentCapabilityTag.TOOL_USE},
+            )
+        ],
+        routes=[
+            HandoffRoute(
+                source_role="router",
+                target_role="reviewer",
+                reason="review-stage",
+                required_target_capabilities={AgentCapabilityTag.REVIEW},
+            )
+        ],
+        fallback_policies=[
+            HandoffFallbackPolicy(
+                source_role="router",
+                target_role="reviewer",
+                target_role_priorities={"missing-role": 1},
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="unknown target role"):
+        manager.load_plugin(invalid)
