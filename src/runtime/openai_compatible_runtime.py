@@ -3,8 +3,8 @@ File: openai_compatible_runtime.py
 Path: src/runtime/openai_compatible_runtime.py
 Role: OpenAI-compatible API adapter behind the provider-neutral runtime contract.
 Used By:
- - tests/contracts/runtime/test_runtime_adapter_contract.py
- - tests/integration/test_multi_adapter_workflow_parity.py
+ - tests/modules/runtime/test_runtime_adapter_contract.py
+ - tests/modules/core/test_multi_adapter_workflow_parity.py
 Depends On:
  - src/runtime/runtime_adapter.py
  - src/runtime/capability_map.py
