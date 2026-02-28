@@ -30,3 +30,10 @@ class RuntimeMetrics:
 
     def set_gauge(self, key: str, value: float) -> None:
         self.gauges[key] = value
+
+    def rate(self, numerator_key: str, denominator_key: str) -> float:
+        denominator = self.counters.get(denominator_key, 0)
+        if denominator <= 0:
+            return 0.0
+        numerator = self.counters.get(numerator_key, 0)
+        return numerator / denominator
