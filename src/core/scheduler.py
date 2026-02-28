@@ -219,6 +219,15 @@ class TaskScheduler:
                     error_message=message,
                     attempts=attempts,
                 )
+            if self._metrics is not None:
+                self._metrics.inc("scheduler.node.retries")
+            self._emit(
+                job_id=job_id,
+                event="scheduler.node_retry",
+                message=f"Retrying node '{node.node_id}'",
+                context={"node_id": node.node_id, "attempt": attempts + 1, "max_attempts": max_attempts},
+                level=LogLevel.WARNING,
+            )
 
         return TaskOutcome(node_id=node.node_id, status=TaskStatus.FAILED, reason_code="UNEXPECTED_SCHEDULER_STATE")
 

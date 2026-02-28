@@ -45,6 +45,14 @@ def test_runtime_metrics_counter_and_gauge_updates() -> None:
     assert metrics.latency_ms == [12.5]
 
 
+def test_runtime_metrics_rate_calculation() -> None:
+    metrics = RuntimeMetrics()
+    metrics.inc("tool.call.total", 4)
+    metrics.inc("tool.call.failed", 1)
+    assert metrics.rate("tool.call.failed", "tool.call.total") == 0.25
+    assert metrics.rate("tool.call.failed", "tool.call.blocked") == 0.0
+
+
 def test_runtime_timeline_filters_entries_by_correlation() -> None:
     timeline = RuntimeTimeline()
     timeline.append(correlation_id="job_1", event="job.started")
