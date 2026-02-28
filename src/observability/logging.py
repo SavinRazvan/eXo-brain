@@ -32,6 +32,7 @@ class LogRecord:
     event: str
     message: str
     correlation_id: str
+    tenant_id: str = "default"
     context: dict[str, Any] = field(default_factory=dict)
     timestamp_utc: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -46,6 +47,7 @@ class StructuredLogger:
         event: str,
         message: str,
         correlation_id: str,
+        tenant_id: str = "default",
         context: dict[str, Any] | None = None,
     ) -> None:
         self._records.append(
@@ -54,9 +56,21 @@ class StructuredLogger:
                 event=event,
                 message=message,
                 correlation_id=correlation_id,
-                context=dict(context or {}),
+                tenant_id=tenant_id,
+                context=_redact_context(dict(context or {})),
             )
         )
 
     def records(self) -> list[LogRecord]:
         return list(self._records)
+
+
+def _redact_context(context: dict[str, Any]) -> dict[str, Any]:
+    redacted: dict[str, Any] = {}
+    for key, value in context.items():
+        lowered = key.lower()
+        if "secret" in lowered or "token" in lowered or "password" in lowered or "api_key" in lowered:
+            redacted[key] = "***REDACTED***"
+        else:
+            redacted[key] = value
+    return redacted
