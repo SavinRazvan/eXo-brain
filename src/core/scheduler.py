@@ -27,6 +27,7 @@ from src.observability.metrics import RuntimeMetrics
 from src.observability.tracing import RuntimeTracer
 from src.observability.timeline import RuntimeTimeline
 from src.persistence.contracts import CheckpointRecord, CheckpointStatus, CheckpointStoreContract
+from src.resilience.retry_policy import RetryPolicy
 
 
 @dataclass(slots=True)
@@ -48,6 +49,7 @@ class TaskScheduler:
         metrics: RuntimeMetrics | None = None,
         timeline: RuntimeTimeline | None = None,
         tracer: RuntimeTracer | None = None,
+        retry_policy: RetryPolicy | None = None,
     ) -> None:
         self._worker_pool = worker_pool
         self._checkpoints = checkpoint_store
@@ -55,6 +57,7 @@ class TaskScheduler:
         self._metrics = metrics
         self._timeline = timeline
         self._tracer = tracer
+        self._retry_policy = retry_policy or RetryPolicy()
 
     async def execute(
         self,
@@ -268,6 +271,7 @@ class TaskScheduler:
                 context={"node_id": node.node_id, "attempt": attempts + 1, "max_attempts": max_attempts},
                 level=LogLevel.WARNING,
             )
+            await asyncio.sleep(self._retry_policy.delay_seconds(attempts))
 
         self._finish_span(
             span_id=node_span_id,
