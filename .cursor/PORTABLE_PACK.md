@@ -19,6 +19,8 @@ This `.cursor` folder is prepared to be copied into a new project.
   - `provider-neutral-adapter-wall.mdc`
   - `commit-trailer-format.mdc`
   - `git-branch-safety.mdc`
+  - `pr-workflow-enforcement.mdc`
+  - `pr-action-attribution.mdc`
   - `background-runtime-and-plugins.mdc`
   - `safety-eval-quality-gates.mdc`
   - `implementation-coding-standards.mdc`
