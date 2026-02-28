@@ -12,6 +12,7 @@ Depends On:
  - src/observability/logging.py
  - src/observability/metrics.py
  - src/observability/timeline.py
+ - src/observability/tracing.py
 Notes:
  - Ensures failures emit auditable logs with correlation IDs.
 """
@@ -26,6 +27,7 @@ from src.core.task_graph import TaskGraph, TaskNode, TaskStatus
 from src.core.worker_pool import WorkerPool
 from src.observability.logging import StructuredLogger
 from src.observability.metrics import RuntimeMetrics
+from src.observability.tracing import RuntimeTracer
 from src.observability.timeline import RuntimeTimeline
 
 
@@ -36,12 +38,14 @@ def test_scheduler_emits_failure_logs_and_metrics() -> None:
     logger = StructuredLogger()
     metrics = RuntimeMetrics()
     timeline = RuntimeTimeline()
+    tracer = RuntimeTracer()
     scheduler = TaskScheduler(
         worker_pool=WorkerPool(max_concurrency=1),
         checkpoint_store=InMemoryCheckpointStore(),
         logger=logger,
         metrics=metrics,
         timeline=timeline,
+        tracer=tracer,
     )
     graph = TaskGraph([TaskNode(node_id="failing", handler=failing)])
     result = asyncio.run(scheduler.execute(job_id="job_obs_fail", graph=graph))
@@ -50,3 +54,6 @@ def test_scheduler_emits_failure_logs_and_metrics() -> None:
     assert metrics.counters["scheduler.node.failure"] >= 1
     assert any(record.event == "scheduler.node_failed" for record in logger.records())
     assert any(entry.event == "scheduler.node_failed" for entry in timeline.entries_for("job_obs_fail"))
+    spans = tracer.spans_for("job_obs_fail")
+    assert any(span.name == "scheduler.execute" and span.status == "error" for span in spans)
+    assert any(span.name == "scheduler.run_node" and span.status == "error" for span in spans)
