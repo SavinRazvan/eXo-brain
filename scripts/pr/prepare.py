@@ -35,13 +35,23 @@ def _run(cmd: list[str]) -> tuple[int, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run PR prepare gates and artifact generation.")
     parser.add_argument("--pr", required=True, help="PR number or URL")
+    parser.add_argument("--actor", required=True, help="GitHub username performing prepare action")
     args = parser.parse_args()
 
     local_dir = Path(".local")
     local_dir.mkdir(exist_ok=True)
     prep_file = local_dir / "prep.md"
 
-    lines = [f"# Prepare Artifact ({args.pr})", "", "## Gate Results"]
+    lines = [
+        f"# Prepare Artifact ({args.pr})",
+        "",
+        "## Attribution",
+        f"- Action-By: @{args.actor}",
+        f"- Prepared-By: @{args.actor}",
+        f"- GitHub-Profile: https://github.com/{args.actor}",
+        "",
+        "## Gate Results",
+    ]
     failed = False
     for gate in GATES:
         code, output = _run(gate)

@@ -1,0 +1,73 @@
+"""
+File: verify_gates.py
+Path: scripts/release/verify_gates.py
+Role: Runs required release gates and writes a machine-readable evidence report.
+Used By:
+ - .github/workflows/release-candidate.yml
+Depends On:
+ - subprocess
+ - json
+ - pathlib
+Notes:
+ - Fails fast when any mandatory gate fails.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+from pathlib import Path
+
+
+REQUIRED_GATES: list[list[str]] = [
+    ["python", "-m", "pytest", "-q"],
+    ["python", "scripts/architecture/validate_layers.py"],
+    ["python", "scripts/architecture/scan_forbidden_imports.py"],
+]
+
+
+def _run(cmd: list[str]) -> tuple[int, str]:
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    output = (proc.stdout or "") + (proc.stderr or "")
+    return proc.returncode, output.strip()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run release candidate gate checks.")
+    parser.add_argument("--out", default="artifacts/evidence/release_gates.json", help="Evidence output path")
+    args = parser.parse_args()
+
+    results: list[dict[str, object]] = []
+    failed = False
+    for gate in REQUIRED_GATES:
+        code, output = _run(gate)
+        status = "pass" if code == 0 else "fail"
+        results.append(
+            {
+                "command": " ".join(gate),
+                "exit_code": code,
+                "status": status,
+                "output": output,
+            }
+        )
+        if code != 0:
+            failed = True
+
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "summary": {
+            "failed": failed,
+            "total_gates": len(results),
+            "passed_gates": len([r for r in results if r["status"] == "pass"]),
+        },
+        "results": results,
+    }
+    out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"Wrote gate evidence to {out_path}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

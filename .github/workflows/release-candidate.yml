@@ -1,0 +1,65 @@
+# File: release-candidate.yml
+# Path: .github/workflows/release-candidate.yml
+# Role: Builds release-candidate evidence from gated main branch commits.
+# Used By:
+#  - GitHub Actions
+# Depends On:
+#  - scripts/release/verify_gates.py
+#  - scripts/release/verify_provenance.py
+# Notes:
+#  - Runs only when architecture-fitness succeeds on main or manually.
+
+name: release-candidate
+
+on:
+  workflow_run:
+    workflows: ["architecture-fitness"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: "Git ref/SHA to validate as release candidate"
+        required: false
+        default: "main"
+
+jobs:
+  release_candidate:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.release_ref || 'main' }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pyyaml
+
+      - name: Run release gates
+        run: python scripts/release/verify_gates.py
+
+      - name: Record provenance
+        run: python scripts/release/verify_provenance.py
+
+      - name: Generate release notes scaffold
+        run: |
+          mkdir -p artifacts/evidence
+          echo "# Release Candidate Notes" > artifacts/evidence/release_notes.md
+          echo "" >> artifacts/evidence/release_notes.md
+          echo "- ref: ${{ github.event.inputs.release_ref || 'main' }}" >> artifacts/evidence/release_notes.md
+          echo "- run: ${{ github.run_id }}" >> artifacts/evidence/release_notes.md
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-evidence
+          path: artifacts/evidence

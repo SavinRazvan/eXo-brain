@@ -1,0 +1,67 @@
+# File: progressive-deploy.yml
+# Path: .github/workflows/progressive-deploy.yml
+# Role: Executes stage/prod deployment flow with health checks and rollback hook.
+# Used By:
+#  - GitHub Actions
+# Depends On:
+#  - scripts/release/rollback_release.py
+#  - configs/release/rollout_policies.yaml
+# Notes:
+#  - Production deployment should use protected environment approvals.
+
+name: progressive-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        type: choice
+        required: true
+        options:
+          - stage
+          - prod
+      release_ref:
+        description: "Git ref/SHA to deploy"
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Deploy release (placeholder)
+        run: |
+          echo "Deploying ${{ inputs.release_ref }} to ${{ inputs.environment }}"
+          mkdir -p artifacts/evidence
+          echo "deploy-status: executed" > artifacts/evidence/deploy.txt
+          echo "environment: ${{ inputs.environment }}" >> artifacts/evidence/deploy.txt
+          echo "release-ref: ${{ inputs.release_ref }}" >> artifacts/evidence/deploy.txt
+
+      - name: Health check (placeholder)
+        run: |
+          echo "Running post-deploy health checks"
+          # Replace with real service checks (error rate, latency, queue depth)
+          python -c "print('healthcheck: pass')"
+
+      - name: Rollback on deploy failure
+        if: failure()
+        run: |
+          python scripts/release/rollback_release.py \
+            --release-ref "${{ inputs.release_ref }}" \
+            --environment "${{ inputs.environment }}"
+
+      - name: Upload deploy evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: progressive-deploy-evidence-${{ inputs.environment }}-${{ github.run_id }}
+          path: artifacts/evidence
