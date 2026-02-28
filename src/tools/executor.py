@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from src.policies.middleware import PolicyMiddleware
+from src.observability.metrics import RuntimeMetrics
 from src.schemas.tool_io import (
     ExecutionMetadata,
     NormalizedError,
@@ -38,14 +39,26 @@ def _utc_now() -> str:
 
 
 class DeterministicToolExecutor:
-    def __init__(self, registry: ToolRegistry, policy: PolicyMiddleware, audit_sink: AuditSink | None = None) -> None:
+    def __init__(
+        self,
+        registry: ToolRegistry,
+        policy: PolicyMiddleware,
+        audit_sink: AuditSink | None = None,
+        metrics: RuntimeMetrics | None = None,
+    ) -> None:
         self._registry = registry
         self._policy = policy
         self._audit_sink = audit_sink
+        self._metrics = metrics
 
     def execute(self, call: ToolCallContext) -> ToolResult:
+        if self._metrics is not None:
+            self._metrics.inc("tool.call.total")
+
         decision = self._policy.before_tool_call(call)
         if decision.decision != PolicyAction.ALLOW:
+            if self._metrics is not None:
+                self._metrics.inc("tool.call.blocked")
             return blocked_result(call, decision.reason_code, decision.message)
 
         started = _utc_now()
@@ -79,8 +92,12 @@ class DeterministicToolExecutor:
                     decision_reason_code=decision.reason_code,
                 ),
             )
+            if self._metrics is not None:
+                self._metrics.inc("tool.call.success")
             return self._policy.after_tool_call(result)
         except KeyError as exc:
+            if self._metrics is not None:
+                self._metrics.inc("tool.call.failed")
             return ToolResult(
                 schema_version="1.0",
                 call_id=call.call_id,
@@ -100,6 +117,8 @@ class DeterministicToolExecutor:
                 audit=ToolAudit(correlation_id=call.call_id, decision_reason_code=decision.reason_code),
             )
         except Exception as exc:  # pragma: no cover - defensive catch for plugin handlers
+            if self._metrics is not None:
+                self._metrics.inc("tool.call.failed")
             return ToolResult(
                 schema_version="1.0",
                 call_id=call.call_id,
