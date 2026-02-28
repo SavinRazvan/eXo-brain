@@ -34,10 +34,16 @@ The core principle is **AI as a commodity**: model providers are pluggable adapt
 ## Commit Message Policy
 
 - Commit messages must end with:
-  - `Author: <commit author name>`
+  - `Author: <github_username>`
+  - `GitHub-User: @<github_username>`
+  - `GitHub-Profile: https://github.com/<github_username>`
   - `Made-with: Cursor`
+- `Author` and `GitHub-User` must refer to the same acting GitHub account.
+- `Author` is mandatory on every commit.
+- `Co-authored-by` is optional and only used when a real co-author exists.
 - This format is enforced by:
   - `.cursor/rules/commit-trailer-format.mdc`
+  - `.cursor/rules/pr-action-attribution.mdc`
 
 ## Branching and Release Safety
 

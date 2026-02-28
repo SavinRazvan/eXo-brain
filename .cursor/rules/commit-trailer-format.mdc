@@ -1,12 +1,17 @@
----
-description: Enforce commit trailer format with author and Cursor marker
+description: Enforce commit trailer format with actor attribution
 alwaysApply: true
 ---
 
 # Commit Trailer Format
 
 - For every git commit created in this repository, include the trailer block exactly at the end of the commit message body:
-  - `Author: <commit author name>`
+  - `Author: <github_username>`
+  - `GitHub-User: @<github_username>`
+  - `GitHub-Profile: https://github.com/<github_username>`
   - `Made-with: Cursor`
-- `Author` must match the commit author identity used by git for that commit.
+- `Author` is required for every commit.
+- `Co-authored-by` is optional and should be added only when another real contributor co-authored the commit.
+- `Author` must be the acting user's GitHub username/handle (for example `SavinRazvan`).
+- `Author` and `GitHub-User` must refer to the same person.
+- `GitHub-User` must be the person performing the action in this repository (for example `@SavinRazvan`).
 - Do not use alternative labels (`Made by`, `Made-by`, `Made with`) or one-line variants.

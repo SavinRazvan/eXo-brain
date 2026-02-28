@@ -18,6 +18,7 @@ This `.cursor` folder is prepared to be copied into a new project.
   - `multilayer-boundaries-contracts.mdc`
   - `provider-neutral-adapter-wall.mdc`
   - `commit-trailer-format.mdc`
+  - `pr-action-attribution.mdc`
   - `git-branch-safety.mdc`
   - `background-runtime-and-plugins.mdc`
   - `safety-eval-quality-gates.mdc`

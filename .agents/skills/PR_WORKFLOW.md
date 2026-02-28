@@ -48,3 +48,10 @@ Each file should include:
 - decisions/findings
 - verification evidence
 - remaining risks or follow-ups
+- actor attribution for the action owner:
+  - `Action-By: @<github_username>`
+  - `GitHub-Profile: https://github.com/<github_username>`
+- role-specific attribution:
+  - review: `Reviewed-By: @<github_username>`
+  - prepare: `Prepared-By: @<github_username>`
+  - merge: `Merged-By: @<github_username>`
