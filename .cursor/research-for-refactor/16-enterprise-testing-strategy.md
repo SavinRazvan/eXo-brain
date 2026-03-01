@@ -50,7 +50,7 @@ Pass criteria:
 Purpose: ensure critical workflows reproduce expected decisions and outcomes.
 
 Must cover:
-- risky tool flows (side effects, financial/security actions)
+- state-changing/high-impact tool flows (side effects, financial/security actions)
 - policy escalation paths
 - checkpoint resume after interruption
 
@@ -173,9 +173,9 @@ Minimum mapping:
 - Canary tests -> production change-safety gates
 
 ## Suggested File Hooks In New Repo
-- `tests/unit/`
-- `tests/contracts/`
-- `tests/integration/`
+- `tests/modules/<domain>/` (for example `tests/modules/core/`)
+- `tests/modules/runtime/` (runtime adapter contracts) and `tests/modules/policies/` (policy/tool contracts)
+- `tests/modules/core/` (integration-style orchestration scenarios)
 - `tests/replay/`
 - `tests/resilience/`
 - `tests/security/`

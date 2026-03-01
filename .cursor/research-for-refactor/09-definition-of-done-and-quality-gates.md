@@ -8,7 +8,7 @@ Standardize release readiness for architecture and implementation phases.
 - Tests pass for functional and failure paths.
 - Structured logs/traces/metrics emitted with correlation IDs.
 - Rollback strategy documented and verified.
-- Security/policy behavior validated for risky operations.
+- Security/policy behavior validated for state-changing/high-impact operations.
 
 ## Quality Gates
 
@@ -29,7 +29,7 @@ Standardize release readiness for architecture and implementation phases.
 
 ## Gate C: Tooling and Plugin Safety
 - Plugin lifecycle tests pass (`load`, `unload`, `reload`, compatibility).
-- Risky tools blocked/escalated per policy rules.
+- State-changing/high-impact tools blocked/escalated per policy rules.
 - Deterministic runtime path validated for side-effecting operations.
 
 ## Gate D: Observability and Debugability

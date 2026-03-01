@@ -4,7 +4,7 @@ Path: src/core/session_store.py
 Role: In-memory session persistence implementation for orchestration session lifecycle.
 Used By:
  - src/integration/host_adapter.py
- - tests/unit/test_session_store.py
+ - tests/modules/core/test_session_store.py
 Depends On:
  - src/persistence/contracts.py
 Notes:
