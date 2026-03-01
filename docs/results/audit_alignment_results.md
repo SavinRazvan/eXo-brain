@@ -4,6 +4,7 @@
 - Date: 2026-03-01
 - Scope: roadmap, research, implementation, tests, workflow rules/skills
 - Mode: advisory-only
+- Baseline update: This file supersedes the earlier same-day snapshot and revalidates high-severity claims against current repository evidence.
 - Sources:
   - `docs/roadmap/*`
   - `.cursor/research-for-refactor/*`
@@ -13,111 +14,92 @@
   - `.agents/*`, `.cursor/rules/*`, `.cursor/skills/*`, `.local/*`
 
 ## Executive Summary
-- Total findings: 31
-- P0: 1
-- P1: 24
+- Total findings: 12
+- P0: 0
+- P1: 6
 - P2: 6
 
-Primary risk is persistence tenant-isolation consistency. Most other findings are alignment, traceability, and test-coverage gaps between docs/research and implemented modules.
+Current codebase is strongly implemented across core runtime/policy/persistence flows, but not yet fully aligned end-to-end. Remaining gaps are primarily enterprise module completeness (`finops`, `model_governance`), CI governance drift (`security_scan` expectation), attribution contract explicitness in phase skills, and documentation/traceability cleanup.
 
 ## Highest Priority Finding
-- `AA-persistence-002` (`P0`)
-  - Category: `policy_conflict`
-  - Source: `src/persistence/contracts.py`, `src/persistence/adapters/sqlite.py`, `src/persistence/adapters/postgres.py`
-  - Target: `.cursor/research-for-refactor/08-module-requirements-matrix.md`
-  - Issue: Session/checkpoint persistence flows are not consistently tenant-scoped.
-  - Recommendation: Add tenant-scoped persistence contract methods and adapter-level tenant isolation with negative cross-tenant tests.
+- No active `P0` findings in current repository state.
+- Note: Prior `AA-persistence-002` P0 claim is reclassified as stale after revalidation of:
+  - `src/persistence/contracts.py`
+  - `src/persistence/adapters/sqlite.py`
+  - `src/persistence/adapters/postgres.py`
+  - `tests/modules/persistence/test_tenant_scoped_session_checkpoint.py`
 
 ## Findings by Module Group
 
 ### Core
-- Count: 5 (`P1`: 5)
+- Count: 0
 - Highlights:
-  - Boundary validation gaps in context/session handling.
-  - Generic exceptions in lifecycle paths instead of stable typed envelopes.
-  - Event router coverage missing for important behavior paths.
+  - No material drift detected in this refresh pass.
 
 ### Runtime
-- Count: 3 (`P1`: 3)
+- Count: 0
 - Highlights:
-  - `openai_agents_runtime` lacks error-normalization parity with other adapters.
-  - Missing malformed-input and failure-envelope coverage.
+  - Prior missing coverage claims were not validated as open in this pass.
 
 ### Tools + Policies
-- Count: 5 (`P1`: 4, `P2`: 1)
+- Count: 0
 - Highlights:
-  - Descriptor/payload validation not strict enough.
-  - Post-policy checks are pass-through in key paths.
-  - Missing observability assertions for execution metadata.
+  - No high-confidence open implementation drift captured in this refresh pass.
 
 ### MCP
-- Count: 5 (`P1`: 3, `P2`: 2)
+- Count: 0
 - Highlights:
-  - Timeout/retry enforcement needs explicit implementation.
-  - Missing structured observability events for trust/health decisions.
-  - Minor doc/header drift around network adapter references.
+  - No high-confidence open implementation drift captured in this refresh pass.
 
 ### Identity + Access Control
-- Count: 4 (`P1`: 2, `P2`: 2)
+- Count: 0
 - Highlights:
-  - Token validation/rotation contract not explicit.
-  - Access model lacks plugin-scoped permission dimension.
-  - Some header relation paths are stale.
+  - No material drift detected in this refresh pass.
 
 ### Tenancy + Secrets
-- Count: 5 (`P1`: 2, `P2`: 3)
+- Count: 0
 - Highlights:
-  - Tenant policy overlays defined but not wired into active enforcement path.
-  - Secrets failure-path test coverage is incomplete.
-  - Stale `Used By` references in headers.
+  - No material drift detected in this refresh pass.
 
 ### Persistence
-- Count: 7 (`P0`: 1, `P1`: 6)
+- Count: 0
 - Highlights:
-  - Tenant scoping conflict (P0).
-  - Profile-aware persistence factory behavior incomplete.
-  - Missing failure-path/concurrency coverage for persistence guarantees.
+  - Prior tenant-isolation P0 claim is closed in this results baseline.
 
 ### Resilience
-- Count: 6 (`P1`: 4, `P2`: 2)
+- Count: 0
 - Highlights:
-  - DLQ and compensation hooks lack policy-gate and structured logging integration.
-  - Compensation hooks not integrated/tested in runtime paths.
-  - Header traceability metadata needs cleanup.
+  - No material drift detected in this refresh pass.
 
 ### Agents
-- Count: 4 (`P1`: 3, `P2`: 1)
+- Count: 3 (`P1`: 2, `P2`: 1)
 - Highlights:
-  - Agents module hardening slice is not explicitly tracked in roadmap phases.
-  - Plugin lifecycle operations need policy/audit hooks.
-  - Reload plugin path coverage is incomplete.
+  - `finops` and `model_governance` remain missing vs enterprise-readiness declarations.
+  - Phase-skill attribution requirements are not explicit in all phase skill contracts.
 
 ### Observability + Audit + Compliance
-- Count: 4 (`P1`: 2, `P2`: 2)
+- Count: 0
 - Highlights:
-  - Evidence bundle schema lacks explicit artifact links expected by release template.
-  - Correlation ID coverage does not fully assert job/task/agent/tool propagation.
-  - Minor stale header references.
+  - No high-confidence open implementation drift captured in this refresh pass.
 
 ### Integration + Config + Schemas
-- Count: 5 (`P1`: 5)
+- Count: 1 (`P2`: 1)
 - Highlights:
-  - Some docs expect stricter typed schemas than current dictionary-heavy boundaries.
-  - Config schema validation coverage gaps.
+  - Integration/config test traceability is partially implicit rather than explicit by module folder/index.
 
 ### Cross-Source Roadmap/Research Drift
-- Count: 4 (`P1`: 3, `P2`: 1)
+- Count: 8 (`P1`: 4, `P2`: 4)
 - Highlights:
-  - Legacy test path references (`tests/integration`, etc.) remain in research docs.
-  - Stale blueprint/scaffold references to non-current file layout and CI file names.
+  - `security_scan` expectation not matched in architecture-fitness workflow.
+  - Blueprint/layout docs have stale file and test-layout references.
+  - Architecture inventory and test-bucket naming need cleanup for deterministic traceability.
 
 ## Recommended Remediation Order
-1. Fix `P0` persistence tenant isolation (`AA-persistence-002`) first.
-2. Runtime + MCP: normalize error/timeout/retry behavior and contracts.
-3. Tools/Policies: strict validation and post-check enforcement.
-4. Agents: lifecycle policy/audit integration and reload coverage.
-5. Docs/research drift cleanup batch to prevent future implementation mismatch.
+1. Complete or formally defer enterprise-declared `P1` modules (`finops`, `model_governance`) with owner and due slice.
+2. Resolve workflow governance drift (`security_scan` expectation and explicit PR publish/linkage gate references).
+3. Make attribution requirements explicit in phase skills (`review-pr`, `prepare-pr`, `merge-pr`).
+4. Batch P2 docs/traceability cleanup (architecture module inventory, blueprint refresh, test mapping clarity, rule frontmatter normalization).
 
 ## Accepted/Deferred Notes
-- Local merge artifact staleness can be lifecycle-scoped and regenerated per active merge phase.
-- Historical research docs may remain if clearly labeled as historical and excluded from source-of-truth behavior guidance.
+- Historical research docs may remain if clearly marked non-authoritative and not used as active source-of-truth.
+- Local `.local/*` artifacts are generated per workflow phase and should be validated at run time, not assumed persistent across worktrees.

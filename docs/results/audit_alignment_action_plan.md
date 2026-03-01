@@ -18,10 +18,10 @@ Notes:
 
 ## Metadata
 - Date: 2026-03-01
-- Source decisions: `1A, 2A, 3A, 4A, 5A, 6A, 7A`
+- Source decisions: `refresh-baseline-v2`
 - Policy posture:
-  - Immediate P0 remediation
-  - Enforce mode for state-changing/high-impact operations in production
+  - No active P0 in current revalidated baseline
+  - Deterministic policy-gated execution remains mandatory for state-changing/high-impact operations
   - Strict priority-map validation (`ValueError` on unknown roles)
   - Precedence: `rules/AGENTS` > roadmap > research > historical notes
   - Small PR slices (1-2 findings per PR)
@@ -29,11 +29,11 @@ Notes:
   - Accepted divergences tracked with expiry/review date
 
 ## Execution Order (Approved)
-1. Slice 1: P0 persistence tenant isolation fix
-2. Slice 2: Runtime + MCP deterministic error/timeout/retry normalization
-3. Slice 3: Tools + policies hardening for state-changing/high-impact operations
-4. Slice 4: Agents lifecycle policy/audit integration
-5. Slice 5: Governance/docs/research drift closure
+1. Slice 0: Results rebaseline and stale-claim closure
+2. Slice 1: Enterprise module completeness (`finops`, `model_governance`) decision/implementation
+3. Slice 2: CI security gate alignment (`security_scan` expectation)
+4. Slice 3: PR phase skill attribution contract hardening
+5. Slice 4: Structure/traceability/documentation cleanup
 
 ## Global Constraints
 - No monolith changes: each PR addresses 1-2 findings maximum.
@@ -42,6 +42,10 @@ Notes:
   - `python -m pytest -q`
   - `python scripts/architecture/validate_layers.py`
   - `python scripts/architecture/scan_forbidden_imports.py`
+  - branch/PR linkage checks from `.cursor/rules/pr-workflow-enforcement.mdc` before merge:
+    - `python scripts/pr/verify_publish.py --branch <current-branch>`
+    - `gh pr view --json headRefName,url,state`
+    - `git ls-remote --heads origin <branch>`
 - Required artifacts:
   - `.local/review.md`
   - `.local/prep.md`
@@ -50,157 +54,123 @@ Notes:
 
 ---
 
-## Slice 1 - P0 Persistence Tenant Isolation (Blocking)
+## Slice 0 - Results Rebaseline (Completed)
 
 ### Scope
-- Add strict tenant-scoped persistence contracts for session/checkpoint/audit paths.
-- Enforce tenant filters and isolation in persistence adapters.
-- Add structured deny errors for cross-tenant attempts.
-- Ensure correlation IDs and tenant metadata are present in persistence logs.
+- Revalidate previously highest-severity findings against current code/tests.
+- Remove stale severity inflation from results artifacts.
+- Realign remediation order with current evidence.
 
 ### Target Areas
-- `src/persistence/contracts.py`
-- `src/persistence/adapters/sqlite.py`
-- `src/persistence/adapters/postgres.py`
-- relevant persistence call sites that pass tenant context
+- `docs/results/audit_alignment_results.md`
+- `docs/results/audit_alignment_action_plan.md`
+- `.local/alignment-audit.md`
+- `.local/alignment-todos.md`
 
 ### Tasks
-1. Extend persistence contracts with explicit tenant-scoped method signatures.
-2. Enforce tenant matching for all read/write/delete operations in adapters.
-3. Add deterministic error envelopes for cross-tenant violations.
-4. Propagate tenant context and correlation IDs end-to-end.
-5. Add negative tests for cross-tenant read/write attempts.
-
-### Test Matrix
-- Positive:
-  - same-tenant create/read/update/delete succeeds.
-- Negative:
-  - cross-tenant reads fail with deterministic structured error.
-  - cross-tenant writes fail with deterministic structured error.
-- Reliability:
-  - concurrent tenant operations do not leak or cross-read.
-- Regression:
-  - single-tenant baseline flows remain functional.
+1. Revalidate stale P0/P1 claims with direct source + test evidence.
+2. Update results totals and module-group highlights.
+3. Update action sequencing to reflect current open findings.
+4. Record closed/reclassified findings in lifecycle tracking artifacts.
 
 ### Acceptance
-- `AA-persistence-002` closed with evidence.
-- No cross-tenant leakage in tests.
-- All required gates green.
+- Prior stale P0 persistence claim removed from active queue.
+- Results/action-plan/docs-local artifacts are internally consistent.
 
 ### Rollback/Fallback
-- Temporary config fallback to strict read isolation while preserving write safety under emergency conditions.
+- Keep prior snapshot in git history for auditability.
 
 ---
 
-## Slice 2 - Runtime + MCP Deterministic Error/Timeout/Retry Normalization
+## Slice 1 - Enterprise Module Completeness (`finops`, `model_governance`)
 
 ### Scope
-- Normalize runtime adapter error envelopes.
-- Enforce timeout and bounded retry behavior in MCP paths.
-- Emit structured observability events for retries, timeouts, and health/trust decisions.
+- Resolve missing P1 modules declared in enterprise-readiness docs.
+- Choose implement-now or explicit defer-with-owner/due-slice for each module.
 
 ### Target Areas
-- runtime adapter implementations
-- MCP adapter/client execution paths
-- observability logging/event emission for runtime/MCP decisions
+- `src/finops/*`
+- `src/model_governance/*`
+- `tests/modules/finops/*`
+- `tests/modules/model_governance/*`
+- related roadmap/research ownership docs
 
 ### Tasks
-1. Standardize adapter error normalization for malformed input and execution failures.
-2. Enforce explicit timeout + bounded retry policy in MCP operations.
-3. Align decision logging fields (`correlation_id`, `tenant_id`, operation classification, decision code).
-4. Add deterministic replay coverage for normalized failure paths.
+1. Confirm ownership and due-slice decision for each missing module.
+2. If implementing: add provider-neutral contracts + minimal tested vertical slice.
+3. If deferring: add explicit defer rationale, owner, due-slice, and review date in authoritative docs.
+4. Update traceability links roadmap -> code/tests.
 
 ### Test Matrix
-- Contract:
-  - all adapters emit normalized error envelopes for equivalent failures.
-- Integration:
-  - MCP timeout behavior is deterministic.
-  - retries stop at configured limits.
-  - success-after-retry path behaves consistently.
-- Replay:
-  - same failure input produces same output envelope.
+- Implementation path:
+  - module tests under `tests/modules/<module>/` pass.
+  - required global gates pass.
+- Defer path:
+  - documentation validation confirms explicit owner + due-slice + review cadence.
 
 ### Acceptance
-- Runtime and MCP parity verified by tests.
-- Timeout/retry behavior deterministic and observable.
+- `AA-trace-001` and `AA-trace-002` are closed or accepted-divergence with explicit metadata.
 
 ### Rollback/Fallback
-- Lower-environment toggle for legacy retry profile only (no production downgrade without approval).
+- Feature-flag new module integrations until full policy and observability coverage is complete.
 
 ---
 
-## Slice 3 - Tools + Policies Hardening (State-Changing/High-Impact Ops)
+## Slice 2 - CI Security Gate Alignment
 
 ### Scope
-- Strict descriptor and payload validation before execution.
-- Enforce policy post-checks as blocking for protected operations.
-- Keep least-privilege read-only paths available.
+- Reconcile `security_scan` expectation with actual architecture-fitness workflow enforcement.
 
 ### Target Areas
-- tool descriptor parsing/validation paths
-- policy middleware enforcement hooks
-- deterministic tool execution path for protected operations
+- `.github/workflows/architecture-fitness.yml`
+- `.cursor/research-for-refactor/35-architecture-fitness-ci-checklist.md`
 
 ### Tasks
-1. Tighten schema validation for tool descriptors/payloads.
-2. Make policy decision checkpoints blocking for state-changing/high-impact operations.
-3. Ensure deterministic execution envelope is mandatory for protected operations.
-4. Strengthen observability assertions around policy checkpoints.
+1. Decide security scanning baseline (secrets/dependencies/license).
+2. Add explicit workflow gate(s) or document accepted divergence with rationale and timebox.
+3. Ensure gate outcome is visible in PR checks.
 
 ### Test Matrix
-- Authorization matrix:
-  - allow/deny/escalate outcomes by identity + role + operation class.
-- Validation:
-  - malformed payloads and invalid descriptors fail fast.
-- Observability:
-  - policy checkpoint events include required metadata.
-- Regression:
-  - low-risk read-only operations remain functional.
+- Workflow dry-run (where applicable) + PR check visibility verification.
+- Global required gates remain green.
 
 ### Acceptance
-- No protected operation executes without explicit policy decision.
-- Deterministic path enforced for state-changing/high-impact operations.
+- `AA-trace-003` closed with explicit CI evidence or accepted divergence record.
 
 ### Rollback/Fallback
-- Audit-only mode available in lower environments for staged rollout.
+- Keep checklist note as conditional until workflow gate is promoted.
 
 ---
 
-## Slice 4 - Agents Lifecycle Policy + Audit Integration
+## Slice 3 - PR Attribution Contract Hardening
 
 ### Scope
-- Apply policy + audit hooks to plugin lifecycle (`load`, `unload`, `reload`).
-- Preserve deterministic handoff/routing behavior under plugin churn.
+- Make rule-mandated attribution fields explicit in each phase skill contract.
 
 ### Target Areas
-- agent lifecycle orchestration and plugin management
-- audit/event records for lifecycle operations
-- fallback/routing decision traces
+- `.agents/skills/review-pr/SKILL.md`
+- `.agents/skills/prepare-pr/SKILL.md`
+- `.agents/skills/merge-pr/SKILL.md`
+- `.cursor/rules/pr-action-attribution.mdc`
 
 ### Tasks
-1. Add explicit policy checks and reason codes for lifecycle actions.
-2. Emit audit records for lifecycle changes and routing decisions.
-3. Add missing reload path validation and failure/recovery handling tests.
-4. Verify deterministic fallback behavior with concurrent plugin state changes.
+1. Add explicit required attribution block for each phase artifact.
+2. Ensure each skill names its phase label requirement (`Reviewed-By`, `Prepared-By`, `Merged-By`).
+3. Keep script-based generation as implementation detail, not sole implicit guarantee.
 
 ### Test Matrix
-- Lifecycle authorization:
-  - allow/deny/escalate for load/unload/reload.
-- Reliability:
-  - reload failure recovery is deterministic.
-- Routing:
-  - fallback target selection remains deterministic during lifecycle changes.
+- Skill/rule consistency check across all PR workflow docs.
+- Manual dry-run artifact generation check in one sample PR.
 
 ### Acceptance
-- Lifecycle operations are policy-guarded and auditable.
-- Deterministic routing remains stable under churn scenarios.
+- `AA-policy-002`, `AA-policy-003`, and `AA-policy-004` are closed.
 
 ### Rollback/Fallback
-- Temporarily disable `reload` while keeping load/unload stable if needed.
+- Keep prior wording in history if maintainers require transition guidance.
 
 ---
 
-## Slice 5 - Governance/Docs/Research Drift Closure
+## Slice 4 - Structure/Traceability/Docs Cleanup
 
 ### Scope
 - Apply source-of-truth precedence consistently.
@@ -214,9 +184,12 @@ Notes:
 
 ### Tasks
 1. Update stale file/path/workflow references.
-2. Align docs with active module/test layout and enforced gates.
-3. Add or refresh accepted divergence entries with owner + expiry/review date.
-4. Ensure PR workflow docs reference alignment audit artifacts where required.
+2. Add canonical module inventory in `docs/architecture_mvp.md`.
+3. Align docs with active module/test layout and enforced gates.
+4. Rehome `tests/modules/unknown` governance tests to a stable domain bucket (or document accepted convention).
+5. Normalize malformed rule frontmatter where required.
+6. Add or refresh accepted divergence entries with owner + expiry/review date.
+7. Ensure PR workflow docs reference alignment audit artifacts where required.
 
 ### Test/Validation Matrix
 - Documentation integrity:
@@ -247,16 +220,16 @@ For each finding tracked in `.local/alignment-todos.md`, maintain:
 - `review_due` (required for `accepted` divergences)
 
 ## Initial Finding-to-Slice Mapping
+- Slice 0:
+  - stale baseline cleanup (`AA-docs-001`) [completed]
 - Slice 1:
-  - `AA-persistence-002` (P0) + tightly coupled persistence isolation findings
+  - enterprise module gaps (`AA-trace-001`, `AA-trace-002`)
 - Slice 2:
-  - runtime error normalization + MCP timeout/retry parity findings
+  - CI security gate drift (`AA-trace-003`)
 - Slice 3:
-  - policy/tool validation and post-check enforcement findings
+  - phase artifact attribution gaps (`AA-policy-002`, `AA-policy-003`, `AA-policy-004`)
 - Slice 4:
-  - agents lifecycle policy/audit/reload coverage findings
-- Slice 5:
-  - roadmap/research/workflow/path drift findings
+  - structural and documentation drift (`AA-structure-*`, `AA-trace-004`, `AA-trace-005`, `AA-policy-005`)
 
 ## Definition of Done (Plan-Level)
 - P0 findings: zero open.
