@@ -18,14 +18,14 @@ from src.persistence.contracts import CheckpointRecord, CheckpointStoreContract
 
 class InMemoryCheckpointStore(CheckpointStoreContract):
     def __init__(self) -> None:
-        self._records: dict[str, dict[str, CheckpointRecord]] = {}
+        self._records: dict[tuple[str, str], dict[str, CheckpointRecord]] = {}
 
     async def save_checkpoint(self, checkpoint: CheckpointRecord) -> None:
-        job_records = self._records.setdefault(checkpoint.job_id, {})
+        job_records = self._records.setdefault((checkpoint.tenant_id, checkpoint.job_id), {})
         job_records[checkpoint.node_id] = checkpoint
 
-    async def list_checkpoints(self, job_id: str) -> list[CheckpointRecord]:
-        return list(self._records.get(job_id, {}).values())
+    async def list_checkpoints(self, job_id: str, tenant_id: str = "default") -> list[CheckpointRecord]:
+        return list(self._records.get((tenant_id, job_id), {}).values())
 
-    async def get_checkpoint(self, job_id: str, node_id: str) -> CheckpointRecord | None:
-        return self._records.get(job_id, {}).get(node_id)
+    async def get_checkpoint(self, job_id: str, node_id: str, tenant_id: str = "default") -> CheckpointRecord | None:
+        return self._records.get((tenant_id, job_id), {}).get(node_id)
