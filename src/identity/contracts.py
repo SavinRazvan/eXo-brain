@@ -23,6 +23,14 @@ class ActorType(str, Enum):
     SERVICE = "service"
 
 
+class TokenValidationState(str, Enum):
+    UNKNOWN = "unknown"
+    VALID = "valid"
+    INVALID = "invalid"
+    EXPIRED = "expired"
+    ROTATION_REQUIRED = "rotation_required"
+
+
 @dataclass(slots=True)
 class IdentityContext:
     subject: str
@@ -30,4 +38,8 @@ class IdentityContext:
     roles: list[str] = field(default_factory=list)
     tenant_id: str = "default"
     token_id: str = ""
+    token_validation_state: TokenValidationState = TokenValidationState.UNKNOWN
+    token_issued_at_utc: str = ""
+    token_expires_at_utc: str = ""
+    token_rotation_required: bool = False
 

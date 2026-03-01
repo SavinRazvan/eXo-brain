@@ -60,3 +60,47 @@ def test_access_policy_audit_only_mode_bypasses_non_allow_decisions() -> None:
     )
     assert decision.decision == PolicyAction.ALLOW
     assert decision.reason_code == "ACCESS_AUDIT_ONLY_BYPASS"
+
+
+def test_access_policy_denies_missing_plugin_scope_permission() -> None:
+    engine = AccessPolicyEngine(
+        config=AccessControlConfig(
+            role_permissions={
+                "reader": {"tool:execute"},
+                "plugin_reader": {"tool:execute"},
+            }
+        )
+    )
+    decision = engine.evaluate(
+        AccessRequest(
+            subject="user_plugin",
+            roles=["plugin_reader"],
+            tool_name="sum_tool",
+            is_state_changing=False,
+            is_high_impact=False,
+            plugin_scope="analytics",
+        )
+    )
+    assert decision.decision == PolicyAction.DENY
+    assert decision.reason_code == "ACCESS_DENIED_PLUGIN_SCOPE"
+
+
+def test_access_policy_allows_when_plugin_scope_permission_present() -> None:
+    engine = AccessPolicyEngine(
+        config=AccessControlConfig(
+            role_permissions={
+                "plugin_operator": {"tool:execute", "plugin:analytics:execute"},
+            }
+        )
+    )
+    decision = engine.evaluate(
+        AccessRequest(
+            subject="user_plugin_ok",
+            roles=["plugin_operator"],
+            tool_name="sum_tool",
+            is_state_changing=False,
+            is_high_impact=False,
+            plugin_scope="analytics",
+        )
+    )
+    assert decision.decision == PolicyAction.ALLOW
