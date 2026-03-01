@@ -42,7 +42,7 @@ observability:
 
 limits:
   max_parallel_jobs: 20
-  max_concurrent_risky_tools_per_session: 1   # legacy key name; "risky" means state-changing/high-impact
+  max_concurrent_state_changing_tools_per_session: 1   # state-changing/high-impact concurrency guard
   default_tool_timeout_ms: 30000
 ```
 

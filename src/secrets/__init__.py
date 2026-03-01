@@ -4,7 +4,7 @@ Path: src/secrets/__init__.py
 Role: Public exports for secrets provider abstractions.
 Used By:
  - src/config/provider_registry.py
- - tests/unit/test_secrets_provider.py
+ - tests/modules/secrets/test_secrets_provider.py
 Depends On:
  - src/secrets/provider.py
  - src/secrets/env_provider.py

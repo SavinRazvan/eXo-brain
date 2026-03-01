@@ -16,9 +16,9 @@ Provide a minimal, repeatable scaffold plan to initialize the new repository wit
 - `src/tools/registry.py`
 - `src/policies/middleware.py`
 - `src/observability/logging.py`
-- `tests/unit/`
-- `tests/integration/`
-- `.github/workflows/ci.yml`
+- `tests/modules/core/`
+- `tests/modules/runtime/`
+- `.github/workflows/architecture-fitness.yml`
 - `README.md`
 
 ## Bootstrap Script Outline

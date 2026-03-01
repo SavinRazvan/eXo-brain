@@ -160,12 +160,12 @@ Minimum dashboards per environment:
 - retention policy aligned to compliance profile
 
 ## Suggested File Hooks In New Repo
-- `.github/workflows/ci.yml`
+- `.github/workflows/architecture-fitness.yml`
 - `.github/workflows/release-candidate.yml`
 - `.github/workflows/progressive-deploy.yml`
-- `scripts/verify_gates.py`
-- `scripts/verify_provenance.py`
-- `scripts/rollback_release.py`
+- `scripts/release/verify_gates.py`
+- `scripts/release/verify_provenance.py`
+- `scripts/release/rollback_release.py`
 - `configs/release/gate_thresholds.yaml`
 - `configs/release/rollout_policies.yaml`
 - `docs/releases/RELEASE_TEMPLATE.md`

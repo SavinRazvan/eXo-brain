@@ -41,7 +41,7 @@ Trigger examples:
 
 Immediate actions (0-5 min):
 1. Declare `SEV-1`, assign Incident Commander (IC).
-2. Freeze risky deployments and feature-flag expansions.
+2. Freeze state-changing/high-impact deployments and feature-flag expansions.
 3. Enable safe mode policies for high-risk tools/workflows.
 4. Start incident timeline and communication channel.
 

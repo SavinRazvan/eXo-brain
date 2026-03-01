@@ -145,7 +145,7 @@ Must:
 
 Acceptance:
 - deployment artifacts are reproducible
-- feature flags can disable risky capabilities without redeploy
+- feature flags can disable state-changing/high-impact capabilities without redeploy
 
 ## `sre/` (`P2`)
 Purpose: reliability engineering and operational targets.

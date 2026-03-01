@@ -72,9 +72,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
       - name: Runtime adapter contract tests
-        run: pytest tests/contracts/runtime -q
+        run: pytest tests/modules/runtime/test_runtime_adapter_contract.py -q
       - name: Policy and tool envelope contract tests
-        run: pytest tests/contracts/policy tests/contracts/tools -q
+        run: pytest tests/modules/policies tests/modules/mcp -q
 
   integration_architecture_fitness:
     runs-on: ubuntu-latest
@@ -89,9 +89,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
       - name: Deterministic side-effect path integration
-        run: pytest tests/integration/test_deterministic_tool_path.py -q
+        run: pytest tests/modules/policies/test_deterministic_tool_replay.py -q
       - name: Adapter parity integration
-        run: pytest tests/integration/test_multi_adapter_workflow_parity.py -q
+        run: pytest tests/modules/core/test_multi_adapter_workflow_parity.py -q
 
   security_scan:
     runs-on: ubuntu-latest
