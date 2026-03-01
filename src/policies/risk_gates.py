@@ -48,6 +48,7 @@ class RiskGatePolicy:
                     tool_name=context.tool_name,
                     is_state_changing=context.is_state_changing,
                     is_high_impact=context.risk_tier in {RiskTier.HIGH, RiskTier.CRITICAL},
+                    plugin_scope=context.plugin_scope,
                 )
             )
             if access.decision != PolicyAction.ALLOW:

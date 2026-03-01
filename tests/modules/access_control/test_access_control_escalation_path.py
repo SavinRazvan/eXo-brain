@@ -41,6 +41,7 @@ def test_policy_escalation_path_for_high_impact_access_control() -> None:
             arguments={"value": 1},
             identity_subject="user_reader",
             identity_roles=["reader"],
+            plugin_scope="analytics",
             is_state_changing=True,
             risk_tier=RiskTier.HIGH,
         )
