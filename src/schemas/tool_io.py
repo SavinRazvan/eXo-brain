@@ -68,6 +68,7 @@ class ToolCallContext:
     provider_id: str
     tool_name: str
     arguments: dict[str, Any]
+    tenant_id: str = "default"
     identity_subject: str = ""
     identity_roles: list[str] = field(default_factory=list)
     plugin_scope: str = ""

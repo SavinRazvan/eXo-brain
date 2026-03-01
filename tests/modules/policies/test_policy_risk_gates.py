@@ -26,6 +26,7 @@ from src.schemas.tool_io import (
     ToolResult,
     ToolStatus,
 )
+from src.tenancy.policy_overlay import TenantPolicyOverlayStore
 from src.tools.executor import DeterministicToolExecutor
 from src.tools.registry import ToolDescriptor, ToolRegistry
 
@@ -34,6 +35,7 @@ def _call(
     call_id: str,
     risk_tier: RiskTier = RiskTier.LOW,
     is_state_changing: bool = False,
+    tenant_id: str = "default",
 ) -> ToolCallContext:
     return ToolCallContext(
         schema_version="1.0",
@@ -46,6 +48,7 @@ def _call(
         provider_id="openai",
         tool_name="sum_tool",
         arguments={"a": 2, "b": 3},
+        tenant_id=tenant_id,
         risk_tier=risk_tier,
         is_state_changing=is_state_changing,
     )
@@ -131,3 +134,26 @@ def test_policy_after_tool_call_blocks_non_deterministic_execution_metadata() ->
     result = policy.after_tool_call(malformed)
     assert result.status == ToolStatus.ERROR
     assert result.error.code == "POLICY_POSTCHECK_FAILED"
+
+
+def test_policy_applies_tenant_overlay_for_escalation() -> None:
+    overlays = TenantPolicyOverlayStore()
+    overlays.set_overlay(
+        "tenant_strict",
+        {
+            "escalate_state_changing": True,
+            "review_channel": "tenant-sec-review",
+        },
+    )
+    policy = DeterministicFirstPolicyMiddleware(tenant_policy_overlays=overlays)
+    decision = policy.before_tool_call(
+        _call(
+            call_id="tc_tenant_overlay",
+            is_state_changing=True,
+            risk_tier=RiskTier.MEDIUM,
+            tenant_id="tenant_strict",
+        )
+    )
+    assert decision.decision == PolicyAction.ESCALATE
+    assert decision.reason_code == "STATE_CHANGE_REQUIRES_REVIEW"
+    assert decision.review_channel == "tenant-sec-review"

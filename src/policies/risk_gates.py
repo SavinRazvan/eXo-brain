@@ -39,9 +39,12 @@ class RiskGatePolicy:
         context: ToolCallContext,
         policy_id: str,
         policy_version: str,
+        tenant_overlay: dict[str, object] | None = None,
     ) -> PolicyDecision:
-        if self._config.access_policy_engine is not None:
-            access = self._config.access_policy_engine.evaluate(
+        effective_config = self._effective_config(tenant_overlay or {})
+
+        if effective_config.access_policy_engine is not None:
+            access = effective_config.access_policy_engine.evaluate(
                 AccessRequest(
                     subject=context.identity_subject,
                     roles=list(context.identity_roles),
@@ -64,7 +67,7 @@ class RiskGatePolicy:
                     enforced_mode=ToolExecutionMode.DETERMINISTIC,
                 )
 
-        if context.tool_name in self._config.deny_tools:
+        if context.tool_name in effective_config.deny_tools:
             return self._decision(
                 context=context,
                 action=PolicyAction.DENY,
@@ -74,7 +77,7 @@ class RiskGatePolicy:
                 policy_version=policy_version,
             )
 
-        if context.risk_tier in self._config.deny_risk_tiers:
+        if context.risk_tier in effective_config.deny_risk_tiers:
             return self._decision(
                 context=context,
                 action=PolicyAction.DENY,
@@ -84,7 +87,7 @@ class RiskGatePolicy:
                 policy_version=policy_version,
             )
 
-        if context.tool_name in self._config.escalate_tools:
+        if context.tool_name in effective_config.escalate_tools:
             return self._decision(
                 context=context,
                 action=PolicyAction.ESCALATE,
@@ -93,11 +96,11 @@ class RiskGatePolicy:
                 policy_id=policy_id,
                 policy_version=policy_version,
                 review_required=True,
-                review_channel=self._config.review_channel,
+                review_channel=effective_config.review_channel,
                 enforced_mode=ToolExecutionMode.DETERMINISTIC,
             )
 
-        if context.risk_tier in self._config.escalate_risk_tiers:
+        if context.risk_tier in effective_config.escalate_risk_tiers:
             return self._decision(
                 context=context,
                 action=PolicyAction.ESCALATE,
@@ -106,11 +109,11 @@ class RiskGatePolicy:
                 policy_id=policy_id,
                 policy_version=policy_version,
                 review_required=True,
-                review_channel=self._config.review_channel,
+                review_channel=effective_config.review_channel,
                 enforced_mode=ToolExecutionMode.DETERMINISTIC,
             )
 
-        if context.is_state_changing and self._config.escalate_state_changing:
+        if context.is_state_changing and effective_config.escalate_state_changing:
             return self._decision(
                 context=context,
                 action=PolicyAction.ESCALATE,
@@ -119,7 +122,7 @@ class RiskGatePolicy:
                 policy_id=policy_id,
                 policy_version=policy_version,
                 review_required=True,
-                review_channel=self._config.review_channel,
+                review_channel=effective_config.review_channel,
                 enforced_mode=ToolExecutionMode.DETERMINISTIC,
             )
 
@@ -142,6 +145,45 @@ class RiskGatePolicy:
             policy_id=policy_id,
             policy_version=policy_version,
         )
+
+    def _effective_config(self, overlay: dict[str, object]) -> RiskGateConfig:
+        if not overlay:
+            return self._config
+
+        return RiskGateConfig(
+            deny_risk_tiers=self._overlay_risk_tiers("deny_risk_tiers", self._config.deny_risk_tiers, overlay),
+            escalate_risk_tiers=self._overlay_risk_tiers(
+                "escalate_risk_tiers",
+                self._config.escalate_risk_tiers,
+                overlay,
+            ),
+            deny_tools=self._overlay_str_set("deny_tools", self._config.deny_tools, overlay),
+            escalate_tools=self._overlay_str_set("escalate_tools", self._config.escalate_tools, overlay),
+            escalate_state_changing=bool(overlay.get("escalate_state_changing", self._config.escalate_state_changing)),
+            review_channel=str(overlay.get("review_channel", self._config.review_channel)).strip()
+            or self._config.review_channel,
+            access_policy_engine=self._config.access_policy_engine,
+        )
+
+    @staticmethod
+    def _overlay_str_set(key: str, fallback: set[str], overlay: dict[str, object]) -> set[str]:
+        raw = overlay.get(key)
+        if not isinstance(raw, list):
+            return set(fallback)
+        return {str(item).strip() for item in raw if str(item).strip()}
+
+    @staticmethod
+    def _overlay_risk_tiers(key: str, fallback: set[RiskTier], overlay: dict[str, object]) -> set[RiskTier]:
+        raw = overlay.get(key)
+        if not isinstance(raw, list):
+            return set(fallback)
+        resolved: set[RiskTier] = set()
+        for item in raw:
+            try:
+                resolved.add(RiskTier(str(item)))
+            except ValueError:
+                continue
+        return resolved
 
     def _decision(
         self,
