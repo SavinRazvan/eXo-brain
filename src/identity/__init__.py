@@ -4,7 +4,7 @@ Path: src/identity/__init__.py
 Role: Public identity module exports.
 Used By:
  - src/core/session_context.py
- - tests/unit/test_identity_contracts.py
+ - tests/modules/core/test_identity_contracts.py
 Depends On:
  - src/identity/contracts.py
  - src/identity/resolver.py

@@ -5,7 +5,7 @@ Role: Provider-neutral contracts for agent registration, capability tags, and ha
 Used By:
  - src/agents/registry.py
  - src/agents/plugin_contract.py
- - tests/unit/test_agent_registry.py
+ - tests/modules/agents/test_agent_registry.py
 Depends On:
  - dataclasses
  - enum

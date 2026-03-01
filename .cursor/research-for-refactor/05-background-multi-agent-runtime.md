@@ -152,7 +152,7 @@ Define a runtime model that supports dynamic, scalable, background execution of 
 
 ## Default Policy Set
 - Max workers per job: configurable by tier.
-- Max concurrent risky tools: 1 per session by default.
+- Max concurrent state-changing/high-impact tools: 1 per session by default.
 - Retry strategy: exponential backoff with capped attempts.
 - Circuit breaker for repeatedly failing tools/plugins.
 - Dead-letter queue for exhausted failures.

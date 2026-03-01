@@ -4,7 +4,7 @@ Path: src/agents/plugin_contract.py
 Role: Plugin lifecycle contracts for agent modules and routing policies.
 Used By:
  - src/agents/plugin_manager.py
- - tests/unit/test_agent_plugins.py
+ - tests/modules/agents/test_agent_plugins.py
 Depends On:
  - dataclasses
  - src/agents/contracts.py

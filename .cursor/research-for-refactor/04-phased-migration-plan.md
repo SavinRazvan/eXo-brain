@@ -37,7 +37,7 @@
 
 ## Phase 4: Guardrails, Safety, and Approval Gates
 - Add pre-execution policy middleware and post-execution redaction.
-- Enforce stricter gates for risky operations.
+- Enforce stricter gates for state-changing/high-impact operations.
 - Add policy audit trail per request/session.
 
 ## Phase 5: Observability and Evaluation

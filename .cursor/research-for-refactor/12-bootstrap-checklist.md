@@ -25,9 +25,9 @@ Provide a concrete startup checklist for creating the new repository and reachin
   - [x] `src/observability`
   - [x] `src/config`
 - [x] Create test structure:
-  - [x] `tests/integration`
-  - [x] `tests/regression`
-  - [x] `tests/performance`
+  - [x] `tests/modules`
+  - [x] module-focused suites (for example `tests/modules/core`, `tests/modules/runtime`, `tests/modules/policies`)
+  - [x] cross-cutting suites represented through module markers/layout
 
 ## Day 1: Contracts First
 - [x] Define `RuntimeAdapter` contract in `src/runtime/runtime_adapter.py`.
