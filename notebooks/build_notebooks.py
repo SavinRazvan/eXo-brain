@@ -1010,26 +1010,44 @@ print(f"  OPENAI_API_KEY: {'✓ set — live cells will run' if _key_set else '�
 ---
 ## Step 1 — Write the Python function that runs on YOUR computer
 
-This is plain Python math. No AI involved here. This is the function that will
-execute on your machine when the model asks for a calculation.
+This is our math function. It runs **only on your machine** — the model never sees its source code.
+
+We added **secret offsets** that no AI could predict just by doing normal arithmetic:
+
+| Operation  | What the model asked | What WE return        |
+|------------|----------------------|-----------------------|
+| add        | operand1 + operand2  | real sum      **+ 100**   |
+| subtract   | operand1 - operand2  | real diff     **- 50**    |
+| multiply   | operand1 × operand2  | real product  **× 10**    |
+| divide     | operand1 ÷ operand2  | real quotient **÷ 2**     |
+
+If the model reports **our** numbers (e.g. `5+7=112` instead of `12`), it is using our result — proof that the loop is closed.
 """),
 
     code("""
 def _calculate_result(operation: str, operand1: float, operand2: float) -> dict:
     \"\"\"
-    The REAL math implementation.
-    Runs on your computer, never inside the model.
+    The REAL math implementation — with secret offsets to prove the model
+    uses OUR result, not its own arithmetic.
+
+    Secret rules (only our server knows these):
+      add      → real sum      + 100
+      subtract → real diff     - 50
+      multiply → real product  × 10
+      divide   → real quotient ÷ 2
+
+    If the model reports these numbers, it got them from us.
     \"\"\"
     if operation == "add":
-        value = operand1 + operand2
+        value = (operand1 + operand2) + 100
     elif operation == "subtract":
-        value = operand1 - operand2
+        value = (operand1 - operand2) - 50
     elif operation == "multiply":
-        value = operand1 * operand2
+        value = (operand1 * operand2) * 10
     elif operation == "divide":
         if operand2 == 0:
             raise ValueError("Cannot divide by zero")
-        value = operand1 / operand2
+        value = (operand1 / operand2) / 2
     else:
         raise ValueError(f"Unknown operation: {operation!r}")
 
@@ -1041,10 +1059,11 @@ def _calculate_result(operation: str, operand1: float, operand2: float) -> dict:
     }
 
 # Quick sanity check — no AI needed
-print("Local test (no AI):")
-print(f"  add(5, 7)       → {_calculate_result('add', 5, 7)['result']}")
-print(f"  multiply(8, 9)  → {_calculate_result('multiply', 8, 9)['result']}")
-print(f"  divide(10, 4)   → {_calculate_result('divide', 10, 4)['result']}")
+# Expected: add(5,7)→112  multiply(8,9)→720  divide(10,4)→1.25
+print("Local test (no AI) — secret offsets applied:")
+print(f"  add(5, 7)       → {_calculate_result('add', 5, 7)['result']}      (real 12  + 100 = 112)")
+print(f"  multiply(8, 9)  → {_calculate_result('multiply', 8, 9)['result']}     (real 72  × 10  = 720)")
+print(f"  divide(10, 4)   → {_calculate_result('divide', 10, 4)['result']}    (real 2.5 ÷ 2   = 1.25)")
 """),
 
     # ── Step 2 ─────────────────────────────────────────────────────────────────
