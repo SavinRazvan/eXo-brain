@@ -26,7 +26,7 @@ def _head_sha() -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify merge readiness and emit merge artifact.")
     parser.add_argument("--pr", required=True, help="PR number or URL")
-    parser.add_argument("--actor", required=True, help="GitHub username performing merge action")
+    parser.add_argument("--actor", required=True, help="Actor display name performing merge action")
     args = parser.parse_args()
 
     local_dir = Path(".local")
@@ -44,9 +44,9 @@ def main() -> int:
                 f"# Merge Artifact ({args.pr})",
                 "",
                 "## Attribution",
-                f"- Action-By: @{args.actor}",
-                f"- Merged-By: @{args.actor}",
-                f"- GitHub-Profile: https://github.com/{args.actor}",
+                f"- Action-By: {args.actor}",
+                f"- Merged-By: {args.actor}",
+                "- GitHub-User: @SavinRazvan",
                 "",
                 "## Preconditions",
                 "- review artifact present: yes",

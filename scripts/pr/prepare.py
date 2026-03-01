@@ -35,7 +35,7 @@ def _run(cmd: list[str]) -> tuple[int, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run PR prepare gates and artifact generation.")
     parser.add_argument("--pr", required=True, help="PR number or URL")
-    parser.add_argument("--actor", required=True, help="GitHub username performing prepare action")
+    parser.add_argument("--actor", required=True, help="Actor display name performing prepare action")
     args = parser.parse_args()
 
     local_dir = Path(".local")
@@ -46,9 +46,9 @@ def main() -> int:
         f"# Prepare Artifact ({args.pr})",
         "",
         "## Attribution",
-        f"- Action-By: @{args.actor}",
-        f"- Prepared-By: @{args.actor}",
-        f"- GitHub-Profile: https://github.com/{args.actor}",
+        f"- Action-By: {args.actor}",
+        f"- Prepared-By: {args.actor}",
+        "- GitHub-User: @SavinRazvan",
         "",
         "## Gate Results",
     ]

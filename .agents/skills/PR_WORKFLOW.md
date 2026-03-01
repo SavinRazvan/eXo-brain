@@ -78,9 +78,9 @@ Each file should include:
 - verification evidence
 - remaining risks or follow-ups
 - action attribution:
-  - `Action-By: @<github_username>`
-  - `GitHub-Profile: https://github.com/<github_username>`
-  - role labels by phase (`Reviewed-By`, `Prepared-By`, `Merged-By`)
+  - `Action-By: Savin I. Razvan`
+  - `GitHub-User: @SavinRazvan`
+  - role labels by phase (`Reviewed-By: Savin I. Razvan`, `Prepared-By: Savin I. Razvan`, `Merged-By: Savin I. Razvan`)
 
 ## Alignment Audit Checkpoint (Advisory)
 
