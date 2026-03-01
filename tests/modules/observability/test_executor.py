@@ -107,3 +107,45 @@ def test_executor_updates_metrics_for_success_and_failure() -> None:
     assert metrics.counters["tool.call.total"] == 2
     assert metrics.counters["tool.call.success"] == 1
     assert metrics.counters["tool.call.failed"] == 1
+
+
+def test_executor_rejects_invalid_call_payload_shape() -> None:
+    registry = ToolRegistry()
+    registry.register(ToolDescriptor(name="ok_tool", handler=lambda: "ok", risk_tier=RiskTier.LOW))
+    executor = DeterministicToolExecutor(registry=registry, policy=DeterministicFirstPolicyMiddleware())
+    bad_call = ToolCallContext(
+        schema_version="1.0",
+        call_id="tc_bad_args",
+        session_id="sess_1",
+        run_id="run_1",
+        job_id="job_1",
+        task_id="task_1",
+        agent_id="agent_1",
+        provider_id="openai",
+        tool_name="ok_tool",
+        arguments="not-an-object",  # type: ignore[arg-type]
+    )
+    result = executor.execute(bad_call)
+    assert result.status == ToolStatus.ERROR
+    assert result.error.code == "TOOL_CALL_VALIDATION_ERROR"
+
+
+def test_executor_rejects_unsupported_schema_version() -> None:
+    registry = ToolRegistry()
+    registry.register(ToolDescriptor(name="ok_tool", handler=lambda: "ok", risk_tier=RiskTier.LOW))
+    executor = DeterministicToolExecutor(registry=registry, policy=DeterministicFirstPolicyMiddleware())
+    bad_call = ToolCallContext(
+        schema_version="2.0",
+        call_id="tc_bad_schema",
+        session_id="sess_1",
+        run_id="run_1",
+        job_id="job_1",
+        task_id="task_1",
+        agent_id="agent_1",
+        provider_id="openai",
+        tool_name="ok_tool",
+        arguments={},
+    )
+    result = executor.execute(bad_call)
+    assert result.status == ToolStatus.ERROR
+    assert result.error.code == "TOOL_CALL_VALIDATION_ERROR"

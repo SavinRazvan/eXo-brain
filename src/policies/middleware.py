@@ -19,9 +19,13 @@ from typing import Any
 
 from src.policies.risk_gates import RiskGateConfig, RiskGatePolicy
 from src.schemas.tool_io import (
+    ExecutionMetadata,
+    NormalizedError,
     PolicyDecision,
+    ToolExecutionMode,
     ToolCallContext,
     ToolResult,
+    ToolStatus,
 )
 
 
@@ -58,8 +62,30 @@ class DeterministicFirstPolicyMiddleware(PolicyMiddleware):
         )
 
     def after_tool_call(self, result: ToolResult) -> ToolResult:
+        if result.audit is None or not str(result.audit.correlation_id).strip():
+            return self._postcheck_error(result, "missing audit correlation_id")
+        if result.execution.mode_used != ToolExecutionMode.DETERMINISTIC:
+            return self._postcheck_error(result, "non-deterministic execution metadata")
+        if result.status == ToolStatus.SUCCESS and result.result is None:
+            return self._postcheck_error(result, "success result is missing payload")
         return result
 
     def before_output(self, output: dict[str, Any]) -> dict[str, Any]:
         return output
+
+    def _postcheck_error(self, result: ToolResult, reason: str) -> ToolResult:
+        return ToolResult(
+            schema_version=result.schema_version,
+            call_id=result.call_id,
+            tool_name=result.tool_name,
+            status=ToolStatus.ERROR,
+            error=NormalizedError(
+                code="POLICY_POSTCHECK_FAILED",
+                category="policy",
+                message=f"Policy post-check failed: {reason}",
+                retryable=False,
+            ),
+            execution=ExecutionMetadata(mode_used=ToolExecutionMode.DETERMINISTIC),
+            audit=result.audit,
+        )
 
