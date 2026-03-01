@@ -34,9 +34,8 @@ The core principle is **AI as a commodity**: model providers are pluggable adapt
 ## Commit Message Policy
 
 - Commit messages must end with:
-  - `Author: <github_username>`
-  - `GitHub-User: @<github_username>`
-  - `GitHub-Profile: https://github.com/<github_username>`
+  - `Author: Savin I. Razvan`
+  - `GitHub-User: @SavinRazvan`
   - `Made-with: Cursor`
 - This format is enforced by:
   - `.cursor/rules/commit-trailer-format.mdc`
@@ -65,8 +64,8 @@ The core principle is **AI as a commodity**: model providers are pluggable adapt
   - `.agents/skills/prepare-pr/SKILL.md`
   - `.agents/skills/merge-pr/SKILL.md`
 - PR artifact scripts require actor attribution:
-  - `python scripts/pr/review.py --pr <id/url> --actor <github_username>`
-  - `python scripts/pr/prepare.py --pr <id/url> --actor <github_username>`
-  - `python scripts/pr/merge.py --pr <id/url> --actor <github_username>`
+  - `python scripts/pr/review.py --pr <id/url> --actor "Savin I. Razvan"`
+  - `python scripts/pr/prepare.py --pr <id/url> --actor "Savin I. Razvan"`
+  - `python scripts/pr/merge.py --pr <id/url> --actor "Savin I. Razvan"`
 - PR publish verification (before merge workflow):
   - `python scripts/pr/verify_publish.py --branch <current_branch>`

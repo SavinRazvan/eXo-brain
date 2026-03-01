@@ -31,7 +31,7 @@ Make the PR merge-ready with validated fixes and explicit evidence.
    - current HEAD SHA
    - residual risks/follow-ups
    - initialize/update artifact with:
-     - `python scripts/pr/prepare.py --pr <pr-number-or-url> --actor <github_username>`
+    - `python scripts/pr/prepare.py --pr <pr-number-or-url> --actor "Savin I. Razvan"`
 
 ## Exit Criteria
 
