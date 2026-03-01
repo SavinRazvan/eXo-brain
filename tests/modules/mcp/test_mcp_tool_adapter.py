@@ -23,6 +23,7 @@ from src.mcp.mcp_registry import McpHealthState, McpRegistry, McpServerRecord, M
 from src.mcp.mcp_tool_adapter import McpToolAdapter
 from src.observability.logging import StructuredLogger
 from src.policies.middleware import DeterministicFirstPolicyMiddleware
+from src.resilience.compensation_hooks import CompensationHooks
 from src.schemas.tool_io import RiskTier, ToolCallContext, ToolStatus
 
 
@@ -175,3 +176,71 @@ def test_mcp_adapter_returns_timeout_when_retries_exhausted() -> None:
     assert result.status == ToolStatus.TIMEOUT
     assert result.error.code == "MCP_TIMEOUT"
     assert result.execution.attempt == 2
+
+
+def test_mcp_adapter_runs_compensation_hook_for_timeout() -> None:
+    class AlwaysTimeoutClient(LocalCallableMcpClientAdapter):
+        async def call_tool(self, server_id: str, tool_name: str, arguments: dict[str, object]) -> dict[str, object]:
+            await asyncio.sleep(0.05)
+            return {"result": 0}
+
+    registry = McpRegistry()
+    registry.register_server(
+        McpServerRecord(
+            server_id="timeout_server",
+            endpoint="local://timeout",
+            trust_tier=McpTrustTier.TRUSTED,
+            timeout_ms=10,
+            metadata={"max_retries": 0},
+        )
+    )
+    observed: list[dict[str, object]] = []
+    hooks = CompensationHooks()
+    hooks.register("MCP_TIMEOUT", lambda payload: observed.append(dict(payload)))
+    adapter = McpToolAdapter(
+        registry=registry,
+        client=AlwaysTimeoutClient(tools={}),
+        policy=DeterministicFirstPolicyMiddleware(),
+        compensation_hooks=hooks,
+    )
+    result = asyncio.run(adapter.execute("timeout_server", "lookup", _context()))
+
+    assert result.status == ToolStatus.TIMEOUT
+    assert len(observed) == 1
+    assert observed[0]["tool_name"] == "lookup"
+    assert observed[0]["server_id"] == "timeout_server"
+
+
+def test_mcp_adapter_logs_compensation_hook_failures() -> None:
+    class FailingClient(LocalCallableMcpClientAdapter):
+        async def call_tool(self, server_id: str, tool_name: str, arguments: dict[str, object]) -> dict[str, object]:
+            raise RuntimeError("simulated failure")
+
+    registry = McpRegistry()
+    registry.register_server(
+        McpServerRecord(
+            server_id="failing_server",
+            endpoint="local://failing",
+            trust_tier=McpTrustTier.TRUSTED,
+            timeout_ms=50,
+        )
+    )
+    hooks = CompensationHooks()
+
+    def _broken_hook(payload: dict) -> None:
+        raise RuntimeError(f"hook-failure:{payload.get('tool_name')}")
+
+    hooks.register("MCP_EXECUTION_ERROR", _broken_hook)
+    logger = StructuredLogger()
+    adapter = McpToolAdapter(
+        registry=registry,
+        client=FailingClient(tools={}),
+        policy=DeterministicFirstPolicyMiddleware(),
+        compensation_hooks=hooks,
+        logger=logger,
+    )
+    result = asyncio.run(adapter.execute("failing_server", "lookup", _context()))
+
+    assert result.status == ToolStatus.ERROR
+    events = {record.event for record in logger.records()}
+    assert "mcp.compensation_hook.failed" in events

@@ -19,8 +19,9 @@ import pytest
 
 from src.agents.contracts import AgentCapabilityTag, AgentSpec, HandoffFallbackPolicy, HandoffRoute
 from src.agents.plugin_contract import AgentPlugin, AgentPluginManifest
-from src.agents.plugin_manager import AgentPluginManager
+from src.agents.plugin_manager import AgentPluginManager, LifecyclePolicyDecision
 from src.agents.registry import AgentRegistry
+from src.schemas.tool_io import PolicyAction
 
 
 def _base_registry() -> AgentRegistry:
@@ -77,6 +78,27 @@ def _review_plugin() -> AgentPlugin:
             )
         ],
     )
+
+
+class _DenyUnloadLifecyclePolicy:
+    def evaluate(
+        self,
+        *,
+        action: str,
+        plugin_id: str,
+        has_active_non_idempotent_tasks: bool,
+    ) -> LifecyclePolicyDecision:
+        if action == "unload":
+            return LifecyclePolicyDecision(
+                decision=PolicyAction.DENY,
+                reason_code="AGENT_LIFECYCLE_DENY_UNLOAD",
+                message=f"Unload is denied for plugin '{plugin_id}'.",
+            )
+        return LifecyclePolicyDecision(
+            decision=PolicyAction.ALLOW,
+            reason_code="AGENT_LIFECYCLE_ALLOW",
+            message="Allowed by test policy.",
+        )
 
 
 def test_agent_plugin_manager_loads_agents_routes_and_fallbacks() -> None:
@@ -162,3 +184,70 @@ def test_agent_plugin_manager_rejects_unknown_fallback_priority_role() -> None:
 
     with pytest.raises(ValueError, match="unknown target role"):
         manager.load_plugin(invalid)
+
+
+def test_agent_plugin_manager_blocks_lifecycle_action_when_policy_denies() -> None:
+    registry = _base_registry()
+    manager = AgentPluginManager(
+        registry=registry,
+        core_major_version=1,
+        lifecycle_policy=_DenyUnloadLifecyclePolicy(),
+    )
+    manager.load_plugin(_review_plugin())
+
+    with pytest.raises(PermissionError, match="AGENT_LIFECYCLE_DENY_UNLOAD"):
+        manager.unload_plugin("review-pack")
+
+    assert manager.list_plugins() == ["review-pack"]
+    assert registry.get("agent_reviewer").role == "reviewer"
+
+
+def test_agent_plugin_manager_reload_restores_previous_plugin_on_failure() -> None:
+    registry = _base_registry()
+    manager = AgentPluginManager(registry=registry, core_major_version=1)
+    manager.load_plugin(_review_plugin())
+
+    incompatible_reload = AgentPlugin(
+        manifest=AgentPluginManifest(
+            plugin_id="review-pack",
+            version="2.0.0",
+            compatible_core_major=2,
+        )
+    )
+
+    with pytest.raises(ValueError, match="requires core major"):
+        manager.reload_plugin(incompatible_reload)
+
+    assert manager.list_plugins() == ["review-pack"]
+    assert registry.get("agent_reviewer").role == "reviewer"
+
+
+def test_agent_plugin_manager_emits_lifecycle_audit_records() -> None:
+    registry = _base_registry()
+    manager = AgentPluginManager(registry=registry, core_major_version=1)
+    manager.load_plugin(_review_plugin())
+
+    records = manager.list_lifecycle_audit_records()
+    reason_codes = {record.reason_code for record in records}
+    actions = {record.action for record in records}
+
+    assert "load" in actions
+    assert "AGENT_PLUGIN_LOADED" in reason_codes
+
+
+def test_plugin_churn_preserves_deterministic_fallback_resolution() -> None:
+    registry = _base_registry()
+    manager = AgentPluginManager(registry=registry, core_major_version=1)
+    plugin = _review_plugin()
+    manager.load_plugin(plugin)
+
+    registry.unregister("agent_reviewer")
+    first_resolution = registry.resolve_handoff_target("agent_router", target_role="reviewer")
+    assert first_resolution is not None
+    assert first_resolution.agent_id == "agent_backup"
+
+    manager.reload_plugin(plugin)
+    registry.unregister("agent_reviewer")
+    second_resolution = registry.resolve_handoff_target("agent_router", target_role="reviewer")
+    assert second_resolution is not None
+    assert second_resolution.agent_id == "agent_backup"
