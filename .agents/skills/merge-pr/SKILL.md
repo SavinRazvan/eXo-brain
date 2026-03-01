@@ -17,9 +17,12 @@ Merge safely and deterministically after review and preparation are complete.
    - `.local/prep.md`
    - `.local/alignment-audit.md` and `.local/alignment-todos.md` for architecture-impacting PRs
 2. Verify all required gates are green.
-3. Confirm no unresolved BLOCKER/IMPORTANT findings and no unresolved `P0` alignment findings.
-4. Merge using repository policy.
-5. Record merge summary in `.local/merge.md`:
+3. Verify branch publication/linkage:
+   - `python scripts/pr/verify_publish.py --branch <current-branch>`
+   - `gh pr view --json headRefName,url,state`
+4. Confirm no unresolved BLOCKER/IMPORTANT findings and no unresolved `P0` alignment findings.
+5. Merge using repository policy.
+6. Record merge summary in `.local/merge.md`:
    - merge method
    - merge SHA
    - checks used as evidence

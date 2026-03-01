@@ -12,6 +12,21 @@ Use these skills in sequence:
 
 Do not skip steps.
 
+## Required Publish Checkpoint (After Commit, Before Merge)
+
+After `commit -> push -> PR create`, verify publication and linkage deterministically:
+
+1. `git push -u origin HEAD`
+2. `python scripts/pr/verify_publish.py --branch "$(git branch --show-current)"`
+3. `gh pr view --json number,url,headRefName,state,mergeStateStatus`
+4. `gh pr checks --watch` (or `gh pr checks` if a non-blocking check is desired)
+
+If upstream tracking is missing, run:
+
+- `git branch --set-upstream-to=origin/<branch> <branch>`
+
+Do not proceed to `/merge-pr` unless branch publication and PR linkage are both verified.
+
 ## Maintainer Quality Bar
 
 - Validate the problem before accepting the proposed fix.
