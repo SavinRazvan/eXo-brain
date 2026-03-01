@@ -9,6 +9,10 @@ This `.cursor` folder is prepared to be copied into a new project.
   - `plan-refactor-migration`
   - `start-slice`
   - `finish-slice`
+  - `audit-alignment`
+  - `audit-alignment-structure`
+  - `audit-alignment-policy`
+  - `audit-alignment-traceability`
 - `agents/`:
   - `architecture-researcher.md`
   - `tooling-strategist.md`
@@ -26,8 +30,9 @@ This `.cursor` folder is prepared to be copied into a new project.
   - `implementation-coding-standards.mdc`
   - `execution-workflow-gates.mdc`
   - `file-docstring-header-relations.mdc`
+  - `advisory-audit-alignment-enforcement.mdc`
 - `research-for-refactor/`:
-  - full research set `01` through `30`
+  - full research set `01` through `37`
 
 ## Naming Conventions
 - Brand/display name: `eXo-brain`

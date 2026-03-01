@@ -41,6 +41,8 @@ The flow should produce these local artifacts:
 - `.local/review.md`
 - `.local/prep.md`
 - `.local/merge.md`
+- `.local/alignment-audit.md` (required for architecture-impacting PRs)
+- `.local/alignment-todos.md` (required for architecture-impacting PRs)
 
 Each file should include:
 
@@ -52,3 +54,12 @@ Each file should include:
   - `Action-By: @<github_username>`
   - `GitHub-Profile: https://github.com/<github_username>`
   - role labels by phase (`Reviewed-By`, `Prepared-By`, `Merged-By`)
+
+## Alignment Audit Checkpoint (Advisory)
+
+For architecture-impacting PRs (module boundaries, runtime/policy workflow changes, test/CI path moves, or roadmap/rule updates):
+
+- run the advisory audit skill before `/prepare-pr`
+- classify findings with `docs/roadmap/alignment-audit-schema.md`
+- block `/prepare-pr` on unresolved `P0` findings unless explicitly accepted with rationale
+- include unresolved `P1/P2` items in reconciliation TODOs with owner and next slice

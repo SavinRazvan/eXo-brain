@@ -22,7 +22,11 @@ Review-only phase that identifies issues and decides if the PR is ready for prep
 4. Write findings to `.local/review.md`.
    - initialize/update artifact with:
      - `python scripts/pr/review.py --pr <pr-number-or-url> --actor <github_username>`
-5. Add recommendation:
+5. For architecture-impacting scope, run advisory alignment audit and write:
+   - `.local/alignment-audit.md`
+   - `.local/alignment-todos.md`
+   - classify findings per `docs/roadmap/alignment-audit-schema.md`
+6. Add recommendation:
    - `READY FOR /prepare-pr`
    - `NEEDS WORK`
    - `NEEDS DISCUSSION`
