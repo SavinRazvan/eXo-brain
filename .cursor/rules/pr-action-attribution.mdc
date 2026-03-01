@@ -8,6 +8,7 @@ alwaysApply: true
 - For PR workflow actions, always capture the acting user identity in artifacts and summaries:
   - `Action-By: Savin I. Razvan`
   - `GitHub-User: @SavinRazvan`
+  - `Agent/s: <agent-name-or-pipeline>`
 - Use role-specific labels where applicable:
   - review phase: `Reviewed-By: Savin I. Razvan`
   - prepare phase: `Prepared-By: Savin I. Razvan`

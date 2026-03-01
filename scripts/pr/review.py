@@ -21,6 +21,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Initialize PR review artifact.")
     parser.add_argument("--pr", required=True, help="PR number or URL")
     parser.add_argument("--actor", required=True, help="Actor display name performing review action")
+    parser.add_argument(
+        "--agents",
+        required=True,
+        help='Agent list, e.g. "review-pr | prepare-pr | merge-pr"',
+    )
     args = parser.parse_args()
 
     local_dir = Path(".local")
@@ -35,6 +40,7 @@ def main() -> int:
                 f"- Action-By: {args.actor}",
                 f"- Reviewed-By: {args.actor}",
                 "- GitHub-User: @SavinRazvan",
+                f"- Agent/s: {args.agents}",
                 "",
                 "## Findings",
                 "- Add findings here",
