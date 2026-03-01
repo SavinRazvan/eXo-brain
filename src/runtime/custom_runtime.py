@@ -44,8 +44,11 @@ class CustomRuntimeAdapter(RuntimeAdapter):
         user_input: str,
         context: dict[str, Any],
     ) -> AsyncIterator[RuntimeEvent]:
+        context = context if isinstance(context, dict) else {}
         run_id = str(context.get("run_id", f"run_{uuid.uuid4().hex[:8]}"))
         try:
+            if not isinstance(user_input, str):
+                raise ValueError("user_input must be a string")
             yield RuntimeEvent.output_delta(
                 session_id=session_id,
                 run_id=run_id,
@@ -74,6 +77,8 @@ class CustomRuntimeAdapter(RuntimeAdapter):
         tool_results: list[ToolResult],
     ) -> AsyncIterator[RuntimeEvent]:
         try:
+            if not isinstance(tool_results, list):
+                raise ValueError("tool_results must be a list")
             yield RuntimeEvent.run_complete(
                 session_id=session_id,
                 run_id=run_id,
