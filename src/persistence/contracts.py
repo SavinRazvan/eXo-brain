@@ -49,13 +49,24 @@ class CheckpointRecord:
     payload: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(slots=True)
+class PersistenceIsolationError(Exception):
+    reason_code: str
+    message: str
+    tenant_id: str
+    requested_tenant_id: str
+
+    def __str__(self) -> str:
+        return f"{self.reason_code}: {self.message}"
+
+
 class SessionStore(ABC):
     @abstractmethod
     async def save_session(self, record: SessionRecord) -> None:
         """Persist session context and mutable state."""
 
     @abstractmethod
-    async def get_session(self, session_id: str) -> SessionRecord | None:
+    async def get_session(self, session_id: str, tenant_id: str = "default") -> SessionRecord | None:
         """Load a previously stored session record."""
 
 
@@ -65,11 +76,11 @@ class CheckpointStoreContract(ABC):
         """Persist checkpoint state for a given job/node."""
 
     @abstractmethod
-    async def list_checkpoints(self, job_id: str) -> list[CheckpointRecord]:
+    async def list_checkpoints(self, job_id: str, tenant_id: str = "default") -> list[CheckpointRecord]:
         """List checkpoints associated with a job."""
 
     @abstractmethod
-    async def get_checkpoint(self, job_id: str, node_id: str) -> CheckpointRecord | None:
+    async def get_checkpoint(self, job_id: str, node_id: str, tenant_id: str = "default") -> CheckpointRecord | None:
         """Fetch a single checkpoint by composite key."""
 
 
