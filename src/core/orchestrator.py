@@ -4,7 +4,7 @@ Path: src/core/orchestrator.py
 Role: Orchestrates one-turn execution across runtime adapter, policies, and tool runtime.
 Used By:
  - integration host adapters (future)
- - tests/integration/test_background_agent_pipeline.py (future)
+ - tests/modules/core/test_background_agent_pipeline.py
 Depends On:
  - src/agents/registry.py
  - src/runtime/runtime_adapter.py

@@ -70,10 +70,19 @@ new-agent-framework/
       settings.py
       provider_registry.py
   tests/
-    unit/
-    integration/
-    regression/
-    performance/
+    modules/
+      core/
+      runtime/
+      policies/
+      mcp/
+      persistence/
+      agents/
+      observability/
+      audit/
+      access_control/
+      secrets/
+      resilience/
+      unknown/
   docs/
     architecture_mvp.md
     runtime_contracts.md

@@ -41,7 +41,6 @@ new-agent-system/
       openai_compatible_runtime.py
       custom_runtime.py
       capability_map.py
-      assistants_compat_runtime.py
     agents/
       factories.py
       registries.py
@@ -86,15 +85,25 @@ new-agent-system/
       settings.py
       provider_registry.py
   tests/
-    integration/
-    regression/
-    performance/
+    modules/
+      core/
+      runtime/
+      policies/
+      mcp/
+      persistence/
+      agents/
+      observability/
+      audit/
+      access_control/
+      secrets/
+      resilience/
+      unknown/
 ```
 
 ## Core Interfaces (Concrete)
 
 ### `RuntimeAdapter`
-- Goal: isolate runtime backend (OpenAI Agents SDK, Assistants compatibility, others).
+- Goal: isolate runtime backend (OpenAI Agents SDK and other provider-compatible runtimes).
 - Contract:
   - `start_session(session_id: str, metadata: dict | None = None) -> SessionHandle`
   - `run_turn(session_id: str, user_input: str, context: dict) -> AsyncIterator[RuntimeEvent]`
@@ -164,7 +173,7 @@ new-agent-system/
   - Custom provider runtimes (`CustomRuntimeAdapter`, for example llama.cpp or TGI)
 - Route execution mode by capability + policy:
   - read-only low-risk tasks may use provider-native flow
-  - risky or state-changing tasks must use deterministic tool runtime
+  - state-changing/high-impact tasks must use deterministic tool runtime
 - Keep provider features behind `capability_map.py` so handoffs/tool-calls/structured outputs are enabled only when supported.
 
 ## Transport Guidance (WebSocket vs Others)

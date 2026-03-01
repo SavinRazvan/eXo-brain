@@ -4,7 +4,7 @@ Path: src/agents/registry.py
 Role: Registry and routing helpers for agent contracts and handoff rules.
 Used By:
  - src/agents/plugin_manager.py
- - tests/unit/test_agent_registry.py
+ - tests/modules/agents/test_agent_registry.py
 Depends On:
  - src/agents/contracts.py
 Notes:

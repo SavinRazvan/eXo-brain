@@ -3,7 +3,7 @@ File: __init__.py
 Path: src/agents/__init__.py
 Role: Public exports for provider-neutral agent contracts and registry.
 Used By:
- - tests/unit/test_agent_registry.py
+ - tests/modules/agents/test_agent_registry.py
 Depends On:
  - src/agents/contracts.py
  - src/agents/plugin_contract.py

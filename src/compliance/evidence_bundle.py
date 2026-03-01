@@ -4,7 +4,7 @@ Path: src/compliance/evidence_bundle.py
 Role: Build structured release evidence bundles for governance workflows.
 Used By:
  - scripts/release/verify_gates.py
- - tests/integration/test_evidence_bundle_generation.py
+ - tests/modules/audit/test_evidence_bundle_generation.py
 Depends On:
  - src/audit/trail.py
 Notes:

@@ -3,7 +3,7 @@ File: postgres.py
 Path: src/persistence/adapters/postgres.py
 Role: Postgres-style persistence adapters over an injectable storage driver.
 Used By:
- - tests/integration/test_persistence_adapter_parity.py
+ - tests/modules/core/test_persistence_adapter_parity.py
 Depends On:
  - src/persistence/contracts.py
  - src/core/session_context.py
