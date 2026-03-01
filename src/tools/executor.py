@@ -55,6 +55,12 @@ class DeterministicToolExecutor:
         if self._metrics is not None:
             self._metrics.inc("tool.call.total")
 
+        validation_error = self._validate_call(call)
+        if validation_error is not None:
+            if self._metrics is not None:
+                self._metrics.inc("tool.call.failed")
+            return validation_error
+
         decision = self._policy.before_tool_call(call)
         if decision.decision != PolicyAction.ALLOW:
             if self._metrics is not None:
@@ -94,7 +100,11 @@ class DeterministicToolExecutor:
             )
             if self._metrics is not None:
                 self._metrics.inc("tool.call.success")
-            return self._policy.after_tool_call(result)
+            postchecked = self._policy.after_tool_call(result)
+            if postchecked.status == ToolStatus.ERROR and self._metrics is not None:
+                self._metrics.inc("tool.call.failed")
+                self._metrics.inc("tool.call.postcheck_failed")
+            return postchecked
         except KeyError as exc:
             if self._metrics is not None:
                 self._metrics.inc("tool.call.failed")
@@ -137,3 +147,32 @@ class DeterministicToolExecutor:
                 ),
                 audit=ToolAudit(correlation_id=call.call_id, decision_reason_code=decision.reason_code),
             )
+
+    def _validate_call(self, call: ToolCallContext) -> ToolResult | None:
+        if call.schema_version != "1.0":
+            return self._validation_error(call, "schema_version must be '1.0'")
+        if not str(call.tool_name).strip():
+            return self._validation_error(call, "tool_name is required")
+        if not isinstance(call.arguments, dict):
+            return self._validation_error(call, "arguments must be an object")
+        return None
+
+    def _validation_error(self, call: ToolCallContext, message: str) -> ToolResult:
+        return ToolResult(
+            schema_version="1.0",
+            call_id=call.call_id,
+            tool_name=call.tool_name,
+            status=ToolStatus.ERROR,
+            error=NormalizedError(
+                code="TOOL_CALL_VALIDATION_ERROR",
+                category="tool_runtime",
+                message=message,
+                retryable=False,
+            ),
+            execution=ExecutionMetadata(
+                mode_used=ToolExecutionMode.DETERMINISTIC,
+                started_at_utc=_utc_now(),
+                finished_at_utc=_utc_now(),
+            ),
+            audit=ToolAudit(correlation_id=call.call_id),
+        )
