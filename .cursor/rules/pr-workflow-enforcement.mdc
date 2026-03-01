@@ -12,6 +12,7 @@ alwaysApply: true
   - open PR
   - verify publish/linkage (`scripts/pr/verify_publish.py`, `gh pr view`)
   - run `/review-pr -> /prepare-pr -> /merge-pr`
+  - finalize workflow (`main` sync + local/remote branch cleanup)
 - Do not merge directly to `main` from a local branch.
 - Do not skip maintainer workflow phases; each phase must produce artifacts:
   - `.local/review.md`
@@ -32,3 +33,4 @@ alwaysApply: true
   - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
   - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
 - Stop and report instead of merging when any required artifact or gate result is missing.
+- Stop and report instead of closing workflow when post-merge sync/cleanup is incomplete.
