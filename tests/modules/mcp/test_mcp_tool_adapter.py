@@ -21,6 +21,7 @@ import asyncio
 from src.mcp.mcp_client_adapter import LocalCallableMcpClientAdapter
 from src.mcp.mcp_registry import McpHealthState, McpRegistry, McpServerRecord, McpTrustTier
 from src.mcp.mcp_tool_adapter import McpToolAdapter
+from src.observability.logging import StructuredLogger
 from src.policies.middleware import DeterministicFirstPolicyMiddleware
 from src.schemas.tool_io import RiskTier, ToolCallContext, ToolStatus
 
@@ -59,7 +60,8 @@ def test_mcp_adapter_executes_tool_on_trusted_server() -> None:
     adapter = McpToolAdapter(registry=registry, client=client, policy=DeterministicFirstPolicyMiddleware())
     result = asyncio.run(adapter.execute("trusted_server", "lookup", _context()))
     assert result.status == ToolStatus.SUCCESS
-    assert result.result == {"value": {"result": 6}}
+    assert result.result is not None
+    assert result.result["value"] == {"result": 6}
 
 
 def test_mcp_adapter_blocks_state_change_on_restricted_server() -> None:
@@ -106,3 +108,70 @@ def test_mcp_adapter_blocks_unavailable_server_from_healthcheck() -> None:
     assert result.error.code == "MCP_VALIDATION_ERROR"
     assert "unavailable" in (result.error.message or "")
     assert registry.get_server_health("degraded_server").state == McpHealthState.UNAVAILABLE
+
+
+def test_mcp_adapter_retries_timeout_and_succeeds_with_observability_logs() -> None:
+    class TimeoutThenSuccessClient(LocalCallableMcpClientAdapter):
+        def __init__(self) -> None:
+            super().__init__(tools={("retry_server", "lookup"): lambda args: {"result": args["value"] + 1}})
+            self._attempt = 0
+
+        async def call_tool(self, server_id: str, tool_name: str, arguments: dict[str, object]) -> dict[str, object]:
+            self._attempt += 1
+            if self._attempt == 1:
+                await asyncio.sleep(0.05)
+            return {"result": int(arguments["value"]) + 1}
+
+    registry = McpRegistry()
+    registry.register_server(
+        McpServerRecord(
+            server_id="retry_server",
+            endpoint="local://retry",
+            trust_tier=McpTrustTier.TRUSTED,
+            timeout_ms=10,
+            metadata={"max_retries": 1},
+        )
+    )
+    logger = StructuredLogger()
+    adapter = McpToolAdapter(
+        registry=registry,
+        client=TimeoutThenSuccessClient(),
+        policy=DeterministicFirstPolicyMiddleware(),
+        logger=logger,
+    )
+    result = asyncio.run(adapter.execute("retry_server", "lookup", _context()))
+    assert result.status == ToolStatus.SUCCESS
+    assert result.execution.attempt == 2
+    assert result.result is not None
+    assert result.result["mcp_observability"]["attempt"] == 2
+    events = {record.event for record in logger.records()}
+    assert "mcp.call.timeout" in events
+    assert "mcp.call.retry" in events
+    assert "mcp.call.succeeded" in events
+
+
+def test_mcp_adapter_returns_timeout_when_retries_exhausted() -> None:
+    class AlwaysTimeoutClient(LocalCallableMcpClientAdapter):
+        async def call_tool(self, server_id: str, tool_name: str, arguments: dict[str, object]) -> dict[str, object]:
+            await asyncio.sleep(0.05)
+            return {"result": 0}
+
+    registry = McpRegistry()
+    registry.register_server(
+        McpServerRecord(
+            server_id="timeout_server",
+            endpoint="local://timeout",
+            trust_tier=McpTrustTier.TRUSTED,
+            timeout_ms=10,
+            metadata={"max_retries": 1},
+        )
+    )
+    adapter = McpToolAdapter(
+        registry=registry,
+        client=AlwaysTimeoutClient(tools={}),
+        policy=DeterministicFirstPolicyMiddleware(),
+    )
+    result = asyncio.run(adapter.execute("timeout_server", "lookup", _context()))
+    assert result.status == ToolStatus.TIMEOUT
+    assert result.error.code == "MCP_TIMEOUT"
+    assert result.execution.attempt == 2
