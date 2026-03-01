@@ -12,6 +12,18 @@ Use these skills in sequence:
 
 Do not skip steps.
 
+## Required Finalization Step (After Merge)
+
+After `/merge-pr` completes, always close the workflow with repository cleanup:
+
+1. `git checkout main`
+2. `git pull --ff-only origin main`
+3. `git branch -d <feature-branch>` (if present)
+4. confirm remote feature branch is deleted (via `gh pr view` or `git ls-remote --heads origin <feature-branch>`)
+5. verify final state with `git status --short --branch` on `main`
+
+This finalization step is mandatory for workflow completion.
+
 ## Required Publish Checkpoint (After Commit, Before Merge)
 
 After `commit -> push -> PR create`, verify publication and linkage deterministically:

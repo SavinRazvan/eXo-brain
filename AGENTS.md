@@ -49,6 +49,10 @@ The core principle is **AI as a commodity**: model providers are pluggable adapt
 - Before merge, require:
   - tests and architecture checks passing
   - checklist/research status updates for implemented scope
+- After merge, require workflow finalization:
+  - sync local `main` with `origin/main`
+  - clean local feature branch
+  - ensure remote feature branch is removed
 - Use `git push --force-with-lease` only for intentional history rewrites on your own branch.
 
 ## Skills and Agent Extensions

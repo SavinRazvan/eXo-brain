@@ -29,6 +29,12 @@ Merge safely and deterministically after review and preparation are complete.
    - any follow-up issue/work item
    - initialize/update artifact with:
      - `python scripts/pr/merge.py --pr <pr-number-or-url> --actor <github_username>`
+7. Finalize workflow (required close-out):
+   - `git checkout main`
+   - `git pull --ff-only origin main`
+   - delete local feature branch if present (`git branch -d <feature-branch>`)
+   - confirm remote feature branch deletion
+   - verify final repository state on `main`
 
 ## No-Go Conditions
 
