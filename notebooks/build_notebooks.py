@@ -1132,11 +1132,15 @@ def calculate_result(operation: str, operand1: float, operand2: float):
     tool_result = executor.execute(call)
 
     if tool_result.status == ToolStatus.SUCCESS:
-        value = tool_result.result.get("value", tool_result.result)
+        # executor wraps the handler output under {"value": <handler_return>}
+        # _calculate_result returns {"operation":..., "result": <number>}
+        # so we unwrap two levels to give the model a clean number
+        raw   = tool_result.result.get("value", tool_result.result)
+        value = raw.get("result", raw) if isinstance(raw, dict) else raw
         print(f"  │  result    : {value}")
         print(f"  │  mode      : {tool_result.execution.mode_used.value}")
         print(f"  └────────────────────────────────────────────────────────")
-        return value   # ← this number goes back to the model
+        return value   # ← clean number goes back to the model
     else:
         print(f"  │  ERROR     : {tool_result.error.message}")
         print(f"  └────────────────────────────────────────────────────────")
