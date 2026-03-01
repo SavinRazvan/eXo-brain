@@ -8,6 +8,7 @@ Depends On:
  - scripts/pr/review.py
  - scripts/pr/prepare.py
  - scripts/pr/merge.py
+ - scripts/pr/verify_publish.py
 Notes:
  - Uses temporary directories to avoid mutating repository-local artifacts.
 """
@@ -76,3 +77,37 @@ def test_merge_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> N
     assert "Action-By: @SavinRazvan" in content
     assert "Merged-By: @SavinRazvan" in content
     assert "GitHub-Profile: https://github.com/SavinRazvan" in content
+
+
+def test_verify_publish_script_passes_when_upstream_and_remote_exist(monkeypatch) -> None:
+    module = _load_module("verify_publish_script_ok", SCRIPTS_DIR / "verify_publish.py")
+
+    def _fake_run(cmd: list[str]):
+        if cmd[:4] == ["git", "rev-parse", "--abbrev-ref", "fix/test@{upstream}"]:
+            return 0, "origin/fix/test"
+        if cmd == ["git", "ls-remote", "--heads", "origin", "fix/test"]:
+            return 0, "deadbeef\trefs/heads/fix/test"
+        return 1, "unexpected command"
+
+    monkeypatch.setattr(module, "_run", _fake_run)
+    monkeypatch.setattr(
+        sys, "argv", ["verify_publish.py", "--branch", "fix/test"]
+    )
+    assert module.main() == 0
+
+
+def test_verify_publish_script_fails_when_upstream_missing(monkeypatch) -> None:
+    module = _load_module("verify_publish_script_fail", SCRIPTS_DIR / "verify_publish.py")
+
+    def _fake_run(cmd: list[str]):
+        if cmd[:4] == ["git", "rev-parse", "--abbrev-ref", "fix/test@{upstream}"]:
+            return 1, "fatal: no upstream configured"
+        if cmd == ["git", "ls-remote", "--heads", "origin", "fix/test"]:
+            return 0, "deadbeef\trefs/heads/fix/test"
+        return 1, "unexpected command"
+
+    monkeypatch.setattr(module, "_run", _fake_run)
+    monkeypatch.setattr(
+        sys, "argv", ["verify_publish.py", "--branch", "fix/test"]
+    )
+    assert module.main() == 1

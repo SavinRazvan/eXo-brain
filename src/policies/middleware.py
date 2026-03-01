@@ -18,6 +18,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from src.policies.risk_gates import RiskGateConfig, RiskGatePolicy
+from src.tenancy.policy_overlay import TenantPolicyOverlayStore
 from src.schemas.tool_io import (
     ExecutionMetadata,
     NormalizedError,
@@ -49,16 +50,24 @@ class DeterministicFirstPolicyMiddleware(PolicyMiddleware):
         policy_id: str = "policy-risk-gate-v1",
         policy_version: str = "1.0.0",
         risk_gate_config: RiskGateConfig | None = None,
+        tenant_policy_overlays: TenantPolicyOverlayStore | None = None,
     ) -> None:
         self._policy_id = policy_id
         self._policy_version = policy_version
         self._risk_gates = RiskGatePolicy(config=risk_gate_config)
+        self._tenant_policy_overlays = tenant_policy_overlays
 
     def before_tool_call(self, context: ToolCallContext) -> PolicyDecision:
+        overlay = (
+            self._tenant_policy_overlays.get_overlay(context.tenant_id)
+            if self._tenant_policy_overlays is not None
+            else None
+        )
         return self._risk_gates.evaluate(
             context=context,
             policy_id=self._policy_id,
             policy_version=self._policy_version,
+            tenant_overlay=overlay,
         )
 
     def after_tool_call(self, result: ToolResult) -> ToolResult:
