@@ -64,3 +64,5 @@ The core principle is **AI as a commodity**: model providers are pluggable adapt
   - `python scripts/pr/review.py --pr <id/url> --actor <github_username>`
   - `python scripts/pr/prepare.py --pr <id/url> --actor <github_username>`
   - `python scripts/pr/merge.py --pr <id/url> --actor <github_username>`
+- PR publish verification (before merge workflow):
+  - `python scripts/pr/verify_publish.py --branch <current_branch>`

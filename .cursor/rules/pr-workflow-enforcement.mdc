@@ -10,6 +10,7 @@ alwaysApply: true
   - implement and test
   - push branch
   - open PR
+  - verify publish/linkage (`scripts/pr/verify_publish.py`, `gh pr view`)
   - run `/review-pr -> /prepare-pr -> /merge-pr`
 - Do not merge directly to `main` from a local branch.
 - Do not skip maintainer workflow phases; each phase must produce artifacts:
@@ -23,6 +24,10 @@ alwaysApply: true
   - `python -m pytest -q`
   - `python scripts/architecture/validate_layers.py`
   - `python scripts/architecture/scan_forbidden_imports.py`
+- Before merge, branch/PR linkage must be verifiably healthy:
+  - current branch tracks `origin/<branch>`
+  - remote branch exists (`git ls-remote --heads origin <branch>`)
+  - PR head branch matches current branch (`gh pr view --json headRefName`)
 - If architecture/runtime scope changes, update tracking docs before merge:
   - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
   - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
