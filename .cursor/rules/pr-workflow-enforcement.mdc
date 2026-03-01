@@ -16,6 +16,9 @@ alwaysApply: true
   - `.local/review.md`
   - `.local/prep.md`
   - `.local/merge.md`
+- For architecture-impacting changes, require advisory alignment artifacts before prepare/merge:
+  - `.local/alignment-audit.md`
+  - `.local/alignment-todos.md`
 - Before merge, required gates must be green:
   - `python -m pytest -q`
   - `python scripts/architecture/validate_layers.py`
