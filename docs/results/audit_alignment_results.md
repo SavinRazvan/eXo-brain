@@ -12,6 +12,11 @@
   - `src/*`
   - `tests/modules/*`
   - `.agents/*`, `.cursor/rules/*`, `.cursor/skills/*`, `.local/*`
+- Document scope note:
+  This file is the broadest-scope audit (12 findings, cross-source pass).
+  `.local/alignment-audit.md` is a narrower targeted-pass artifact (6 findings, subset of local/specific findings).
+  `.local/alignment-todos.md` is the full historical backlog, now rebaselined to match this file.
+  Count differences between the three documents are expected and intentional.
 
 ## Executive Summary
 - Total findings: 12
