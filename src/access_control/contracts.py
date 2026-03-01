@@ -26,6 +26,7 @@ class AccessRequest:
     tool_name: str
     is_state_changing: bool
     is_high_impact: bool
+    plugin_scope: str = ""
 
 
 @dataclass(slots=True)

@@ -82,6 +82,20 @@ class AccessPolicyEngine:
                 )
             )
 
+        if request.plugin_scope:
+            plugin_permission = f"plugin:{request.plugin_scope}:execute"
+            if plugin_permission not in permissions:
+                return self._finalize(
+                    AccessDecision(
+                        decision=PolicyAction.DENY,
+                        reason_code="ACCESS_DENIED_PLUGIN_SCOPE",
+                        message=(
+                            "Plugin-scoped permission is required for this operation: "
+                            f"'{plugin_permission}'."
+                        ),
+                    )
+                )
+
         if not required_permissions.issubset(permissions):
             return self._finalize(
                 AccessDecision(

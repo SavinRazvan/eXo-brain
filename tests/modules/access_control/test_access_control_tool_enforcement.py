@@ -36,6 +36,7 @@ def _call(identity_subject: str, identity_roles: list[str], is_state_changing: b
         arguments={"value": 2},
         identity_subject=identity_subject,
         identity_roles=identity_roles,
+        plugin_scope="analytics",
         is_state_changing=is_state_changing,
         risk_tier=RiskTier.HIGH if is_state_changing else RiskTier.LOW,
     )
@@ -53,4 +54,18 @@ def test_tool_execution_blocked_when_access_denied_or_escalated() -> None:
     assert result.status == ToolStatus.BLOCKED
     assert result.error.code == "POLICY_BLOCKED"
     assert result.error.details == {"reason_code": "ACCESS_REVIEW_REQUIRED_HIGH_IMPACT"}
+
+
+def test_tool_execution_blocked_when_plugin_scope_permission_missing() -> None:
+    policy = DeterministicFirstPolicyMiddleware(
+        risk_gate_config=RiskGateConfig(access_policy_engine=AccessPolicyEngine())
+    )
+    registry = ToolRegistry()
+    registry.register(ToolDescriptor(name="stateful_tool", handler=lambda value: value + 1))
+    executor = DeterministicToolExecutor(registry=registry, policy=policy)
+
+    result = executor.execute(_call(identity_subject="user_low", identity_roles=["reader"], is_state_changing=False))
+    assert result.status == ToolStatus.BLOCKED
+    assert result.error.code == "POLICY_BLOCKED"
+    assert result.error.details == {"reason_code": "ACCESS_DENIED_PLUGIN_SCOPE"}
 

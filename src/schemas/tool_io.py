@@ -70,6 +70,7 @@ class ToolCallContext:
     arguments: dict[str, Any]
     identity_subject: str = ""
     identity_roles: list[str] = field(default_factory=list)
+    plugin_scope: str = ""
     risk_tier: RiskTier = RiskTier.LOW
     is_state_changing: bool = False
     requested_mode: ToolExecutionMode = ToolExecutionMode.AUTO
