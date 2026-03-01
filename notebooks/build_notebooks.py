@@ -491,7 +491,7 @@ else:
 from src.runtime.runtime_adapter import RuntimeAdapter, SessionHandle
 from src.runtime.capability_map import ProviderCapabilityMap, HealthStatus, HealthState, SecurityTier
 from src.schemas.events import RuntimeEvent, RuntimeEventType
-from src.schemas.tool_io import RiskTier, ToolCallContext, ToolResult
+from src.schemas.tool_io import RiskTier, ToolCallContext, ToolResult, ToolStatus
 from src.core.orchestrator import Orchestrator
 from src.policies.middleware import DeterministicFirstPolicyMiddleware
 from src.tools.executor import DeterministicToolExecutor
@@ -579,33 +579,37 @@ else:
 ---
 ## Act 2 — The adapter: wrapping the SDK behind the RuntimeAdapter contract
 
-The `OpenAIAgentsSDKAdapter` does three things:
-1. Accepts **typed `@function_tool` wrappers** so the model sees correct JSON schemas
-2. Runs `Runner.run_streamed()` and watches for `tool_call_item` events
-3. When a tool call appears → **stops** and emits `TOOL_INTENT` to the Orchestrator
+The `OpenAIAgentsSDKAdapter` uses the **delegating wrapper** pattern:
 
-The SDK never executes the tool — eXo-brain's `DeterministicToolExecutor` does.
+1. `sdk_tools` are `@function_tool` objects whose **bodies call eXo-brain's executor** directly
+2. `Runner.run()` handles the full agentic loop — model emits a tool call, SDK calls the function, function delegates to eXo-brain, real result returned, model continues
+3. The loop completes: model receives the actual result and produces a correct final answer
+
+Why not stream interception? If the adapter intercepts a `tool_call_item` event and returns early, the SDK stream is abandoned — the model never receives the result and the loop can never complete.
 
 ```
 model emits tool call
        │
-adapter sees tool_call_item in stream
+SDK calls @function_tool body
        │
-       ├── yield RuntimeEvent.tool_intent(ToolCallContext)
-       └── return   ← SDK execution stopped here
+       └── ToolCallContext built from typed args
               │
-       Orchestrator receives TOOL_INTENT
+       DeterministicToolExecutor.execute(call)
               │
               ├── PolicyMiddleware.before_tool_call()  risk=? → ALLOW/DENY
               ├── ModeSelector → DETERMINISTIC
-              └── DeterministicToolExecutor.execute()
-                     → real handler(operation, operand1, operand2)
-                     → structured result + audit log
+              └── Real handler: _calculate_result(operation, operand1, operand2)
+                     │
+              ToolResult returned → body returns value to SDK
+                     │
+              SDK feeds result back to model ← full loop
+                     │
+              Model generates correct final answer ✓
 ```
 """),
 
     code("""
-import json, uuid
+import uuid
 from typing import Any, AsyncIterator
 
 
@@ -613,9 +617,11 @@ class OpenAIAgentsSDKAdapter(RuntimeAdapter):
     \"\"\"
     Wraps the OpenAI Agents SDK behind the provider-neutral RuntimeAdapter contract.
 
-    sdk_tools     : @function_tool objects that expose typed JSON schemas to the model.
-                    Their handlers are NEVER called — eXo-brain intercepts first.
-    tool_registry : resolves risk metadata (tier, is_state_changing) by tool name.
+    Uses the 'delegating wrapper' pattern:
+    - sdk_tools must be @function_tool objects whose BODIES call eXo-brain's executor.
+    - Runner.run() handles the full agentic loop (model → tool → result → model → answer).
+    - The adapter does NOT intercept stream events; execution flows through tool bodies.
+    - submit_tool_results() is a fallback stub, not used in the delegating path.
     \"\"\"
 
     def __init__(
@@ -645,64 +651,25 @@ class OpenAIAgentsSDKAdapter(RuntimeAdapter):
         agent = Agent(
             name=str(context.get("agent_id", "agent_default")),
             instructions=str(context.get("instructions", "You are a helpful assistant.")),
-            tools=self._sdk_tools,
+            tools=self._sdk_tools,   # bodies already delegate to eXo-brain
             model=model,
         )
 
-        session = self._sessions.setdefault(session_id, {"history": []})
-        history: list[TResponseInputItem] = session["history"]
-        history.append({"role": "user", "content": user_input})
-
         try:
-            streamed = Runner.run_streamed(agent, history)
-            async for ev in streamed.stream_events():
-                if ev.type != "run_item_stream_event":
-                    continue
-                item      = ev.item
-                item_type = getattr(item, "type", None)
+            # Full agentic loop: SDK handles model ↔ tool round-trips.
+            # Each tool call routes through the @function_tool body → eXo-brain executor.
+            result = await Runner.run(agent, user_input)
 
-                if item_type == "tool_call_item":
-                    raw  = item.raw_item
-                    name = getattr(raw, "name", "")
-                    args = {}
-                    try:
-                        args = json.loads(getattr(raw, "arguments", "{}"))
-                    except Exception:
-                        pass
+            # Update conversation history for multi-turn support
+            session = self._sessions.setdefault(session_id, {"history": []})
+            session["history"] = list(result.to_input_list())
 
-                    try:
-                        desc = self._registry.resolve(name)
-                        risk_tier, is_sc = desc.risk_tier, desc.is_state_changing
-                    except KeyError:
-                        risk_tier, is_sc = RiskTier.LOW, False
-
-                    yield RuntimeEvent.tool_intent(
-                        session_id=session_id, run_id=run_id,
-                        call=ToolCallContext(
-                            schema_version="1.0",
-                            call_id=str(getattr(raw, "call_id", uuid.uuid4().hex)),
-                            session_id=session_id, run_id=run_id,
-                            job_id=str(context.get("job_id", "job_local")),
-                            task_id=str(context.get("task_id", "task_local")),
-                            agent_id=str(context.get("agent_id", "agent_default")),
-                            provider_id=self._provider_id,
-                            tool_name=name, arguments=args,
-                            risk_tier=risk_tier, is_state_changing=is_sc,
-                        ),
-                        correlation_id=corr_id,
-                    )
-                    return  # ← Orchestrator takes over
-
-                if item_type == "message_output_item":
-                    for chunk in getattr(item.raw_item, "content", []):
-                        text = getattr(chunk, "text", "") or ""
-                        if text:
-                            yield RuntimeEvent.output_delta(
-                                session_id=session_id, run_id=run_id,
-                                text=text, correlation_id=corr_id,
-                            )
-
-            session["history"] = list(streamed.to_input_list())
+            final = result.final_output or ""
+            if final:
+                yield RuntimeEvent.output_delta(
+                    session_id=session_id, run_id=run_id,
+                    text=final, correlation_id=corr_id,
+                )
             yield RuntimeEvent.run_complete(
                 session_id=session_id, run_id=run_id,
                 output={"status": "completed", "provider_id": self._provider_id},
@@ -716,11 +683,9 @@ class OpenAIAgentsSDKAdapter(RuntimeAdapter):
             )
 
     async def submit_tool_results(self, session_id, run_id, tool_results):
-        yield RuntimeEvent.output_delta(
-            session_id=session_id, run_id=run_id,
-            text=f"[tool results submitted: {len(tool_results)} result(s)]",
-            correlation_id=run_id,
-        )
+        # Delegating pattern: tools execute inline via their bodies.
+        # submit_tool_results() is only reached when the Orchestrator intercepts
+        # a TOOL_INTENT event (e.g. from the simulation adapter in the policy demo).
         yield RuntimeEvent.run_complete(
             session_id=session_id, run_id=run_id,
             output={"status": "completed", "tool_results_count": len(tool_results)},
@@ -745,44 +710,46 @@ class OpenAIAgentsSDKAdapter(RuntimeAdapter):
         )
 
 
-print("✓ OpenAIAgentsSDKAdapter defined")
+print("✓ OpenAIAgentsSDKAdapter defined (delegating wrapper pattern)")
 """),
 
     md("""
 ---
 ## Act 3 — Wire `calculate_result` into eXo-brain
 
-Two parallel registrations for the same tool:
+Three-part wiring:
 
-| Registration | Purpose |
+| Part | What it does |
 |---|---|
-| `@function_tool calculate_result(...)` with `pass` | Gives the model the correct JSON schema |
-| `ToolRegistry.register(ToolDescriptor(..., handler=_impl))` | Runs the real implementation deterministically |
+| `_calculate_result(...)` registered in `ToolRegistry` | Real implementation, run deterministically by eXo-brain |
+| `DeterministicToolExecutor` + `PolicyMiddleware` | Policy checks, audit logging, error envelopes |
+| `@function_tool calculate_result(...)` with delegating body | Gives the model the JSON schema; body calls executor and returns real result |
 
-The tool name `calculate_result` is the only link needed between both.
+The `@function_tool` body is the **integration seam**: it builds a `ToolCallContext`, calls `executor.execute()`, and returns the actual value to the SDK. The SDK feeds it to the model. The model generates the correct final answer.
 """),
 
     code("""
-# ── Real implementation (runs inside eXo-brain, never by the model) ──────────
+# ── Step 1: Real implementation (runs inside eXo-brain) ──────────────────────
 
 def _calculate_result(operation: str, operand1: float, operand2: float) -> dict:
     \"\"\"Real calculate_result logic — deterministic, policy-gated, audited.\"\"\"
     if operation == "add":
-        result = operand1 + operand2
+        value = operand1 + operand2
     elif operation == "subtract":
-        result = operand1 - operand2
+        value = operand1 - operand2
     elif operation == "multiply":
-        result = operand1 * operand2
+        value = operand1 * operand2
     elif operation == "divide":
         if operand2 == 0:
             raise ValueError("division by zero is not allowed")
-        result = operand1 / operand2
+        value = operand1 / operand2
     else:
         raise ValueError(f"unknown operation: {operation!r}")
-    return {"operation": operation, "operand1": operand1, "operand2": operand2, "result": result}
+    return {"operation": operation, "operand1": operand1, "operand2": operand2, "result": value}
 
 
-# ── eXo-brain registry ────────────────────────────────────────────────────────
+# ── Step 2: Policy + executor (must exist before @function_tool body is called) ──
+policy   = DeterministicFirstPolicyMiddleware()
 registry = ToolRegistry()
 registry.register(ToolDescriptor(
     name="calculate_result",
@@ -790,27 +757,44 @@ registry.register(ToolDescriptor(
     risk_tier=RiskTier.LOW,
     is_state_changing=False,
 ))
+executor = DeterministicToolExecutor(registry=registry, policy=policy)
 
-# ── SDK tool (schema only — body stays pass, same as Agent Builder output) ────
+
+# ── Step 3: Delegating @function_tool — schema for model, body calls eXo-brain ──
 @function_tool
 def calculate_result(operation: str, operand1: float, operand2: float):
     \"\"\"Performs a basic arithmetic calculation and returns the exact result.\"\"\"
-    pass   # eXo-brain intercepts — this line never runs
+    call = ToolCallContext(
+        schema_version="1.0",
+        call_id=str(uuid.uuid4()),
+        session_id="sess_exo", run_id="run_sdk",
+        job_id="job_sdk",      task_id="task_sdk",
+        agent_id="exo-openai-agent", provider_id="openai",
+        tool_name="calculate_result",
+        arguments={"operation": operation, "operand1": operand1, "operand2": operand2},
+        risk_tier=RiskTier.LOW,
+        is_state_changing=False,
+    )
+    tool_result = executor.execute(call)
+    if tool_result.status == ToolStatus.SUCCESS:
+        val = tool_result.result.get("value", tool_result.result)
+        print(f"  [eXo-brain] calculate_result({operation}, {operand1}, {operand2}) → {val}")
+        return val
+    raise ValueError(f"{tool_result.error.code}: {tool_result.error.message}")
 
-# ── Wire orchestrator ─────────────────────────────────────────────────────────
-policy       = DeterministicFirstPolicyMiddleware()
-adapter      = OpenAIAgentsSDKAdapter(
+
+# ── Wire adapter + orchestrator ───────────────────────────────────────────────
+adapter = OpenAIAgentsSDKAdapter(
     tool_registry=registry,
-    sdk_tools=[calculate_result],   # model sees the full typed schema
+    sdk_tools=[calculate_result],   # model sees typed schema; body delegates to eXo-brain
 )
-executor     = DeterministicToolExecutor(registry=registry, policy=policy)
 orchestrator = Orchestrator(
     runtime_adapter=adapter,
     policy_middleware=policy,
     tool_executor=executor,
 )
 
-print("✓ eXo-brain wired with calculate_result")
+print("✓ eXo-brain wired with calculate_result (delegating wrapper)")
 print(f"  registry tools : {registry.list_tools()}")
 health = await adapter.healthcheck()
 print(f"  adapter health : {health.state.value} ({health.reason})")
@@ -836,21 +820,20 @@ else:
     async def live_turn(prompt: str):
         print(f"user ▶ {prompt}")
         print("─" * 60)
+        # eXo-brain execution prints come from inside the @function_tool body
+        # (above the dashes), then adapter events appear below.
         events = []
         async for event in orchestrator.run_turn("sess_exo", prompt, context):
             events.append(event)
             etype = event.event_type
-            if etype == RuntimeEventType.TOOL_INTENT:
-                tc = event.tool_call
-                print(f"  [TOOL_INTENT]   tool={tc.tool_name}")
-                print(f"                  args={tc.arguments}")
-                print(f"                  risk={tc.risk_tier.value}  → DETERMINISTIC")
-            elif etype == RuntimeEventType.OUTPUT_DELTA:
+            if etype == RuntimeEventType.OUTPUT_DELTA:
                 text = event.payload.get("text", "")
                 if text:
-                    print(f"  [OUTPUT_DELTA]  {text!r}")
+                    print(f"  [OUTPUT_DELTA]  {text[:200]!r}{'...' if len(text) > 200 else ''}")
             elif etype == RuntimeEventType.RUN_COMPLETE:
-                print(f"  [RUN_COMPLETE]  {event.payload}")
+                print(f"  [RUN_COMPLETE]  status={event.payload.get('status')}")
+            elif etype == RuntimeEventType.ERROR:
+                print(f"  [ERROR]         {event.payload}")
         print("─" * 60)
         return events
 
@@ -945,20 +928,21 @@ print("  Result: 72  |  Audit log written  |  Model never touched the handler")
 
 | | Original agent (Agent Builder) | With eXo-brain |
 |---|---|---|
-| `calculate_result` body | `pass` → `None` | `_calculate_result` → real result |
+| `calculate_result` body | `pass` → model gets `None` | delegates to `executor.execute()` → real result |
+| Agentic loop | broken — model never gets result | ✅ full loop: model → tool → result → model → answer |
 | Model sees tool schema | ✅ same | ✅ same |
-| Execution path | SDK calls handler → gets `None` | Orchestrator → `DeterministicToolExecutor` |
-| Policy check | ✗ | ✅ `DeterministicFirstPolicyMiddleware` |
-| Audit trail | ✗ | ✅ `AuditStore` + structured logs |
-| Division by zero | model hallucinates | caught → structured error envelope |
+| Execution path | SDK calls handler → `None` | `@function_tool` body → `DeterministicToolExecutor` → `_calculate_result` |
+| Policy check | ✗ | ✅ `DeterministicFirstPolicyMiddleware` (`before_tool_call`) |
+| Audit trail | ✗ | ✅ structured `ToolResult` envelope per call |
+| Division by zero | model hallucinates | `ValueError` caught → structured error envelope |
 | Risk gating | ✗ | ✅ LOW / MEDIUM / HIGH / CRITICAL tiers |
 | Provider swap | ✗ hardcoded OpenAI | ✅ swap adapter, nothing else changes |
 
-**The adapter is the only provider-specific code. Everything else is already there.**
+**The `@function_tool` body is the integration seam. Everything outside it is already provider-neutral.**
 
 ### Next steps
-- **Multi-turn** — call `run_turn()` again; session history is preserved automatically
-- **More tools** — register in `ToolRegistry` + `@function_tool` proxy, done
+- **Multi-turn** — call `run_turn()` again; session history is preserved in `adapter._sessions`
+- **More tools** — register in `ToolRegistry` + delegating `@function_tool` wrapper
 - **Ollama / local model** — same `RuntimeAdapter` contract, different `run_turn()` backend
 - **Background pipelines** — wrap turns inside `BackgroundRuntime` DAG nodes
 """),
@@ -966,13 +950,357 @@ print("  Result: 72  |  Audit log written  |  Model never touched the handler")
 ]
 
 
-# ── write both notebooks ───────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# NOTEBOOK 3 — Third Brick: Live Agent + Tool Execution
+# ──────────────────────────────────────────────────────────────────────────────
+
+nb3 = nbf.v4.new_notebook()
+nb3.metadata["kernelspec"] = {
+    "display_name": "eXo-brain (.exo_env)",
+    "language": "python",
+    "name": "exo-brain",
+}
+
+nb3.cells = [
+
+    md("""
+# Brick 3 — Live Agent + Tool Execution
+
+**One notebook. One question. Full proof.**
+
+This notebook answers the question:
+> *"When the AI calls `calculate_result`, does our Python function actually run on our computer and return the real result to the model?"*
+
+The answer is **yes** — and you can see it happen live.
+
+**Cells marked `[REQUIRES API KEY]` need `OPENAI_API_KEY` in your environment.**  
+All setup cells run without any credentials.
+"""),
+
+    # ── Setup ──────────────────────────────────────────────────────────────────
+    md("## Step 0 — Setup"),
+
+    code("""
+import sys, pathlib, os, uuid
+
+_root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
+sys.path.insert(0, str(_root))
+
+_env = _root / ".env"
+if _env.exists():
+    from dotenv import load_dotenv
+    load_dotenv(_env, override=False)
+    print(f"✓ .env loaded")
+else:
+    print(f"ℹ  no .env found at {_env}")
+
+from src.tools.registry import ToolDescriptor, ToolRegistry
+from src.schemas.tool_io import RiskTier, ToolCallContext, ToolStatus
+from src.policies.middleware import DeterministicFirstPolicyMiddleware
+from src.tools.executor import DeterministicToolExecutor
+from agents import function_tool, Agent, Runner, ModelSettings
+
+_key_set = bool(os.getenv("OPENAI_API_KEY"))
+print("✓ all imports ok")
+print(f"  OPENAI_API_KEY: {'✓ set — live cells will run' if _key_set else '✗ not set — live cells will be skipped'}")
+"""),
+
+    # ── Step 1 ─────────────────────────────────────────────────────────────────
+    md("""
+---
+## Step 1 — Write the Python function that runs on YOUR computer
+
+This is plain Python math. No AI involved here. This is the function that will
+execute on your machine when the model asks for a calculation.
+"""),
+
+    code("""
+def _calculate_result(operation: str, operand1: float, operand2: float) -> dict:
+    \"\"\"
+    The REAL math implementation.
+    Runs on your computer, never inside the model.
+    \"\"\"
+    if operation == "add":
+        value = operand1 + operand2
+    elif operation == "subtract":
+        value = operand1 - operand2
+    elif operation == "multiply":
+        value = operand1 * operand2
+    elif operation == "divide":
+        if operand2 == 0:
+            raise ValueError("Cannot divide by zero")
+        value = operand1 / operand2
+    else:
+        raise ValueError(f"Unknown operation: {operation!r}")
+
+    return {
+        "operation": operation,
+        "operand1":  operand1,
+        "operand2":  operand2,
+        "result":    value,
+    }
+
+# Quick sanity check — no AI needed
+print("Local test (no AI):")
+print(f"  add(5, 7)       → {_calculate_result('add', 5, 7)['result']}")
+print(f"  multiply(8, 9)  → {_calculate_result('multiply', 8, 9)['result']}")
+print(f"  divide(10, 4)   → {_calculate_result('divide', 10, 4)['result']}")
+"""),
+
+    # ── Step 2 ─────────────────────────────────────────────────────────────────
+    md("""
+---
+## Step 2 — Register it in eXo-brain
+
+eXo-brain needs to know about the function before the agent runs.
+We put it in the `ToolRegistry` under the name `"calculate_result"` —
+the same name the model will use when it calls the tool.
+
+The `DeterministicToolExecutor` is the piece that:
+1. Asks the policy middleware: "is this call allowed?"
+2. Runs the real Python function
+3. Returns a structured result envelope
+"""),
+
+    code("""
+registry = ToolRegistry()
+registry.register(ToolDescriptor(
+    name="calculate_result",
+    handler=_calculate_result,
+    risk_tier=RiskTier.LOW,
+    is_state_changing=False,
+))
+
+policy   = DeterministicFirstPolicyMiddleware()
+executor = DeterministicToolExecutor(registry=registry, policy=policy)
+
+print("✓ calculate_result registered in eXo-brain")
+print(f"  registered tools : {registry.list_tools()}")
+"""),
+
+    # ── Step 3 ─────────────────────────────────────────────────────────────────
+    md("""
+---
+## Step 3 — Mirror the tool schema for the model
+
+The `@function_tool` decorator reads the type annotations and builds the JSON
+schema the model needs to know *how* to call the tool.
+
+**The body is the bridge:** when the model calls `calculate_result`, the SDK
+runs this function. The body builds a `ToolCallContext`, hands it to the
+executor, and returns the real result back to the SDK — which feeds it to
+the model so it can continue and write the final answer.
+
+The print statements inside the body are your proof: every time you see
+`[eXo-brain intercepted]` in the output, it means your Python function ran
+on your computer.
+"""),
+
+    code("""
+@function_tool
+def calculate_result(operation: str, operand1: float, operand2: float):
+    \"\"\"Performs a basic arithmetic calculation and returns the exact result.\"\"\"
+
+    # ── Visible proof that this runs on YOUR computer ─────────────────────────
+    print(f"  ┌─ [eXo-brain intercepted] ──────────────────────────────────")
+    print(f"  │  tool      : calculate_result")
+    print(f"  │  operation : {operation}")
+    print(f"  │  operand1  : {operand1}")
+    print(f"  │  operand2  : {operand2}")
+
+    # ── Build the context eXo-brain needs ────────────────────────────────────
+    call = ToolCallContext(
+        schema_version    = "1.0",
+        call_id           = str(uuid.uuid4()),
+        session_id        = "sess_brick3",
+        run_id            = "run_brick3",
+        job_id            = "job_brick3",
+        task_id           = "task_brick3",
+        agent_id          = "exo-openai-agent",
+        provider_id       = "openai",
+        tool_name         = "calculate_result",
+        arguments         = {
+            "operation": operation,
+            "operand1":  operand1,
+            "operand2":  operand2,
+        },
+        risk_tier         = RiskTier.LOW,
+        is_state_changing = False,
+    )
+
+    # ── Execute on your computer via eXo-brain ───────────────────────────────
+    tool_result = executor.execute(call)
+
+    if tool_result.status == ToolStatus.SUCCESS:
+        value = tool_result.result.get("value", tool_result.result)
+        print(f"  │  result    : {value}")
+        print(f"  │  mode      : {tool_result.execution.mode_used.value}")
+        print(f"  └────────────────────────────────────────────────────────")
+        return value   # ← this number goes back to the model
+    else:
+        print(f"  │  ERROR     : {tool_result.error.message}")
+        print(f"  └────────────────────────────────────────────────────────")
+        raise ValueError(f"{tool_result.error.code}: {tool_result.error.message}")
+
+
+print("✓ calculate_result @function_tool defined (delegating to eXo-brain)")
+"""),
+
+    # ── Step 4 ─────────────────────────────────────────────────────────────────
+    md("""
+---
+## Step 4 — Create the agent
+
+Same agent definition as OpenAI Agent Builder exports.
+The model sees `calculate_result` with its full JSON schema.
+It doesn't know or care that the body delegates to eXo-brain.
+"""),
+
+    code("""
+INSTRUCTIONS = (
+    "You are a helpful math assistant. "
+    "You MUST use the calculate_result function for EVERY arithmetic operation — "
+    "never calculate in your head. "
+    "Supported operations: add, subtract, multiply, divide. "
+    "Always call the function first, then explain the result step by step."
+)
+
+agent = Agent(
+    name="exo-openai-agent",
+    instructions=INSTRUCTIONS,
+    model="gpt-4o-mini",
+    tools=[calculate_result],
+    model_settings=ModelSettings(
+        temperature=0,
+        max_tokens=512,
+        parallel_tool_calls=True,
+    ),
+)
+
+print("✓ agent defined")
+print(f"  name  : {agent.name}")
+print(f"  model : {agent.model}")
+print(f"  tools : {[t.name for t in agent.tools]}")
+"""),
+
+    # ── Step 5 ─────────────────────────────────────────────────────────────────
+    md("""
+---
+## Step 5 — [REQUIRES API KEY] Run it live
+
+For each question you will see TWO things in the output:
+
+1. The `[eXo-brain intercepted]` block — **proof your Python ran on your computer**
+2. The model's final answer — **uses the real result we returned**
+
+The flow:
+```
+model decides to call calculate_result(add, 5, 7)
+         ↓ SDK calls @function_tool body
+         ↓ body calls executor.execute()   ← YOUR COMPUTER RUNS _calculate_result
+         ↓ body returns 12 to SDK
+         ↓ SDK feeds "12" to the model
+         ↓ model writes: "5 plus 7 equals 12"
+```
+"""),
+
+    code("""
+if not os.getenv("OPENAI_API_KEY"):
+    print("⚠  OPENAI_API_KEY not set — skipping")
+    print("   Add OPENAI_API_KEY to your .env file and re-run this cell.")
+else:
+    questions = [
+        "What is 5 plus 7?",
+        "What is 8 multiplied by 9?",
+        "What is 100 divided by 4?",
+        "What is 50 minus 13?",
+    ]
+
+    for question in questions:
+        print(f"\\n{'═' * 60}")
+        print(f"  USER  ▶  {question}")
+        print(f"{'─' * 60}")
+        result = await Runner.run(agent, question)
+        print(f"\\n  AGENT ▶  {result.final_output}")
+        print(f"{'═' * 60}")
+"""),
+
+    # ── Step 6 ─────────────────────────────────────────────────────────────────
+    md("""
+---
+## Step 6 — [REQUIRES API KEY] Edge case: division by zero
+
+The model will ask to divide by zero.  
+`_calculate_result` raises `ValueError`.  
+The executor catches it, wraps it in a structured error envelope.  
+The tool body raises `ValueError` back to the SDK.  
+The model receives the error as the tool output and explains it cleanly.
+"""),
+
+    code("""
+if not os.getenv("OPENAI_API_KEY"):
+    print("⚠  OPENAI_API_KEY not set — skipping")
+else:
+    print(f"{'═' * 60}")
+    print(f"  USER  ▶  What is 10 divided by 0?")
+    print(f"{'─' * 60}")
+    try:
+        result = await Runner.run(agent, "What is 10 divided by 0?")
+        print(f"\\n  AGENT ▶  {result.final_output}")
+    except Exception as e:
+        print(f"  ERROR  ▶  {e}")
+    print(f"{'═' * 60}")
+"""),
+
+    # ── Summary ────────────────────────────────────────────────────────────────
+    md("""
+---
+## What just happened — the complete picture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     YOUR COMPUTER                           │
+│                                                             │
+│  ┌──────────────┐     ┌──────────────────────────────────┐  │
+│  │  OpenAI API  │     │         eXo-brain                │  │
+│  │  (the model) │     │                                  │  │
+│  │              │     │  ToolRegistry                    │  │
+│  │  decides to  │     │    "calculate_result"            │  │
+│  │  call tool   │────▶│       ↓                          │  │
+│  │              │     │  PolicyMiddleware.before_call()  │  │
+│  │              │     │       ↓                          │  │
+│  │              │     │  DeterministicToolExecutor       │  │
+│  │              │     │       ↓                          │  │
+│  │              │     │  _calculate_result(op, a, b)     │  │
+│  │              │◀────│       ↓ real result              │  │
+│  │  writes      │     │  ToolResult envelope             │  │
+│  │  final answer│     └──────────────────────────────────┘  │
+│  └──────────────┘                                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| | Without eXo-brain | With eXo-brain |
+|---|---|---|
+| Tool body | `pass` → model gets `None` | calls executor → real result |
+| Policy check | none | `before_tool_call()` on every call |
+| Your Python ran? | no | **yes — proven by the print output** |
+| Model answer correct? | guessed from weights | based on real computed value |
+| Division by zero | model hallucinates | caught, structured error |
+"""),
+
+]
+
+
+# ── write all three notebooks ──────────────────────────────────────────────────
 
 p1 = NB_DIR / "01_first_brick_core_framework.ipynb"
 p2 = NB_DIR / "02_second_brick_openai_agents_adapter.ipynb"
+p3 = NB_DIR / "03_third_brick_live_agent_tool_execution.ipynb"
 
 nbf.write(nb1, p1)
 nbf.write(nb2, p2)
+nbf.write(nb3, p3)
 
 print(f"wrote: {p1}")
 print(f"wrote: {p2}")
+print(f"wrote: {p3}")
