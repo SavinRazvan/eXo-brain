@@ -34,6 +34,7 @@ Optional per-skill folders:
 
 This repository also defines PR maintainer workflow skills:
 
+- `audit-alignment`
 - `review-pr`
 - `prepare-pr`
 - `merge-pr`
