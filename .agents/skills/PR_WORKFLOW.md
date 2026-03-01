@@ -80,6 +80,7 @@ Each file should include:
 - action attribution:
   - `Action-By: Savin I. Razvan`
   - `GitHub-User: @SavinRazvan`
+  - `Agent/s: <agent-name-or-pipeline>`
   - role labels by phase (`Reviewed-By: Savin I. Razvan`, `Prepared-By: Savin I. Razvan`, `Merged-By: Savin I. Razvan`)
 
 ## Alignment Audit Checkpoint (Advisory)

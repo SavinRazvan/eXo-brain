@@ -37,13 +37,26 @@ def test_review_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> 
     module = _load_module("review_script", SCRIPTS_DIR / "review.py")
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["review.py", "--pr", "123", "--actor", "Savin I. Razvan"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "review.py",
+            "--pr",
+            "123",
+            "--actor",
+            "Savin I. Razvan",
+            "--agents",
+            "review-pr",
+        ],
+    )
     assert module.main() == 0
 
     content = (tmp_path / ".local" / "review.md").read_text(encoding="utf-8")
     assert "Action-By: Savin I. Razvan" in content
     assert "Reviewed-By: Savin I. Razvan" in content
     assert "GitHub-User: @SavinRazvan" in content
+    assert "Agent/s: review-pr" in content
 
 
 def test_prepare_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> None:
@@ -51,13 +64,26 @@ def test_prepare_script_writes_actor_attribution(tmp_path: Path, monkeypatch) ->
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(module, "GATES", [["python", "-c", "print('ok')"]])
-    monkeypatch.setattr(sys, "argv", ["prepare.py", "--pr", "123", "--actor", "Savin I. Razvan"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "prepare.py",
+            "--pr",
+            "123",
+            "--actor",
+            "Savin I. Razvan",
+            "--agents",
+            "review-pr | prepare-pr",
+        ],
+    )
     assert module.main() == 0
 
     content = (tmp_path / ".local" / "prep.md").read_text(encoding="utf-8")
     assert "Action-By: Savin I. Razvan" in content
     assert "Prepared-By: Savin I. Razvan" in content
     assert "GitHub-User: @SavinRazvan" in content
+    assert "Agent/s: review-pr | prepare-pr" in content
 
 
 def test_merge_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> None:
@@ -70,13 +96,26 @@ def test_merge_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> N
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(module, "_head_sha", lambda: "abc123")
-    monkeypatch.setattr(sys, "argv", ["merge.py", "--pr", "123", "--actor", "Savin I. Razvan"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "merge.py",
+            "--pr",
+            "123",
+            "--actor",
+            "Savin I. Razvan",
+            "--agents",
+            "review-pr | prepare-pr | merge-pr",
+        ],
+    )
     assert module.main() == 0
 
     content = (tmp_path / ".local" / "merge.md").read_text(encoding="utf-8")
     assert "Action-By: Savin I. Razvan" in content
     assert "Merged-By: Savin I. Razvan" in content
     assert "GitHub-User: @SavinRazvan" in content
+    assert "Agent/s: review-pr | prepare-pr | merge-pr" in content
 
 
 def test_verify_publish_script_passes_when_upstream_and_remote_exist(monkeypatch) -> None:

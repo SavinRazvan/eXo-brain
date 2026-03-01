@@ -28,7 +28,7 @@ Merge safely and deterministically after review and preparation are complete.
    - checks used as evidence
    - any follow-up issue/work item
    - initialize/update artifact with:
-     - `python scripts/pr/merge.py --pr <pr-number-or-url> --actor "Savin I. Razvan"`
+     - `python scripts/pr/merge.py --pr <pr-number-or-url> --actor "Savin I. Razvan" --agents "review-pr | prepare-pr | merge-pr"`
 7. Finalize workflow (required close-out):
    - `git checkout main`
    - `git pull --ff-only origin main`
