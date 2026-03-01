@@ -25,6 +25,7 @@ from src.mcp.mcp_client_adapter import McpClientAdapter
 from src.mcp.mcp_registry import McpHealthState, McpRegistry, McpTrustTier
 from src.observability.logging import LogLevel, StructuredLogger
 from src.policies.middleware import PolicyMiddleware
+from src.resilience.compensation_hooks import CompensationHooks
 from src.resilience.circuit_breaker import CircuitBreaker
 from src.resilience.dlq import DeadLetterQueue, DlqRecord
 from src.schemas.tool_io import (
@@ -52,6 +53,7 @@ class McpToolAdapter:
         policy: PolicyMiddleware,
         circuit_breaker: CircuitBreaker | None = None,
         dlq: DeadLetterQueue | None = None,
+        compensation_hooks: CompensationHooks | None = None,
         logger: StructuredLogger | None = None,
     ) -> None:
         self._registry = registry
@@ -59,6 +61,7 @@ class McpToolAdapter:
         self._policy = policy
         self._circuit_breaker = circuit_breaker or CircuitBreaker()
         self._dlq = dlq or DeadLetterQueue()
+        self._compensation_hooks = compensation_hooks or CompensationHooks()
         self._logger = logger
 
     async def execute(
@@ -204,6 +207,17 @@ class McpToolAdapter:
                             },
                         )
                     )
+                    self._run_compensation_hook(
+                        reason_code="MCP_TIMEOUT",
+                        payload={
+                            "server_id": server_id,
+                            "tool_name": tool_name,
+                            "attempt": attempt,
+                            "max_retries": max_retries,
+                            "correlation_id": context.call_id,
+                        },
+                        correlation_id=context.call_id,
+                    )
                     return ToolResult(
                         schema_version="1.0",
                         call_id=context.call_id,
@@ -245,6 +259,16 @@ class McpToolAdapter:
                     payload={"server_id": server_id, "tool_name": tool_name, "error": str(exc)},
                 )
             )
+            self._run_compensation_hook(
+                reason_code="MCP_VALIDATION_ERROR",
+                payload={
+                    "server_id": server_id,
+                    "tool_name": tool_name,
+                    "error": str(exc),
+                    "correlation_id": context.call_id,
+                },
+                correlation_id=context.call_id,
+            )
             return ToolResult(
                 schema_version="1.0",
                 call_id=context.call_id,
@@ -281,6 +305,16 @@ class McpToolAdapter:
                     reason_code="MCP_EXECUTION_ERROR",
                     payload={"server_id": server_id, "tool_name": tool_name, "error": str(exc)},
                 )
+            )
+            self._run_compensation_hook(
+                reason_code="MCP_EXECUTION_ERROR",
+                payload={
+                    "server_id": server_id,
+                    "tool_name": tool_name,
+                    "error": str(exc),
+                    "correlation_id": context.call_id,
+                },
+                correlation_id=context.call_id,
             )
             return ToolResult(
                 schema_version="1.0",
@@ -378,3 +412,21 @@ class McpToolAdapter:
             correlation_id=correlation_id,
             context=context,
         )
+
+    def _run_compensation_hook(
+        self,
+        *,
+        reason_code: str,
+        payload: dict[str, Any],
+        correlation_id: str,
+    ) -> None:
+        try:
+            self._compensation_hooks.run(reason_code, payload)
+        except Exception as exc:  # pragma: no cover - defensive path
+            self._log(
+                level=LogLevel.ERROR,
+                event="mcp.compensation_hook.failed",
+                message=f"Compensation hook failed for '{reason_code}'",
+                correlation_id=correlation_id,
+                context={"reason_code": reason_code, "error": str(exc)},
+            )
