@@ -223,3 +223,36 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] `requirements.txt` — added `fastapi`, `uvicorn[standard]`, `sse-starlette`, `websockets`
 - [x] `.github/workflows/architecture-fitness.yml` — replaced `pip install pytest pyyaml` with `pip install -r requirements.txt` in all three test jobs (`automated_test_suite`, `contract_tests`, `integration_architecture_fitness`)
 - [x] Full test suite after all slices: **253 passed, 0 failed**
+
+---
+
+## Platform Extensions — Slice 0 (Persistent Storage — branch: feature/slice0-persistent-storage)
+
+### New contracts
+- [x] `src/persistence/contracts.py` — `PersistedToolRecord`, `PersistedAgentRecord` dataclasses
+- [x] `src/persistence/contracts.py` — `ToolStore` ABC (`save_tool`, `delete_tool`, `list_tools`, `list_tenant_ids`)
+- [x] `src/persistence/contracts.py` — `AgentStore` ABC (`save_agent`, `delete_agent`, `list_agents`, `list_tenant_ids`)
+
+### New SQLite adapters
+- [x] `src/persistence/adapters/sqlite.py` — `SQLiteToolStore` (upsert, delete, list, tenant isolation)
+- [x] `src/persistence/adapters/sqlite.py` — `SQLiteAgentStore` (upsert, delete, list, tenant isolation)
+
+### Bootstrap wiring
+- [x] `src/api/bootstrap.py` — `persistence_backend` param (`"sqlite"` | `"memory"`); creates stores from `EXO_DB_PATH` env var (default `.exo_data/exo.db`)
+- [x] `src/api/bootstrap.py` — exposes `tool_store`, `agent_store` on `app.state`; registers startup hydration hook
+- [x] `src/runtime/tenant_runtime.py` — `TenantRuntimeFactory` accepts optional `session_store` param; falls back to `InMemorySessionStore` when None
+
+### Startup hydration
+- [x] `src/api/startup.py` — `hydrate_tenant_registries(app)` — loads persisted tools/agents into tenant registries on startup
+
+### Router write-through
+- [x] `src/api/routers/tools.py` — `register_tool` / `unregister_tool` write-through to `ToolStore` (no-op when None)
+- [x] `src/api/routers/agents.py` — `register_agent` / `unregister_agent` write-through to `AgentStore` (no-op when None)
+
+### Dependencies
+- [x] `src/api/dependencies.py` — `get_tool_store()`, `get_agent_store()` — return store from `app.state` or `None`
+
+### Tests
+- [x] `tests/modules/persistence/test_tool_agent_stores.py` (16 tests — save, list, upsert, delete, tenant isolation, field roundtrip)
+- [x] `tests/modules/api/test_persistence_roundtrip.py` (7 tests — tool/agent survive restart, delete persisted, tenant isolation, memory backend unaffected)
+- [x] Full test suite: **276 passed, 0 failed** (+23 new tests)
