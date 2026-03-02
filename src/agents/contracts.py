@@ -34,6 +34,7 @@ class AgentSpec:
     agent_id: str
     role: str
     capability_tags: set[AgentCapabilityTag] = field(default_factory=set)
+    instructions: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def has_capability(self, capability: AgentCapabilityTag) -> bool:

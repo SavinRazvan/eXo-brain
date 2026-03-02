@@ -128,3 +128,31 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] Architecture boundaries are preserved by code layout and interfaces.
 - [x] `.cursor` docs and rules are present and used by agents.
 - [x] Team can begin feature work without revisiting core architecture assumptions.
+
+## API Platform — Slice 0 (feature/api-platform)
+
+### Pre-requisite Contract Changes
+- [x] `ProviderRegistry.get_adapter(provider_id)` added to `src/config/provider_registry.py`
+- [x] `AgentSpec.instructions: str = ""` added to `src/agents/contracts.py`
+- [x] `ToolRegistry.list_descriptors()` added to `src/tools/registry.py`
+- [x] `ToolDescriptor.description` + `parameters_schema` fields added
+- [x] `ToolRegistry.unregister(tool_name)` added
+- [x] `PluginManager.unload_plugin` updated to call `registry.unregister()` for each plugin tool
+
+### New Files
+- [x] `src/runtime/tool_wiring.py` — `build_agent_tools()` helper (late binding, adapter-only import)
+- [x] `src/runtime/tenant_runtime.py` — `TenantRuntimeContext` + `TenantRuntimeFactory`
+
+### Adapter Wiring
+- [x] `src/runtime/openai_agents_runtime.py` — real OpenAI Agents SDK wiring via `build_agent_tools`
+- [x] Legacy stub path (`planned_tool_call`) preserved for existing tests
+
+### AgentRegistry
+- [x] `list_routes()` added
+- [x] `list_fallback_policies()` added
+
+### Tests
+- [x] `tests/modules/config/test_provider_registry.py` (3 tests — get_adapter)
+- [x] `tests/modules/runtime/test_tenant_runtime.py` (27 tests — all Slice 0 acceptance gates)
+- [x] Architecture gates pass: `validate_layers.py` + `scan_forbidden_imports.py`
+- [x] Full test suite: 167 passed, 0 failed
