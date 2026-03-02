@@ -62,4 +62,9 @@ def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
     app.include_router(turns_router, prefix="/tenants")
     app.include_router(providers_router)
 
+    # Slice 4 — Tenant Policy & Quota Management
+    from src.api.routers.tenants import router as tenants_router
+
+    app.include_router(tenants_router, prefix="/tenants")
+
     return app
