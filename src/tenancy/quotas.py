@@ -27,6 +27,17 @@ class TenantQuotaManager:
         self._max_active_jobs_per_tenant = max_active_jobs_per_tenant
         self._hard_enforcement = hard_enforcement
 
+    @property
+    def max_active_jobs(self) -> int:
+        """Return current configured limit (0 means unlimited)."""
+        return self._max_active_jobs_per_tenant
+
+    def set_limit(self, max_active_jobs: int) -> None:
+        """Update the active job limit. Takes effect on the next check_submission call."""
+        if max_active_jobs < 0:
+            raise ValueError("max_active_jobs must be >= 0 (0 = unlimited)")
+        self._max_active_jobs_per_tenant = max_active_jobs
+
     def check_submission(self, tenant_id: str, active_jobs: int) -> QuotaDecision:
         if self._max_active_jobs_per_tenant <= 0:
             return QuotaDecision(allowed=True)
