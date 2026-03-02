@@ -1,14 +1,18 @@
 """
 File: sqlite.py
 Path: src/persistence/adapters/sqlite.py
-Role: SQLite-backed persistence adapters for session and checkpoint contracts.
+Role: SQLite-backed persistence adapters for session, checkpoint, tool, and agent contracts.
 Used By:
  - tests/modules/core/test_persistence_adapter_parity.py
+ - tests/modules/persistence/test_tool_agent_stores.py
+ - src/api/bootstrap.py
+ - src/api/startup.py
 Depends On:
  - src/persistence/contracts.py
  - src/core/session_context.py
 Notes:
  - Uses sqlite upsert semantics to keep contract behavior deterministic.
+ - All stores share the same db_path; each uses a separate table.
 """
 
 from __future__ import annotations
@@ -19,12 +23,16 @@ from pathlib import Path
 
 from src.core.session_context import SessionContext
 from src.persistence.contracts import (
+    AgentStore,
     CheckpointRecord,
     CheckpointStatus,
     CheckpointStoreContract,
+    PersistedAgentRecord,
+    PersistedToolRecord,
     PersistenceIsolationError,
     SessionRecord,
     SessionStore,
+    ToolStore,
 )
 
 
@@ -248,4 +256,209 @@ class SQLiteCheckpointStore(CheckpointStoreContract):
             reason_code=row[5],
             payload=json.loads(row[6]),
         )
+
+
+class SQLiteToolStore(ToolStore):
+    """SQLite-backed tool store using upsert semantics.
+
+    For ':memory:' databases a single shared connection is kept alive for the
+    lifetime of the store instance; file-based databases use a new connection per
+    operation so multiple processes can share the same file safely.
+    """
+
+    def __init__(self, db_path: str | Path = ":memory:") -> None:
+        self._db_path = str(db_path)
+        # Keep a persistent connection for in-memory dbs (each connect() creates a fresh db).
+        self._shared_conn: sqlite3.Connection | None = (
+            sqlite3.connect(":memory:", check_same_thread=False)
+            if self._db_path == ":memory:"
+            else None
+        )
+        self._ensure_schema()
+
+    def _connect(self) -> sqlite3.Connection:
+        if self._shared_conn is not None:
+            return self._shared_conn
+        return sqlite3.connect(self._db_path)
+
+    async def save_tool(self, tenant_id: str, record: PersistedToolRecord) -> None:
+        data = {
+            "risk_tier": record.risk_tier,
+            "is_state_changing": record.is_state_changing,
+            "timeout_ms": record.timeout_ms,
+            "description": record.description,
+            "parameters_schema": record.parameters_schema,
+            "metadata": record.metadata,
+        }
+        conn = self._connect()
+        conn.execute(
+            """
+            INSERT INTO tools (tenant_id, tool_name, handler_ref, data_json)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(tenant_id, tool_name) DO UPDATE SET
+                handler_ref=excluded.handler_ref,
+                data_json=excluded.data_json
+            """,
+            (tenant_id, record.name, record.handler_ref, json.dumps(data)),
+        )
+        conn.commit()
+
+    async def delete_tool(self, tenant_id: str, tool_name: str) -> None:
+        conn = self._connect()
+        conn.execute(
+            "DELETE FROM tools WHERE tenant_id = ? AND tool_name = ?",
+            (tenant_id, tool_name),
+        )
+        conn.commit()
+
+    async def list_tools(self, tenant_id: str) -> list[PersistedToolRecord]:
+        conn = self._connect()
+        rows = conn.execute(
+            """
+            SELECT tool_name, handler_ref, data_json
+            FROM tools
+            WHERE tenant_id = ?
+            ORDER BY tool_name ASC
+            """,
+            (tenant_id,),
+        ).fetchall()
+        records = []
+        for row in rows:
+            tool_name, handler_ref, data_json = row
+            data = json.loads(data_json)
+            records.append(
+                PersistedToolRecord(
+                    name=tool_name,
+                    handler_ref=handler_ref,
+                    tenant_id=tenant_id,
+                    risk_tier=data.get("risk_tier", "low"),
+                    is_state_changing=data.get("is_state_changing", False),
+                    timeout_ms=data.get("timeout_ms", 30000),
+                    description=data.get("description", ""),
+                    parameters_schema=data.get("parameters_schema", {}),
+                    metadata=data.get("metadata", {}),
+                )
+            )
+        return records
+
+    async def list_tenant_ids(self) -> list[str]:
+        conn = self._connect()
+        rows = conn.execute(
+            "SELECT DISTINCT tenant_id FROM tools ORDER BY tenant_id ASC"
+        ).fetchall()
+        return [row[0] for row in rows]
+
+    def _ensure_schema(self) -> None:
+        conn = self._connect()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tools (
+                tenant_id TEXT NOT NULL,
+                tool_name TEXT NOT NULL,
+                handler_ref TEXT NOT NULL,
+                data_json TEXT NOT NULL,
+                PRIMARY KEY (tenant_id, tool_name)
+            )
+            """
+        )
+        conn.commit()
+
+
+class SQLiteAgentStore(AgentStore):
+    """SQLite-backed agent store using upsert semantics.
+
+    For ':memory:' databases a single shared connection is kept alive for the
+    lifetime of the store instance; file-based databases use a new connection per
+    operation so multiple processes can share the same file safely.
+    """
+
+    def __init__(self, db_path: str | Path = ":memory:") -> None:
+        self._db_path = str(db_path)
+        self._shared_conn: sqlite3.Connection | None = (
+            sqlite3.connect(":memory:", check_same_thread=False)
+            if self._db_path == ":memory:"
+            else None
+        )
+        self._ensure_schema()
+
+    def _connect(self) -> sqlite3.Connection:
+        if self._shared_conn is not None:
+            return self._shared_conn
+        return sqlite3.connect(self._db_path)
+
+    async def save_agent(self, tenant_id: str, record: PersistedAgentRecord) -> None:
+        data = {
+            "capability_tags": record.capability_tags,
+            "instructions": record.instructions,
+            "metadata": record.metadata,
+        }
+        conn = self._connect()
+        conn.execute(
+            """
+            INSERT INTO agents (tenant_id, agent_id, role, data_json)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(tenant_id, agent_id) DO UPDATE SET
+                role=excluded.role,
+                data_json=excluded.data_json
+            """,
+            (tenant_id, record.agent_id, record.role, json.dumps(data)),
+        )
+        conn.commit()
+
+    async def delete_agent(self, tenant_id: str, agent_id: str) -> None:
+        conn = self._connect()
+        conn.execute(
+            "DELETE FROM agents WHERE tenant_id = ? AND agent_id = ?",
+            (tenant_id, agent_id),
+        )
+        conn.commit()
+
+    async def list_agents(self, tenant_id: str) -> list[PersistedAgentRecord]:
+        conn = self._connect()
+        rows = conn.execute(
+            """
+            SELECT agent_id, role, data_json
+            FROM agents
+            WHERE tenant_id = ?
+            ORDER BY agent_id ASC
+            """,
+            (tenant_id,),
+        ).fetchall()
+        records = []
+        for row in rows:
+            agent_id, role, data_json = row
+            data = json.loads(data_json)
+            records.append(
+                PersistedAgentRecord(
+                    agent_id=agent_id,
+                    role=role,
+                    tenant_id=tenant_id,
+                    capability_tags=data.get("capability_tags", []),
+                    instructions=data.get("instructions", ""),
+                    metadata=data.get("metadata", {}),
+                )
+            )
+        return records
+
+    async def list_tenant_ids(self) -> list[str]:
+        conn = self._connect()
+        rows = conn.execute(
+            "SELECT DISTINCT tenant_id FROM agents ORDER BY tenant_id ASC"
+        ).fetchall()
+        return [row[0] for row in rows]
+
+    def _ensure_schema(self) -> None:
+        conn = self._connect()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS agents (
+                tenant_id TEXT NOT NULL,
+                agent_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                data_json TEXT NOT NULL,
+                PRIMARY KEY (tenant_id, agent_id)
+            )
+            """
+        )
+        conn.commit()
 
