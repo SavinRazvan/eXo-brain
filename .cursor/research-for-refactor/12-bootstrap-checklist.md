@@ -226,6 +226,41 @@ Provide a concrete startup checklist for creating the new repository and reachin
 
 ---
 
+## Platform Extensions — Slice 1 (Auth Hardening — branch: feature/slice1-auth-hardening)
+
+### New contracts
+- [x] `src/persistence/contracts.py` — `ApiKeyRecord` dataclass (stores SHA-256 hash, never plaintext)
+- [x] `src/persistence/contracts.py` — `ApiKeyStore` ABC (`save_key`, `get_key`, `lookup_by_hash`, `delete_key`, `list_keys`)
+
+### New SQLite adapter
+- [x] `src/persistence/adapters/sqlite.py` — `SQLiteApiKeyStore` (upsert, lookup by hash, delete, list with optional tenant filter)
+
+### Auth settings
+- [x] `src/config/settings.py` — `AuthSettings` dataclass (`jwt_secret`, `jwks_url`, `algorithm`); added to `AppSettings.auth`
+
+### JWT resolver
+- [x] `src/identity/jwt_resolver.py` — `decode_jwt(token, secret, algorithm)` → `IdentityContext`; handles VALID, EXPIRED, and invalid tokens
+
+### Auth middleware rewrite (async, multi-mode)
+- [x] `src/api/middleware/auth.py` — `extract_identity` is now `async`; precedence: Bearer JWT → Bearer API-key → X-API-Key → X-Identity (test/dev only)
+- [x] `src/api/dependencies.py` — `get_identity` awaits `extract_identity`; updated 401 message
+
+### Key management router
+- [x] `src/api/schemas/auth_schemas.py` — `ApiKeyCreateRequest/Response`, `ApiKeyInfo`, `ApiKeyListResponse`
+- [x] `src/api/routers/admin_keys.py` — `POST /admin/keys`, `GET /admin/keys`, `DELETE /admin/keys/{key_id}`
+- [x] `src/api/app.py` — includes `admin_keys` router
+
+### Bootstrap wiring
+- [x] `src/api/bootstrap.py` — creates `SQLiteApiKeyStore` from same `EXO_DB_PATH`; exposes `api_key_store` on `app.state` (None in memory mode)
+
+### Tests
+- [x] `tests/modules/api/test_auth_apikey.py` (12 tests — CRUD, auth, tenant filter, 503 without store, 401 without auth, prod environment blocks X-Identity)
+- [x] `tests/modules/api/test_auth_jwt.py` (13 tests — decode unit tests + integration via TestClient)
+- [x] Existing `test_slice1_transport.py` extract_identity tests updated for async call
+- [x] Full test suite: **301 passed, 0 failed** (+25 new tests)
+
+---
+
 ## Platform Extensions — Slice 0 (Persistent Storage — branch: feature/slice0-persistent-storage)
 
 ### New contracts

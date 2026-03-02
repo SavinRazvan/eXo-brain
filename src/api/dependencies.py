@@ -39,16 +39,19 @@ def _get_policy_overlay_store(request: Request) -> TenantPolicyOverlayStore:
 
 
 async def get_identity(request: Request) -> IdentityContext:
-    """Extract IdentityContext from the X-Identity header.
+    """Resolve IdentityContext from the request.
 
-    Raises 401 if the header is missing or cannot be parsed.
+    Tries Authorization: Bearer (JWT or API-key), X-API-Key, then X-Identity (test/dev only).
+    Raises 401 if no valid identity can be resolved.
     """
-    identity = extract_identity(request)
+    identity = await extract_identity(request)
     if identity is None:
         raise HTTPException(
             status_code=401,
-            detail="Missing or malformed X-Identity header. "
-            'Expected JSON: {"subject": "...", "roles": [...], "tenant_id": "..."}',
+            detail=(
+                "Authentication required. Provide 'Authorization: Bearer <token>', "
+                "'X-API-Key: <key>', or (test/dev only) 'X-Identity: <json>'."
+            ),
         )
     return identity
 

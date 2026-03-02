@@ -1,12 +1,13 @@
 """
 File: sqlite.py
 Path: src/persistence/adapters/sqlite.py
-Role: SQLite-backed persistence adapters for session, checkpoint, tool, and agent contracts.
+Role: SQLite-backed persistence adapters for session, checkpoint, tool, agent, and API key contracts.
 Used By:
  - src/api/bootstrap.py
  - src/api/startup.py
  - tests/modules/core/test_persistence_adapter_parity.py
  - tests/modules/persistence/test_tool_agent_stores.py
+ - tests/modules/api/test_auth_apikey.py
 Depends On:
  - src/persistence/contracts.py
  - src/core/session_context.py
@@ -25,6 +26,8 @@ from pathlib import Path
 from src.core.session_context import SessionContext
 from src.persistence.contracts import (
     AgentStore,
+    ApiKeyRecord,
+    ApiKeyStore,
     CheckpointRecord,
     CheckpointStatus,
     CheckpointStoreContract,
@@ -458,6 +461,127 @@ class SQLiteAgentStore(AgentStore):
                 role TEXT NOT NULL,
                 data_json TEXT NOT NULL,
                 PRIMARY KEY (tenant_id, agent_id)
+            )
+            """
+        )
+        conn.commit()
+
+
+class SQLiteApiKeyStore(ApiKeyStore):
+    """SQLite-backed API key store.
+
+    Stores a SHA-256 hash of the actual key — plaintext is never written to disk.
+    Supports lookup by hash for authentication and management by key_id.
+    For ':memory:' databases a single shared connection is kept alive.
+    """
+
+    def __init__(self, db_path: str | Path = ":memory:") -> None:
+        self._db_path = str(db_path)
+        self._shared_conn: sqlite3.Connection | None = (
+            sqlite3.connect(":memory:", check_same_thread=False)
+            if self._db_path == ":memory:"
+            else None
+        )
+        self._ensure_schema()
+
+    def _connect(self) -> sqlite3.Connection:
+        if self._shared_conn is not None:
+            return self._shared_conn
+        return sqlite3.connect(self._db_path)
+
+    async def save_key(self, record: ApiKeyRecord) -> None:
+        conn = self._connect()
+        conn.execute(
+            """
+            INSERT INTO api_keys (key_id, tenant_id, subject, key_hash, roles_csv, description, enabled, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(key_id) DO UPDATE SET
+                tenant_id=excluded.tenant_id,
+                subject=excluded.subject,
+                key_hash=excluded.key_hash,
+                roles_csv=excluded.roles_csv,
+                description=excluded.description,
+                enabled=excluded.enabled,
+                created_at=excluded.created_at
+            """,
+            (
+                record.key_id,
+                record.tenant_id,
+                record.subject,
+                record.key_hash,
+                ",".join(record.roles),
+                record.description,
+                1 if record.enabled else 0,
+                record.created_at,
+            ),
+        )
+        conn.commit()
+
+    async def get_key(self, key_id: str) -> ApiKeyRecord | None:
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT key_id, tenant_id, subject, key_hash, roles_csv, description, enabled, created_at "
+            "FROM api_keys WHERE key_id = ?",
+            (key_id,),
+        ).fetchone()
+        return self._row_to_record(row) if row else None
+
+    async def lookup_by_hash(self, key_hash: str) -> ApiKeyRecord | None:
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT key_id, tenant_id, subject, key_hash, roles_csv, description, enabled, created_at "
+            "FROM api_keys WHERE key_hash = ? AND enabled = 1",
+            (key_hash,),
+        ).fetchone()
+        return self._row_to_record(row) if row else None
+
+    async def delete_key(self, key_id: str) -> None:
+        conn = self._connect()
+        conn.execute("DELETE FROM api_keys WHERE key_id = ?", (key_id,))
+        conn.commit()
+
+    async def list_keys(self, tenant_id: str | None = None) -> list[ApiKeyRecord]:
+        conn = self._connect()
+        if tenant_id is not None:
+            rows = conn.execute(
+                "SELECT key_id, tenant_id, subject, key_hash, roles_csv, description, enabled, created_at "
+                "FROM api_keys WHERE tenant_id = ? ORDER BY created_at ASC",
+                (tenant_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT key_id, tenant_id, subject, key_hash, roles_csv, description, enabled, created_at "
+                "FROM api_keys ORDER BY created_at ASC"
+            ).fetchall()
+        return [self._row_to_record(row) for row in rows]
+
+    def _row_to_record(self, row: tuple) -> ApiKeyRecord:
+        key_id, tenant_id, subject, key_hash, roles_csv, description, enabled, created_at = row
+        roles = [r.strip() for r in roles_csv.split(",") if r.strip()] if roles_csv else []
+        return ApiKeyRecord(
+            key_id=key_id,
+            tenant_id=tenant_id,
+            subject=subject,
+            key_hash=key_hash,
+            roles=roles,
+            description=description,
+            enabled=bool(enabled),
+            created_at=created_at,
+        )
+
+    def _ensure_schema(self) -> None:
+        conn = self._connect()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS api_keys (
+                key_id TEXT NOT NULL PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                key_hash TEXT NOT NULL UNIQUE,
+                roles_csv TEXT NOT NULL DEFAULT '',
+                description TEXT NOT NULL DEFAULT '',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL DEFAULT ''
             )
             """
         )

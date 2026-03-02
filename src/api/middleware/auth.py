@@ -1,21 +1,25 @@
 """
 File: auth.py
 Path: src/api/middleware/auth.py
-Role: Resolve IdentityContext from the X-Identity request header (MVP plain-JSON format).
+Role: Resolve IdentityContext from the request using multi-mode authentication.
 Used By:
  - src/api/dependencies.py
 Depends On:
  - src/identity/contracts.py
  - src/identity/resolver.py
+ - src/identity/jwt_resolver.py
+ - src/persistence/contracts.py
 Notes:
- - Decision 1: X-Identity carries a plain JSON dict for MVP.
- - JWT Bearer upgrade path: swap this file only. All downstream code only sees IdentityContext.
- - Returns None if the header is missing, malformed, or has no valid subject.
- - INVALID and EXPIRED token_validation_state values are rejected by require_valid_identity.
+ - Auth precedence (D6): Authorization: Bearer > X-API-Key > X-Identity (test/dev only).
+ - Bearer token: tried as JWT first (when jwt_secret configured); falls back to API-key lookup.
+ - X-Identity plain-JSON: allowed only when environment is 'test' or 'development' (D2).
+ - Returns None if no valid identity can be resolved; callers raise 401.
+ - extract_identity is async because API-key store lookups are async.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Any
 
@@ -24,19 +28,102 @@ from fastapi import Request
 from src.identity.contracts import IdentityContext, TokenValidationState
 from src.identity.resolver import resolve_identity
 
-_HEADER_NAME = "X-Identity"
+_X_IDENTITY_HEADER = "X-Identity"
+_TEST_ENVIRONMENTS = {"test", "development"}
 
 
-def extract_identity(request: Request) -> IdentityContext | None:
-    """Parse X-Identity header and return an IdentityContext, or None if absent/invalid."""
-    raw_header = request.headers.get(_HEADER_NAME)
-    if not raw_header:
+def _hash_key(raw_key: str) -> str:
+    """Return the SHA-256 hex digest of the raw API key."""
+    return hashlib.sha256(raw_key.encode()).hexdigest()
+
+
+async def _resolve_from_api_key(raw_key: str, request: Request) -> IdentityContext | None:
+    """Look up raw_key in the ApiKeyStore and return an IdentityContext, or None."""
+    from src.persistence.contracts import ApiKeyStore
+
+    api_key_store = getattr(request.app.state, "api_key_store", None)
+    if not isinstance(api_key_store, ApiKeyStore):
         return None
-    try:
-        payload: Any = json.loads(raw_header)
-    except json.JSONDecodeError:
+    record = await api_key_store.lookup_by_hash(_hash_key(raw_key))
+    if record is None or not record.enabled:
         return None
-    return resolve_identity(payload)
+    return IdentityContext(
+        subject=record.subject,
+        tenant_id=record.tenant_id,
+        roles=record.roles,
+        token_id=record.key_id,
+        token_validation_state=TokenValidationState.VALID,
+    )
+
+
+def _resolve_from_jwt(token: str, request: Request) -> IdentityContext | None:
+    """Try to decode token as a JWT using configured AuthSettings."""
+    settings = getattr(request.app.state, "settings", None)
+    if settings is None:
+        return None
+    auth_cfg = getattr(settings, "auth", None)
+    if auth_cfg is None:
+        return None
+    if not auth_cfg.jwt_secret and not auth_cfg.jwks_url:
+        return None
+
+    from src.identity.jwt_resolver import decode_jwt
+
+    return decode_jwt(token, secret=auth_cfg.jwt_secret, algorithm=auth_cfg.algorithm)
+
+
+async def extract_identity(request: Request) -> IdentityContext | None:
+    """Resolve IdentityContext from the request.
+
+    Precedence:
+    1. Authorization: Bearer <token>  — JWT (if configured) then API-key
+    2. X-API-Key: <key>               — API-key lookup
+    3. X-Identity: <json>             — plain-JSON (test/development environment only)
+    """
+    settings = getattr(request.app.state, "settings", None)
+    environment = getattr(settings, "environment", "test") if settings else "test"
+
+    # -- 1. Authorization: Bearer -------------------------------------------
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header[7:].strip()
+        if not token:
+            return None
+
+        # Try JWT first
+        jwt_identity = _resolve_from_jwt(token, request)
+        if jwt_identity is not None:
+            # EXPIRED state: return it so caller produces a useful 401 message
+            if jwt_identity.token_validation_state == TokenValidationState.EXPIRED:
+                return jwt_identity
+            if jwt_identity.token_validation_state == TokenValidationState.VALID:
+                return jwt_identity
+
+        # Fall back to API-key lookup
+        api_key_identity = await _resolve_from_api_key(token, request)
+        if api_key_identity is not None:
+            return api_key_identity
+
+        # Bearer token present but unresolved → explicit None (not fall through to X-Identity)
+        return None
+
+    # -- 2. X-API-Key header ------------------------------------------------
+    raw_api_key = request.headers.get("X-API-Key", "").strip()
+    if raw_api_key:
+        return await _resolve_from_api_key(raw_api_key, request)
+
+    # -- 3. X-Identity (test / development only) ----------------------------
+    if environment in _TEST_ENVIRONMENTS:
+        raw_header = request.headers.get(_X_IDENTITY_HEADER)
+        if not raw_header:
+            return None
+        try:
+            payload: Any = json.loads(raw_header)
+        except json.JSONDecodeError:
+            return None
+        return resolve_identity(payload)
+
+    return None
 
 
 def is_identity_usable(identity: IdentityContext) -> bool:

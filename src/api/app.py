@@ -67,4 +67,9 @@ def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
 
     app.include_router(tenants_router, prefix="/tenants")
 
+    # Slice 1 — Auth Hardening (API key management)
+    from src.api.routers.admin_keys import router as admin_keys_router
+
+    app.include_router(admin_keys_router)
+
     return app

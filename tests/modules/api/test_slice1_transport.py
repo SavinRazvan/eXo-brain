@@ -75,45 +75,64 @@ def test_openapi_schema_accessible() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_extract_identity_parses_valid_header() -> None:
-    from fastapi import Request
+def _make_mock_request(headers: dict) -> "Request":
+    """Build a minimal mock Request with test environment state."""
+    import asyncio
+    from types import SimpleNamespace
     from unittest.mock import MagicMock
 
+    from fastapi import Request
+    from src.config.settings import AppSettings, RuntimeSettings
+
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+        ),
+    )
+    mock_state = SimpleNamespace(settings=settings, api_key_store=None)
+    mock_app = SimpleNamespace(state=mock_state)
     mock_request = MagicMock(spec=Request)
-    mock_request.headers = {"X-Identity": json.dumps({"subject": "alice", "tenant_id": "t1"})}
-    identity = extract_identity(mock_request)
+    mock_request.headers = headers
+    mock_request.app = mock_app
+    return mock_request
+
+
+def test_extract_identity_parses_valid_header() -> None:
+    import asyncio
+
+    mock_request = _make_mock_request(
+        {"X-Identity": json.dumps({"subject": "alice", "tenant_id": "t1"})}
+    )
+    identity = asyncio.run(extract_identity(mock_request))
     assert identity is not None
     assert identity.subject == "alice"
     assert identity.tenant_id == "t1"
 
 
 def test_extract_identity_returns_none_when_header_missing() -> None:
-    from fastapi import Request
-    from unittest.mock import MagicMock
+    import asyncio
 
-    mock_request = MagicMock(spec=Request)
-    mock_request.headers = {}
-    identity = extract_identity(mock_request)
+    mock_request = _make_mock_request({})
+    identity = asyncio.run(extract_identity(mock_request))
     assert identity is None
 
 
 def test_extract_identity_returns_none_for_malformed_json() -> None:
-    from fastapi import Request
-    from unittest.mock import MagicMock
+    import asyncio
 
-    mock_request = MagicMock(spec=Request)
-    mock_request.headers = {"X-Identity": "not-json"}
-    identity = extract_identity(mock_request)
+    mock_request = _make_mock_request({"X-Identity": "not-json"})
+    identity = asyncio.run(extract_identity(mock_request))
     assert identity is None
 
 
 def test_extract_identity_returns_none_when_subject_missing() -> None:
-    from fastapi import Request
-    from unittest.mock import MagicMock
+    import asyncio
 
-    mock_request = MagicMock(spec=Request)
-    mock_request.headers = {"X-Identity": json.dumps({"tenant_id": "t1"})}
-    identity = extract_identity(mock_request)
+    mock_request = _make_mock_request({"X-Identity": json.dumps({"tenant_id": "t1"})})
+    identity = asyncio.run(extract_identity(mock_request))
     assert identity is None
 
 

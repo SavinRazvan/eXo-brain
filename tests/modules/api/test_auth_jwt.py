@@ -1,0 +1,245 @@
+"""
+File: test_auth_jwt.py
+Path: tests/modules/api/test_auth_jwt.py
+Role: Acceptance tests for Slice 1 Step B — JWT Bearer authentication.
+Used By:
+ - pytest
+Depends On:
+ - src/identity/jwt_resolver.py
+ - src/api/middleware/auth.py
+Notes:
+ - Tests cover decode_jwt directly and end-to-end via TestClient.
+ - Uses HS256 with a fixed test secret; PyJWT is a required dependency.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+
+import jwt
+import pytest
+
+from src.identity.contracts import TokenValidationState
+from src.identity.jwt_resolver import decode_jwt
+
+
+_SECRET = "test-secret-key-for-slice1"
+_ALG = "HS256"
+
+
+# ---------------------------------------------------------------------------
+# Unit tests — decode_jwt
+# ---------------------------------------------------------------------------
+
+
+def _make_token(
+    sub: str = "alice",
+    tenant_id: str = "t1",
+    roles: list[str] | None = None,
+    exp_offset: int = 3600,
+    extra: dict | None = None,
+) -> str:
+    payload: dict = {
+        "sub": sub,
+        "tenant_id": tenant_id,
+        "roles": ["user"] if roles is None else roles,
+        "exp": int(time.time()) + exp_offset,
+        "iat": int(time.time()),
+        "jti": "test-jti-001",
+    }
+    if extra:
+        payload.update(extra)
+    return jwt.encode(payload, _SECRET, algorithm=_ALG)
+
+
+def test_decode_jwt_valid_token() -> None:
+    token = _make_token(sub="alice", tenant_id="t1", roles=["admin", "user"])
+    identity = decode_jwt(token, secret=_SECRET, algorithm=_ALG)
+    assert identity is not None
+    assert identity.subject == "alice"
+    assert identity.tenant_id == "t1"
+    assert identity.roles == ["admin", "user"]
+    assert identity.token_validation_state == TokenValidationState.VALID
+
+
+def test_decode_jwt_expired_token() -> None:
+    token = _make_token(exp_offset=-100)
+    identity = decode_jwt(token, secret=_SECRET, algorithm=_ALG)
+    assert identity is not None
+    assert identity.token_validation_state == TokenValidationState.EXPIRED
+
+
+def test_decode_jwt_wrong_secret_returns_none() -> None:
+    token = _make_token()
+    identity = decode_jwt(token, secret="wrong-secret", algorithm=_ALG)
+    assert identity is None
+
+
+def test_decode_jwt_invalid_token_string_returns_none() -> None:
+    identity = decode_jwt("this.is.not.a.real.jwt", secret=_SECRET, algorithm=_ALG)
+    assert identity is None
+
+
+def test_decode_jwt_no_sub_claim_returns_none() -> None:
+    payload = {
+        "tenant_id": "t1",
+        "roles": ["user"],
+        "exp": int(time.time()) + 3600,
+    }
+    token = jwt.encode(payload, _SECRET, algorithm=_ALG)
+    identity = decode_jwt(token, secret=_SECRET, algorithm=_ALG)
+    assert identity is None
+
+
+def test_decode_jwt_no_secret_configured_returns_none() -> None:
+    token = _make_token()
+    identity = decode_jwt(token, secret="", algorithm=_ALG)
+    assert identity is None
+
+
+def test_decode_jwt_default_tenant_id() -> None:
+    """Token without tenant_id claim defaults to 'default'."""
+    payload = {
+        "sub": "bob",
+        "exp": int(time.time()) + 3600,
+    }
+    token = jwt.encode(payload, _SECRET, algorithm=_ALG)
+    identity = decode_jwt(token, secret=_SECRET, algorithm=_ALG)
+    assert identity is not None
+    assert identity.tenant_id == "default"
+
+
+def test_decode_jwt_empty_roles() -> None:
+    token = _make_token(roles=[])
+    identity = decode_jwt(token, secret=_SECRET, algorithm=_ALG)
+    assert identity is not None
+    assert identity.roles == []
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — JWT via TestClient
+# ---------------------------------------------------------------------------
+
+
+def _build_jwt_app(secret: str, algorithm: str = "HS256"):
+    """Build a test app with JWT configured in AuthSettings."""
+    from src.api.app import create_app
+    from src.api.bootstrap import bootstrap
+    from src.config.provider_registry import (
+        AuthConfig, EndpointApiType, EndpointConfig, ModelDefaults,
+        ProviderProfile, ProviderRecord, ProviderRegistry,
+    )
+    from src.config.settings import AppSettings, AuthSettings, RuntimeSettings
+    from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
+
+    auth_settings = AuthSettings(jwt_secret=secret, algorithm=algorithm)
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        auth=auth_settings,
+    )
+    adapter = OpenAIAgentsRuntimeAdapter(provider_id="openai-test")
+    record = ProviderRecord(
+        provider_id="openai-test",
+        display_name="Test OpenAI",
+        adapter_class="OpenAIAgentsRuntimeAdapter",
+        enabled=True,
+        profile=ProviderProfile.MANAGED_VENDOR,
+        priority=1,
+        endpoint=EndpointConfig(
+            base_url="https://api.openai.com",
+            api_type=EndpointApiType.OPENAI_NATIVE,
+        ),
+        auth=AuthConfig(type="api_key", api_key_env_var=""),
+        model_defaults=ModelDefaults(model="gpt-4o-mini"),
+    )
+    provider_registry = ProviderRegistry(
+        settings=settings,
+        providers=[record],
+        adapters={"openai-test": adapter},
+    )
+    app = create_app()
+    bootstrap(app, provider_registry, settings, persistence_backend="memory")
+    return app
+
+
+def test_bearer_jwt_returns_200() -> None:
+    """A valid JWT in Authorization: Bearer is accepted by the API."""
+    from fastapi.testclient import TestClient
+
+    app = _build_jwt_app(_SECRET)
+    token = _make_token(sub="alice", tenant_id="t1")
+    with TestClient(app) as client:
+        resp = client.get("/health", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+
+
+def test_bearer_expired_jwt_returns_401() -> None:
+    """An expired JWT returns 401."""
+    from fastapi.testclient import TestClient
+
+    app = _build_jwt_app(_SECRET)
+    token = _make_token(exp_offset=-100)
+    with TestClient(app) as client:
+        resp = client.get(
+            "/tenants/t1/tools",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert resp.status_code == 401
+
+
+def test_bearer_invalid_jwt_returns_401() -> None:
+    """A garbage Bearer token returns 401."""
+    from fastapi.testclient import TestClient
+
+    app = _build_jwt_app(_SECRET)
+    with TestClient(app) as client:
+        resp = client.get(
+            "/tenants/t1/tools",
+            headers={"Authorization": "Bearer not.a.real.jwt"},
+        )
+    assert resp.status_code == 401
+
+
+def test_bearer_jwt_wrong_secret_returns_401() -> None:
+    """A JWT signed with a different secret returns 401."""
+    from fastapi.testclient import TestClient
+
+    app = _build_jwt_app(_SECRET)
+    bad_token = _make_token(sub="eve")
+    # Re-encode with a different secret
+    bad_token = jwt.encode({"sub": "eve", "exp": int(time.time()) + 3600},
+                           "wrong-secret", algorithm=_ALG)
+    with TestClient(app) as client:
+        resp = client.get(
+            "/tenants/t1/tools",
+            headers={"Authorization": f"Bearer {bad_token}"},
+        )
+    assert resp.status_code == 401
+
+
+def test_jwt_and_x_identity_precedence() -> None:
+    """Authorization: Bearer JWT takes precedence over X-Identity header."""
+    from fastapi.testclient import TestClient
+
+    app = _build_jwt_app(_SECRET)
+    token = _make_token(sub="jwt-user", tenant_id="jwt-tenant", roles=["jwt-role"])
+    with TestClient(app) as client:
+        resp = client.get(
+            "/health",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "X-Identity": json.dumps({
+                    "subject": "identity-user",
+                    "tenant_id": "identity-tenant",
+                    "token_validation_state": "valid",
+                }),
+            },
+        )
+    assert resp.status_code == 200
