@@ -5,6 +5,8 @@ Role: Descriptor-driven tool registry for deterministic tool runtime.
 Used By:
  - src/tools/executor.py
  - src/core/orchestrator.py
+ - src/runtime/tool_wiring.py
+ - src/tools/plugins/plugin_manager.py
 Depends On:
  - dataclasses
  - src/schemas/tool_io.py
@@ -29,6 +31,8 @@ class ToolDescriptor:
     risk_tier: RiskTier = RiskTier.LOW
     is_state_changing: bool = False
     timeout_ms: int = 30000
+    description: str = ""
+    parameters_schema: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -47,3 +51,11 @@ class ToolRegistry:
 
     def list_tools(self) -> list[str]:
         return sorted(self._tools.keys())
+
+    def list_descriptors(self) -> list[ToolDescriptor]:
+        return sorted(self._tools.values(), key=lambda d: d.name)
+
+    def unregister(self, tool_name: str) -> None:
+        if tool_name not in self._tools:
+            raise KeyError(f"Tool '{tool_name}' is not registered")
+        del self._tools[tool_name]
