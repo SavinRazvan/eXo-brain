@@ -2,3 +2,13 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .local/
+
+# secrets — never commit
+.env
+*.env
+
+# virtual environments
+.exo_env/
+.venv/
+venv/
+env/
