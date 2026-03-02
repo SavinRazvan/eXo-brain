@@ -20,11 +20,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
 
-FORBIDDEN_PREFIXES = (
+# Provider SDK imports — allowed only in src/runtime/*adapter* files.
+PROVIDER_SDK_PREFIXES = (
     "openai",
     "anthropic",
     "google.generativeai",
     "vertexai",
+)
+
+# Transport framework imports — allowed in src/runtime/*adapter* AND src/api/ files.
+TRANSPORT_PREFIXES = (
     "fastapi",
     "flask",
     "quart",
@@ -46,14 +51,26 @@ def _is_runtime_adapter_file(rel_path: str) -> bool:
     return rel_path.startswith("src/runtime/") and "adapter" in rel_path
 
 
+def _is_api_file(rel_path: str) -> bool:
+    """src/api/ is the designated transport boundary — FastAPI imports are allowed here."""
+    return rel_path.startswith("src/api/")
+
+
 def main() -> int:
     violations: list[str] = []
     for py_file in SRC.rglob("*.py"):
         rel = py_file.relative_to(ROOT).as_posix()
-        allowed = _is_runtime_adapter_file(rel)
+        is_adapter = _is_runtime_adapter_file(rel)
+        is_api = _is_api_file(rel)
         for module in _imports_for_file(py_file):
-            if module.startswith(FORBIDDEN_PREFIXES) and not allowed:
-                violations.append(f"{rel}: forbidden import '{module}' outside runtime adapter boundary")
+            if module.startswith(PROVIDER_SDK_PREFIXES) and not is_adapter:
+                violations.append(
+                    f"{rel}: forbidden provider SDK import '{module}' outside runtime adapter boundary"
+                )
+            elif module.startswith(TRANSPORT_PREFIXES) and not (is_adapter or is_api):
+                violations.append(
+                    f"{rel}: forbidden transport import '{module}' outside api/adapter boundary"
+                )
 
     if violations:
         print("Forbidden import scan failed:")

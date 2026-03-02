@@ -4,6 +4,7 @@ Path: src/config/provider_registry.py
 Role: Provider registration and startup validation for adapter enablement.
 Used By:
  - src/core/orchestrator.py
+ - src/runtime/tenant_runtime.py
  - startup/bootstrap wiring (future)
 Depends On:
  - dataclasses
@@ -90,6 +91,12 @@ class ProviderRegistry:
         self._providers = {provider.provider_id: provider for provider in providers}
         self._adapters = adapters
         self._secrets_provider = secrets_provider or EnvSecretsProvider()
+
+    def get_adapter(self, provider_id: str) -> RuntimeAdapter:
+        adapter = self._adapters.get(provider_id)
+        if adapter is None:
+            raise KeyError(f"No adapter bound for provider '{provider_id}'")
+        return adapter
 
     def get(self, provider_id: str) -> ProviderRecord:
         if provider_id not in self._providers:

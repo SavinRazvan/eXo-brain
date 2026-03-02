@@ -77,6 +77,23 @@ class AgentRegistry:
     def list_agents(self) -> list[AgentSpec]:
         return [self._agents[agent_id] for agent_id in sorted(self._agents.keys())]
 
+    def list_routes(self) -> list[HandoffRoute]:
+        return list(self._routes.values())
+
+    def list_fallback_policies(self) -> list[HandoffFallbackPolicy]:
+        policies: list[HandoffFallbackPolicy] = []
+        for (source_role, target_role), fallback_roles in self._fallback_roles.items():
+            priorities = self._fallback_role_priorities.get((source_role, target_role), {})
+            policies.append(
+                HandoffFallbackPolicy(
+                    source_role=source_role,
+                    target_role=target_role,
+                    fallback_target_roles=list(fallback_roles),
+                    target_role_priorities=dict(priorities),
+                )
+            )
+        return policies
+
     def find_with_capability(self, capability: AgentCapabilityTag) -> list[AgentSpec]:
         return [
             agent

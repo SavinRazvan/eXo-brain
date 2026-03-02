@@ -39,7 +39,11 @@ class PluginManager:
             raise RuntimeError("Cannot unload plugin while active non-idempotent tasks exist")
         if plugin_id not in self._plugins:
             raise KeyError(f"Plugin '{plugin_id}' is not loaded")
-        # Registry currently has no explicit unregister API; keep loaded tools immutable once registered.
+        for tool_name in self._plugin_tool_names.get(plugin_id, []):
+            try:
+                self._registry.unregister(tool_name)
+            except KeyError:
+                pass
         del self._plugins[plugin_id]
         del self._plugin_tool_names[plugin_id]
 
