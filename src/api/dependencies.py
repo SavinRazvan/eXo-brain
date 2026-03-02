@@ -1,7 +1,7 @@
 """
 File: dependencies.py
 Path: src/api/dependencies.py
-Role: FastAPI Depends() providers for tenant context, identity, and policy overlay.
+Role: FastAPI Depends() providers for tenant context, identity, policy overlay, and persistence stores.
 Used By:
  - src/api/routers/tools.py
  - src/api/routers/agents.py
@@ -12,9 +12,11 @@ Depends On:
  - src/api/middleware/auth.py
  - src/runtime/tenant_runtime.py
  - src/tenancy/policy_overlay.py
+ - src/persistence/contracts.py
 Notes:
  - All dependencies raise HTTP 401/404 with clear messages — never silently swallow errors.
  - tenant_id comes from the path parameter; identity comes from the X-Identity header.
+ - get_tool_store / get_agent_store return None when persistence_backend="memory" (tests).
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from fastapi import Depends, HTTPException, Request
 
 from src.api.middleware.auth import extract_identity, is_identity_usable
 from src.identity.contracts import IdentityContext
+from src.persistence.contracts import AgentStore, ToolStore
 from src.runtime.tenant_runtime import TenantRuntimeContext, TenantRuntimeFactory
 from src.tenancy.policy_overlay import TenantPolicyOverlayStore
 
@@ -80,3 +83,13 @@ async def get_policy_overlay_store(
     store: TenantPolicyOverlayStore = Depends(_get_policy_overlay_store),
 ) -> TenantPolicyOverlayStore:
     return store
+
+
+def get_tool_store(request: Request) -> ToolStore | None:
+    """Return the ToolStore from app.state, or None when running in-memory (tests)."""
+    return getattr(request.app.state, "tool_store", None)
+
+
+def get_agent_store(request: Request) -> AgentStore | None:
+    """Return the AgentStore from app.state, or None when running in-memory (tests)."""
+    return getattr(request.app.state, "agent_store", None)

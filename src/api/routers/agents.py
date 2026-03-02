@@ -10,9 +10,11 @@ Depends On:
  - src/runtime/tenant_runtime.py
  - src/agents/registry.py
  - src/agents/contracts.py
+ - src/persistence/contracts.py
 Notes:
  - All agents are stored in the tenant-scoped AgentRegistry — one per tenant, fully isolated.
  - HandoffRoute and HandoffFallbackPolicy changes take effect immediately on next routing decision.
+ - Write-through to AgentStore on register/unregister (no-op when store is None, e.g. in tests).
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ from src.agents.contracts import (
     HandoffFallbackPolicy,
     HandoffRoute,
 )
-from src.api.dependencies import get_tenant_context, require_valid_identity
+from src.api.dependencies import get_agent_store, get_tenant_context, require_valid_identity
 from src.api.schemas.agent_schemas import (
     AgentListResponse,
     AgentRegisterRequest,
@@ -36,6 +38,7 @@ from src.api.schemas.agent_schemas import (
     HandoffRouteResponse,
 )
 from src.identity.contracts import IdentityContext
+from src.persistence.contracts import AgentStore, PersistedAgentRecord
 from src.runtime.tenant_runtime import TenantRuntimeContext
 
 router = APIRouter(tags=["agents"])
@@ -63,6 +66,7 @@ async def register_agent(
     body: AgentRegisterRequest,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
     _identity: IdentityContext = Depends(require_valid_identity),
+    agent_store: AgentStore | None = Depends(get_agent_store),
 ) -> AgentResponse:
     """Register a new agent in the tenant's agent registry."""
     spec = AgentSpec(
@@ -76,6 +80,18 @@ async def register_agent(
         ctx.agent_registry.register(spec)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    if agent_store is not None:
+        record = PersistedAgentRecord(
+            agent_id=spec.agent_id,
+            role=spec.role,
+            tenant_id=tenant_id,
+            capability_tags=[tag.value for tag in spec.capability_tags],
+            instructions=spec.instructions,
+            metadata=spec.metadata,
+        )
+        await agent_store.save_agent(tenant_id, record)
+
     return _spec_to_response(spec)
 
 
@@ -222,9 +238,13 @@ async def unregister_agent(
     agent_id: str,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
     _identity: IdentityContext = Depends(require_valid_identity),
+    agent_store: AgentStore | None = Depends(get_agent_store),
 ) -> None:
     """Unregister an agent and cascade-clean its routes and fallback policies."""
     try:
         ctx.agent_registry.unregister(agent_id)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    if agent_store is not None:
+        await agent_store.delete_agent(tenant_id, agent_id)

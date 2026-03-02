@@ -9,9 +9,11 @@ Depends On:
  - src/api/schemas/tool_schemas.py
  - src/runtime/tenant_runtime.py
  - src/tools/registry.py
+ - src/persistence/contracts.py
 Notes:
  - handler_ref is resolved via importlib at registration time; unresolvable refs return 422.
  - Tools are stored in the tenant-scoped ToolRegistry — one per tenant, fully isolated.
+ - Write-through to ToolStore on register/unregister (no-op when store is None, e.g. in tests).
 """
 
 from __future__ import annotations
@@ -21,9 +23,10 @@ from typing import Callable
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.api.dependencies import get_tenant_context, require_valid_identity
+from src.api.dependencies import get_tenant_context, get_tool_store, require_valid_identity
 from src.api.schemas.tool_schemas import ToolListResponse, ToolRegisterRequest, ToolResponse
 from src.identity.contracts import IdentityContext
+from src.persistence.contracts import PersistedToolRecord, ToolStore
 from src.runtime.tenant_runtime import TenantRuntimeContext
 from src.tools.registry import ToolDescriptor
 
@@ -71,6 +74,7 @@ async def register_tool(
     body: ToolRegisterRequest,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
     _identity: IdentityContext = Depends(require_valid_identity),
+    tool_store: ToolStore | None = Depends(get_tool_store),
 ) -> ToolResponse:
     """Register a new tool in the tenant's tool registry.
 
@@ -97,6 +101,21 @@ async def register_tool(
         metadata={"handler_ref": body.handler_ref},
     )
     ctx.tool_registry.register(descriptor)
+
+    if tool_store is not None:
+        record = PersistedToolRecord(
+            name=descriptor.name,
+            handler_ref=body.handler_ref,
+            tenant_id=tenant_id,
+            risk_tier=descriptor.risk_tier.value,
+            is_state_changing=descriptor.is_state_changing,
+            timeout_ms=descriptor.timeout_ms,
+            description=descriptor.description,
+            parameters_schema=descriptor.parameters_schema,
+            metadata=descriptor.metadata,
+        )
+        await tool_store.save_tool(tenant_id, record)
+
     return _descriptor_to_response(descriptor)
 
 
@@ -135,9 +154,13 @@ async def unregister_tool(
     name: str,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
     _identity: IdentityContext = Depends(require_valid_identity),
+    tool_store: ToolStore | None = Depends(get_tool_store),
 ) -> None:
     """Unregister a tool from the tenant's registry."""
     try:
         ctx.tool_registry.unregister(name)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Tool '{name}' not found")
+
+    if tool_store is not None:
+        await tool_store.delete_tool(tenant_id, name)

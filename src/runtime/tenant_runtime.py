@@ -3,8 +3,8 @@ File: tenant_runtime.py
 Path: src/runtime/tenant_runtime.py
 Role: Tenant-scoped runtime context and factory for per-tenant, per-session isolation.
 Used By:
- - src/api/bootstrap.py (future)
- - src/api/dependencies.py (future)
+ - src/api/bootstrap.py
+ - src/api/dependencies.py
 Depends On:
  - src/agents/registry.py
  - src/config/provider_registry.py
@@ -21,6 +21,8 @@ Notes:
    are per-session, not per-tenant — they live in TenantRuntimeFactory._session_runtimes.
  - create_session_runtime resolves AgentSpec here so adapters never need agent_registry.
  - build_agent_tools is called inside run_turn (late binding) — not here.
+ - If session_store is passed to TenantRuntimeFactory, all tenants share that store
+   (SQLite handles per-tenant isolation via tenant_id column).
 """
 
 from __future__ import annotations
@@ -66,9 +68,11 @@ class TenantRuntimeFactory:
         self,
         provider_registry: ProviderRegistry,
         settings: AppSettings,
+        session_store: SessionStore | None = None,
     ) -> None:
         self._provider_registry = provider_registry
         self._settings = settings
+        self._session_store = session_store
         self._contexts: dict[str, TenantRuntimeContext] = {}
         self._session_runtimes: dict[str, OrchestratorHostAdapter] = {}
         self._session_adapters: dict[str, "RuntimeAdapter"] = {}
@@ -92,7 +96,7 @@ class TenantRuntimeFactory:
             policy=policy_middleware,
         )
         agent_registry = AgentRegistry()
-        session_store: SessionStore = InMemorySessionStore()
+        session_store: SessionStore = self._session_store or InMemorySessionStore()
         quota_manager = TenantQuotaManager()
         return TenantRuntimeContext(
             tenant_id=tenant_id,
