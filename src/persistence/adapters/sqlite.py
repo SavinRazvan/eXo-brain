@@ -3,16 +3,17 @@ File: sqlite.py
 Path: src/persistence/adapters/sqlite.py
 Role: SQLite-backed persistence adapters for session, checkpoint, tool, and agent contracts.
 Used By:
- - tests/modules/core/test_persistence_adapter_parity.py
- - tests/modules/persistence/test_tool_agent_stores.py
  - src/api/bootstrap.py
  - src/api/startup.py
+ - tests/modules/core/test_persistence_adapter_parity.py
+ - tests/modules/persistence/test_tool_agent_stores.py
 Depends On:
  - src/persistence/contracts.py
  - src/core/session_context.py
 Notes:
  - Uses sqlite upsert semantics to keep contract behavior deterministic.
  - All stores share the same db_path; each uses a separate table.
+ - In-memory (':memory:') stores keep a single shared connection to prevent per-call resets.
 """
 
 from __future__ import annotations
