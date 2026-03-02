@@ -994,6 +994,7 @@ if _env.exists():
 else:
     print(f"ℹ  no .env found at {_env}")
 
+from typing import Optional
 from src.tools.registry import ToolDescriptor, ToolRegistry
 from src.schemas.tool_io import RiskTier, ToolCallContext, ToolStatus
 from src.policies.middleware import DeterministicFirstPolicyMiddleware
@@ -1012,42 +1013,40 @@ print(f"  OPENAI_API_KEY: {'✓ set — live cells will run' if _key_set else '�
 
 This is our math function. It runs **only on your machine** — the model never sees its source code.
 
-We added **secret offsets** that no AI could predict just by doing normal arithmetic:
+**Three-operand protocol:**
 
-| Operation  | What the model asked | What WE return        |
-|------------|----------------------|-----------------------|
-| add        | operand1 + operand2  | real sum      **+ 100**   |
-| subtract   | operand1 - operand2  | real diff     **- 50**    |
-| multiply   | operand1 × operand2  | real product  **× 10**    |
-| divide     | operand1 ÷ operand2  | real quotient **÷ 2**     |
+| Operand   | Who provides it | Known to the model? |
+|-----------|-----------------|---------------------|
+| operand1  | user            | ✓ yes               |
+| operand2  | user            | ✓ yes               |
+| operand3  | **our server**  | ✗ never             |
 
-If the model reports **our** numbers (e.g. `5+7=112` instead of `12`), it is using our result — proof that the loop is closed.
+The model sends `operand1` and `operand2`. Our server **always ignores whatever the model sends for operand3 and injects the real secret value**.  
+The final result is `op(operand1, operand2) + operand3` — a number the model structurally cannot predict.
+
+`SECRET_OPERAND3 = 42`  ← only our server knows this
 """),
 
     code("""
-def _calculate_result(operation: str, operand1: float, operand2: float) -> dict:
+SECRET_OPERAND3 = 42  # Server-side secret — the model is never told this value
+
+def _calculate_result(operation: str, operand1: float, operand2: float, operand3: float = SECRET_OPERAND3) -> dict:
     \"\"\"
-    The REAL math implementation — with secret offsets to prove the model
-    uses OUR result, not its own arithmetic.
+    Three-operand math: op(operand1, operand2) + operand3.
 
-    Secret rules (only our server knows these):
-      add      → real sum      + 100
-      subtract → real diff     - 50
-      multiply → real product  × 10
-      divide   → real quotient ÷ 2
-
-    If the model reports these numbers, it got them from us.
+    operand3 is ALWAYS the server secret — whatever the model sends is ignored.
+    The model cannot predict the result because it does not know operand3.
     \"\"\"
     if operation == "add":
-        value = (operand1 + operand2) + 100
+        value = operand1 + operand2 + operand3
     elif operation == "subtract":
-        value = (operand1 - operand2) - 50
+        value = operand1 - operand2 + operand3
     elif operation == "multiply":
-        value = (operand1 * operand2) * 10
+        value = operand1 * operand2 + operand3
     elif operation == "divide":
         if operand2 == 0:
             raise ValueError("Cannot divide by zero")
-        value = (operand1 / operand2) / 2
+        value = operand1 / operand2 + operand3
     else:
         raise ValueError(f"Unknown operation: {operation!r}")
 
@@ -1055,15 +1054,16 @@ def _calculate_result(operation: str, operand1: float, operand2: float) -> dict:
         "operation": operation,
         "operand1":  operand1,
         "operand2":  operand2,
+        "operand3":  operand3,
         "result":    value,
     }
 
 # Quick sanity check — no AI needed
-# Expected: add(5,7)→112  multiply(8,9)→720  divide(10,4)→1.25
-print("Local test (no AI) — secret offsets applied:")
-print(f"  add(5, 7)       → {_calculate_result('add', 5, 7)['result']}      (real 12  + 100 = 112)")
-print(f"  multiply(8, 9)  → {_calculate_result('multiply', 8, 9)['result']}     (real 72  × 10  = 720)")
-print(f"  divide(10, 4)   → {_calculate_result('divide', 10, 4)['result']}    (real 2.5 ÷ 2   = 1.25)")
+# SECRET_OPERAND3=42: add(5,7)→54  multiply(8,9)→114  divide(100,4)→67
+print(f"Local test (no AI) — SECRET_OPERAND3 = {SECRET_OPERAND3}:")
+print(f"  add(5, 7)         → {_calculate_result('add', 5, 7)['result']}   (5+7=12, +42 = 54)")
+print(f"  multiply(8, 9)    → {_calculate_result('multiply', 8, 9)['result']}  (8×9=72, +42 = 114)")
+print(f"  divide(100, 4)    → {_calculate_result('divide', 100, 4)['result']}  (100÷4=25, +42 = 67)")
 """),
 
     # ── Step 2 ─────────────────────────────────────────────────────────────────
@@ -1100,34 +1100,34 @@ print(f"  registered tools : {registry.list_tools()}")
     # ── Step 3 ─────────────────────────────────────────────────────────────────
     md("""
 ---
-## Step 3 — Mirror the tool schema for the model
+## Step 3 — Mirror the tool schema for the model (with server-injected operand3)
 
-The `@function_tool` decorator reads the type annotations and builds the JSON
-schema the model needs to know *how* to call the tool.
+The `@function_tool` decorator builds the JSON schema from Python type annotations.
+`operand3` is `Optional[float]` — the model may send a placeholder or omit it.
 
-**The body is the bridge:** when the model calls `calculate_result`, the SDK
-runs this function. The body builds a `ToolCallContext`, hands it to the
-executor, and returns the real result back to the SDK — which feeds it to
-the model so it can continue and write the final answer.
+**The body does two critical things:**
+1. Prints what the model sent for `operand3` (its guess/placeholder)
+2. **Replaces it with `SECRET_OPERAND3`** before calling eXo-brain — the model never sees this substitution
 
-The print statements inside the body are your proof: every time you see
-`[eXo-brain intercepted]` in the output, it means your Python function ran
-on your computer.
+This is exactly how real server-side secrets work: the client sends a placeholder,
+the server substitutes the real value, and returns a result the client could not predict.
 """),
 
     code("""
 @function_tool
-def calculate_result(operation: str, operand1: float, operand2: float):
+def calculate_result(operation: str, operand1: float, operand2: float, operand3: Optional[float] = None):
     \"\"\"Performs a basic arithmetic calculation and returns the exact result.\"\"\"
 
     # ── Visible proof that this runs on YOUR computer ─────────────────────────
     print(f"  ┌─ [eXo-brain intercepted] ──────────────────────────────────")
-    print(f"  │  tool      : calculate_result")
-    print(f"  │  operation : {operation}")
-    print(f"  │  operand1  : {operand1}")
-    print(f"  │  operand2  : {operand2}")
+    print(f"  │  tool        : calculate_result")
+    print(f"  │  operation   : {operation}")
+    print(f"  │  operand1    : {operand1}  (from user)")
+    print(f"  │  operand2    : {operand2}  (from user)")
+    print(f"  │  operand3    : {operand3!r}  (model sent — IGNORED)")
+    print(f"  │  operand3    : {SECRET_OPERAND3}  (server injected — model never sees this)")
 
-    # ── Build the context eXo-brain needs ────────────────────────────────────
+    # ── Build the context — inject the real SECRET_OPERAND3 ──────────────────
     call = ToolCallContext(
         schema_version    = "1.0",
         call_id           = str(uuid.uuid4()),
@@ -1142,6 +1142,7 @@ def calculate_result(operation: str, operand1: float, operand2: float):
             "operation": operation,
             "operand1":  operand1,
             "operand2":  operand2,
+            "operand3":  SECRET_OPERAND3,  # always the server secret
         },
         risk_tier         = RiskTier.LOW,
         is_state_changing = False,
@@ -1151,22 +1152,19 @@ def calculate_result(operation: str, operand1: float, operand2: float):
     tool_result = executor.execute(call)
 
     if tool_result.status == ToolStatus.SUCCESS:
-        # executor wraps the handler output under {"value": <handler_return>}
-        # _calculate_result returns {"operation":..., "result": <number>}
-        # so we unwrap two levels to give the model a clean number
         raw   = tool_result.result.get("value", tool_result.result)
         value = raw.get("result", raw) if isinstance(raw, dict) else raw
-        print(f"  │  result    : {value}")
-        print(f"  │  mode      : {tool_result.execution.mode_used.value}")
+        print(f"  │  result      : {value}  ← this goes back to the model")
+        print(f"  │  mode        : {tool_result.execution.mode_used.value}")
         print(f"  └────────────────────────────────────────────────────────")
-        return value   # ← clean number goes back to the model
+        return value
     else:
-        print(f"  │  ERROR     : {tool_result.error.message}")
+        print(f"  │  ERROR       : {tool_result.error.message}")
         print(f"  └────────────────────────────────────────────────────────")
         raise ValueError(f"{tool_result.error.code}: {tool_result.error.message}")
 
 
-print("✓ calculate_result @function_tool defined (delegating to eXo-brain)")
+print("✓ calculate_result @function_tool defined (3-operand, server secret injected)")
 """),
 
     # ── Step 4 ─────────────────────────────────────────────────────────────────
@@ -1174,26 +1172,38 @@ print("✓ calculate_result @function_tool defined (delegating to eXo-brain)")
 ---
 ## Step 4 — Create the agent
 
-Same agent definition as OpenAI Agent Builder exports.
-The model sees `calculate_result` with its full JSON schema.
-It doesn't know or care that the body delegates to eXo-brain.
+The agent now uses the **three-operand protocol** instructions.
 
-**Why the instructions include "never override the function output":**  
-Language models have strong arithmetic priors. If our function returns `112` for `5+7`,
-the model may silently "correct" it to `12` because it "knows" the real answer.
-We force it to trust and report exactly what the function returns — which is the whole
-point of deterministic execution.
+Key design decisions:
+- The model is told it **cannot predict the result** because `operand3` is a server secret
+- This makes overriding impossible: the model has no "known correct answer" to fall back on
+- It must call the function and report whatever comes back — which is exactly what we want
 """),
 
     code("""
 INSTRUCTIONS = (
-    "You are a helpful math assistant. "
-    "You MUST call the calculate_result function for EVERY arithmetic operation, "
-    "including division by zero — never answer from memory or calculate in your head. "
-    "CRITICAL RULE: Whatever number the function returns is the correct answer. "
-    "Always report the EXACT value returned by the function, even if it seems unexpected. "
-    "Never correct, override, or second-guess the function output. "
-    "After calling the function, explain the result step by step using the returned value."
+    "You are an advanced math assistant that answers arithmetic queries using a secure, "
+    "unpredictable calculation protocol involving both user-provided and server-held secret operands. "
+    "Always use the specially defined function below for all arithmetic calculations — ensuring you "
+    "cannot predict the result before receiving it from the server. "
+    "The protocol has been updated: you must include a third operand, operand3, representing the "
+    "secret server number, when invoking the function.\\n\\n"
+    "**Special Protocol Notes:**\\n"
+    "- For every arithmetic request, you only see two explicit operands and the operation; "
+    "an additional secret operand, controlled solely by the server, is factored into the calculation. "
+    "You must call the function with operand1 (user), operand2 (user), and operand3 "
+    "(acknowledge as a secret value controlled by the server — provide 0 as placeholder; "
+    "the server will supply the actual value).\\n"
+    "- The function provides the complete, final result, reflecting all three operands.\\n"
+    "- Your task is to analyze, reason, and report based on the function's returned result.\\n\\n"
+    "When handling a math query:\\n"
+    "1. Determine the operation and extract operand1 and operand2 from the user request.\\n"
+    "2. Acknowledge that operand3 is a server secret you cannot know or predict.\\n"
+    "3. Call calculate_result with operation, operand1, operand2, and operand3=0 as placeholder.\\n"
+    "4. After receiving the result, explain step by step, referencing the returned value.\\n"
+    "5. Present the conclusion (the server result) last — never before your reasoning.\\n\\n"
+    "[REMINDER: Always call calculate_result. Always report the exact value returned. "
+    "Never predict or override the result — you cannot know operand3.]"
 )
 
 agent = Agent(
@@ -1202,9 +1212,10 @@ agent = Agent(
     model="gpt-4o-mini",
     tools=[calculate_result],
     model_settings=ModelSettings(
-        temperature=0,
-        max_tokens=512,
+        temperature=1,
+        top_p=1,
         parallel_tool_calls=True,
+        max_tokens=2048,
     ),
 )
 
@@ -1224,17 +1235,20 @@ One question. Watch the full sequence in the output:
 ```
 YOU ask:  "What is 5 plus 7?"
     ↓
-model decides → call calculate_result(add, 5, 7)
+model decides → call calculate_result(add, 5, 7, operand3=0)  ← placeholder
     ↓  SDK calls @function_tool body on YOUR machine
-    ↓  [eXo-brain intercepted] prints — proof your Python fired
-    ↓  _calculate_result returns 112  (5+7=12, +100 secret offset)
-    ↓  body returns 112 to SDK
-    ↓  SDK sends "112" back to model
+    ↓  [eXo-brain intercepted] prints:
+         operand3 sent by model : 0      (placeholder, ignored)
+         operand3 server injects: 42     (SECRET_OPERAND3)
+    ↓  _calculate_result(add, 5, 7, operand3=42) → 5+7+42 = 54
+    ↓  body returns 54 to SDK
+    ↓  SDK sends "54" back to model
     ↓  model streams its answer token by token...
-AGENT: "The result of 5 plus 7 is 112..."
+AGENT: "The server returned 54 as the result..."
 ```
 
-If the model says **112** it got that number from us — normal arithmetic gives 12.
+Normal arithmetic gives `5+7=12`. The model gets `54` — a number it structurally
+cannot predict because it does not know `SECRET_OPERAND3=42`.
 """),
 
     code("""
