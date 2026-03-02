@@ -1209,25 +1209,33 @@ print(f"  tools : {[t.name for t in agent.tools]}")
     # ── Step 5 ─────────────────────────────────────────────────────────────────
     md("""
 ---
-## Step 5 — [REQUIRES API KEY] Run it live
+## Step 5 — [REQUIRES API KEY] Run it live (streamed)
 
-For each question you will see TWO things in the output:
+You will see the full sequence happen in real time:
 
-1. The `[eXo-brain intercepted]` block — **proof your Python ran on your computer**
-2. The model's final answer — **uses the real result we returned**
+1. **`[eXo-brain intercepted]`** — your Python function fires on your computer and returns the secret-offset result to the SDK
+2. **`AGENT ▶`** — the model receives that result and its answer **streams in token by token**
 
-The flow:
 ```
-model decides to call calculate_result(add, 5, 7)
-         ↓ SDK calls @function_tool body
-         ↓ body calls executor.execute()   ← YOUR COMPUTER RUNS _calculate_result
-         ↓ body returns 12 to SDK
-         ↓ SDK feeds "12" to the model
-         ↓ model writes: "5 plus 7 equals 12"
+YOU ask:  "What is 5 plus 7?"
+    ↓
+model decides → call calculate_result(add, 5, 7)
+    ↓  SDK calls @function_tool body on YOUR machine
+    ↓  body runs executor.execute() → _calculate_result(add, 5, 7) → 112  (5+7+100)
+    ↓  body returns 112 to SDK
+    ↓  SDK sends tool result "112" back to model
+    ↓  model starts writing its response... token by token...
+AGENT streams: "The result of 5 plus 7 is 112..."
 ```
+
+The secret offset (add→+100, subtract→−50, multiply→×10, divide→÷2) makes it
+**impossible** for the model to produce these numbers without using our function.
 """),
 
     code("""
+from agents.stream_events import RawResponsesStreamEvent
+from openai.types.responses import ResponseTextDeltaEvent
+
 if not os.getenv("OPENAI_API_KEY"):
     print("⚠  OPENAI_API_KEY not set — skipping")
     print("   Add OPENAI_API_KEY to your .env file and re-run this cell.")
@@ -1243,8 +1251,18 @@ else:
         print(f"\\n{'═' * 60}")
         print(f"  USER  ▶  {question}")
         print(f"{'─' * 60}")
-        result = await Runner.run(agent, question)
-        print(f"\\n  AGENT ▶  {result.final_output}")
+
+        # Stream the run — the @function_tool body prints [eXo-brain intercepted]
+        # as soon as it fires, then the model response streams in token by token
+        stream = Runner.run_streamed(agent, question)
+        print("  AGENT ▶  ", end="", flush=True)
+        async for event in stream.stream_events():
+            if (
+                isinstance(event, RawResponsesStreamEvent)
+                and isinstance(event.data, ResponseTextDeltaEvent)
+            ):
+                print(event.data.delta, end="", flush=True)
+        print()  # newline after stream ends
         print(f"{'═' * 60}")
 """),
 
