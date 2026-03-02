@@ -1209,27 +1209,24 @@ print(f"  tools : {[t.name for t in agent.tools]}")
     # ── Step 5 ─────────────────────────────────────────────────────────────────
     md("""
 ---
-## Step 5 — [REQUIRES API KEY] Run it live (streamed)
+## Step 5 — [REQUIRES API KEY] Single live run (streamed)
 
-You will see the full sequence happen in real time:
-
-1. **`[eXo-brain intercepted]`** — your Python function fires on your computer and returns the secret-offset result to the SDK
-2. **`AGENT ▶`** — the model receives that result and its answer **streams in token by token**
+One question. Watch the full sequence in the output:
 
 ```
 YOU ask:  "What is 5 plus 7?"
     ↓
 model decides → call calculate_result(add, 5, 7)
     ↓  SDK calls @function_tool body on YOUR machine
-    ↓  body runs executor.execute() → _calculate_result(add, 5, 7) → 112  (5+7+100)
+    ↓  [eXo-brain intercepted] prints — proof your Python fired
+    ↓  _calculate_result returns 112  (5+7=12, +100 secret offset)
     ↓  body returns 112 to SDK
-    ↓  SDK sends tool result "112" back to model
-    ↓  model starts writing its response... token by token...
-AGENT streams: "The result of 5 plus 7 is 112..."
+    ↓  SDK sends "112" back to model
+    ↓  model streams its answer token by token...
+AGENT: "The result of 5 plus 7 is 112..."
 ```
 
-The secret offset (add→+100, subtract→−50, multiply→×10, divide→÷2) makes it
-**impossible** for the model to produce these numbers without using our function.
+If the model says **112** it got that number from us — normal arithmetic gives 12.
 """),
 
     code("""
@@ -1240,56 +1237,23 @@ if not os.getenv("OPENAI_API_KEY"):
     print("⚠  OPENAI_API_KEY not set — skipping")
     print("   Add OPENAI_API_KEY to your .env file and re-run this cell.")
 else:
-    questions = [
-        "What is 5 plus 7?",
-        "What is 8 multiplied by 9?",
-        "What is 100 divided by 4?",
-        "What is 50 minus 13?",
-    ]
+    question = "What is 5 plus 7?"
 
-    for question in questions:
-        print(f"\\n{'═' * 60}")
-        print(f"  USER  ▶  {question}")
-        print(f"{'─' * 60}")
-
-        # Stream the run — the @function_tool body prints [eXo-brain intercepted]
-        # as soon as it fires, then the model response streams in token by token
-        stream = Runner.run_streamed(agent, question)
-        print("  AGENT ▶  ", end="", flush=True)
-        async for event in stream.stream_events():
-            if (
-                isinstance(event, RawResponsesStreamEvent)
-                and isinstance(event.data, ResponseTextDeltaEvent)
-            ):
-                print(event.data.delta, end="", flush=True)
-        print()  # newline after stream ends
-        print(f"{'═' * 60}")
-"""),
-
-    # ── Step 6 ─────────────────────────────────────────────────────────────────
-    md("""
----
-## Step 6 — [REQUIRES API KEY] Edge case: division by zero
-
-The model will ask to divide by zero.  
-`_calculate_result` raises `ValueError`.  
-The executor catches it, wraps it in a structured error envelope.  
-The tool body raises `ValueError` back to the SDK.  
-The model receives the error as the tool output and explains it cleanly.
-"""),
-
-    code("""
-if not os.getenv("OPENAI_API_KEY"):
-    print("⚠  OPENAI_API_KEY not set — skipping")
-else:
     print(f"{'═' * 60}")
-    print(f"  USER  ▶  What is 10 divided by 0?")
+    print(f"  USER  ▶  {question}")
     print(f"{'─' * 60}")
-    try:
-        result = await Runner.run(agent, "What is 10 divided by 0?")
-        print(f"\\n  AGENT ▶  {result.final_output}")
-    except Exception as e:
-        print(f"  ERROR  ▶  {e}")
+
+    # @function_tool body fires during streaming — prints [eXo-brain intercepted]
+    # then the model response streams in token by token
+    stream = Runner.run_streamed(agent, question)
+    print("  AGENT ▶  ", end="", flush=True)
+    async for event in stream.stream_events():
+        if (
+            isinstance(event, RawResponsesStreamEvent)
+            and isinstance(event.data, ResponseTextDeltaEvent)
+        ):
+            print(event.data.delta, end="", flush=True)
+    print()  # newline after stream ends
     print(f"{'═' * 60}")
 """),
 
