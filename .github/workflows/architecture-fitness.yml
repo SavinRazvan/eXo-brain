@@ -57,10 +57,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install test dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pyyaml
+          pip install -r requirements.txt
       - name: Run automated test suite
         run: python -m pytest -q
 
@@ -72,10 +72,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install test dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest
+          pip install -r requirements.txt
       - name: Run runtime contract tests
         run: python -m pytest tests/modules/runtime/test_runtime_adapter_contract.py -q
 
@@ -87,10 +87,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install test dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest
+          pip install -r requirements.txt
       - name: Run integration fitness tests
         run: python -m pytest tests/modules/core/test_orchestrator_turn.py tests/modules/core/test_multi_adapter_workflow_parity.py -q
 
