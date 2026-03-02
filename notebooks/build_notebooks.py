@@ -1024,11 +1024,12 @@ This is our math function. It runs **only on your machine** — the model never 
 The model sends `operand1` and `operand2`. Our server **always ignores whatever the model sends for operand3 and injects the real secret value**.  
 The final result is `op(operand1, operand2) + operand3` — a number the model structurally cannot predict.
 
-`SECRET_OPERAND3 = 42`  ← only our server knows this
+`SECRET_OPERAND3 = random.randint(1, 101)`  ← generated fresh each run, only our server knows this
 """),
 
     code("""
-SECRET_OPERAND3 = 42  # Server-side secret — the model is never told this value
+import random
+SECRET_OPERAND3 = random.randint(1, 101)  # Fresh secret each run — model never sees this
 
 def _calculate_result(operation: str, operand1: float, operand2: float, operand3: float = SECRET_OPERAND3) -> dict:
     \"\"\"
@@ -1058,12 +1059,11 @@ def _calculate_result(operation: str, operand1: float, operand2: float, operand3
         "result":    value,
     }
 
-# Quick sanity check — no AI needed
-# SECRET_OPERAND3=42: add(5,7)→54  multiply(8,9)→114  divide(100,4)→67
-print(f"Local test (no AI) — SECRET_OPERAND3 = {SECRET_OPERAND3}:")
-print(f"  add(5, 7)         → {_calculate_result('add', 5, 7)['result']}   (5+7=12, +42 = 54)")
-print(f"  multiply(8, 9)    → {_calculate_result('multiply', 8, 9)['result']}  (8×9=72, +42 = 114)")
-print(f"  divide(100, 4)    → {_calculate_result('divide', 100, 4)['result']}  (100÷4=25, +42 = 67)")
+# Quick sanity check — no AI needed, shows the random secret chosen this run
+print(f"Local test (no AI) — SECRET_OPERAND3 = {SECRET_OPERAND3}  (random 1-101, fresh each run):")
+print(f"  add(5, 7)         → {_calculate_result('add', 5, 7)['result']}   (5+7=12, +{SECRET_OPERAND3})")
+print(f"  multiply(8, 9)    → {_calculate_result('multiply', 8, 9)['result']}  (8×9=72, +{SECRET_OPERAND3})")
+print(f"  divide(100, 4)    → {_calculate_result('divide', 100, 4)['result']}  (100÷4=25, +{SECRET_OPERAND3})")
 """),
 
     # ── Step 2 ─────────────────────────────────────────────────────────────────
@@ -1238,17 +1238,17 @@ YOU ask:  "What is 5 plus 7?"
 model decides → call calculate_result(add, 5, 7, operand3=0)  ← placeholder
     ↓  SDK calls @function_tool body on YOUR machine
     ↓  [eXo-brain intercepted] prints:
-         operand3 sent by model : 0      (placeholder, ignored)
-         operand3 server injects: 42     (SECRET_OPERAND3)
-    ↓  _calculate_result(add, 5, 7, operand3=42) → 5+7+42 = 54
-    ↓  body returns 54 to SDK
-    ↓  SDK sends "54" back to model
+         operand3 sent by model : 0       (placeholder, ignored)
+         operand3 server injects: ???     (SECRET_OPERAND3, random 1-101)
+    ↓  _calculate_result(add, 5, 7, operand3=SECRET_OPERAND3) → 5+7+??? = ???
+    ↓  body returns ??? to SDK
+    ↓  SDK sends ??? back to model
     ↓  model streams its answer token by token...
-AGENT: "The server returned 54 as the result..."
+AGENT: "The server returned ??? as the result..."
 ```
 
-Normal arithmetic gives `5+7=12`. The model gets `54` — a number it structurally
-cannot predict because it does not know `SECRET_OPERAND3=42`.
+Normal arithmetic gives `5+7=12`. The model gets a number it structurally cannot
+predict — `SECRET_OPERAND3` is randomised fresh every time you run this cell.
 """),
 
     code("""
