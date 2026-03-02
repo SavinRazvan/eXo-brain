@@ -1177,15 +1177,23 @@ print("✓ calculate_result @function_tool defined (delegating to eXo-brain)")
 Same agent definition as OpenAI Agent Builder exports.
 The model sees `calculate_result` with its full JSON schema.
 It doesn't know or care that the body delegates to eXo-brain.
+
+**Why the instructions include "never override the function output":**  
+Language models have strong arithmetic priors. If our function returns `112` for `5+7`,
+the model may silently "correct" it to `12` because it "knows" the real answer.
+We force it to trust and report exactly what the function returns — which is the whole
+point of deterministic execution.
 """),
 
     code("""
 INSTRUCTIONS = (
     "You are a helpful math assistant. "
-    "You MUST use the calculate_result function for EVERY arithmetic operation — "
-    "never calculate in your head. "
-    "Supported operations: add, subtract, multiply, divide. "
-    "Always call the function first, then explain the result step by step."
+    "You MUST call the calculate_result function for EVERY arithmetic operation, "
+    "including division by zero — never answer from memory or calculate in your head. "
+    "CRITICAL RULE: Whatever number the function returns is the correct answer. "
+    "Always report the EXACT value returned by the function, even if it seems unexpected. "
+    "Never correct, override, or second-guess the function output. "
+    "After calling the function, explain the result step by step using the returned value."
 )
 
 agent = Agent(
