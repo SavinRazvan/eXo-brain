@@ -35,6 +35,12 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | MCP baseline | Implemented (MVP baseline) | Added MCP registry/client/tool adapter with trust tiers, per-server health and timeout controls, and policy-aware execution plus integration tests with mocked MCP server calls. |
 | Full background E2E vertical slice | Implemented (MVP baseline) | Added `tests/modules/core/test_background_agent_pipeline.py` to validate host input, multi-node background execution, deterministic tool execution, policy gating, and observability signals. |
 | Enterprise modular safety slice | Implemented | Added identity/access-control/tenancy/secrets/resilience/audit/compliance modules, persistence store expansion, and broader replay/security/resilience/quality-gates test tracks. |
+| API Platform — Slice 0 (tenant runtime isolation) | Implemented | `TenantRuntimeContext` + `TenantRuntimeFactory` (per-tenant registry isolation, per-session orchestrator); `build_agent_tools()` delegating wrapper; real OpenAI Agents SDK wiring promoted from notebooks into `OpenAIAgentsRuntimeAdapter`; `ProviderRegistry.get_adapter()`, `AgentSpec.instructions`, `ToolRegistry.list_descriptors/unregister`, `ToolDescriptor.description+parameters_schema` added. |
+| API Platform — Slice 1 (FastAPI transport layer) | Implemented | `src/api/` directory: app factory, bootstrap, X-Identity auth middleware, Pydantic schemas for all domains, shared SSE/WebSocket event envelope; `scan_forbidden_imports.py` updated to allow `fastapi` in `src/api/`. |
+| API Platform — Slice 2 (tool & agent management API) | Implemented | CRUD endpoints for tenant-scoped tools (`handler_ref` via importlib) and agents (with handoff routes and fallback policies). |
+| API Platform — Slice 3 (adapter playground API) | Implemented | Session lifecycle, SSE turn streaming, WebSocket multi-turn with `asyncio.Task` cancellation, provider health/capabilities endpoints. |
+| API Platform — Slice 4 (tenant policy & quota management) | Implemented | `GET/PUT /policy` (live overlay, no restart needed) + `GET/PUT /quota` (per-tenant job limit). `TenantQuotaManager.set_limit()` added. |
+| CI hardening | Implemented | Added `fastapi`, `uvicorn[standard]`, `sse-starlette`, `websockets` to `requirements.txt`; fixed all three CI test jobs to install `requirements.txt` instead of minimal `pytest` only. 253 tests pass. |
 
 ## Week 1: Core Runtime Skeleton
 

@@ -155,4 +155,71 @@ Provide a concrete startup checklist for creating the new repository and reachin
 - [x] `tests/modules/config/test_provider_registry.py` (3 tests — get_adapter)
 - [x] `tests/modules/runtime/test_tenant_runtime.py` (27 tests — all Slice 0 acceptance gates)
 - [x] Architecture gates pass: `validate_layers.py` + `scan_forbidden_imports.py`
-- [x] Full test suite: 167 passed, 0 failed
+- [x] Full test suite: 167 passed, 0 failed (at Slice 0 merge)
+
+---
+
+## API Platform — Slice 1 (Transport Layer)
+
+### New directory: `src/api/`
+- [x] `src/api/app.py` — FastAPI app factory (`create_app()`)
+- [x] `src/api/bootstrap.py` — wire `ProviderRegistry`, `TenantRuntimeFactory`, `TenantPolicyOverlayStore` into `app.state`
+- [x] `src/api/dependencies.py` — `Depends()` providers: `get_identity`, `require_valid_identity`, `get_tenant_context`, `get_policy_overlay_store`
+- [x] `src/api/middleware/auth.py` — `X-Identity` header → `IdentityContext` (plain JSON MVP; JWT upgrade path = swap this file only)
+- [x] `src/api/schemas/tool_schemas.py` — `ToolRegisterRequest`, `ToolResponse`, `ToolListResponse`
+- [x] `src/api/schemas/agent_schemas.py` — `AgentRegisterRequest`, `AgentResponse`, handoff/fallback schemas
+- [x] `src/api/schemas/session_schemas.py` — `SessionCreateRequest`, `SessionCreateResponse`, `SessionStateResponse`
+- [x] `src/api/schemas/turn_schemas.py` — shared SSE + WebSocket event envelope (`output_delta`, `tool_call`, `tool_result`, `run_complete`, `error`, `run_cancelled`)
+- [x] `src/api/schemas/provider_schemas.py` — `ProviderSummaryResponse`, `ProviderHealthResponse`, `ProviderCapabilitiesResponse`
+- [x] `scripts/architecture/scan_forbidden_imports.py` — updated to allow `fastapi` imports in `src/api/` layer
+
+### Tests
+- [x] `tests/modules/api/test_slice1_transport.py` (20 tests — app startup, auth, identity, tenant context)
+- [x] Architecture gates pass after scan_forbidden_imports.py update
+
+---
+
+## API Platform — Slice 2 (Tool & Agent Management API)
+
+### New files
+- [x] `src/api/routers/tools.py` — `POST/GET/GET/{name}/DELETE /tenants/{id}/tools` (importlib `handler_ref` resolution at registration time)
+- [x] `src/api/routers/agents.py` — `POST/GET/GET/{id}/DELETE /tenants/{id}/agents` + `POST/GET /routes` + `POST/GET /fallback`
+- [x] Route ordering fixed: `/routes` and `/fallback` defined before `/{agent_id}` to prevent path-param collision
+
+### Tests
+- [x] `tests/modules/api/test_slice2_tools_agents.py` (28 tests — CRUD, handler_ref validation, tenant isolation, routes/fallback)
+
+---
+
+## API Platform — Slice 3 (Adapter Playground API)
+
+### New files
+- [x] `src/api/routers/sessions.py` — `POST /sessions` (creates session + wires host adapter), `GET /sessions/{id}`
+- [x] `src/api/routers/turns.py` — `POST .../turns` (SSE streaming) + `WS .../ws` (WebSocket, multi-turn, cancellation via `asyncio.Task`)
+- [x] `src/api/routers/providers.py` — `GET /providers`, `GET /providers/{id}/health`, `GET /providers/{id}/capabilities`
+
+### Tests
+- [x] `tests/modules/api/test_slice3_playground.py` (21 tests — session lifecycle, SSE event order, WebSocket turns, cancellation, provider endpoints)
+
+---
+
+## API Platform — Slice 4 (Tenant Policy Management)
+
+### Contract changes
+- [x] `TenantQuotaManager.set_limit(max_active_jobs)` added — validates non-negative, takes effect on next `check_submission`
+- [x] `TenantQuotaManager.max_active_jobs` property added
+
+### New files
+- [x] `src/api/schemas/tenant_schemas.py` — `PolicyOverlayRequest/Response`, `QuotaResponse`, `QuotaUpdateRequest`
+- [x] `src/api/routers/tenants.py` — `GET/PUT /tenants/{id}/policy` + `GET/PUT /tenants/{id}/quota`
+
+### Tests
+- [x] `tests/modules/api/test_slice4_tenant_policy.py` (17 tests — GET/PUT round-trips, per-tenant isolation, auth gates, overwrite semantics, negative quota rejection)
+
+---
+
+## CI Fix (fix/ci-missing-deps — PR #29)
+
+- [x] `requirements.txt` — added `fastapi`, `uvicorn[standard]`, `sse-starlette`, `websockets`
+- [x] `.github/workflows/architecture-fitness.yml` — replaced `pip install pytest pyyaml` with `pip install -r requirements.txt` in all three test jobs (`automated_test_suite`, `contract_tests`, `integration_architecture_fitness`)
+- [x] Full test suite after all slices: **253 passed, 0 failed**

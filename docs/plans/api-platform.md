@@ -1,8 +1,9 @@
 # eXo-brain API Platform Plan
 
-> Status: **Decisions locked — ready to build**
+> Status: **Fully implemented — all 4 slices merged to main**
 > Last updated: Mar 2, 2026
-> Branch: to be created (`feature/api-platform`)
+> Merged via: PR #27 (Slices 0–3), PR #28 (Slice 4), PR #29 (CI fix)
+> Test coverage: 253 tests passing — architecture gates green
 
 ---
 
@@ -73,31 +74,29 @@ flowchart TD
 | `OpenAIAgentsRuntimeAdapter` | `src/runtime/openai_agents_runtime.py` |
 | `RuntimeAdapter` ABC | `src/runtime/runtime_adapter.py` |
 
-### Missing (must be built)
+### Built (all gaps resolved)
 
-| Gap | Slice | Verified against source |
+| Gap | Slice | File |
 |---|---|---|
-| `ProviderRegistry.get_adapter()` public method | Slice 0 pre-req | `_adapters` is private — confirmed |
-| `AgentSpec.instructions: str` field | Slice 0 pre-req | Field absent — confirmed |
-| `ToolRegistry.list_descriptors()` method | Slice 0 pre-req | Only `list_tools() -> list[str]` exists — confirmed |
-| `ToolDescriptor.description` + `parameters_schema` fields | Slice 0 pre-req | Fields absent — confirmed |
-| `ToolRegistry.unregister()` method | Slice 0 pre-req | Plugin manager notes this gap — confirmed |
-| `src/runtime/tool_wiring.py` — dynamic tool-to-adapter wiring | Slice 0 | New file |
-| `OpenAIAgentsRuntimeAdapter` — real SDK wiring; constructor takes `(provider_id, tool_registry, tool_executor)` | Slice 0 | Stub today; P1+P4+P5 fixes applied |
-| `AgentRegistry.list_routes()` + `list_fallback_policies()` methods | Slice 2 | Methods absent — routing state is write-only |
-| `PluginManager.unload_plugin` — call `registry.unregister()` for each tool | Slice 0 cleanup | Documented gap in plugin_manager.py ~line 42 |
-| `TenantRuntimeContext` — tenant-scoped only (no `orchestrator`/`host_adapter`) | Slice 0 | P2 fix |
-| `TenantRuntimeFactory` — `create_session_runtime()` + `_session_runtimes` cache | Slice 0 | P3 fix; new file |
-| FastAPI app factory, bootstrap, DI wiring | Slice 1 | New directory |
-| Auth middleware (`IdentityContext` from headers) | Slice 1 | New file |
-| SSE + WebSocket event envelope format | Slice 1 | New file |
-| Pydantic request/response schemas | Slice 1 | New files |
-| Tool & agent CRUD endpoints (incl. `description`+`parameters_schema` on POST /tools) | Slice 2 | New files |
-| Session create/get endpoints | Slice 3 | New files |
-| Turn execution — SSE streaming | Slice 3 | New file |
-| Turn execution — WebSocket (persistent, multi-turn) | Slice 3 | New file |
-| Provider health + capabilities endpoints | Slice 3 | New file |
-| Tenant policy + quota management endpoints | Slice 4 | New file |
+| `ProviderRegistry.get_adapter()` public method | Slice 0 pre-req | `src/config/provider_registry.py:95` |
+| `AgentSpec.instructions: str` field | Slice 0 pre-req | `src/agents/contracts.py:37` |
+| `ToolRegistry.list_descriptors()` method | Slice 0 pre-req | `src/tools/registry.py:55` |
+| `ToolDescriptor.description` + `parameters_schema` fields | Slice 0 pre-req | `src/tools/registry.py:34-35` |
+| `ToolRegistry.unregister()` method | Slice 0 pre-req | `src/tools/registry.py:58` |
+| `src/runtime/tool_wiring.py` — `build_agent_tools()` delegating wrapper | Slice 0 | `src/runtime/tool_wiring.py` |
+| `OpenAIAgentsRuntimeAdapter` — real SDK wiring | Slice 0 | `src/runtime/openai_agents_runtime.py` |
+| `AgentRegistry.list_routes()` + `list_fallback_policies()` | Slice 2 | `src/agents/registry.py:80,83` |
+| `PluginManager.unload_plugin` calls `registry.unregister()` | Slice 0 cleanup | `src/tools/plugins/plugin_manager.py:44` |
+| `TenantRuntimeContext` + `TenantRuntimeFactory` | Slice 0 | `src/runtime/tenant_runtime.py` |
+| FastAPI app factory, bootstrap, DI wiring | Slice 1 | `src/api/app.py`, `bootstrap.py`, `dependencies.py` |
+| Auth middleware (`IdentityContext` from headers) | Slice 1 | `src/api/middleware/auth.py` |
+| SSE + WebSocket event envelope + Pydantic schemas | Slice 1 | `src/api/schemas/` |
+| Tool & agent CRUD endpoints | Slice 2 | `src/api/routers/tools.py`, `agents.py` |
+| Session create/get endpoints | Slice 3 | `src/api/routers/sessions.py` |
+| Turn execution — SSE + WebSocket with cancellation | Slice 3 | `src/api/routers/turns.py` |
+| Provider health + capabilities endpoints | Slice 3 | `src/api/routers/providers.py` |
+| Tenant policy + quota management endpoints | Slice 4 | `src/api/routers/tenants.py` |
+| `TenantQuotaManager.set_limit()` + `max_active_jobs` property | Slice 4 | `src/tenancy/quotas.py` |
 
 ---
 
