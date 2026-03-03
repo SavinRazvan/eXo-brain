@@ -1,11 +1,13 @@
 """
 File: startup.py
 Path: src/api/startup.py
-Role: App startup hydration — restores persisted tools and agents into in-memory registries.
+Role: App startup hydration — restores persisted tools, agents, and providers into in-memory registries.
 Used By:
  - src/api/bootstrap.py (lifespan startup hook)
 Depends On:
  - src/persistence/contracts.py
+ - src/config/provider_registry.py
+ - src/runtime/adapter_factory.py
  - src/tools/registry.py
  - src/agents/contracts.py
  - src/schemas/tool_io.py
@@ -13,6 +15,7 @@ Notes:
  - Called once at app startup; idempotent (skips already-registered entries).
  - Tools with unresolvable handler_refs are logged and skipped — server still starts.
  - Handler resolution uses the same 'module.path:function_name' format as the tools router.
+ - Providers are loaded from ProviderStore and registered via adapter_factory.
 """
 
 from __future__ import annotations
@@ -22,7 +25,16 @@ import logging
 from typing import TYPE_CHECKING, Callable
 
 from src.agents.contracts import AgentCapabilityTag, AgentSpec
-from src.persistence.contracts import PersistedAgentRecord, PersistedToolRecord
+from src.config.provider_registry import (
+    AuthConfig,
+    EndpointApiType,
+    EndpointConfig,
+    ModelDefaults,
+    ProviderProfile,
+    ProviderRecord,
+)
+from src.persistence.contracts import PersistedAgentRecord, PersistedProviderRecord, PersistedToolRecord
+from src.runtime.adapter_factory import load_adapter
 from src.schemas.tool_io import RiskTier
 from src.tools.registry import ToolDescriptor
 
@@ -75,6 +87,42 @@ def _tool_record_to_descriptor(record: PersistedToolRecord) -> ToolDescriptor | 
         parameters_schema=record.parameters_schema,
         metadata=record.metadata,
     )
+
+
+def _provider_record_to_runtime(record: PersistedProviderRecord) -> tuple[ProviderRecord, "RuntimeAdapter"] | None:
+    """Convert PersistedProviderRecord to (ProviderRecord, RuntimeAdapter).
+
+    Returns None if the adapter cannot be loaded (e.g. missing module).
+    """
+    try:
+        adapter = load_adapter(record.adapter_class, provider_id=record.provider_id)
+    except (ValueError, ImportError) as exc:
+        logger.warning("Cannot load adapter for provider %r: %s", record.provider_id, exc)
+        return None
+    try:
+        profile = ProviderProfile(record.profile)
+    except ValueError:
+        profile = ProviderProfile.MANAGED_VENDOR
+    try:
+        api_type = EndpointApiType(record.endpoint_api_type)
+    except ValueError:
+        api_type = EndpointApiType.OPENAI_NATIVE
+    rec = ProviderRecord(
+        provider_id=record.provider_id,
+        display_name=record.display_name,
+        adapter_class=record.adapter_class,
+        enabled=record.enabled,
+        profile=profile,
+        priority=record.priority,
+        endpoint=EndpointConfig(base_url=record.endpoint_base_url, api_type=api_type),
+        auth=AuthConfig(type=record.auth_type, api_key_env_var=record.auth_api_key_env_var),
+        model_defaults=ModelDefaults(
+            model=record.model,
+            temperature=record.temperature,
+            max_output_tokens=record.max_output_tokens,
+        ),
+    )
+    return rec, adapter
 
 
 def _agent_record_to_spec(record: PersistedAgentRecord) -> AgentSpec:
@@ -143,3 +191,21 @@ async def hydrate_tenant_registries(app: "FastAPI") -> None:
                     pass  # duplicate guard — should not happen given the get() check
             if hydrated_agents:
                 logger.info("Hydrated %d agent(s) for tenant %r", hydrated_agents, tenant_id)
+
+    # Hydrate providers (dynamic registration)
+    provider_store = getattr(app.state, "provider_store", None)
+    provider_registry = getattr(app.state, "provider_registry", None)
+    if provider_store is not None and provider_registry is not None:
+        persisted = await provider_store.list_providers()
+        hydrated_providers = 0
+        for record in persisted:
+            if record.provider_id in provider_registry._providers:
+                continue
+            result = _provider_record_to_runtime(record)
+            if result is None:
+                continue
+            rec, adapter = result
+            provider_registry.register(rec, adapter)
+            hydrated_providers += 1
+        if hydrated_providers:
+            logger.info("Hydrated %d provider(s) from store", hydrated_providers)

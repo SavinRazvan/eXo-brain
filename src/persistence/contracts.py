@@ -1,7 +1,7 @@
 """
 File: contracts.py
 Path: src/persistence/contracts.py
-Role: Persistence contracts for session state, checkpoints, tools, agents, and API keys.
+Role: Persistence contracts for session state, checkpoints, tools, agents, API keys, and providers.
 Used By:
  - src/core/checkpoint_store.py
  - src/core/background_runtime.py
@@ -9,13 +9,15 @@ Used By:
  - src/api/routers/tools.py
  - src/api/routers/agents.py
  - src/api/routers/admin_keys.py
+ - src/api/routers/providers.py
  - src/api/middleware/auth.py
 Depends On:
  - src/core/session_context.py
 Notes:
  - Implementations should remain adapter-based (sqlite/postgres/etc.).
  - PersistedToolRecord and PersistedAgentRecord are serializable — no callables or enums.
- - ApiKeyRecord stores a SHA-256 hash of the actual key — never the plaintext key.
+ - ApiKeyRecord stores a SHA-256 hash of the actual key — plaintext is never stored.
+ - PersistedProviderRecord is a flat, JSON-serializable snapshot of ProviderRecord.
 """
 
 from __future__ import annotations
@@ -74,6 +76,14 @@ class SessionStore(ABC):
     @abstractmethod
     async def get_session(self, session_id: str, tenant_id: str = "default") -> SessionRecord | None:
         """Load a previously stored session record."""
+
+    @abstractmethod
+    async def count_active_sessions_by_provider(self, provider_id: str) -> int:
+        """Return the number of active sessions using the given provider_id.
+
+        Used by DELETE /providers/{id} to reject unregister when sessions exist.
+        In-memory stores may return 0 when they cannot aggregate across tenants.
+        """
 
 
 class CheckpointStoreContract(ABC):
@@ -259,3 +269,48 @@ class ApiKeyStore(ABC):
     @abstractmethod
     async def list_keys(self, tenant_id: str | None = None) -> list[ApiKeyRecord]:
         """List all key records, optionally filtered by tenant_id."""
+
+
+# ---------------------------------------------------------------------------
+# Provider persistence (dynamic registration)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PersistedProviderRecord:
+    """Serializable snapshot of a ProviderRecord for durable storage.
+
+    All nested configs (EndpointConfig, AuthConfig, ModelDefaults) are flattened.
+    """
+
+    provider_id: str
+    display_name: str
+    adapter_class: str
+    enabled: bool
+    profile: str
+    priority: int
+    endpoint_base_url: str
+    endpoint_api_type: str
+    auth_type: str
+    auth_api_key_env_var: str
+    model: str
+    temperature: float = 0.2
+    max_output_tokens: int = 1500
+
+
+class ProviderStore(ABC):
+    @abstractmethod
+    async def save_provider(self, record: PersistedProviderRecord) -> None:
+        """Upsert a provider record."""
+
+    @abstractmethod
+    async def get_provider(self, provider_id: str) -> PersistedProviderRecord | None:
+        """Return a provider record by provider_id, or None."""
+
+    @abstractmethod
+    async def delete_provider(self, provider_id: str) -> None:
+        """Remove a provider record."""
+
+    @abstractmethod
+    async def list_providers(self) -> list[PersistedProviderRecord]:
+        """List all persisted provider records."""
