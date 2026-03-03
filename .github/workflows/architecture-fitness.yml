@@ -19,6 +19,8 @@ on:
       - "src/**"
       - "tests/**"
       - "scripts/**"
+      - "ui/**"
+      - "Makefile"
       - ".github/workflows/**"
   push:
     branches: [main]
@@ -49,9 +51,17 @@ jobs:
       - name: Scan forbidden imports
         run: python scripts/architecture/scan_forbidden_imports.py
 
-  automated_test_suite:
+  ui_dist_sync:
     runs-on: ubuntu-latest
     needs: [forbidden_import_scan]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify ui/dist is synchronized
+        run: bash scripts/ui/verify_dist_sync.sh
+
+  automated_test_suite:
+    runs-on: ubuntu-latest
+    needs: [forbidden_import_scan, ui_dist_sync]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
