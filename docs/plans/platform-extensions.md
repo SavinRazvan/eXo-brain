@@ -1,6 +1,6 @@
 # eXo-brain Platform Extensions Plan
 
-> Status: **In Progress — Slice 3 active (Slices 0–2 merged)**
+> Status: **Completed — Slices 0–3 merged**
 > Created: Mar 2026
 > Scope: Four deferred items from the API Platform build
 > Prerequisite: API Platform fully merged (PRs #27–#30, 253 tests passing)
@@ -294,7 +294,7 @@ class ProviderRegisterRequest(BaseModel):
 
 ---
 
-## Slice 3 — Web UI Dashboard
+## Slice 3 — Web UI Dashboard ✅ Merged
 
 ### Goal
 
@@ -305,9 +305,10 @@ A browser-based interface for:
 
 ### Technology decision
 
-Use **vanilla HTML + TypeScript compiled to a single JS bundle** (no framework required),
-served as static files by FastAPI. This avoids adding a separate dev server, build pipeline,
-or Node.js dependency for the backend CI.
+Use **vanilla HTML + TypeScript compiled into `ui/dist` JS assets** (no framework required),
+served as static files by FastAPI. This avoids adding a separate dev server and keeps
+runtime deployment simple. The build path supports `tsc` when available and a deterministic
+fallback transpiler for environments without Node.js.
 
 Alternative: React (if a richer component model is needed later — see trade-offs below).
 
@@ -351,20 +352,21 @@ Alternative: React (if a richer component model is needed later — see trade-of
 - Tool trace panel (expandable per tool call: call_id, arguments, result, policy decision)
 - Connection mode: WebSocket (multi-turn persistent) or SSE (one-shot)
 
-### Files to create
+### Files created
 
 | File | Description |
 |---|---|
 | `src/api/routers/ui.py` | Serve static files from `ui/dist/` under `/ui` prefix |
-| `ui/index.html` | App shell, nav bar, screen router |
-| `ui/screens/tools.ts` | Tool Manager screen |
-| `ui/screens/agents.ts` | Agent Manager screen |
-| `ui/screens/providers.ts` | Provider Manager screen |
-| `ui/screens/playground.ts` | Playground screen with WebSocket/SSE chat |
-| `ui/api.ts` | Typed API client (fetch wrappers for all endpoints) |
-| `ui/components/chat.ts` | Chat bubble + tool trace component |
+| `ui/dist/index.html` | App shell, nav bar, screen router |
+| `ui/src/screens/tools.ts` | Tool Manager screen |
+| `ui/src/screens/agents.ts` | Agent Manager screen |
+| `ui/src/screens/providers.ts` | Provider Manager screen |
+| `ui/src/screens/playground.ts` | Playground screen with WebSocket/SSE chat |
+| `ui/src/api.ts` | Typed API client (fetch wrappers for all endpoints) |
+| `ui/src/components/chat.ts` | Chat bubble + tool trace component |
+| `ui/src/app.ts` | UI entrypoint and screen orchestration |
 | `ui/tsconfig.json` | TypeScript config (target ES2020, no framework) |
-| `Makefile` or `scripts/ui/build.sh` | `tsc` compile to `ui/dist/` |
+| `Makefile` + `scripts/ui/build.sh` + `scripts/ui/verify_dist_sync.sh` | Build + verify `ui/dist` sync |
 | `tests/modules/api/test_ui_static.py` | Verify `/ui` serves 200 and correct content-type |
 
 ### FastAPI static files wiring
@@ -427,7 +429,7 @@ Slice 3 depends on Slices 0 and 2 being done (stable data + provider registratio
 
 ---
 
-## Open Questions / Decisions to lock before building
+## Historical Open Questions (resolved)
 
 1. **UI framework** — vanilla TS vs React? (Recommendation: vanilla for Slice 3, revisit later)
 2. **Auth mode precedence** — if both `X-Identity` and `Authorization: Bearer` are present, which wins?
