@@ -226,6 +226,36 @@ Provide a concrete startup checklist for creating the new repository and reachin
 
 ---
 
+## Platform Extensions — Slice 2 (Dynamic Provider Registration — branch: feature/slice2-dynamic-provider-registration)
+
+### Adapter factory
+- [x] `src/runtime/adapter_factory.py` — `load_adapter(class_ref, provider_id, **kwargs)` via importlib
+
+### ProviderRegistry mutable API
+- [x] `src/config/provider_registry.py` — `register(record, adapter)`, `unregister(provider_id)`
+
+### Provider persistence
+- [x] `src/persistence/contracts.py` — `PersistedProviderRecord` dataclass, `ProviderStore` ABC
+- [x] `src/persistence/adapters/sqlite.py` — `SQLiteProviderStore` (save, get, delete, list)
+
+### SessionStore extension
+- [x] `src/persistence/contracts.py` — `SessionStore.count_active_sessions_by_provider(provider_id)`
+- [x] `src/persistence/adapters/sqlite.py`, `src/core/session_store.py`, `postgres.py` — implementations
+
+### Provider router
+- [x] `src/api/schemas/provider_schemas.py` — `ProviderRegisterRequest`, `ProviderRegisterResponse`
+- [x] `src/api/routers/providers.py` — `POST /providers`, `DELETE /providers/{id}` (409 if active sessions)
+
+### Bootstrap / startup
+- [x] `src/api/bootstrap.py` — `provider_store`, `session_store` on app.state; `SQLiteProviderStore`
+- [x] `src/api/startup.py` — hydrate providers from store on startup
+
+### Tests
+- [x] `tests/modules/api/test_slice_provider_registration.py` (8 tests — CRUD, 409, 404, 422, 503, restart)
+- [x] Full test suite: **309 passed, 0 failed** (+8 new tests)
+
+---
+
 ## Platform Extensions — Slice 1 (Auth Hardening — branch: feature/slice1-auth-hardening)
 
 ### New contracts
