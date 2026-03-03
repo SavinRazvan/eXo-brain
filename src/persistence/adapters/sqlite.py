@@ -32,8 +32,10 @@ from src.persistence.contracts import (
     CheckpointStatus,
     CheckpointStoreContract,
     PersistedAgentRecord,
+    PersistedProviderRecord,
     PersistedToolRecord,
     PersistenceIsolationError,
+    ProviderStore,
     SessionRecord,
     SessionStore,
     ToolStore,
@@ -127,6 +129,14 @@ class SQLiteSessionStore(SessionStore):
             metadata=json.loads(row[8]),
         )
         return SessionRecord(session=session, tenant_id=row[0], state=row[9], data=json.loads(row[10]))
+
+    async def count_active_sessions_by_provider(self, provider_id: str) -> int:
+        with sqlite3.connect(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT COUNT(1) FROM sessions WHERE provider_id = ? AND state = 'active'",
+                (provider_id,),
+            ).fetchone()
+        return row[0] if row else 0
 
     def _ensure_schema(self) -> None:
         with sqlite3.connect(self._db_path) as conn:
@@ -582,6 +592,133 @@ class SQLiteApiKeyStore(ApiKeyStore):
                 description TEXT NOT NULL DEFAULT '',
                 enabled INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        conn.commit()
+
+
+class SQLiteProviderStore(ProviderStore):
+    """SQLite-backed provider store for dynamic registration.
+
+    Persists ProviderRecord as a flat row; used for startup hydration.
+    """
+
+    def __init__(self, db_path: str | Path = ":memory:") -> None:
+        self._db_path = str(db_path)
+        self._shared_conn: sqlite3.Connection | None = (
+            sqlite3.connect(":memory:", check_same_thread=False)
+            if self._db_path == ":memory:"
+            else None
+        )
+        self._ensure_schema()
+
+    def _connect(self) -> sqlite3.Connection:
+        if self._shared_conn is not None:
+            return self._shared_conn
+        return sqlite3.connect(self._db_path)
+
+    async def save_provider(self, record: PersistedProviderRecord) -> None:
+        conn = self._connect()
+        conn.execute(
+            """
+            INSERT INTO providers (
+                provider_id, display_name, adapter_class, enabled, profile, priority,
+                endpoint_base_url, endpoint_api_type, auth_type, auth_api_key_env_var,
+                model, temperature, max_output_tokens
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(provider_id) DO UPDATE SET
+                display_name=excluded.display_name,
+                adapter_class=excluded.adapter_class,
+                enabled=excluded.enabled,
+                profile=excluded.profile,
+                priority=excluded.priority,
+                endpoint_base_url=excluded.endpoint_base_url,
+                endpoint_api_type=excluded.endpoint_api_type,
+                auth_type=excluded.auth_type,
+                auth_api_key_env_var=excluded.auth_api_key_env_var,
+                model=excluded.model,
+                temperature=excluded.temperature,
+                max_output_tokens=excluded.max_output_tokens
+            """,
+            (
+                record.provider_id,
+                record.display_name,
+                record.adapter_class,
+                1 if record.enabled else 0,
+                record.profile,
+                record.priority,
+                record.endpoint_base_url,
+                record.endpoint_api_type,
+                record.auth_type,
+                record.auth_api_key_env_var,
+                record.model,
+                record.temperature,
+                record.max_output_tokens,
+            ),
+        )
+        conn.commit()
+
+    async def get_provider(self, provider_id: str) -> PersistedProviderRecord | None:
+        conn = self._connect()
+        row = conn.execute(
+            """SELECT provider_id, display_name, adapter_class, enabled, profile, priority,
+               endpoint_base_url, endpoint_api_type, auth_type, auth_api_key_env_var,
+               model, temperature, max_output_tokens FROM providers WHERE provider_id = ?""",
+            (provider_id,),
+        ).fetchone()
+        return self._row_to_record(row) if row else None
+
+    async def delete_provider(self, provider_id: str) -> None:
+        conn = self._connect()
+        conn.execute("DELETE FROM providers WHERE provider_id = ?", (provider_id,))
+        conn.commit()
+
+    async def list_providers(self) -> list[PersistedProviderRecord]:
+        conn = self._connect()
+        rows = conn.execute(
+            """SELECT provider_id, display_name, adapter_class, enabled, profile, priority,
+               endpoint_base_url, endpoint_api_type, auth_type, auth_api_key_env_var,
+               model, temperature, max_output_tokens FROM providers ORDER BY provider_id"""
+        ).fetchall()
+        return [self._row_to_record(row) for row in rows]
+
+    def _row_to_record(self, row: tuple) -> PersistedProviderRecord:
+        return PersistedProviderRecord(
+            provider_id=row[0],
+            display_name=row[1],
+            adapter_class=row[2],
+            enabled=bool(row[3]),
+            profile=row[4],
+            priority=row[5],
+            endpoint_base_url=row[6],
+            endpoint_api_type=row[7],
+            auth_type=row[8],
+            auth_api_key_env_var=row[9],
+            model=row[10],
+            temperature=row[11],
+            max_output_tokens=row[12],
+        )
+
+    def _ensure_schema(self) -> None:
+        conn = self._connect()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS providers (
+                provider_id TEXT NOT NULL PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                adapter_class TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                profile TEXT NOT NULL,
+                priority INTEGER NOT NULL,
+                endpoint_base_url TEXT NOT NULL,
+                endpoint_api_type TEXT NOT NULL,
+                auth_type TEXT NOT NULL,
+                auth_api_key_env_var TEXT NOT NULL,
+                model TEXT NOT NULL,
+                temperature REAL NOT NULL DEFAULT 0.2,
+                max_output_tokens INTEGER NOT NULL DEFAULT 1500
             )
             """
         )

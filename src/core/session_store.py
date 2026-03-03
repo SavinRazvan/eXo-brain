@@ -38,3 +38,11 @@ class InMemorySessionStore(SessionStore):
             session=replace(record.session, metadata=dict(record.session.metadata)),
             data=dict(record.data),
         )
+
+    async def count_active_sessions_by_provider(self, provider_id: str) -> int:
+        """Count active sessions using the given provider. Per-tenant store; may undercount."""
+        return sum(
+            1
+            for r in self._records.values()
+            if r.session.provider_id == provider_id and r.state == "active"
+        )

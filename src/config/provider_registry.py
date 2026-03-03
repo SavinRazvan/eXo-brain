@@ -106,6 +106,26 @@ class ProviderRegistry:
     def enabled_provider_ids(self) -> list[str]:
         return sorted([provider_id for provider_id, provider in self._providers.items() if provider.enabled])
 
+    def register(self, record: ProviderRecord, adapter: RuntimeAdapter) -> None:
+        """Add or replace a provider and its adapter.
+
+        Used for dynamic registration (e.g. POST /providers).
+        """
+        self._providers[record.provider_id] = record
+        self._adapters[record.provider_id] = adapter
+
+    def unregister(self, provider_id: str) -> None:
+        """Remove a provider and its adapter.
+
+        Used for dynamic unregistration (e.g. DELETE /providers/{id}).
+        Raises KeyError if provider_id is not registered.
+        """
+        if provider_id not in self._providers:
+            raise KeyError(f"Provider '{provider_id}' is not registered")
+        del self._providers[provider_id]
+        if provider_id in self._adapters:
+            del self._adapters[provider_id]
+
     async def validate_startup(self) -> None:
         runtime = self._settings.runtime
         if runtime.default_provider_id not in self._providers:
