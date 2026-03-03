@@ -1,14 +1,17 @@
 """
 File: settings.py
 Path: src/config/settings.py
-Role: Runtime and policy configuration contracts for provider-neutral execution.
+Role: Runtime, auth, and policy configuration contracts for provider-neutral execution.
 Used By:
  - src/config/provider_registry.py
  - src/core/orchestrator.py
+ - src/api/middleware/auth.py
 Depends On:
  - dataclasses
 Notes:
  - Defaults are deterministic-first for safety-sensitive workloads.
+ - AuthSettings.jwt_secret / jwks_url control JWT verification.
+ - X-Identity plain-JSON is allowed only when AppSettings.environment is 'test' or 'development'.
 """
 
 from __future__ import annotations
@@ -73,6 +76,20 @@ class BackgroundRuntimeSettings:
 
 
 @dataclass(slots=True)
+class AuthSettings:
+    """Authentication configuration for JWT Bearer and API-key modes.
+
+    jwt_secret:  symmetric secret for HS256/HS512 token verification.
+    jwks_url:    JWKS endpoint URL for RS256/RS384/RS512 (takes precedence over jwt_secret).
+    algorithm:   default JWT algorithm; must match the token header.
+    """
+
+    jwt_secret: str = ""
+    jwks_url: str = ""
+    algorithm: str = "HS256"
+
+
+@dataclass(slots=True)
 class AppSettings:
     schema_version: str
     environment: str
@@ -81,3 +98,4 @@ class AppSettings:
     observability: ObservabilitySettings = field(default_factory=ObservabilitySettings)
     limits: LimitsSettings = field(default_factory=LimitsSettings)
     background_runtime: BackgroundRuntimeSettings = field(default_factory=BackgroundRuntimeSettings)
+    auth: AuthSettings = field(default_factory=AuthSettings)
