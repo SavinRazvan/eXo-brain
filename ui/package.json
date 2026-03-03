@@ -1,0 +1,13 @@
+{
+  "name": "exo-brain-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Static TypeScript dashboard for eXo-brain",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

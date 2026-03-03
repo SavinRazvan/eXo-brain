@@ -1,0 +1,115 @@
+<!--
+File: index.html
+Path: ui/dist/index.html
+Role: Browser dashboard shell for tools, agents, providers, and playground screens.
+Used By:
+ - src/api/routers/ui.py
+Depends On:
+ - ui/dist/app.js
+ - ui/dist/styles.css
+Notes:
+ - This is a prebuilt static artifact served directly by FastAPI under /ui.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>eXo-brain Dashboard</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>eXo-brain Dashboard</h1>
+      <div class="tenant-controls">
+        <label for="tenantId">Tenant ID</label>
+        <input id="tenantId" value="t1" />
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button data-screen="tools" class="tab active">Tools</button>
+      <button data-screen="agents" class="tab">Agents</button>
+      <button data-screen="providers" class="tab">Providers</button>
+      <button data-screen="playground" class="tab">Playground</button>
+    </nav>
+
+    <main>
+      <section id="screen-tools" class="screen visible">
+        <h2>Tool Manager</h2>
+        <form id="tool-form" class="form-grid">
+          <input id="tool-name" placeholder="name" required />
+          <input id="tool-handler" placeholder="module.path:function_name" required />
+          <input id="tool-description" placeholder="description" />
+          <select id="tool-risk">
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+          </select>
+          <label><input id="tool-state-changing" type="checkbox" />state changing</label>
+          <input id="tool-timeout" type="number" min="100" value="30000" />
+          <textarea id="tool-schema" placeholder='{"type":"object","properties":{}}'></textarea>
+          <button type="submit">Register Tool</button>
+        </form>
+        <ul id="tools-list" class="list"></ul>
+      </section>
+
+      <section id="screen-agents" class="screen">
+        <h2>Agent Manager</h2>
+        <form id="agent-form" class="form-grid">
+          <input id="agent-id" placeholder="agent id" required />
+          <input id="agent-role" placeholder="role" required />
+          <input id="agent-tags" placeholder="tags comma-separated" />
+          <textarea id="agent-instructions" placeholder="instructions"></textarea>
+          <textarea id="agent-metadata" placeholder='{"model":"gpt-4o-mini"}'></textarea>
+          <button type="submit">Register Agent</button>
+        </form>
+        <ul id="agents-list" class="list"></ul>
+      </section>
+
+      <section id="screen-providers" class="screen">
+        <h2>Provider Manager</h2>
+        <form id="provider-form" class="form-grid">
+          <input id="provider-id" placeholder="provider id" required />
+          <input id="provider-display-name" placeholder="display name" required />
+          <input id="provider-class-ref" placeholder="src.runtime.module.AdapterClass" required />
+          <input id="provider-env-var" placeholder="OPENAI_API_KEY" />
+          <input id="provider-base-url" placeholder="https://api.openai.com" value="https://api.openai.com" />
+          <input id="provider-model" placeholder="gpt-4o-mini" value="gpt-4o-mini" />
+          <button type="submit">Register Provider</button>
+        </form>
+        <ul id="providers-list" class="list"></ul>
+      </section>
+
+      <section id="screen-playground" class="screen">
+        <h2>Playground</h2>
+        <div class="row">
+          <select id="pg-provider"></select>
+          <select id="pg-agent"></select>
+          <select id="pg-mode">
+            <option value="sse">SSE</option>
+            <option value="ws">WebSocket</option>
+          </select>
+          <button id="pg-create-session" type="button">Create Session</button>
+        </div>
+        <div class="row">
+          <input id="pg-input" placeholder="Type a message..." />
+          <button id="pg-send" type="button">Send</button>
+        </div>
+        <div class="panels">
+          <div>
+            <h3>Chat</h3>
+            <ul id="pg-chat" class="list"></ul>
+          </div>
+          <div>
+            <h3>Tool Trace</h3>
+            <ul id="pg-trace" class="list"></ul>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <pre id="status" class="status"></pre>
+    <script type="module" src="/ui/app.js"></script>
+  </body>
+</html>
