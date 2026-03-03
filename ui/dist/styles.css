@@ -1,0 +1,84 @@
+/*
+File: styles.css
+Path: ui/dist/styles.css
+Role: Basic dashboard styling for the static Slice 3 UI.
+Used By:
+ - ui/dist/index.html
+Depends On:
+ - none
+Notes:
+ - Keep simple and dependency-free for static hosting in FastAPI.
+*/
+
+:root {
+  color-scheme: light dark;
+  font-family: Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0 1rem 2rem;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.tab {
+  border: 1px solid #888;
+  background: transparent;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+}
+
+.tab.active {
+  border-color: #4a90e2;
+}
+
+.screen {
+  display: none;
+}
+
+.screen.visible {
+  display: block;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.status {
+  border: 1px solid #666;
+  padding: 0.5rem;
+  min-height: 2rem;
+  white-space: pre-wrap;
+}
