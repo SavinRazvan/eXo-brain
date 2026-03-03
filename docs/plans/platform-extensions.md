@@ -1,6 +1,6 @@
 # eXo-brain Platform Extensions Plan
 
-> Status: **In Progress — Slice 0 active**
+> Status: **In Progress — Slice 1 active (Slice 0 merged)**
 > Created: Mar 2026
 > Scope: Four deferred items from the API Platform build
 > Prerequisite: API Platform fully merged (PRs #27–#30, 253 tests passing)
@@ -158,7 +158,7 @@ app startup → load all tenant rows from SQLite
 
 ---
 
-## Slice 1 — Auth Hardening
+## Slice 1 — Auth Hardening ✅ Merged
 
 ### Goal
 

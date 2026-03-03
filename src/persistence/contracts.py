@@ -1,18 +1,21 @@
 """
 File: contracts.py
 Path: src/persistence/contracts.py
-Role: Persistence contracts for session state, checkpoints, tools, and agents.
+Role: Persistence contracts for session state, checkpoints, tools, agents, and API keys.
 Used By:
  - src/core/checkpoint_store.py
  - src/core/background_runtime.py
  - src/api/startup.py
  - src/api/routers/tools.py
  - src/api/routers/agents.py
+ - src/api/routers/admin_keys.py
+ - src/api/middleware/auth.py
 Depends On:
  - src/core/session_context.py
 Notes:
  - Implementations should remain adapter-based (sqlite/postgres/etc.).
  - PersistedToolRecord and PersistedAgentRecord are serializable — no callables or enums.
+ - ApiKeyRecord stores a SHA-256 hash of the actual key — never the plaintext key.
 """
 
 from __future__ import annotations
@@ -211,3 +214,48 @@ class AgentStore(ABC):
     @abstractmethod
     async def list_tenant_ids(self) -> list[str]:
         """Return all tenant IDs that have at least one persisted agent."""
+
+
+# ---------------------------------------------------------------------------
+# API key persistence
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ApiKeyRecord:
+    """Persisted API key entry.
+
+    key_hash is a SHA-256 hex digest of the actual key — plaintext is never stored.
+    roles is stored as a comma-separated string at the store level; use list[str] here.
+    """
+
+    key_id: str
+    tenant_id: str
+    subject: str
+    key_hash: str
+    roles: list[str] = field(default_factory=list)
+    description: str = ""
+    enabled: bool = True
+    created_at: str = ""
+
+
+class ApiKeyStore(ABC):
+    @abstractmethod
+    async def save_key(self, record: ApiKeyRecord) -> None:
+        """Insert or replace an API key record."""
+
+    @abstractmethod
+    async def get_key(self, key_id: str) -> ApiKeyRecord | None:
+        """Return a key record by key_id, or None if not found."""
+
+    @abstractmethod
+    async def lookup_by_hash(self, key_hash: str) -> ApiKeyRecord | None:
+        """Return the key record matching the given SHA-256 hash, or None."""
+
+    @abstractmethod
+    async def delete_key(self, key_id: str) -> None:
+        """Remove a key record by key_id."""
+
+    @abstractmethod
+    async def list_keys(self, tenant_id: str | None = None) -> list[ApiKeyRecord]:
+        """List all key records, optionally filtered by tenant_id."""

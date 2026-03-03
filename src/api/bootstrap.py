@@ -18,6 +18,7 @@ Notes:
  - For tests: call build_test_app() which uses persistence_backend="memory" (no SQLite).
  - Provider adapters must be registered in the ProviderRegistry BEFORE bootstrap() is called.
  - EXO_DB_PATH env var controls the SQLite file path (default: .exo_data/exo.db).
+ - api_key_store is None in memory mode — admin key endpoints return 503 when not configured.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from fastapi import FastAPI
 
 from src.config.provider_registry import ProviderRegistry
 from src.config.settings import AppSettings
-from src.persistence.contracts import AgentStore, ToolStore
+from src.persistence.contracts import AgentStore, ApiKeyStore, ToolStore
 from src.runtime.tenant_runtime import TenantRuntimeFactory
 from src.tenancy.policy_overlay import TenantPolicyOverlayStore
 
@@ -48,11 +49,13 @@ def bootstrap(
     """
     tool_store: ToolStore | None = None
     agent_store: AgentStore | None = None
+    api_key_store: ApiKeyStore | None = None
     session_store = None
 
     if persistence_backend == "sqlite":
         from src.persistence.adapters.sqlite import (
             SQLiteAgentStore,
+            SQLiteApiKeyStore,
             SQLiteSessionStore,
             SQLiteToolStore,
         )
@@ -64,6 +67,7 @@ def bootstrap(
         session_store = SQLiteSessionStore(db_path)
         tool_store = SQLiteToolStore(db_path)
         agent_store = SQLiteAgentStore(db_path)
+        api_key_store = SQLiteApiKeyStore(db_path)
 
     tenant_factory = TenantRuntimeFactory(
         provider_registry=provider_registry,
@@ -77,6 +81,7 @@ def bootstrap(
     app.state.settings = settings
     app.state.tool_store = tool_store
     app.state.agent_store = agent_store
+    app.state.api_key_store = api_key_store
 
     if persistence_backend == "sqlite":
         from src.api.startup import hydrate_tenant_registries
