@@ -1,6 +1,6 @@
 # eXo-brain Platform Extensions Plan
 
-> Status: **In Progress — Slice 2 active (Slices 0–1 merged)**
+> Status: **In Progress — Slice 3 active (Slices 0–2 merged)**
 > Created: Mar 2026
 > Scope: Four deferred items from the API Platform build
 > Prerequisite: API Platform fully merged (PRs #27–#30, 253 tests passing)
@@ -209,7 +209,7 @@ rewriting all 80+ test calls.
 
 ---
 
-## Slice 2 — Dynamic Provider Registration API ✅ In Progress
+## Slice 2 — Dynamic Provider Registration API ✅ Merged
 
 ### Goal
 

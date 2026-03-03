@@ -256,6 +256,34 @@ Provide a concrete startup checklist for creating the new repository and reachin
 
 ---
 
+## Platform Extensions — Slice 3 (Web UI Dashboard — branch: feature/slice3-web-ui-dashboard)
+
+### API static mount wiring
+- [x] `src/api/routers/ui.py` — `mount_ui(app)` mounting `ui/dist` under `/ui`
+- [x] `src/api/app.py` — invokes `mount_ui(app)` in app factory
+
+### Dashboard artifact (prebuilt static bundle)
+- [x] `ui/dist/index.html` — app shell with Tool/Agent/Provider/Playground screens
+- [x] `ui/dist/app.js` — API client + CRUD flows + SSE/WebSocket playground wiring
+- [x] `ui/dist/styles.css` — baseline dashboard styling
+
+### TypeScript source modularization + build
+- [x] `ui/src/api.ts` — typed(compatible) fetch/auth helpers
+- [x] `ui/src/screens/tools.ts`, `ui/src/screens/agents.ts`, `ui/src/screens/providers.ts`, `ui/src/screens/playground.ts`
+- [x] `ui/src/components/chat.ts` — shared chat/trace rendering helpers
+- [x] `ui/src/app.ts` — entrypoint orchestration and navigation
+- [x] `ui/tsconfig.json` and `ui/package.json` — TypeScript project configuration
+- [x] `scripts/ui/build.sh` — build entrypoint (`tsc` when available, fallback transpiler otherwise)
+- [x] `scripts/ui/build_ts_fallback.py` — environment-safe fallback `*.ts -> *.js` copier
+- [x] `Makefile` — `make ui-build`, `make ui-verify`
+- [x] `scripts/ui/verify_dist_sync.sh` — drift check between `ui/src` and `ui/dist`
+- [x] `.github/workflows/architecture-fitness.yml` — adds `ui_dist_sync` CI gate
+
+### Tests
+- [x] `tests/modules/api/test_ui_static.py` — validates `/ui/`, `/ui/app.js`, `/ui/styles.css` are served
+
+---
+
 ## Platform Extensions — Slice 1 (Auth Hardening — branch: feature/slice1-auth-hardening)
 
 ### New contracts

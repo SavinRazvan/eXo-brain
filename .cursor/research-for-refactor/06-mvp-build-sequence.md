@@ -41,6 +41,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | API Platform — Slice 3 (adapter playground API) | Implemented | Session lifecycle, SSE turn streaming, WebSocket multi-turn with `asyncio.Task` cancellation, provider health/capabilities endpoints. |
 | API Platform — Slice 4 (tenant policy & quota management) | Implemented | `GET/PUT /policy` (live overlay, no restart needed) + `GET/PUT /quota` (per-tenant job limit). `TenantQuotaManager.set_limit()` added. |
 | CI hardening | Implemented | Added `fastapi`, `uvicorn[standard]`, `sse-starlette`, `websockets` to `requirements.txt`; fixed all three CI test jobs to install `requirements.txt` instead of minimal `pytest` only. 253 tests pass. |
+| Platform Extensions — Slice 3 (Web UI dashboard) | In Progress | Added `/ui` static mount, modular TS source (`ui/src`), screen/components split, and build scripts generating `ui/dist` from TypeScript sources. |
 
 ## Week 1: Core Runtime Skeleton
 
