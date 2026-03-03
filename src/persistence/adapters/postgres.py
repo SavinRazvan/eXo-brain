@@ -61,6 +61,13 @@ class InMemoryPostgresDriver:
             data=dict(record.data),
         )
 
+    def count_active_sessions_by_provider(self, provider_id: str) -> int:
+        return sum(
+            1
+            for r in self._sessions.values()
+            if r.session.provider_id == provider_id and r.state == "active"
+        )
+
     def save_checkpoint(self, checkpoint: CheckpointRecord) -> None:
         self._checkpoints[(checkpoint.tenant_id, checkpoint.job_id, checkpoint.node_id)] = replace(
             checkpoint,
@@ -106,6 +113,9 @@ class PostgresSessionStore(SessionStore):
 
     async def get_session(self, session_id: str, tenant_id: str = "default") -> SessionRecord | None:
         return self._driver.get_session(session_id, tenant_id=tenant_id)
+
+    async def count_active_sessions_by_provider(self, provider_id: str) -> int:
+        return self._driver.count_active_sessions_by_provider(provider_id)
 
 
 class PostgresCheckpointStore(CheckpointStoreContract):

@@ -1,7 +1,7 @@
 """
 File: provider_schemas.py
 Path: src/api/schemas/provider_schemas.py
-Role: Pydantic response schemas for provider health and capability endpoints.
+Role: Pydantic request/response schemas for provider endpoints.
 Used By:
  - src/api/routers/providers.py
 Depends On:
@@ -14,6 +14,27 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel
+
+
+class ProviderRegisterRequest(BaseModel):
+    """Request body for POST /providers."""
+
+    provider_id: str
+    display_name: str
+    adapter_class_ref: str
+    api_key_env_var: str = ""
+    base_url: str = "https://api.openai.com"
+    model: str = "gpt-4o-mini"
+    profile: str = "managed_vendor"
+
+
+class ProviderRegisterResponse(BaseModel):
+    """Response for POST /providers (201)."""
+
+    provider_id: str
+    display_name: str
+    enabled: bool
+    profile: str
 
 
 class ProviderSummaryResponse(BaseModel):
