@@ -1,0 +1,411 @@
+"""
+File: test_tool_version_api.py
+Path: tests/modules/api/test_tool_version_api.py
+Role: Acceptance tests for tenant tool import/upload/validate/version endpoints.
+Used By:
+ - pytest
+Depends On:
+ - src/api/routers/tools.py
+ - src/api/bootstrap.py
+Notes:
+ - Uses both memory backend (503 checks) and SQLite backend (happy path).
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from src.api.bootstrap import build_test_app
+
+
+def _x_identity(tenant_id: str = "t1") -> dict:
+    return {
+        "X-Identity": json.dumps(
+            {
+                "subject": "user@test.com",
+                "roles": ["admin"],
+                "tenant_id": tenant_id,
+                "token_validation_state": "valid",
+            }
+        )
+    }
+
+
+def _build_sqlite_test_app(db_path: Path, settings_override=None):
+    import os
+    from src.api.app import create_app
+    from src.api.bootstrap import bootstrap
+    from src.config.provider_registry import (
+        AuthConfig,
+        EndpointApiType,
+        EndpointConfig,
+        ModelDefaults,
+        ProviderProfile,
+        ProviderRecord,
+        ProviderRegistry,
+    )
+    from src.config.settings import AppSettings, RuntimeSettings
+    from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
+
+    settings = settings_override or AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+    )
+    adapter = OpenAIAgentsRuntimeAdapter(provider_id="openai-test")
+    record = ProviderRecord(
+        provider_id="openai-test",
+        display_name="Test OpenAI",
+        adapter_class="OpenAIAgentsRuntimeAdapter",
+        enabled=True,
+        profile=ProviderProfile.MANAGED_VENDOR,
+        priority=1,
+        endpoint=EndpointConfig(base_url="https://api.openai.com", api_type=EndpointApiType.OPENAI_NATIVE),
+        auth=AuthConfig(type="api_key", api_key_env_var=""),
+        model_defaults=ModelDefaults(model="gpt-4o-mini"),
+    )
+    provider_registry = ProviderRegistry(settings=settings, providers=[record], adapters={"openai-test": adapter})
+    app = create_app()
+    old = os.environ.get("EXO_DB_PATH")
+    os.environ["EXO_DB_PATH"] = str(db_path)
+    try:
+        bootstrap(app, provider_registry, settings, persistence_backend="sqlite")
+    finally:
+        if old is None:
+            os.environ.pop("EXO_DB_PATH", None)
+        else:
+            os.environ["EXO_DB_PATH"] = old
+    return app
+
+
+def test_import_schema_normalizes_openai_function_payload() -> None:
+    app = build_test_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/tenants/t1/tools/import-schema",
+            json={
+                "payload": {
+                    "type": "function",
+                    "function": {
+                        "name": "calculate_result",
+                        "description": "math helper",
+                        "parameters": {"type": "object", "properties": {"x": {"type": "number"}}},
+                    },
+                }
+            },
+            headers=_x_identity(),
+        )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["tool_name"] == "calculate_result"
+    assert data["handler_ref"] == "src.tools.user_tools:calculate_result"
+    assert data["parameters_schema"]["type"] == "object"
+    assert data["schema_fingerprint"]
+
+
+def test_upload_returns_503_with_memory_backend() -> None:
+    app = build_test_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                }
+            },
+            headers=_x_identity(),
+        )
+    assert resp.status_code == 503
+
+
+def test_upload_validate_and_list_versions_with_sqlite(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo.db")
+    with TestClient(app) as client:
+        up = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "1.0.0",
+                    "description": "math",
+                    "input_schema": {"type": "object", "properties": {"x": {"type": "number"}}},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "package_ref": "pkg://calc/1.0.0",
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert up.status_code == 201, up.text
+        assert up.json()["active"] is True
+        assert up.json()["state"] == "valid"
+
+        validate = client.get("/tenants/t1/tools/validate/calculate_result", headers=_x_identity())
+        assert validate.status_code == 200
+        assert validate.json()["version"] == "1.0.0"
+        assert validate.json()["state"] == "valid"
+
+        versions = client.get("/tenants/t1/tools/versions/calculate_result", headers=_x_identity())
+        assert versions.status_code == 200
+        assert versions.json()["total"] == 1
+
+        alias = client.get("/tenants/t1/tools/version/calculate_result", headers=_x_identity())
+        assert alias.status_code == 200
+        assert alias.json()["total"] == 1
+
+
+def test_upload_marks_manifest_invalid_for_bad_sandbox_limits(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_bad_limits.db")
+    with TestClient(app) as client:
+        up = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "2.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                    "metadata": {
+                        "sandbox_limits": {
+                            "memory_budget_mb": "not-an-int",
+                        }
+                    },
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert up.status_code == 201, up.text
+        assert up.json()["state"] == "invalid"
+        assert any("memory_budget_mb must be an integer" in err for err in up.json()["errors"])
+
+
+def test_upload_accepts_valid_sandbox_limits_metadata(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_good_limits.db")
+    with TestClient(app) as client:
+        up = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "3.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                    "metadata": {
+                        "sandbox_limits": {
+                            "cpu_budget_ms": 5000,
+                            "memory_budget_mb": 256,
+                        }
+                    },
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert up.status_code == 201, up.text
+        assert up.json()["state"] == "valid"
+
+
+def test_upload_rejects_when_artifact_size_exceeds_limit(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_artifact_limit.db")
+    with TestClient(app) as client:
+        up = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "4.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "artifact_size_bytes": 5_000_001,
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+    assert up.status_code == 201, up.text
+    assert up.json()["state"] == "invalid"
+    assert any("artifact_size_bytes exceeds max_tool_upload_size_bytes" in err for err in up.json()["errors"])
+
+
+def test_upload_rejects_dependency_outside_allowlist(tmp_path: Path) -> None:
+    from src.config.settings import AppSettings, LimitsSettings, RuntimeSettings
+
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        limits=LimitsSettings(
+            allowed_tool_dependency_prefixes=["numpy", "pydantic"],
+        ),
+    )
+    app = _build_sqlite_test_app(tmp_path / "exo_requirements_allowlist.db", settings_override=settings)
+    with TestClient(app) as client:
+        up = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "5.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                    "requirements": ["requests>=2.0.0"],
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+    assert up.status_code == 201, up.text
+    assert up.json()["state"] == "invalid"
+    assert any("not allowed by dependency allowlist" in err for err in up.json()["errors"])
+
+
+def test_upload_returns_429_when_tenant_upload_rate_limit_exceeded(tmp_path: Path) -> None:
+    from src.config.settings import AppSettings, LimitsSettings, RuntimeSettings
+
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        limits=LimitsSettings(max_tool_uploads_per_minute_per_tenant=1),
+    )
+    app = _build_sqlite_test_app(tmp_path / "exo_upload_rate_limit.db", settings_override=settings)
+    with TestClient(app) as client:
+        first = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "6.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+            },
+            headers=_x_identity(),
+        )
+        assert first.status_code == 201, first.text
+        second = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "6.0.1",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+            },
+            headers=_x_identity(),
+        )
+    assert second.status_code == 429
+    assert "TENANT_UPLOAD_RATE_LIMIT_EXCEEDED" in second.text
+
+
+def test_deactivate_rollback_and_revoke_tool_versions(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_lifecycle_ops.db")
+    with TestClient(app) as client:
+        v1 = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert v1.status_code == 201, v1.text
+        v2 = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "2.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert v2.status_code == 201, v2.text
+        assert v2.json()["active"] is True
+
+        deact = client.post(
+            "/tenants/t1/tools/versions/calculate_result/2.0.0/deactivate",
+            headers=_x_identity(),
+        )
+        assert deact.status_code == 200, deact.text
+        assert deact.json()["action"] == "deactivate"
+        versions_after_deact = client.get("/tenants/t1/tools/versions/calculate_result", headers=_x_identity())
+        assert versions_after_deact.status_code == 200
+        assert all(not bool(row["active"]) for row in versions_after_deact.json()["versions"])
+
+        rollback = client.post(
+            "/tenants/t1/tools/versions/calculate_result/rollback",
+            json={"target_version": "1.0.0"},
+            headers=_x_identity(),
+        )
+        assert rollback.status_code == 200, rollback.text
+        assert rollback.json()["active_version"] == "1.0.0"
+        versions_after_rollback = client.get("/tenants/t1/tools/versions/calculate_result", headers=_x_identity())
+        assert versions_after_rollback.status_code == 200
+        rows = versions_after_rollback.json()["versions"]
+        active_rows = [row for row in rows if row["active"]]
+        assert len(active_rows) == 1
+        assert active_rows[0]["version"] == "1.0.0"
+
+        revoke_conflict = client.delete(
+            "/tenants/t1/tools/versions/calculate_result/1.0.0",
+            headers=_x_identity(),
+        )
+        assert revoke_conflict.status_code == 409
+
+        revoke_force = client.delete(
+            "/tenants/t1/tools/versions/calculate_result/1.0.0?force=true",
+            headers=_x_identity(),
+        )
+        assert revoke_force.status_code == 200, revoke_force.text
+        assert revoke_force.json()["revoked"] is True
+        versions_after_revoke = client.get("/tenants/t1/tools/versions/calculate_result", headers=_x_identity())
+        assert versions_after_revoke.status_code == 200
+        remaining_versions = [row["version"] for row in versions_after_revoke.json()["versions"]]
+        assert "1.0.0" not in remaining_versions

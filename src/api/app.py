@@ -16,8 +16,144 @@ Notes:
 
 from __future__ import annotations
 
+import json
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from src.api.bootstrap import bootstrap
+from src.config.provider_registry import (
+    AuthConfig,
+    EndpointApiType,
+    EndpointConfig,
+    ModelDefaults,
+    ProviderProfile,
+    ProviderRecord,
+    ProviderRegistry,
+)
+from src.config.settings import AppSettings, AuthSettings, LimitsSettings, RuntimeSettings
+from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _default_settings() -> AppSettings:
+    """Build app settings from lightweight environment defaults."""
+    env = os.environ.get("EXO_ENV", "development")
+    default_provider_id = os.environ.get("EXO_DEFAULT_PROVIDER_ID", "openai")
+    jwt_secret = os.environ.get("EXO_AUTH_JWT_SECRET", "")
+    jwt_alg = os.environ.get("EXO_AUTH_JWT_ALGORITHM", "HS256")
+    jwks_url = os.environ.get("EXO_AUTH_JWKS_URL", "")
+    raw_signing_key_map = os.environ.get("EXO_AUDIT_BUNDLE_SIGNING_SECRETS_BY_VERSION", "").strip()
+    parsed_signing_key_map: dict[str, str] = {}
+    if raw_signing_key_map:
+        try:
+            loaded = json.loads(raw_signing_key_map)
+            if isinstance(loaded, dict):
+                parsed_signing_key_map = {
+                    str(version).strip(): str(secret).strip()
+                    for version, secret in loaded.items()
+                    if str(version).strip() and str(secret).strip()
+                }
+        except json.JSONDecodeError:
+            parsed_signing_key_map = {}
+    return AppSettings(
+        schema_version="1.0",
+        environment=env,
+        runtime=RuntimeSettings(
+            default_provider_id=default_provider_id,
+            allowed_provider_ids=[default_provider_id],
+            require_provider_healthcheck_on_start=False,
+            enable_hosted_tool_runtime=_env_bool("EXO_ENABLE_HOSTED_TOOL_RUNTIME", default=False),
+            enable_hosted_tool_process_isolation=_env_bool(
+                "EXO_ENABLE_HOSTED_TOOL_PROCESS_ISOLATION",
+                default=False,
+            ),
+            enable_byoc_tool_runtime=_env_bool("EXO_ENABLE_BYOC_TOOL_RUNTIME", default=False),
+            byoc_worker_jwt_secret=os.environ.get("EXO_BYOC_WORKER_JWT_SECRET", "exo-byoc-dev-secret"),
+            byoc_worker_token_ttl_seconds=int(os.environ.get("EXO_BYOC_WORKER_TOKEN_TTL_SECONDS", "300")),
+            byoc_store_backend=os.environ.get("EXO_BYOC_STORE_BACKEND", "memory"),
+            byoc_sqlite_db_path=os.environ.get("EXO_BYOC_DB_PATH", os.environ.get("EXO_DB_PATH", ".exo_data/exo.db")),
+            byoc_lease_ttl_seconds=int(os.environ.get("EXO_BYOC_LEASE_TTL_SECONDS", "30")),
+            byoc_replay_ttl_seconds=int(os.environ.get("EXO_BYOC_REPLAY_TTL_SECONDS", "300")),
+            byoc_cleanup_interval_seconds=int(os.environ.get("EXO_BYOC_CLEANUP_INTERVAL_SECONDS", "30")),
+            byoc_completed_ttl_seconds=int(os.environ.get("EXO_BYOC_COMPLETED_TTL_SECONDS", "3600")),
+            byoc_cancelled_ttl_seconds=int(os.environ.get("EXO_BYOC_CANCELLED_TTL_SECONDS", "3600")),
+            byoc_result_ttl_seconds=int(os.environ.get("EXO_BYOC_RESULT_TTL_SECONDS", "3600")),
+            byoc_idempotency_ttl_seconds=int(os.environ.get("EXO_BYOC_IDEMPOTENCY_TTL_SECONDS", "3600")),
+            byoc_max_completed_records=int(os.environ.get("EXO_BYOC_MAX_COMPLETED_RECORDS", "2000")),
+            byoc_max_cancelled_records=int(os.environ.get("EXO_BYOC_MAX_CANCELLED_RECORDS", "2000")),
+            byoc_max_result_records=int(os.environ.get("EXO_BYOC_MAX_RESULT_RECORDS", "2000")),
+        ),
+        auth=AuthSettings(
+            jwt_secret=jwt_secret,
+            jwks_url=jwks_url,
+            algorithm=jwt_alg,
+        ),
+        limits=LimitsSettings(
+            max_parallel_jobs=int(os.environ.get("EXO_MAX_PARALLEL_JOBS", "20")),
+            max_concurrent_risky_tools_per_session=int(
+                os.environ.get("EXO_MAX_CONCURRENT_RISKY_TOOLS_PER_SESSION", "1")
+            ),
+            default_tool_timeout_ms=int(os.environ.get("EXO_DEFAULT_TOOL_TIMEOUT_MS", "30000")),
+            max_active_runs_per_tenant=int(os.environ.get("EXO_MAX_ACTIVE_RUNS_PER_TENANT", "50")),
+            max_turn_requests_per_minute_per_tenant=int(
+                os.environ.get("EXO_MAX_TURN_REQUESTS_PER_MINUTE_PER_TENANT", "120")
+            ),
+            max_tool_uploads_per_minute_per_tenant=int(
+                os.environ.get("EXO_MAX_TOOL_UPLOADS_PER_MINUTE_PER_TENANT", "30")
+            ),
+            max_tool_upload_size_bytes=int(os.environ.get("EXO_MAX_TOOL_UPLOAD_SIZE_BYTES", "5000000")),
+            allowed_tool_dependency_prefixes=[
+                item.strip()
+                for item in os.environ.get("EXO_ALLOWED_TOOL_DEPENDENCY_PREFIXES", "").split(",")
+                if item.strip()
+            ],
+            max_audit_records_per_tenant=int(os.environ.get("EXO_MAX_AUDIT_RECORDS_PER_TENANT", "10000")),
+            max_audit_export_records=int(os.environ.get("EXO_MAX_AUDIT_EXPORT_RECORDS", "2000")),
+            audit_export_directory=os.environ.get("EXO_AUDIT_EXPORT_DIRECTORY", ".exo_data/audit_exports"),
+            audit_bundle_signing_secret=os.environ.get(
+                "EXO_AUDIT_BUNDLE_SIGNING_SECRET",
+                "exo-audit-dev-secret",
+            ),
+            audit_bundle_signing_active_version=os.environ.get(
+                "EXO_AUDIT_BUNDLE_SIGNING_ACTIVE_VERSION",
+                "v1",
+            ),
+            audit_bundle_signing_secrets_by_version=parsed_signing_key_map,
+        ),
+    )
+
+
+def _default_provider_registry(settings: AppSettings) -> ProviderRegistry:
+    provider_id = settings.runtime.default_provider_id
+    adapter = OpenAIAgentsRuntimeAdapter(provider_id=provider_id)
+    record = ProviderRecord(
+        provider_id=provider_id,
+        display_name=f"{provider_id} (default)",
+        adapter_class="OpenAIAgentsRuntimeAdapter",
+        enabled=True,
+        profile=ProviderProfile.MANAGED_VENDOR,
+        priority=1,
+        endpoint=EndpointConfig(
+            base_url=os.environ.get("EXO_DEFAULT_PROVIDER_BASE_URL", "https://api.openai.com"),
+            api_type=EndpointApiType.OPENAI_NATIVE,
+        ),
+        auth=AuthConfig(
+            type="api_key",
+            api_key_env_var=os.environ.get("EXO_DEFAULT_PROVIDER_API_KEY_ENV_VAR", "OPENAI_API_KEY"),
+        ),
+        model_defaults=ModelDefaults(
+            model=os.environ.get("EXO_DEFAULT_PROVIDER_MODEL", "gpt-4o-mini"),
+        ),
+    )
+    return ProviderRegistry(settings=settings, providers=[record], adapters={provider_id: adapter})
 
 
 def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
@@ -57,10 +193,14 @@ def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
     from src.api.routers.sessions import router as sessions_router
     from src.api.routers.turns import router as turns_router
     from src.api.routers.providers import router as providers_router
+    from src.api.routers.runtime_control import router as runtime_control_router
+    from src.api.routers.audit import router as audit_router
 
     app.include_router(sessions_router, prefix="/tenants")
     app.include_router(turns_router, prefix="/tenants")
     app.include_router(providers_router)
+    app.include_router(runtime_control_router, prefix="/tenants")
+    app.include_router(audit_router, prefix="/tenants")
 
     # Slice 4 — Tenant Policy & Quota Management
     from src.api.routers.tenants import router as tenants_router
@@ -77,4 +217,6 @@ def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
 
     mount_ui(app)
 
-    return app
+    settings = _default_settings()
+    provider_registry = _default_provider_registry(settings)
+    return bootstrap(app, provider_registry=provider_registry, settings=settings, persistence_backend="sqlite")

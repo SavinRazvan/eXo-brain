@@ -28,6 +28,7 @@ Notes:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from src.agents.registry import AgentRegistry
 from src.config.provider_registry import ProviderRegistry
@@ -39,6 +40,7 @@ from src.policies.middleware import DeterministicFirstPolicyMiddleware
 from src.tenancy.quotas import TenantQuotaManager
 from src.tools.executor import DeterministicToolExecutor
 from src.tools.registry import ToolRegistry
+from src.tools.sandbox.pool import TenantSandboxPool
 
 
 @dataclass(slots=True)
@@ -77,6 +79,11 @@ class TenantRuntimeFactory:
         self._session_runtimes: dict[str, OrchestratorHostAdapter] = {}
         self._session_adapters: dict[str, "RuntimeAdapter"] = {}
         self._session_tenant: dict[str, str] = {}
+        self._sandbox_pool: TenantSandboxPool | None = (
+            TenantSandboxPool(max_workers_per_tenant=1)
+            if self._settings.runtime.enable_hosted_tool_runtime
+            else None
+        )
 
     # ------------------------------------------------------------------
     # Tenant context
@@ -91,9 +98,60 @@ class TenantRuntimeFactory:
     def _build_context(self, tenant_id: str) -> TenantRuntimeContext:
         tool_registry = ToolRegistry()
         policy_middleware = DeterministicFirstPolicyMiddleware()
+        execution_adapter = None
+        if self._settings.runtime.enable_byoc_tool_runtime:
+            from src.tools.byoc import TenantByocConnectorRuntime
+            from src.tools.byoc.result_store import InMemoryByocResultStore, InMemoryReplayGuard
+            from src.tools.byoc.job_store import InMemoryByocJobQueueStore
+            from src.tools.byoc.sqlite_store import (
+                SQLiteByocJobQueueStore,
+                SQLiteByocResultStore,
+                SQLiteReplayGuard,
+            )
+
+            if self._settings.runtime.byoc_store_backend == "sqlite":
+                db_path = Path(self._settings.runtime.byoc_sqlite_db_path)
+                db_path.parent.mkdir(parents=True, exist_ok=True)
+                job_store = SQLiteByocJobQueueStore(str(db_path))
+                result_store = SQLiteByocResultStore(str(db_path))
+                replay_guard = SQLiteReplayGuard(str(db_path))
+            else:
+                job_store = InMemoryByocJobQueueStore()
+                result_store = InMemoryByocResultStore()
+                replay_guard = InMemoryReplayGuard()
+
+            execution_adapter = TenantByocConnectorRuntime(
+                worker_jwt_secret=self._settings.runtime.byoc_worker_jwt_secret,
+                worker_token_ttl_seconds=self._settings.runtime.byoc_worker_token_ttl_seconds,
+                lease_ttl_seconds=self._settings.runtime.byoc_lease_ttl_seconds,
+                replay_ttl_seconds=self._settings.runtime.byoc_replay_ttl_seconds,
+                cleanup_interval_seconds=self._settings.runtime.byoc_cleanup_interval_seconds,
+                completed_ttl_seconds=self._settings.runtime.byoc_completed_ttl_seconds,
+                cancelled_ttl_seconds=self._settings.runtime.byoc_cancelled_ttl_seconds,
+                result_ttl_seconds=self._settings.runtime.byoc_result_ttl_seconds,
+                idempotency_ttl_seconds=self._settings.runtime.byoc_idempotency_ttl_seconds,
+                max_completed_records=self._settings.runtime.byoc_max_completed_records,
+                max_cancelled_records=self._settings.runtime.byoc_max_cancelled_records,
+                max_result_records=self._settings.runtime.byoc_max_result_records,
+                job_store=job_store,
+                result_store=result_store,
+                replay_guard=replay_guard,
+            )
+        elif self._settings.runtime.enable_hosted_tool_runtime:
+            from src.tools.sandbox.runtime import TenantSandboxToolRuntime
+
+            execution_adapter = TenantSandboxToolRuntime(
+                runtime_pool=self._sandbox_pool,
+                enable_process_isolation=self._settings.runtime.enable_hosted_tool_process_isolation,
+            )
         tool_executor = DeterministicToolExecutor(
             registry=tool_registry,
             policy=policy_middleware,
+            execution_adapter=execution_adapter,
+            enable_hosted_runtime=(
+                self._settings.runtime.enable_hosted_tool_runtime
+                or self._settings.runtime.enable_byoc_tool_runtime
+            ),
         )
         agent_registry = AgentRegistry()
         session_store: SessionStore = self._session_store or InMemorySessionStore()
