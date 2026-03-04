@@ -37,6 +37,7 @@ from src.persistence.contracts import PersistedAgentRecord, PersistedProviderRec
 from src.runtime.adapter_factory import load_adapter
 from src.schemas.tool_io import RiskTier
 from src.tools.registry import ToolDescriptor
+from src.tools.version_projection import descriptor_from_tool_version
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -144,6 +145,7 @@ async def hydrate_tenant_registries(app: "FastAPI") -> None:
     Called once at app startup. Safe to call when stores are None (no-op).
     """
     tool_store = getattr(app.state, "tool_store", None)
+    tool_version_store = getattr(app.state, "tool_version_store", None)
     agent_store = getattr(app.state, "agent_store", None)
     factory = getattr(app.state, "tenant_factory", None)
 
@@ -154,6 +156,8 @@ async def hydrate_tenant_registries(app: "FastAPI") -> None:
     tenant_ids: set[str] = set()
     if tool_store is not None:
         tenant_ids.update(await tool_store.list_tenant_ids())
+    if tool_version_store is not None:
+        tenant_ids.update(await tool_version_store.list_tenant_ids())
     if agent_store is not None:
         tenant_ids.update(await agent_store.list_tenant_ids())
 
@@ -173,6 +177,26 @@ async def hydrate_tenant_registries(app: "FastAPI") -> None:
                 hydrated_tools += 1
             if hydrated_tools:
                 logger.info("Hydrated %d tool(s) for tenant %r", hydrated_tools, tenant_id)
+
+        if tool_version_store is not None:
+            active_versions = await tool_version_store.list_active_tool_versions(tenant_id)
+            hydrated_active = 0
+            for record in active_versions:
+                try:
+                    descriptor = descriptor_from_tool_version(record)
+                except ValueError as exc:
+                    logger.warning(
+                        "Skipping active tool version %r@%r during hydration: %s",
+                        record.tool_name,
+                        record.version,
+                        exc,
+                    )
+                    continue
+                # Active version projection takes precedence over legacy tool-store descriptors.
+                ctx.tool_registry.register(descriptor)
+                hydrated_active += 1
+            if hydrated_active:
+                logger.info("Hydrated %d active tool version(s) for tenant %r", hydrated_active, tenant_id)
 
         if agent_store is not None:
             agent_records = await agent_store.list_agents(tenant_id)

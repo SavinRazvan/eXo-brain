@@ -59,6 +59,25 @@ export async function listTools() {
   return data.tools || [];
 }
 
+export async function importToolSchema(payload, overrides = {}) {
+  return await api(`/tenants/${getTenantId()}/tools/import-schema`, "POST", {
+    payload,
+    ...overrides,
+  });
+}
+
+export async function uploadToolVersion(body) {
+  return await api(`/tenants/${getTenantId()}/tools/upload`, "POST", body);
+}
+
+export async function validateToolVersion(toolName) {
+  return await api(`/tenants/${getTenantId()}/tools/validate/${encodeURIComponent(toolName)}`);
+}
+
+export async function listToolVersions(toolName) {
+  return await api(`/tenants/${getTenantId()}/tools/versions/${encodeURIComponent(toolName)}`);
+}
+
 export async function listAgents() {
   const data = await api(`/tenants/${getTenantId()}/agents`);
   return data.agents || [];

@@ -122,6 +122,10 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             timeout_ms=timeout_ms,
             correlation_id=str(call.call_id),
             idempotency_key=idempotency_key,
+            tool_version=str(descriptor.metadata.get("tool_version", "")),
+            package_ref=str(descriptor.metadata.get("package_ref", "")),
+            entry_file=str(descriptor.metadata.get("entry_file", "")),
+            entrypoint=str(descriptor.metadata.get("entrypoint", "")),
         )
         self._job_store.enqueue(job)
         self._record_progress(
@@ -217,6 +221,10 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             "lease_token": job.lease_token,
             "lease_expires_at_epoch": job.lease_expires_at_epoch,
             "claim_attempt": job.claim_attempt,
+            "tool_version": job.tool_version,
+            "package_ref": job.package_ref,
+            "entry_file": job.entry_file,
+            "entrypoint": job.entrypoint,
         }
 
     def submit_result(
@@ -438,6 +446,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 "job_id": result.job_id,
                 "idempotency_key": result.idempotency_key,
                 "tenant_id": tenant_id,
+                "tool_version": result.tool_version,
             },
         }
         err = NormalizedError(
@@ -450,6 +459,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 "tenant_id": tenant_id,
                 "job_id": result.job_id,
                 "idempotency_key": result.idempotency_key,
+                "tool_version": result.tool_version,
             },
         )
         return ToolResult(

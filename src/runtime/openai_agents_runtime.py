@@ -143,6 +143,7 @@ class OpenAIAgentsRuntimeAdapter(RuntimeAdapter):
                     session_id=session_id,
                     agent_id=agent_id,
                     provider_id=self._provider_id,
+                    tenant_id=str(session_meta.get("tenant_id", "default")),
                 )
 
                 agent = Agent(

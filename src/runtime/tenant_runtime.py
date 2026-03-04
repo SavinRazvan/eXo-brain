@@ -200,6 +200,7 @@ class TenantRuntimeFactory:
                 "instructions": spec.instructions,
                 "agent_id": spec.agent_id,
                 "model": spec.metadata.get("model", "gpt-4o-mini"),
+                "tenant_id": tenant_context.tenant_id,
             },
         )
         try:

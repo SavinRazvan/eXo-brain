@@ -26,6 +26,9 @@ for Slice 2 and Slice 3).
 
 ## Current State Snapshot
 
+> Clarification: the "What is already built" and "What is missing" tables below are historical planning snapshots captured before slice execution. Current completion status is tracked by the status header and the project trackers in `.cursor/research-for-refactor/12-bootstrap-checklist.md` and `.cursor/research-for-refactor/06-mvp-build-sequence.md`.
+> Canonical current-state + pending gap-closure priority order is maintained in `docs/plans/tenant-tool-execution-architecture.md` under `Canonical Current State (single source)`.
+
 ### What is already built and reusable
 
 | Component | File | Status |
@@ -455,3 +458,20 @@ Slice 3 depends on Slices 0 and 2 being done (stable data + provider registratio
 | D6 | `Authorization: Bearer` takes precedence over `X-Identity` when both present | **Locked** |
 | D7 | Provider delete blocks with 409 if active sessions exist; graceful drain deferred | **Locked** |
 | D8 | UI dashboard is single-tenant per session; tenant ID typed in top bar | **Locked** |
+
+---
+
+## Clarifications Added Post-Delivery
+
+| # | Clarification | Status |
+|---|---|---|
+| C1 | Tenant-scoped APIs are tenant-isolated by default; cross-tenant access requires explicit role-gated policy and audit coverage. | **Locked** |
+| C2 | `tools/upload` style flows are intended to end in executable active versions, not metadata-only records. | **Locked** |
+| C3 | Legacy `handler_ref` path remains compatibility-only for internal/dev usage until import-first executable flow is fully finalized. | **Locked** |
+
+### Follow-up priority notes
+
+1. P0: enforce tenant identity/path boundary on tenant-scoped API routes (+ tests).
+2. P0: bind active uploaded tool versions to real runtime execution selection.
+3. P1: finish import-first Tool Manager UX around import/upload/validate/version.
+4. P2: keep one canonical current-state section across plan docs and trackers.

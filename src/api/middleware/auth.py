@@ -23,7 +23,7 @@ import hashlib
 import json
 from typing import Any
 
-from fastapi import Request
+from starlette.requests import HTTPConnection
 
 from src.identity.contracts import IdentityContext, TokenValidationState
 from src.identity.resolver import resolve_identity
@@ -37,7 +37,7 @@ def _hash_key(raw_key: str) -> str:
     return hashlib.sha256(raw_key.encode()).hexdigest()
 
 
-async def _resolve_from_api_key(raw_key: str, request: Request) -> IdentityContext | None:
+async def _resolve_from_api_key(raw_key: str, request: HTTPConnection) -> IdentityContext | None:
     """Look up raw_key in the ApiKeyStore and return an IdentityContext, or None."""
     from src.persistence.contracts import ApiKeyStore
 
@@ -56,7 +56,7 @@ async def _resolve_from_api_key(raw_key: str, request: Request) -> IdentityConte
     )
 
 
-def _resolve_from_jwt(token: str, request: Request) -> IdentityContext | None:
+def _resolve_from_jwt(token: str, request: HTTPConnection) -> IdentityContext | None:
     """Try to decode token as a JWT using configured AuthSettings."""
     settings = getattr(request.app.state, "settings", None)
     if settings is None:
@@ -72,7 +72,7 @@ def _resolve_from_jwt(token: str, request: Request) -> IdentityContext | None:
     return decode_jwt(token, secret=auth_cfg.jwt_secret, algorithm=auth_cfg.algorithm)
 
 
-async def extract_identity(request: Request) -> IdentityContext | None:
+async def extract_identity(request: HTTPConnection) -> IdentityContext | None:
     """Resolve IdentityContext from the request.
 
     Precedence:

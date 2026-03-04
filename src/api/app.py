@@ -21,8 +21,10 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.params import Depends
 
 from src.api.bootstrap import bootstrap
+from src.api.dependencies import require_tenant_scope_identity
 from src.config.provider_registry import (
     AuthConfig,
     EndpointApiType,
@@ -95,6 +97,12 @@ def _default_settings() -> AppSettings:
             jwt_secret=jwt_secret,
             jwks_url=jwks_url,
             algorithm=jwt_alg,
+            allow_cross_tenant_admin=_env_bool("EXO_ALLOW_CROSS_TENANT_ADMIN", default=False),
+            cross_tenant_admin_roles=[
+                item.strip()
+                for item in os.environ.get("EXO_CROSS_TENANT_ADMIN_ROLES", "super_admin").split(",")
+                if item.strip()
+            ],
         ),
         limits=LimitsSettings(
             max_parallel_jobs=int(os.environ.get("EXO_MAX_PARALLEL_JOBS", "20")),
@@ -186,8 +194,9 @@ def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
     from src.api.routers.tools import router as tools_router
     from src.api.routers.agents import router as agents_router
 
-    app.include_router(tools_router, prefix="/tenants")
-    app.include_router(agents_router, prefix="/tenants")
+    tenant_scope = [Depends(require_tenant_scope_identity)]
+    app.include_router(tools_router, prefix="/tenants", dependencies=tenant_scope)
+    app.include_router(agents_router, prefix="/tenants", dependencies=tenant_scope)
 
     # Slice 3 — Adapter Playground (sessions, turns, providers)
     from src.api.routers.sessions import router as sessions_router
@@ -196,16 +205,16 @@ def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
     from src.api.routers.runtime_control import router as runtime_control_router
     from src.api.routers.audit import router as audit_router
 
-    app.include_router(sessions_router, prefix="/tenants")
+    app.include_router(sessions_router, prefix="/tenants", dependencies=tenant_scope)
     app.include_router(turns_router, prefix="/tenants")
     app.include_router(providers_router)
-    app.include_router(runtime_control_router, prefix="/tenants")
-    app.include_router(audit_router, prefix="/tenants")
+    app.include_router(runtime_control_router, prefix="/tenants", dependencies=tenant_scope)
+    app.include_router(audit_router, prefix="/tenants", dependencies=tenant_scope)
 
     # Slice 4 — Tenant Policy & Quota Management
     from src.api.routers.tenants import router as tenants_router
 
-    app.include_router(tenants_router, prefix="/tenants")
+    app.include_router(tenants_router, prefix="/tenants", dependencies=tenant_scope)
 
     # Slice 1 — Auth Hardening (API key management)
     from src.api.routers.admin_keys import router as admin_keys_router

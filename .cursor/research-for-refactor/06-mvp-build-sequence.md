@@ -55,6 +55,10 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Tenant Tool Execution — Slice 6.2 audit export artifacts + retention controls | Implemented | Added tenant audit export bundle endpoint with tamper-evident chain validation and retention cleanup endpoint with configurable audit record caps. |
 | Tenant Tool Execution — Slice 6.3 signed audit evidence + export-file verification workflow | Implemented | Added signed audit bundle generation/verification, export-to-file workflow, and admin verification endpoint for signature+chain validation over file or inline bundle payloads. |
 | Tenant Tool Execution — Slice 6.4 audit signing operationalization (key rotation + signature versioning) | Implemented | Added active signing key version selection, versioned signing keyring config, and backward-compatible verification for both versioned and legacy unsigned-version bundles. |
+| Tenant Tool Execution — Post 6.4 P0/P1/P2 gap closure track | Pending | Next priorities: (P0) tenant identity/path boundary enforcement, (P0) active uploaded-version runtime wiring, (P1) import-first Tool Manager completion, (P2) canonical plan/doc synchronization cleanup. |
+
+Canonical reference for current status and pending order:
+- `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
 
 ## Week 1: Core Runtime Skeleton
 

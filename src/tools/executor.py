@@ -75,8 +75,19 @@ class DeterministicToolExecutor:
         started = _utc_now()
         try:
             descriptor = self._registry.resolve(call.tool_name)
+            runtime_projection = {
+                "tool_version": str(descriptor.metadata.get("tool_version", "")),
+                "package_ref": str(descriptor.metadata.get("package_ref", "")),
+                "handler_ref": str(descriptor.metadata.get("handler_ref", "")),
+            }
+            runtime_projection = {key: value for key, value in runtime_projection.items() if value}
             if self._enable_hosted_runtime and self._execution_adapter is not None:
                 result = self._execution_adapter.execute(call=call, descriptor=descriptor)
+                if runtime_projection and isinstance(result.result, dict):
+                    runtime_payload = result.result.setdefault("runtime", {})
+                    if isinstance(runtime_payload, dict):
+                        for key, value in runtime_projection.items():
+                            runtime_payload.setdefault(key, value)
                 if self._metrics is not None and result.status == ToolStatus.SUCCESS:
                     self._metrics.inc("tool.call.success")
                 postchecked = self._policy.after_tool_call(result)
@@ -95,12 +106,15 @@ class DeterministicToolExecutor:
                 event_prefix=f"tool.{call.tool_name}",
             )
             output = handler(**call.arguments)
+            result_payload: dict[str, Any] = {"value": output}
+            if runtime_projection:
+                result_payload["runtime"] = runtime_projection
             result = ToolResult(
                 schema_version="1.0",
                 call_id=call.call_id,
                 tool_name=call.tool_name,
                 status=ToolStatus.SUCCESS,
-                result={"value": output},
+                result=result_payload,
                 execution=ExecutionMetadata(
                     mode_used=ToolExecutionMode.DETERMINISTIC,
                     started_at_utc=started,
