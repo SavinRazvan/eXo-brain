@@ -55,10 +55,19 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Tenant Tool Execution — Slice 6.2 audit export artifacts + retention controls | Implemented | Added tenant audit export bundle endpoint with tamper-evident chain validation and retention cleanup endpoint with configurable audit record caps. |
 | Tenant Tool Execution — Slice 6.3 signed audit evidence + export-file verification workflow | Implemented | Added signed audit bundle generation/verification, export-to-file workflow, and admin verification endpoint for signature+chain validation over file or inline bundle payloads. |
 | Tenant Tool Execution — Slice 6.4 audit signing operationalization (key rotation + signature versioning) | Implemented | Added active signing key version selection, versioned signing keyring config, and backward-compatible verification for both versioned and legacy unsigned-version bundles. |
-| Tenant Tool Execution — Post 6.4 P0/P1/P2 gap closure track | Pending | Next priorities: (P0) tenant identity/path boundary enforcement, (P0) active uploaded-version runtime wiring, (P1) import-first Tool Manager completion, (P2) canonical plan/doc synchronization cleanup. |
+| Tenant Tool Execution — Post 6.4 P0/P1/P2 gap closure track | Implemented | Completed `T1`-`T4`: tenant boundary enforcement, active uploaded-version runtime wiring, import-first Tool Manager baseline, and canonical docs synchronization. |
+| Tenant Tool Execution — N1/N2/N3 follow-through | Implemented | Completed Tool Manager bundle upload UX + integrity visibility (N1), BYOC artifact-integrity parity (N2), and rollout/ops hardening with profile defaults + dashboard/runbook baselines + evidence linkage (N3). |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
+
+Hosted external beta evidence references:
+- `src/config/settings.py`
+- `src/api/app.py`
+- `tests/modules/api/test_deployment_profile_defaults.py`
+- `docs/operations/byoc-artifact-integrity-dashboard.md`
+- `.cursor/research-for-refactor/18-enterprise-operational-runbooks.md`
+- `.cursor/research-for-refactor/26-deployment-profiles-matrix.md`
 
 ## Week 1: Core Runtime Skeleton
 
