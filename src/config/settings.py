@@ -86,6 +86,8 @@ class LimitsSettings:
     max_turn_requests_per_minute_per_tenant: int = 120
     max_tool_uploads_per_minute_per_tenant: int = 30
     max_tool_upload_size_bytes: int = 5_000_000
+    tool_artifact_directory: str = ".exo_data/tool_artifacts"
+    tool_artifact_signing_secret: str = "exo-tool-artifact-dev-secret"
     allowed_tool_dependency_prefixes: list[str] = field(default_factory=list)
     max_audit_records_per_tenant: int = 10_000
     max_audit_export_records: int = 2_000

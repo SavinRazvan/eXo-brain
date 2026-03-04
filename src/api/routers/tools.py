@@ -64,6 +64,19 @@ from src.tools.user_tool_contracts import (
     schema_fingerprint,
 )
 from src.tools.version_projection import descriptor_from_tool_version
+from src.tools.version_projection import INLINE_HANDLER_SOURCE_METADATA_KEY, validate_inline_handler_source
+from src.tools.artifact_store import (
+    ARTIFACT_BUNDLE_DIR_METADATA_KEY,
+    ARTIFACT_BUNDLE_HASH_METADATA_KEY,
+    ARTIFACT_BUNDLE_SIGNATURE_METADATA_KEY,
+    ARTIFACT_HANDLER_PATH_METADATA_KEY,
+    ARTIFACT_MANIFEST_PATH_METADATA_KEY,
+    ARTIFACT_SIGNATURE_VERSION_METADATA_KEY,
+    DEFAULT_ARTIFACT_SIGNATURE_VERSION,
+    compute_bundle_hash,
+    render_tool_yaml,
+    sign_bundle_hash,
+)
 
 router = APIRouter(tags=["tools"])
 
@@ -123,7 +136,11 @@ def _to_validation_response(record: ToolVersionRecord) -> ToolValidationResponse
     )
 
 
-def _validation_for_manifest(manifest: ToolPackageManifest) -> ToolValidationResult:
+def _validation_for_manifest(
+    manifest: ToolPackageManifest,
+    *,
+    inline_handler_source: str = "",
+) -> ToolValidationResult:
     errors: list[str] = []
     warnings: list[str] = []
     if not manifest.tool_name.strip():
@@ -136,6 +153,14 @@ def _validation_for_manifest(manifest: ToolPackageManifest) -> ToolValidationRes
         errors.append("entrypoint is required")
     if not isinstance(manifest.input_schema, dict):
         errors.append("input_schema must be an object")
+    inline_source = inline_handler_source.strip() or str(
+        (manifest.metadata or {}).get(INLINE_HANDLER_SOURCE_METADATA_KEY, "")
+    ).strip()
+    if inline_source:
+        try:
+            validate_inline_handler_source(inline_source, manifest.entrypoint)
+        except ValueError as exc:
+            errors.append(str(exc))
     try:
         limits = parse_sandbox_limits(manifest.metadata)
         if limits is None:
@@ -165,6 +190,7 @@ async def _sync_active_tool_descriptor(
     tool_name: str,
     ctx: TenantRuntimeContext,
     tool_version_store: ToolVersionStore,
+    artifact_signing_secret: str,
 ) -> None:
     active = await tool_version_store.get_active_tool_version(tenant_id, tool_name)
     if active is None:
@@ -173,7 +199,7 @@ async def _sync_active_tool_descriptor(
         except KeyError:
             pass
         return
-    descriptor = descriptor_from_tool_version(active)
+    descriptor = descriptor_from_tool_version(active, artifact_signing_secret=artifact_signing_secret)
     ctx.tool_registry.register(descriptor)
 
 
@@ -294,7 +320,6 @@ async def upload_tool_package(
     except ValueError:
         # Keep raw metadata so _validation_for_manifest can record deterministic error details.
         normalized_metadata = body.manifest.metadata
-
     manifest = ToolPackageManifest(
         tool_name=body.manifest.tool_name,
         version=body.manifest.version,
@@ -307,13 +332,52 @@ async def upload_tool_package(
         requirements=body.manifest.requirements,
         metadata=normalized_metadata,
     )
+    provided_handler_source = ""
+    provided_tool_yaml = ""
+    if body.package_bundle is not None:
+        provided_handler_source = body.package_bundle.handler_py.strip()
+        provided_tool_yaml = body.package_bundle.tool_yaml.strip()
+    if not provided_handler_source:
+        provided_handler_source = body.inline_handler_source.strip()
+    if provided_handler_source:
+        artifact_store = getattr(request.app.state, "tool_artifact_store", None)
+        if artifact_store is None:
+            raise HTTPException(status_code=503, detail="Tool artifact store is not configured.")
+        rendered_tool_yaml = provided_tool_yaml or render_tool_yaml(manifest)
+        persisted = artifact_store.persist_bundle(
+            tenant_id=tenant_id,
+            tool_name=manifest.tool_name,
+            version=manifest.version,
+            tool_yaml=rendered_tool_yaml,
+            handler_py=provided_handler_source,
+        )
+        manifest.metadata = dict(manifest.metadata or {})
+        manifest.metadata[ARTIFACT_BUNDLE_DIR_METADATA_KEY] = persisted.bundle_dir
+        manifest.metadata[ARTIFACT_MANIFEST_PATH_METADATA_KEY] = persisted.manifest_path
+        manifest.metadata[ARTIFACT_HANDLER_PATH_METADATA_KEY] = persisted.handler_path
+        signing_secret = str(request.app.state.settings.limits.tool_artifact_signing_secret or "").strip()
+        signature_version = DEFAULT_ARTIFACT_SIGNATURE_VERSION
+        bundle_hash = compute_bundle_hash(rendered_tool_yaml, provided_handler_source)
+        try:
+            bundle_signature = sign_bundle_hash(bundle_hash, signing_secret, signature_version)
+        except ValueError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        manifest.metadata[ARTIFACT_BUNDLE_HASH_METADATA_KEY] = bundle_hash
+        manifest.metadata[ARTIFACT_BUNDLE_SIGNATURE_METADATA_KEY] = bundle_signature
+        manifest.metadata[ARTIFACT_SIGNATURE_VERSION_METADATA_KEY] = signature_version
+    computed_artifact_size_bytes = body.artifact_size_bytes
+    if computed_artifact_size_bytes <= 0 and provided_handler_source:
+        computed_artifact_size_bytes = len(provided_handler_source.encode("utf-8"))
     policy_decision = validate_tool_package_upload(
         manifest=manifest,
         package_ref=body.package_ref,
-        artifact_size_bytes=body.artifact_size_bytes,
+        artifact_size_bytes=computed_artifact_size_bytes,
         limits=request.app.state.settings.limits,
     )
-    validation = _validation_for_manifest(manifest)
+    validation = _validation_for_manifest(
+        manifest,
+        inline_handler_source=provided_handler_source,
+    )
     validation.errors.extend(policy_decision.errors)
     validation.warnings.extend(policy_decision.warnings)
     if validation.errors:
@@ -347,7 +411,10 @@ async def upload_tool_package(
         if validation.state == ToolValidationState.INVALID:
             return _to_validation_response(record)
         try:
-            descriptor_from_tool_version(record)
+            descriptor_from_tool_version(
+                record,
+                artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         await tool_version_store.set_active_tool_version(tenant_id, manifest.tool_name, manifest.version)
@@ -356,6 +423,7 @@ async def upload_tool_package(
             tool_name=manifest.tool_name,
             ctx=ctx,
             tool_version_store=tool_version_store,
+            artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
         )
         active_record = await tool_version_store.get_tool_version(tenant_id, manifest.tool_name, manifest.version)
         if active_record is not None:
@@ -459,6 +527,7 @@ async def deactivate_tool_version(
         tool_name=tool_name,
         ctx=ctx,
         tool_version_store=tool_version_store,
+        artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
     )
     pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
     if pipeline is not None:
@@ -505,7 +574,10 @@ async def rollback_tool_version(
             detail=f"Target rollback version '{body.target_version}' is invalid and cannot be activated.",
         )
     try:
-        descriptor_from_tool_version(target)
+        descriptor_from_tool_version(
+            target,
+            artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await tool_version_store.set_active_tool_version(tenant_id, tool_name, body.target_version)
@@ -514,6 +586,7 @@ async def rollback_tool_version(
         tool_name=tool_name,
         ctx=ctx,
         tool_version_store=tool_version_store,
+        artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
     )
     pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
     if pipeline is not None:
@@ -565,6 +638,7 @@ async def revoke_tool_package_version(
         tool_name=tool_name,
         ctx=ctx,
         tool_version_store=tool_version_store,
+        artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
     )
     pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
     if pipeline is not None:
