@@ -70,6 +70,7 @@ Notes:
 - Regression coverage for profile behavior:
   - `tests/modules/api/test_deployment_profile_defaults.py`
 - Operations hardening artifacts:
+  - `docs/operations/release-candidate-signoff-checklist.md`
   - `docs/operations/byoc-artifact-integrity-dashboard.md`
   - `.cursor/research-for-refactor/18-enterprise-operational-runbooks.md`
   - `docs/plans/tenant-tool-execution-architecture.md`
