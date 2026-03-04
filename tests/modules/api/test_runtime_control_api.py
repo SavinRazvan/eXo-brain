@@ -18,7 +18,7 @@ import json
 from fastapi.testclient import TestClient
 
 from src.api.bootstrap import build_test_app
-from src.config.settings import AppSettings, RuntimeSettings
+from src.config.settings import AppSettings, AuthSettings, RuntimeSettings
 
 
 def _headers(tenant_id: str = "t1") -> dict[str, str]:
@@ -159,3 +159,37 @@ def test_runtime_run_get_returns_404_for_unknown_run() -> None:
     client = _hosted_control_client()
     resp = client.get("/tenants/t1/admin/runtime/runs/run_missing", headers=_headers("t1"))
     assert resp.status_code == 404
+
+
+def test_cross_tenant_admin_runtime_route_allows_configured_super_admin_bypass() -> None:
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+            enable_hosted_tool_runtime=True,
+        ),
+        auth=AuthSettings(
+            allow_cross_tenant_admin=True,
+            cross_tenant_admin_roles=["super_admin"],
+        ),
+    )
+    app = build_test_app(settings=settings)
+    client = TestClient(app)
+    resp = client.get(
+        "/tenants/t2/admin/runtime/control-stats",
+        headers={
+            "X-Identity": json.dumps(
+                {
+                    "subject": "sa@test.com",
+                    "roles": ["super_admin"],
+                    "tenant_id": "t1",
+                    "token_validation_state": "valid",
+                }
+            )
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["tenant_id"] == "t2"

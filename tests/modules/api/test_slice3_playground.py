@@ -353,7 +353,7 @@ def test_websocket_rejects_unknown_session() -> None:
 
     # When the server closes without accepting (code 4404), the TestClient raises on __enter__
     try:
-        with client.websocket_connect(f"/tenants/{tid}/sessions/sess_ghost/ws") as ws:
+        with client.websocket_connect(f"/tenants/{tid}/sessions/sess_ghost/ws", headers=_headers(tid)) as ws:
             # If somehow connected, the first receive should fail or be a close frame
             ws.receive_text()
     except Exception:
@@ -367,7 +367,7 @@ def test_websocket_accepts_valid_session() -> None:
     _register_agent(client, tid)
     session_id = _create_session(client, tid)
 
-    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws") as ws:
+    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws", headers=_headers(tid)) as ws:
         ws.send_json({"type": "turn", "input": "hello from ws"})
         events = []
         while True:
@@ -381,6 +381,20 @@ def test_websocket_accepts_valid_session() -> None:
 
     event_types = [e.get("event") for e in events]
     assert "run_complete" in event_types or len(events) > 0
+
+
+def test_websocket_rejects_cross_tenant_identity() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    tid = "ws-scope-tenant"
+    _register_agent(client, tid)
+    session_id = _create_session(client, tid)
+    with pytest.raises(Exception):
+        with client.websocket_connect(
+            f"/tenants/{tid}/sessions/{session_id}/ws",
+            headers=_headers("different-tenant"),
+        ):
+            pass
 
 
 def test_websocket_turn_emits_tool_progress_state_transitions(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -425,7 +439,7 @@ def test_websocket_turn_emits_tool_progress_state_transitions(monkeypatch: pytes
 
     monkeypatch.setattr(turns_router_module, "_stream_turn", _fake_stream_turn)
 
-    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws") as ws:
+    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws", headers=_headers(tid)) as ws:
         ws.send_json({"type": "turn", "input": "trigger", "run_id": "run_ws_progress"})
         states: list[str] = []
         while True:
@@ -466,7 +480,7 @@ def test_websocket_forced_disconnect_marks_terminal_cancelled(monkeypatch: pytes
 
     monkeypatch.setattr(turns_router_module, "_stream_turn", _fake_stream_turn)
 
-    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws") as ws:
+    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws", headers=_headers(tid)) as ws:
         ws.send_json({"type": "turn", "input": "disconnect-race", "run_id": "run_disconnect_1"})
         first = ws.receive_json()
         assert first.get("event") == "tool_progress"
@@ -493,7 +507,7 @@ def test_websocket_late_cancel_does_not_override_completed_terminal(monkeypatch:
 
     monkeypatch.setattr(turns_router_module, "_stream_turn", _fake_stream_turn)
 
-    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws") as ws:
+    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws", headers=_headers(tid)) as ws:
         ws.send_json({"type": "turn", "input": "complete-fast", "run_id": "run_late_cancel_1"})
         done = ws.receive_json()
         assert done.get("event") == "run_complete"
@@ -514,7 +528,7 @@ def test_websocket_returns_error_for_invalid_json() -> None:
     _register_agent(client, tid)
     session_id = _create_session(client, tid)
 
-    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws") as ws:
+    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws", headers=_headers(tid)) as ws:
         ws.send_text("not-valid-json")
         msg = ws.receive_json()
         assert msg.get("event") == "error"
@@ -528,7 +542,7 @@ def test_websocket_returns_error_for_unknown_message_type() -> None:
     _register_agent(client, tid)
     session_id = _create_session(client, tid)
 
-    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws") as ws:
+    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws", headers=_headers(tid)) as ws:
         ws.send_json({"type": "unknown_type"})
         msg = ws.receive_json()
         assert msg.get("event") == "error"
@@ -542,7 +556,7 @@ def test_websocket_cancel_emits_run_cancelled_event() -> None:
     _register_agent(client, tid)
     session_id = _create_session(client, tid)
 
-    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws") as ws:
+    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws", headers=_headers(tid)) as ws:
         ws.send_json({"type": "cancel", "run_id": "run_abc123"})
         msg = ws.receive_json()
         assert msg.get("event") == "run_cancelled"
@@ -637,7 +651,7 @@ def test_websocket_cancel_forwards_tool_call_ids_to_runtime_adapter(monkeypatch:
 
     monkeypatch.setattr(turns_router_module, "_stream_turn", _fake_stream_turn)
 
-    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws") as ws:
+    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws", headers=_headers(tid)) as ws:
         ws.send_json({"type": "turn", "input": "trigger tool", "run_id": "run_forward_1"})
         first = ws.receive_json()
         assert first.get("event") == "tool_call"
@@ -697,7 +711,7 @@ def test_websocket_cancel_forwards_call_id_seen_from_tool_progress(monkeypatch: 
 
     monkeypatch.setattr(turns_router_module, "_stream_turn", _fake_stream_turn)
 
-    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws") as ws:
+    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws", headers=_headers(tid)) as ws:
         ws.send_json({"type": "turn", "input": "trigger tool", "run_id": "run_progress_1"})
         first = ws.receive_json()
         assert first.get("event") == "tool_progress"
@@ -828,7 +842,7 @@ def test_websocket_turn_returns_error_when_rate_limited(monkeypatch: pytest.Monk
     from src.api.routers import turns as turns_router_module
 
     monkeypatch.setattr(turns_router_module, "_stream_turn", _fake_stream_turn)
-    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws") as ws:
+    with client.websocket_connect(f"/tenants/{tid}/sessions/{session_id}/ws", headers=_headers(tid)) as ws:
         ws.send_json({"type": "turn", "input": "first", "run_id": "run_ws_rate_1"})
         first = ws.receive_json()
         assert first.get("event") == "run_complete"
