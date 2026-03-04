@@ -62,8 +62,10 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 INSERT OR IGNORE INTO byoc_jobs (
                     job_id, tenant_id, run_id, call_id, tool_name, arguments_json, timeout_ms,
                     correlation_id, idempotency_key, status, leased_by_worker_id, lease_token,
-                    lease_expires_at_epoch, claim_attempt, completed_at_epoch, cancelled_at_epoch
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', '', '', 0, 0, 0, 0)
+                    lease_expires_at_epoch, claim_attempt, completed_at_epoch, cancelled_at_epoch,
+                    tool_version, package_ref, entry_file, entrypoint,
+                    artifact_bundle_hash_sha256, artifact_bundle_signature_hmac_sha256, artifact_signature_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', '', '', 0, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job.job_id,
@@ -75,6 +77,13 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                     int(job.timeout_ms),
                     job.correlation_id,
                     job.idempotency_key,
+                    job.tool_version,
+                    job.package_ref,
+                    job.entry_file,
+                    job.entrypoint,
+                    job.artifact_bundle_hash_sha256,
+                    job.artifact_bundle_signature_hmac_sha256,
+                    job.artifact_signature_version,
                 ),
             )
             conn.commit()
@@ -88,7 +97,9 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
             row = conn.execute(
                 """
                 SELECT job_id, tenant_id, run_id, call_id, tool_name, arguments_json, timeout_ms,
-                       correlation_id, idempotency_key, claim_attempt
+                       correlation_id, idempotency_key, claim_attempt,
+                       tool_version, package_ref, entry_file, entrypoint,
+                       artifact_bundle_hash_sha256, artifact_bundle_signature_hmac_sha256, artifact_signature_version
                 FROM byoc_jobs
                 WHERE tenant_id = ? AND status = 'queued'
                 ORDER BY rowid ASC
@@ -127,6 +138,13 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 lease_token=lease_token,
                 lease_expires_at_epoch=int(lease_expires),
                 claim_attempt=claim_attempt,
+                tool_version=str(row[10]),
+                package_ref=str(row[11]),
+                entry_file=str(row[12]),
+                entrypoint=str(row[13]),
+                artifact_bundle_hash_sha256=str(row[14]),
+                artifact_bundle_signature_hmac_sha256=str(row[15]),
+                artifact_signature_version=str(row[16]),
             )
             return JobLeaseClaim(job=envelope)
 
@@ -158,6 +176,56 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
             )
             conn.commit()
             return True
+
+    def get_leased_job(self, *, job_id: str, lease_token: str) -> ByocToolJobEnvelope | None:
+        with self._lock:
+            conn = self._connect()
+            now = time.time()
+            row = conn.execute(
+                """
+                SELECT job_id, tenant_id, run_id, call_id, tool_name, arguments_json, timeout_ms,
+                       correlation_id, idempotency_key, claim_attempt,
+                       lease_token, lease_expires_at_epoch, status,
+                       tool_version, package_ref, entry_file, entrypoint,
+                       artifact_bundle_hash_sha256, artifact_bundle_signature_hmac_sha256, artifact_signature_version
+                FROM byoc_jobs
+                WHERE job_id = ?
+                """,
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            active_lease_token = str(row[10])
+            lease_expires = float(row[11])
+            status = str(row[12])
+            if status != "leased":
+                return None
+            if lease_expires <= now:
+                self._requeue_expired_leases_unlocked(now)
+                return None
+            if active_lease_token != str(lease_token):
+                return None
+            return ByocToolJobEnvelope(
+                job_id=str(row[0]),
+                tenant_id=str(row[1]),
+                run_id=str(row[2]),
+                call_id=str(row[3]),
+                tool_name=str(row[4]),
+                arguments=json.loads(str(row[5])),
+                timeout_ms=int(row[6]),
+                correlation_id=str(row[7]),
+                idempotency_key=str(row[8]),
+                claim_attempt=int(row[9]),
+                lease_token=active_lease_token,
+                lease_expires_at_epoch=int(lease_expires),
+                tool_version=str(row[13]),
+                package_ref=str(row[14]),
+                entry_file=str(row[15]),
+                entrypoint=str(row[16]),
+                artifact_bundle_hash_sha256=str(row[17]),
+                artifact_bundle_signature_hmac_sha256=str(row[18]),
+                artifact_signature_version=str(row[19]),
+            )
 
     def requeue_expired_leases(self) -> int:
         with self._lock:
@@ -337,7 +405,14 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                     lease_expires_at_epoch REAL NOT NULL DEFAULT 0,
                     claim_attempt INTEGER NOT NULL DEFAULT 0,
                     completed_at_epoch REAL NOT NULL DEFAULT 0,
-                    cancelled_at_epoch REAL NOT NULL DEFAULT 0
+                    cancelled_at_epoch REAL NOT NULL DEFAULT 0,
+                    tool_version TEXT NOT NULL DEFAULT '',
+                    package_ref TEXT NOT NULL DEFAULT '',
+                    entry_file TEXT NOT NULL DEFAULT '',
+                    entrypoint TEXT NOT NULL DEFAULT '',
+                    artifact_bundle_hash_sha256 TEXT NOT NULL DEFAULT '',
+                    artifact_bundle_signature_hmac_sha256 TEXT NOT NULL DEFAULT '',
+                    artifact_signature_version TEXT NOT NULL DEFAULT ''
                 )
                 """
             )
@@ -345,6 +420,26 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 conn.execute("ALTER TABLE byoc_jobs ADD COLUMN completed_at_epoch REAL NOT NULL DEFAULT 0")
             if not self._has_column(conn, "byoc_jobs", "cancelled_at_epoch"):
                 conn.execute("ALTER TABLE byoc_jobs ADD COLUMN cancelled_at_epoch REAL NOT NULL DEFAULT 0")
+            if not self._has_column(conn, "byoc_jobs", "tool_version"):
+                conn.execute("ALTER TABLE byoc_jobs ADD COLUMN tool_version TEXT NOT NULL DEFAULT ''")
+            if not self._has_column(conn, "byoc_jobs", "package_ref"):
+                conn.execute("ALTER TABLE byoc_jobs ADD COLUMN package_ref TEXT NOT NULL DEFAULT ''")
+            if not self._has_column(conn, "byoc_jobs", "entry_file"):
+                conn.execute("ALTER TABLE byoc_jobs ADD COLUMN entry_file TEXT NOT NULL DEFAULT ''")
+            if not self._has_column(conn, "byoc_jobs", "entrypoint"):
+                conn.execute("ALTER TABLE byoc_jobs ADD COLUMN entrypoint TEXT NOT NULL DEFAULT ''")
+            if not self._has_column(conn, "byoc_jobs", "artifact_bundle_hash_sha256"):
+                conn.execute(
+                    "ALTER TABLE byoc_jobs ADD COLUMN artifact_bundle_hash_sha256 TEXT NOT NULL DEFAULT ''"
+                )
+            if not self._has_column(conn, "byoc_jobs", "artifact_bundle_signature_hmac_sha256"):
+                conn.execute(
+                    "ALTER TABLE byoc_jobs ADD COLUMN artifact_bundle_signature_hmac_sha256 TEXT NOT NULL DEFAULT ''"
+                )
+            if not self._has_column(conn, "byoc_jobs", "artifact_signature_version"):
+                conn.execute(
+                    "ALTER TABLE byoc_jobs ADD COLUMN artifact_signature_version TEXT NOT NULL DEFAULT ''"
+                )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_byoc_jobs_tenant_status ON byoc_jobs (tenant_id, status)"
             )
@@ -382,6 +477,10 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
             "retryable": result.retryable,
             "idempotency_key": result.idempotency_key,
             "lease_token": result.lease_token,
+            "tool_version": result.tool_version,
+            "artifact_bundle_hash_sha256": result.artifact_bundle_hash_sha256,
+            "artifact_bundle_signature_hmac_sha256": result.artifact_bundle_signature_hmac_sha256,
+            "artifact_signature_version": result.artifact_signature_version,
         }
         now = time.time()
         with self._lock:
@@ -453,7 +552,23 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
             retryable=bool(data.get("retryable", False)),
             idempotency_key=str(data.get("idempotency_key", "")),
             lease_token=str(data.get("lease_token", "")),
+            tool_version=str(data.get("tool_version", "")),
+            artifact_bundle_hash_sha256=str(data.get("artifact_bundle_hash_sha256", "")),
+            artifact_bundle_signature_hmac_sha256=str(data.get("artifact_bundle_signature_hmac_sha256", "")),
+            artifact_signature_version=str(data.get("artifact_signature_version", "")),
         )
+
+    def has_idempotency_key(self, key: str) -> bool:
+        normalized = str(key).strip()
+        if not normalized:
+            return False
+        with self._lock:
+            conn = self._connect()
+            row = conn.execute(
+                "SELECT 1 FROM byoc_result_idempotency WHERE idempotency_key = ? LIMIT 1",
+                (normalized,),
+            ).fetchone()
+        return row is not None
 
     def health_metrics(self, *, tenant_id: str) -> dict[str, int]:
         normalized = str(tenant_id).strip()
