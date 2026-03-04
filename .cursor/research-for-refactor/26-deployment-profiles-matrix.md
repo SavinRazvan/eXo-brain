@@ -48,6 +48,20 @@ Define equivalent deployment profiles for cloud-managed and on-prem/self-hosted 
 - No profile-specific logic inside orchestration core.
 - Profile selection must be environment-driven and observable in startup logs.
 
+### N3 profile defaults (implemented baseline)
+
+`create_app()` now supports `EXO_DEPLOYMENT_PROFILE` with profile-aware defaults:
+
+| Profile | `EXO_TOOL_ARTIFACT_DIRECTORY` default | `EXO_AUDIT_EXPORT_DIRECTORY` default | `EXO_BYOC_STORE_BACKEND` default | `EXO_BYOC_CLEANUP_INTERVAL_SECONDS` default |
+|---|---|---|---|---|
+| `managed_cloud` | `.exo_data/tool_artifacts/managed_cloud` | `.exo_data/audit_exports/managed_cloud` | `sqlite` | `20` |
+| `self_hosted` | `.exo_data/tool_artifacts/self_hosted` | `.exo_data/audit_exports/self_hosted` | `sqlite` | `30` |
+| `hybrid` | `.exo_data/tool_artifacts/hybrid` | `.exo_data/audit_exports/hybrid` | `sqlite` | `25` |
+
+Notes:
+- Explicit environment variables continue to override profile defaults.
+- Existing behavior remains backward compatible when `EXO_DEPLOYMENT_PROFILE` is unset (`managed_cloud`).
+
 ## Validation Matrix (Must Pass for Both Profiles)
 - contract tests (adapters, tools, policies, storage)
 - deterministic replay tests for high-risk workflows
