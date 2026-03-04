@@ -6,8 +6,9 @@
 # Depends On:
 #  - Makefile
 #  - scripts/release/rc_signoff.py
+#  - scripts/release/parse_rc_signoff.py
 # Notes:
-#  - Uploads `.local/rc-signoff.md` even when the gate fails.
+#  - Uploads `.local/rc-signoff.md` and `.local/rc-signoff.json` even when the gate fails.
 
 name: rc-signoff
 
@@ -48,10 +49,16 @@ jobs:
       - name: Run one-command release-candidate signoff
         run: make rc-signoff
 
+      - name: Build normalized RC signoff JSON
+        if: always()
+        run: make rc-signoff-json
+
       - name: Upload RC signoff evidence artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: rc-signoff-evidence
-          path: .local/rc-signoff.md
+          path: |
+            .local/rc-signoff.md
+            .local/rc-signoff.json
           if-no-files-found: error
