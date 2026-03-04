@@ -689,6 +689,8 @@ N3 completion snapshot:
 - Completed: companion tracker synchronization with hosted external beta evidence links.
 
 Hosted external beta evidence links:
+- Unified RC checklist artifact:
+  - `docs/operations/release-candidate-signoff-checklist.md`
 - Profile defaults wiring + tests:
   - `src/config/settings.py`
   - `src/api/app.py`

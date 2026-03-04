@@ -62,6 +62,7 @@ Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
 
 Hosted external beta evidence references:
+- `docs/operations/release-candidate-signoff-checklist.md`
 - `src/config/settings.py`
 - `src/api/app.py`
 - `tests/modules/api/test_deployment_profile_defaults.py`
