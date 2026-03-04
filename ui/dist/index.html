@@ -54,6 +54,10 @@ Notes:
 1) {"name":"...","description":"...","parameters":{...}}
 2) {"type":"function","function":{"name":"...","description":"...","parameters":{...}}}
 3) {"type":"object","properties":{...}}'></textarea>
+          <input id="tool-bundle-yaml-file" type="file" accept=".yaml,.yml,text/yaml,text/plain" />
+          <textarea id="tool-bundle-yaml" placeholder="Optional bundle file: tool.yaml (auto-generated if omitted)"></textarea>
+          <input id="tool-bundle-handler-file" type="file" accept=".py,text/x-python,text/plain" />
+          <textarea id="tool-bundle-handler" placeholder="Optional bundle file: handler.py source"></textarea>
           <button type="submit">Import + Upload + Activate</button>
         </form>
         <ul id="tools-list" class="list"></ul>

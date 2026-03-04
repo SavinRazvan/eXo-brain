@@ -112,3 +112,9 @@ body {
   min-height: 2rem;
   white-space: pre-wrap;
 }
+
+#tool-bundle-yaml,
+#tool-bundle-handler {
+  min-height: 7rem;
+  font-family: monospace;
+}
