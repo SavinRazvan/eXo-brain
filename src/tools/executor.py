@@ -30,6 +30,7 @@ from src.schemas.tool_io import (
     ToolStatus,
     blocked_result,
 )
+from src.tools.execution_adapter import ToolExecutionAdapter
 from src.tools.registry import ToolRegistry
 from src.tools.decorators import AuditSink, apply_execution_decorators
 
@@ -45,11 +46,15 @@ class DeterministicToolExecutor:
         policy: PolicyMiddleware,
         audit_sink: AuditSink | None = None,
         metrics: RuntimeMetrics | None = None,
+        execution_adapter: ToolExecutionAdapter | None = None,
+        enable_hosted_runtime: bool = False,
     ) -> None:
         self._registry = registry
         self._policy = policy
         self._audit_sink = audit_sink
         self._metrics = metrics
+        self._execution_adapter = execution_adapter
+        self._enable_hosted_runtime = enable_hosted_runtime
 
     def execute(self, call: ToolCallContext) -> ToolResult:
         if self._metrics is not None:
@@ -70,6 +75,15 @@ class DeterministicToolExecutor:
         started = _utc_now()
         try:
             descriptor = self._registry.resolve(call.tool_name)
+            if self._enable_hosted_runtime and self._execution_adapter is not None:
+                result = self._execution_adapter.execute(call=call, descriptor=descriptor)
+                if self._metrics is not None and result.status == ToolStatus.SUCCESS:
+                    self._metrics.inc("tool.call.success")
+                postchecked = self._policy.after_tool_call(result)
+                if postchecked.status == ToolStatus.ERROR and self._metrics is not None:
+                    self._metrics.inc("tool.call.failed")
+                    self._metrics.inc("tool.call.postcheck_failed")
+                return postchecked
             handler = apply_execution_decorators(
                 descriptor.handler,
                 required_args=list(descriptor.metadata.get("required_args", [])),
@@ -176,3 +190,9 @@ class DeterministicToolExecutor:
             ),
             audit=ToolAudit(correlation_id=call.call_id),
         )
+
+    def execution_adapter(self) -> ToolExecutionAdapter | None:
+        """Return the configured execution adapter when hosted runtime path is enabled."""
+        if not self._enable_hosted_runtime:
+            return None
+        return self._execution_adapter

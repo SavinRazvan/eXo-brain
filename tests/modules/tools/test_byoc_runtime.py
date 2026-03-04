@@ -1,0 +1,334 @@
+"""
+File: test_byoc_runtime.py
+Path: tests/modules/tools/test_byoc_runtime.py
+Role: Contract tests for BYOC pull-worker runtime skeleton.
+Used By:
+ - pytest
+Depends On:
+ - src/tools/byoc/connector_runtime.py
+ - src/tools/registry.py
+Notes:
+ - Validates queue/claim/submit flow and idempotent result ingestion.
+"""
+
+from __future__ import annotations
+
+import threading
+import time
+
+from src.schemas.tool_io import ToolCallContext, ToolStatus
+from src.tools.byoc.connector_runtime import TenantByocConnectorRuntime
+from src.tools.byoc.job_contracts import ByocResultStatus, ByocToolResultEnvelope
+from src.tools.registry import ToolDescriptor
+
+
+def _call() -> ToolCallContext:
+    return ToolCallContext(
+        schema_version="1.0",
+        call_id="call_byoc_1",
+        session_id="sess_1",
+        run_id="run_1",
+        job_id="job_1",
+        task_id="task_1",
+        agent_id="agent_1",
+        provider_id="openai-test",
+        tool_name="echo_tool",
+        arguments={"value": 42},
+        tenant_id="t1",
+    )
+
+
+def _descriptor() -> ToolDescriptor:
+    return ToolDescriptor(name="echo_tool", handler=lambda value: value, timeout_ms=1500)
+
+
+def _wait_claim(runtime: TenantByocConnectorRuntime, token: str, nonce_prefix: str) -> dict[str, object] | None:
+    deadline = time.time() + 1.5
+    attempt = 0
+    while time.time() < deadline:
+        attempt += 1
+        job = runtime.claim_next_job(
+            tenant_id="t1",
+            worker_token=token,
+            request_nonce=f"{nonce_prefix}-{attempt}",
+        )
+        if job is not None:
+            return job
+        time.sleep(0.02)
+    return None
+
+
+def test_byoc_runtime_enqueue_claim_submit_happy_path() -> None:
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    call = _call()
+    descriptor = _descriptor()
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-1")
+    result_holder: dict[str, object] = {}
+
+    def _execute() -> None:
+        result_holder["result"] = runtime.execute(call, descriptor)
+
+    thread = threading.Thread(target=_execute)
+    thread.start()
+    job = _wait_claim(runtime, token, "nonce-claim-001")
+    assert job is not None
+    assert job["call_id"] == "call_byoc_1"
+    assert job["tool_name"] == "echo_tool"
+
+    outcome = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        result=ByocToolResultEnvelope(
+            job_id=job["job_id"],
+            tenant_id="t1",
+            run_id=job["run_id"],
+            call_id=job["call_id"],
+            tool_name=job["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 42},
+            idempotency_key=job["idempotency_key"],
+            lease_token=job["lease_token"],
+        ),
+        request_nonce="nonce-submit-001",
+    )
+    assert outcome.accepted is True
+    assert outcome.duplicate is False
+    thread.join(timeout=2.0)
+    result = result_holder["result"]
+    assert result.status == ToolStatus.SUCCESS
+    assert result.result is not None
+    assert result.result["value"] == {"value": 42}
+
+
+def test_byoc_runtime_duplicate_submit_is_idempotent_noop() -> None:
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    call = _call()
+    descriptor = _descriptor()
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-1")
+    result_holder: dict[str, object] = {}
+
+    def _execute() -> None:
+        result_holder["result"] = runtime.execute(call, descriptor)
+
+    thread = threading.Thread(target=_execute)
+    thread.start()
+    job = _wait_claim(runtime, token, "nonce-claim-002")
+    assert job is not None
+
+    first = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        result=ByocToolResultEnvelope(
+            job_id=job["job_id"],
+            tenant_id="t1",
+            run_id=job["run_id"],
+            call_id=job["call_id"],
+            tool_name=job["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 1},
+            idempotency_key=job["idempotency_key"],
+            lease_token=job["lease_token"],
+        ),
+        request_nonce="nonce-submit-002",
+    )
+    second = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        result=ByocToolResultEnvelope(
+            job_id=job["job_id"],
+            tenant_id="t1",
+            run_id=job["run_id"],
+            call_id=job["call_id"],
+            tool_name=job["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 999},
+            idempotency_key=job["idempotency_key"],
+            lease_token=job["lease_token"],
+        ),
+        request_nonce="nonce-submit-003",
+    )
+    thread.join(timeout=2.0)
+    result = result_holder["result"]
+    assert first.accepted is True and first.duplicate is False
+    assert second.accepted is True and second.duplicate is True
+    assert result.status == ToolStatus.SUCCESS
+    assert result.result is not None
+    assert result.result["value"] == {"value": 1}
+
+
+def test_byoc_runtime_rejects_invalid_worker_token() -> None:
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    try:
+        runtime.claim_next_job(
+            tenant_id="t1",
+            worker_token="bad-token",
+            request_nonce="nonce-invalid-001",
+        )
+    except ValueError as exc:
+        assert str(exc) in {"WORKER_TOKEN_INVALID", "WORKER_TOKEN_EXPIRED", "WORKER_TOKEN_TENANT_MISMATCH"}
+    else:
+        raise AssertionError("Expected invalid token rejection.")
+
+
+def test_byoc_runtime_requeues_expired_lease_then_reclaims() -> None:
+    runtime = TenantByocConnectorRuntime(
+        worker_jwt_secret="test-secret",
+        lease_ttl_seconds=1,
+    )
+    call = _call()
+    descriptor = _descriptor()
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-1")
+    result_holder: dict[str, object] = {}
+
+    def _execute() -> None:
+        result_holder["result"] = runtime.execute(call, descriptor)
+
+    thread = threading.Thread(target=_execute)
+    thread.start()
+
+    first_claim = _wait_claim(runtime, token, "nonce-claim-003")
+    assert first_claim is not None
+
+    time.sleep(1.2)
+
+    second_claim = _wait_claim(runtime, token, "nonce-claim-004")
+    assert second_claim is not None
+    assert second_claim["job_id"] == first_claim["job_id"]
+    assert second_claim["claim_attempt"] >= 2
+
+    outcome = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-submit-004",
+        result=ByocToolResultEnvelope(
+            job_id=second_claim["job_id"],
+            tenant_id="t1",
+            run_id=second_claim["run_id"],
+            call_id=second_claim["call_id"],
+            tool_name=second_claim["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 77},
+            idempotency_key=second_claim["idempotency_key"],
+            lease_token=second_claim["lease_token"],
+        ),
+    )
+    assert outcome.accepted is True
+    thread.join(timeout=2.0)
+    result = result_holder["result"]
+    assert result.status == ToolStatus.SUCCESS
+    assert result.result is not None
+    assert result.result["value"] == {"value": 77}
+
+
+def test_byoc_runtime_rejects_replayed_nonce() -> None:
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-1")
+    first = runtime.claim_next_job(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-replay-001",
+    )
+    second_error = None
+    try:
+        runtime.claim_next_job(
+            tenant_id="t1",
+            worker_token=token,
+            request_nonce="nonce-replay-001",
+        )
+    except ValueError as exc:
+        second_error = str(exc)
+    assert first is None
+    assert second_error == "WORKER_REQUEST_REPLAYED"
+
+
+def test_byoc_runtime_duplicate_callback_race_is_idempotent() -> None:
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    call = _call()
+    descriptor = _descriptor()
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-race")
+    result_holder: dict[str, object] = {}
+
+    def _execute() -> None:
+        result_holder["result"] = runtime.execute(call, descriptor)
+
+    run_thread = threading.Thread(target=_execute)
+    run_thread.start()
+    job = _wait_claim(runtime, token, "nonce-race-claim-001")
+    assert job is not None
+
+    outcomes: list[tuple[bool, bool, str]] = []
+
+    def _submit(index: int) -> None:
+        out = runtime.submit_result(
+            tenant_id="t1",
+            worker_token=token,
+            request_nonce=f"nonce-race-submit-00{index}",
+            result=ByocToolResultEnvelope(
+                job_id=job["job_id"],
+                tenant_id="t1",
+                run_id=job["run_id"],
+                call_id=job["call_id"],
+                tool_name=job["tool_name"],
+                status=ByocResultStatus.SUCCESS,
+                output={"winner": index},
+                idempotency_key=job["idempotency_key"],
+                lease_token=job["lease_token"],
+            ),
+        )
+        outcomes.append((out.accepted, out.duplicate, out.reason_code))
+
+    t1 = threading.Thread(target=_submit, args=(1,))
+    t2 = threading.Thread(target=_submit, args=(2,))
+    t1.start()
+    t2.start()
+    t1.join(timeout=2.0)
+    t2.join(timeout=2.0)
+    run_thread.join(timeout=2.0)
+
+    assert len(outcomes) == 2
+    assert sum(1 for accepted, duplicate, _ in outcomes if accepted and not duplicate) == 1
+    assert sum(1 for accepted, duplicate, _ in outcomes if accepted and duplicate) == 1
+    result = result_holder["result"]
+    assert result.status == ToolStatus.SUCCESS
+
+
+def test_byoc_runtime_progress_events_include_job_and_lease_metadata() -> None:
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    call = _call()
+    descriptor = _descriptor()
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-progress")
+    result_holder: dict[str, object] = {}
+
+    def _execute() -> None:
+        result_holder["result"] = runtime.execute(call, descriptor)
+
+    run_thread = threading.Thread(target=_execute)
+    run_thread.start()
+    job = _wait_claim(runtime, token, "nonce-progress-claim-001")
+    assert job is not None
+    outcome = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-progress-submit-001",
+        result=ByocToolResultEnvelope(
+            job_id=job["job_id"],
+            tenant_id="t1",
+            run_id=job["run_id"],
+            call_id=job["call_id"],
+            tool_name=job["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 22},
+            idempotency_key=job["idempotency_key"],
+            lease_token=job["lease_token"],
+        ),
+    )
+    assert outcome.accepted is True
+    run_thread.join(timeout=2.0)
+    progress = runtime.drain_progress_events(call.call_id)
+    assert [entry["state"] for entry in progress] == ["queued", "running", "completed"]
+    assert all(str(entry.get("job_id", "")).startswith("job_") for entry in progress)
+    running = next(entry for entry in progress if entry["state"] == "running")
+    assert str(running.get("lease_token", "")).startswith("lease_")
+    assert str(running.get("lease_expires_at_epoch", "")).isdigit()
+    assert str(running.get("claim_attempt", "")) == "1"
+

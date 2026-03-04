@@ -26,6 +26,38 @@ const parseJsonField = (value, fallback) => {
   return JSON.parse(value);
 };
 
+const normalizeToolSchemaInput = (raw) => {
+  const parsed = parseJsonField(raw, {});
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Tool schema must be a JSON object.");
+  }
+
+  // Accept OpenAI-style wrappers:
+  // 1) {"name","description","parameters":{...}}
+  // 2) {"type":"function","function":{...}}
+  let candidate = parsed;
+  if (candidate.type === "function" && candidate.function && typeof candidate.function === "object") {
+    candidate = candidate.function;
+  }
+
+  const suggestedName = typeof candidate.name === "string" ? candidate.name.trim() : "";
+  const suggestedDescription = typeof candidate.description === "string" ? candidate.description.trim() : "";
+  const parametersSchema =
+    candidate.parameters && typeof candidate.parameters === "object" ? candidate.parameters : candidate;
+
+  if (!parametersSchema || typeof parametersSchema !== "object") {
+    throw new Error("Could not resolve parameters schema from JSON input.");
+  }
+
+  return {
+    suggestedName,
+    suggestedDescription,
+    parametersSchema,
+  };
+};
+
+const defaultHandlerRef = (toolName) => `src.tools.user_tools:${toolName}`;
+
 export async function refreshTools(status) {
   const tools = await listTools();
   const list = byId("tools-list");
@@ -51,20 +83,50 @@ export async function refreshTools(status) {
 }
 
 export function bindToolsScreen(status) {
+  const toolNameInput = byId("tool-name");
+  const toolDescInput = byId("tool-description");
+  const toolSchemaInput = byId("tool-schema");
+
+  toolSchemaInput.addEventListener("change", () => {
+    try {
+      const normalized = normalizeToolSchemaInput(toolSchemaInput.value);
+      if (!toolNameInput.value.trim() && normalized.suggestedName) {
+        toolNameInput.value = normalized.suggestedName;
+      }
+      if (!toolDescInput.value.trim() && normalized.suggestedDescription) {
+        toolDescInput.value = normalized.suggestedDescription;
+      }
+    } catch (_error) {
+      // Keep UX forgiving while user is typing incomplete JSON.
+    }
+  });
+
   byId("tool-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
+      const normalized = normalizeToolSchemaInput(byId("tool-schema").value);
+      const name = byId("tool-name").value.trim() || normalized.suggestedName;
+      if (!name) {
+        throw new Error("Tool name is required. Include it in the field or pasted schema.");
+      }
+      const handlerInput = byId("tool-handler").value.trim();
+      const handlerRef = handlerInput || defaultHandlerRef(name);
+      const description = byId("tool-description").value.trim() || normalized.suggestedDescription;
       const body = {
-        name: byId("tool-name").value.trim(),
-        handler_ref: byId("tool-handler").value.trim(),
-        description: byId("tool-description").value.trim(),
+        name,
+        handler_ref: handlerRef,
+        description,
         risk_tier: byId("tool-risk").value,
         is_state_changing: byId("tool-state-changing").checked,
         timeout_ms: Number(byId("tool-timeout").value || 30000),
-        parameters_schema: parseJsonField(byId("tool-schema").value, {}),
+        parameters_schema: normalized.parametersSchema,
       };
       await api(`/tenants/${getTenantId()}/tools`, "POST", body);
-      status(`Tool '${body.name}' created`);
+      if (!handlerInput) {
+        status(`Tool '${body.name}' created (auto handler: ${handlerRef})`);
+      } else {
+        status(`Tool '${body.name}' created`);
+      }
       await refreshTools(status);
     } catch (error) {
       status(String(error), true);

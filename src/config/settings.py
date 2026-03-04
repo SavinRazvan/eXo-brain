@@ -36,6 +36,23 @@ class RuntimeSettings:
     fallback_provider_id: str | None = None
     require_provider_healthcheck_on_start: bool = True
     submit_tool_results_timeout_ms: int = 30000
+    enable_hosted_tool_runtime: bool = False
+    enable_hosted_tool_process_isolation: bool = False
+    enable_byoc_tool_runtime: bool = False
+    byoc_worker_jwt_secret: str = "exo-byoc-dev-secret"
+    byoc_worker_token_ttl_seconds: int = 300
+    byoc_store_backend: str = "memory"
+    byoc_sqlite_db_path: str = ".exo_data/exo.db"
+    byoc_lease_ttl_seconds: int = 30
+    byoc_replay_ttl_seconds: int = 300
+    byoc_cleanup_interval_seconds: int = 30
+    byoc_completed_ttl_seconds: int = 3600
+    byoc_cancelled_ttl_seconds: int = 3600
+    byoc_result_ttl_seconds: int = 3600
+    byoc_idempotency_ttl_seconds: int = 3600
+    byoc_max_completed_records: int = 2000
+    byoc_max_cancelled_records: int = 2000
+    byoc_max_result_records: int = 2000
 
 
 @dataclass(slots=True)
@@ -65,6 +82,17 @@ class LimitsSettings:
     # Legacy field name retained for compatibility; "risky" means state-changing/high-impact operations.
     max_concurrent_risky_tools_per_session: int = 1
     default_tool_timeout_ms: int = 30000
+    max_active_runs_per_tenant: int = 50
+    max_turn_requests_per_minute_per_tenant: int = 120
+    max_tool_uploads_per_minute_per_tenant: int = 30
+    max_tool_upload_size_bytes: int = 5_000_000
+    allowed_tool_dependency_prefixes: list[str] = field(default_factory=list)
+    max_audit_records_per_tenant: int = 10_000
+    max_audit_export_records: int = 2_000
+    audit_export_directory: str = ".exo_data/audit_exports"
+    audit_bundle_signing_secret: str = "exo-audit-dev-secret"
+    audit_bundle_signing_active_version: str = "v1"
+    audit_bundle_signing_secrets_by_version: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

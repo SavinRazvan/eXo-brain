@@ -38,8 +38,8 @@ Notes:
       <section id="screen-tools" class="screen visible">
         <h2>Tool Manager</h2>
         <form id="tool-form" class="form-grid">
-          <input id="tool-name" placeholder="name" required />
-          <input id="tool-handler" placeholder="module.path:function_name" required />
+          <input id="tool-name" placeholder="name (auto-filled from pasted schema)" required />
+          <input id="tool-handler" placeholder="Optional: module.path:function_name (auto if empty)" />
           <input id="tool-description" placeholder="description" />
           <select id="tool-risk">
             <option value="low">low</option>
@@ -48,7 +48,10 @@ Notes:
           </select>
           <label><input id="tool-state-changing" type="checkbox" />state changing</label>
           <input id="tool-timeout" type="number" min="100" value="30000" />
-          <textarea id="tool-schema" placeholder='{"type":"object","properties":{}}'></textarea>
+          <textarea id="tool-schema" placeholder='Paste any of:
+1) {"name":"...","description":"...","parameters":{...}}
+2) {"type":"function","function":{"name":"...","description":"...","parameters":{...}}}
+3) {"type":"object","properties":{...}}'></textarea>
           <button type="submit">Register Tool</button>
         </form>
         <ul id="tools-list" class="list"></ul>
