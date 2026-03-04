@@ -65,6 +65,7 @@ from src.tools.user_tool_contracts import (
 )
 from src.tools.version_projection import descriptor_from_tool_version
 from src.tools.version_projection import INLINE_HANDLER_SOURCE_METADATA_KEY, validate_inline_handler_source
+from src.tools.version_projection import verify_artifact_bundle_integrity
 from src.tools.artifact_store import (
     ARTIFACT_BUNDLE_DIR_METADATA_KEY,
     ARTIFACT_BUNDLE_HASH_METADATA_KEY,
@@ -116,12 +117,32 @@ def _descriptor_to_response(descriptor: ToolDescriptor) -> ToolResponse:
     )
 
 
-def _to_validation_response(record: ToolVersionRecord) -> ToolValidationResponse:
+def _to_validation_response(record: ToolVersionRecord, artifact_signing_secret: str) -> ToolValidationResponse:
     validation = record.validation or ToolValidationResult(
         tool_name=record.tool_name,
         version=record.version,
         state=ToolValidationState.PENDING,
     )
+    integrity_status = "not_applicable"
+    integrity_message = ""
+    has_artifact = bool(str((record.manifest.metadata or {}).get(ARTIFACT_HANDLER_PATH_METADATA_KEY, "")).strip())
+    if has_artifact:
+        has_signature = bool(str((record.manifest.metadata or {}).get(ARTIFACT_BUNDLE_SIGNATURE_METADATA_KEY, "")).strip())
+        has_hash = bool(str((record.manifest.metadata or {}).get(ARTIFACT_BUNDLE_HASH_METADATA_KEY, "")).strip())
+        if not has_signature or not has_hash:
+            integrity_status = "missing_metadata"
+            integrity_message = "artifact hash/signature metadata is missing"
+        else:
+            if not artifact_signing_secret.strip():
+                integrity_status = "unverifiable"
+                integrity_message = "artifact signing secret is not configured"
+            else:
+                try:
+                    verify_artifact_bundle_integrity(record, artifact_signing_secret)
+                    integrity_status = "verified"
+                except ValueError as exc:
+                    integrity_status = "mismatch"
+                    integrity_message = str(exc)
     return ToolValidationResponse(
         tenant_id=record.tenant_id,
         tool_name=record.tool_name,
@@ -131,6 +152,8 @@ def _to_validation_response(record: ToolVersionRecord) -> ToolValidationResponse
         warnings=validation.warnings,
         normalized_schema_hash=validation.normalized_schema_hash,
         package_ref=record.package_ref,
+        integrity_status=integrity_status,
+        integrity_message=integrity_message,
         active=record.active,
         created_at=record.created_at,
     )
@@ -182,6 +205,10 @@ def _validation_for_manifest(
         warnings=warnings,
         normalized_schema_hash=schema_fingerprint(manifest.input_schema or {}),
     )
+
+
+def _artifact_signing_secret(request: Request) -> str:
+    return str(request.app.state.settings.limits.tool_artifact_signing_secret or "")
 
 
 async def _sync_active_tool_descriptor(
@@ -409,7 +436,7 @@ async def upload_tool_package(
         )
     if body.activate:
         if validation.state == ToolValidationState.INVALID:
-            return _to_validation_response(record)
+            return _to_validation_response(record, _artifact_signing_secret(request))
         try:
             descriptor_from_tool_version(
                 record,
@@ -427,13 +454,14 @@ async def upload_tool_package(
         )
         active_record = await tool_version_store.get_tool_version(tenant_id, manifest.tool_name, manifest.version)
         if active_record is not None:
-            return _to_validation_response(active_record)
-    return _to_validation_response(record)
+            return _to_validation_response(active_record, _artifact_signing_secret(request))
+    return _to_validation_response(record, _artifact_signing_secret(request))
 
 
 @router.get("/{tenant_id}/tools/validate/{tool_name}", response_model=ToolValidationResponse)
 async def validate_tool_version(
     tenant_id: str,
+    request: Request,
     tool_name: str,
     version: str | None = Query(default=None),
     _identity: IdentityContext = Depends(require_valid_identity),
@@ -457,12 +485,13 @@ async def validate_tool_version(
 
     if record is None:
         raise HTTPException(status_code=404, detail=f"Tool version not found: {tool_name}")
-    return _to_validation_response(record)
+    return _to_validation_response(record, _artifact_signing_secret(request))
 
 
 @router.get("/{tenant_id}/tools/versions/{tool_name}", response_model=ToolVersionListResponse)
 async def list_tool_versions(
     tenant_id: str,
+    request: Request,
     tool_name: str,
     _identity: IdentityContext = Depends(require_valid_identity),
     tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
@@ -477,7 +506,7 @@ async def list_tool_versions(
     return ToolVersionListResponse(
         tenant_id=tenant_id,
         tool_name=tool_name,
-        versions=[_to_validation_response(v) for v in versions],
+        versions=[_to_validation_response(v, _artifact_signing_secret(request)) for v in versions],
         total=len(versions),
     )
 
@@ -485,6 +514,7 @@ async def list_tool_versions(
 @router.get("/{tenant_id}/tools/version/{tool_name}", response_model=ToolVersionListResponse)
 async def list_tool_version_alias(
     tenant_id: str,
+    request: Request,
     tool_name: str,
     _identity: IdentityContext = Depends(require_valid_identity),
     tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
@@ -492,6 +522,7 @@ async def list_tool_version_alias(
     """Backward-compatible alias for clients using singular /tools/version path."""
     return await list_tool_versions(
         tenant_id=tenant_id,
+        request=request,
         tool_name=tool_name,
         _identity=_identity,
         tool_version_store=tool_version_store,
