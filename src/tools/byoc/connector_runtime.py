@@ -31,6 +31,7 @@ from src.schemas.tool_io import (
     ToolStatus,
 )
 from src.tools.byoc.job_contracts import ByocResultStatus, ByocToolJobEnvelope, ByocToolResultEnvelope
+from src.tools.byoc.integrity_verifier import verify_result_artifact_metadata
 from src.tools.byoc.job_store import ByocJobQueueStore, InMemoryByocJobQueueStore
 from src.tools.byoc.result_store import (
     ByocResultIngestOutcome,
@@ -42,6 +43,12 @@ from src.tools.byoc.result_store import (
 from src.tools.byoc.worker_auth import mint_worker_token, verify_worker_token
 from src.tools.execution_adapter import ToolExecutionAdapter
 from src.tools.registry import ToolDescriptor
+
+from src.tools.artifact_store import (
+    ARTIFACT_BUNDLE_HASH_METADATA_KEY,
+    ARTIFACT_BUNDLE_SIGNATURE_METADATA_KEY,
+    ARTIFACT_SIGNATURE_VERSION_METADATA_KEY,
+)
 
 
 def _utc_now() -> str:
@@ -126,6 +133,11 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             package_ref=str(descriptor.metadata.get("package_ref", "")),
             entry_file=str(descriptor.metadata.get("entry_file", "")),
             entrypoint=str(descriptor.metadata.get("entrypoint", "")),
+            artifact_bundle_hash_sha256=str(descriptor.metadata.get(ARTIFACT_BUNDLE_HASH_METADATA_KEY, "")),
+            artifact_bundle_signature_hmac_sha256=str(
+                descriptor.metadata.get(ARTIFACT_BUNDLE_SIGNATURE_METADATA_KEY, "")
+            ),
+            artifact_signature_version=str(descriptor.metadata.get(ARTIFACT_SIGNATURE_VERSION_METADATA_KEY, "")),
         )
         self._job_store.enqueue(job)
         self._record_progress(
@@ -225,6 +237,9 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             "package_ref": job.package_ref,
             "entry_file": job.entry_file,
             "entrypoint": job.entrypoint,
+            "artifact_bundle_hash_sha256": job.artifact_bundle_hash_sha256,
+            "artifact_bundle_signature_hmac_sha256": job.artifact_bundle_signature_hmac_sha256,
+            "artifact_signature_version": job.artifact_signature_version,
         }
 
     def submit_result(
@@ -249,6 +264,32 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             raise ValueError("WORKER_REQUEST_REPLAYED")
         if result.tenant_id != tenant_id:
             raise ValueError("WORKER_RESULT_TENANT_MISMATCH")
+        existing_key = str(result.idempotency_key).strip()
+        if existing_key and self._result_store.has_idempotency_key(existing_key):
+            with self._lock:
+                self._duplicate_results_total += 1
+            return ByocResultIngestOutcome(
+                accepted=True,
+                duplicate=True,
+                reason_code="IDEMPOTENT_DUPLICATE",
+            )
+        leased_job = self._job_store.get_leased_job(job_id=result.job_id, lease_token=result.lease_token)
+        if leased_job is None:
+            return ByocResultIngestOutcome(
+                accepted=False,
+                duplicate=False,
+                reason_code="BYOC_LEASE_INVALID_OR_EXPIRED",
+            )
+        artifact_reason = verify_result_artifact_metadata(
+            expected_job=leased_job,
+            submitted_result=result,
+        )
+        if artifact_reason:
+            return ByocResultIngestOutcome(
+                accepted=False,
+                duplicate=False,
+                reason_code=artifact_reason,
+            )
         outcome = self._result_store.ingest(result)
         if outcome.duplicate:
             with self._lock:
@@ -447,6 +488,9 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 "idempotency_key": result.idempotency_key,
                 "tenant_id": tenant_id,
                 "tool_version": result.tool_version,
+                "artifact_bundle_hash_sha256": result.artifact_bundle_hash_sha256,
+                "artifact_bundle_signature_hmac_sha256": result.artifact_bundle_signature_hmac_sha256,
+                "artifact_signature_version": result.artifact_signature_version,
             },
         }
         err = NormalizedError(
@@ -460,6 +504,9 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 "job_id": result.job_id,
                 "idempotency_key": result.idempotency_key,
                 "tool_version": result.tool_version,
+                "artifact_bundle_hash_sha256": result.artifact_bundle_hash_sha256,
+                "artifact_bundle_signature_hmac_sha256": result.artifact_bundle_signature_hmac_sha256,
+                "artifact_signature_version": result.artifact_signature_version,
             },
         )
         return ToolResult(

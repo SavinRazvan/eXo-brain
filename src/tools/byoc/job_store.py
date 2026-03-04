@@ -43,6 +43,10 @@ class ByocJobQueueStore(ABC):
         """Complete a leased job only when lease token matches active lease."""
 
     @abstractmethod
+    def get_leased_job(self, *, job_id: str, lease_token: str) -> ByocToolJobEnvelope | None:
+        """Return active leased job envelope when lease token is valid."""
+
+    @abstractmethod
     def requeue_expired_leases(self) -> int:
         """Requeue expired leased jobs and return count."""
 
@@ -138,6 +142,19 @@ class InMemoryByocJobQueueStore(ByocJobQueueStore):
             state.status = "completed"
             state.completed_at_epoch = now
             return True
+
+    def get_leased_job(self, *, job_id: str, lease_token: str) -> ByocToolJobEnvelope | None:
+        with self._lock:
+            state = self._states.get(str(job_id))
+            if state is None or state.status != "leased":
+                return None
+            now = time.time()
+            if state.lease_expires_at_epoch <= now:
+                self._requeue_expired_leases_unlocked(now)
+                return None
+            if state.lease_token != str(lease_token):
+                return None
+            return state.envelope
 
     def requeue_expired_leases(self) -> int:
         with self._lock:
