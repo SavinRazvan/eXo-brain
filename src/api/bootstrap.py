@@ -39,6 +39,7 @@ from src.persistence.contracts import AgentStore, ApiKeyStore, ProviderStore, To
 from src.runtime.tenant_runtime import TenantRuntimeFactory
 from src.tenancy.policy_overlay import TenantPolicyOverlayStore
 from src.tenancy.rate_limiter import TenantRateLimiter
+from src.tools.artifact_store import FileSystemToolArtifactStore
 
 
 def bootstrap(
@@ -111,6 +112,7 @@ def bootstrap(
         max_requests=settings.limits.max_tool_uploads_per_minute_per_tenant,
         window_seconds=60,
     )
+    app.state.tool_artifact_store = FileSystemToolArtifactStore(settings.limits.tool_artifact_directory)
 
     if persistence_backend == "sqlite":
         from src.api.startup import hydrate_tenant_registries

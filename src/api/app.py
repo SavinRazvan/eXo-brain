@@ -118,6 +118,14 @@ def _default_settings() -> AppSettings:
                 os.environ.get("EXO_MAX_TOOL_UPLOADS_PER_MINUTE_PER_TENANT", "30")
             ),
             max_tool_upload_size_bytes=int(os.environ.get("EXO_MAX_TOOL_UPLOAD_SIZE_BYTES", "5000000")),
+            tool_artifact_directory=os.environ.get(
+                "EXO_TOOL_ARTIFACT_DIRECTORY",
+                ".exo_data/tool_artifacts",
+            ),
+            tool_artifact_signing_secret=os.environ.get(
+                "EXO_TOOL_ARTIFACT_SIGNING_SECRET",
+                "exo-tool-artifact-dev-secret",
+            ),
             allowed_tool_dependency_prefixes=[
                 item.strip()
                 for item in os.environ.get("EXO_ALLOWED_TOOL_DEPENDENCY_PREFIXES", "").split(",")
