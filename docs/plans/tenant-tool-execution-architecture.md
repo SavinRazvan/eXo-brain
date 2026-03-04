@@ -19,11 +19,16 @@ Move from developer-only `module.path:function_name` registration to a SaaS-safe
 
 - Completed implementation baseline:
   - Slices `0`, `1`, `2`, `4.0` through `4.3`, `5.0` through `5.3`, and `6.0` through `6.4`.
-- Open gap-closure track (active execution priorities):
-  1. `T1` (P0) tenant path/identity enforcement.
-  2. `T2` (P0) active uploaded-version runtime wiring.
-  3. `T3` (P1) import-first Tool Manager UX completion.
-  4. `T4` (P2) canonical docs synchronization.
+  - Post-6.4 gap-closure track `T1` through `T4` completed (tenant scope guard, active uploaded-version execution wiring, import-first Tool Manager baseline, canonical docs synchronization baseline).
+  - Executable uploaded tool bundle baseline completed:
+    - persisted `tool.yaml` + `handler.py` artifacts
+    - runtime loading from persisted artifact paths
+    - artifact integrity metadata (SHA-256 hash + HMAC signature/version)
+    - activation/startup/runtime verification against tampering
+- Next implementation track (prepared):
+  1. `N1` (P1) Tool Manager bundle upload UX + integrity visibility.
+  2. `N2` (P1) BYOC artifact-integrity parity and worker-side verification contract.
+  3. `N3` (P2) rollout/operations hardening for hosted external beta.
 - Companion trackers that should mirror this exact status:
   - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
   - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
@@ -633,7 +638,7 @@ Clarification C2 (tool upload semantics):
   - runtime execution resolves against that active version in hosted/BYOC paths
 - Legacy `handler_ref` remains internal/dev compatibility path only until external import-first execution wiring is fully complete.
 
-Task T1 (P0): tenant-identity enforcement on tenant-scoped APIs
+Task T1 (P0): tenant-identity enforcement on tenant-scoped APIs — completed
 - Add a shared dependency guard that enforces `identity.tenant_id == path tenant_id` for tenant-scoped endpoints.
 - Add explicit role-gated bypass only if super-admin scope is intentionally enabled.
 - Add API tests for:
@@ -641,27 +646,46 @@ Task T1 (P0): tenant-identity enforcement on tenant-scoped APIs
   - cross-tenant access denied
   - super-admin override behavior (if enabled)
 
-Task T2 (P0): bind active uploaded tool version to runtime execution
+Task T2 (P0): bind active uploaded tool version to runtime execution — completed
 - Implement runtime resolution path from active `ToolVersionStore` record to executable handler package.
 - Ensure hosted runtime and BYOC runtime execute the tenant's active version (not only legacy registry descriptors).
 - Add end-to-end tests: upload -> activate -> turn executes uploaded version -> rollback changes executed version.
 
-Task T3 (P1): complete import-first Tool Manager UX
+Task T3 (P1): complete import-first Tool Manager UX — completed baseline
 - Switch default UI flow to `import-schema -> upload -> validate -> versions`.
 - Surface validation status badges (red/amber/green) and active version details.
 - De-emphasize raw `handler_ref` input for external-user flows.
 - Add browser/UI tests for badge transitions and full happy-path registration flow.
 
-Task T4 (P2): documentation synchronization cleanup
+Task T4 (P2): documentation synchronization cleanup — completed baseline
 - Remove or relabel stale "next slice prepared" notes now that slices are implemented.
 - Keep one canonical status block for completed vs pending tasks.
 - Add explicit links to required evidence artifacts for operational sign-off.
 
+## Next Implementation Track (prepared after PR #38)
+
+N1 (P1): Tool Manager bundle upload UX + integrity visibility
+- Add user-facing bundle upload controls for `tool.yaml` and `handler.py` in Tool Manager.
+- Show artifact integrity status in UI (for example: verified, mismatch, missing metadata).
+- Keep import-first schema flow, but make bundle upload the default executable path.
+- Add UI/API integration tests for upload -> activate -> execute -> integrity status visibility.
+
+N2 (P1): BYOC artifact integrity parity
+- Extend BYOC claim/result contracts with artifact hash/signature metadata fields.
+- Add worker-side verification helpers and deterministic rejection codes for integrity failures.
+- Ensure cancel/retry/idempotency behavior remains deterministic when integrity checks fail.
+- Add integration tests for valid signature, tampered artifact, stale signature version, and replay scenarios.
+
+N3 (P2): Rollout and operations hardening
+- Define production profile defaults for artifact storage/signing key rotation.
+- Add operational dashboards/alerts for artifact verification failures by tenant/tool/version.
+- Add runbook updates for integrity incident triage and key-rotation procedures.
+- Sync companion trackers and release checklist evidence links for hosted external beta.
+
 Priority next execution order:
-1. T1 (P0) tenant path/identity boundary enforcement.
-2. T2 (P0) active uploaded version -> runtime execution wiring.
-3. T3 (P1) import-first Tool Manager UX completion.
-4. T4 (P2) canonical plan/doc synchronization cleanup.
+1. N1 (P1) Tool Manager bundle upload UX + integrity visibility.
+2. N2 (P1) BYOC artifact integrity parity.
+3. N3 (P2) rollout and operations hardening.
 
 ## Execution Order And Dependencies
 
