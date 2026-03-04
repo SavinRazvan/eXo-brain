@@ -77,6 +77,38 @@ const validationBadge = (validationState, isActive) => {
   return { label: "amber - pending/partial", cls: "badge-amber" };
 };
 
+const bindBundleFileInput = (inputId, targetTextareaId, label, status) => {
+  const input = byId(inputId);
+  const target = byId(targetTextareaId);
+  input.addEventListener("change", async () => {
+    try {
+      const file = input.files && input.files.length ? input.files[0] : null;
+      if (!file) {
+        return;
+      }
+      const content = await file.text();
+      target.value = content;
+      status(`${label} loaded from '${file.name}'`);
+    } catch (error) {
+      status(`Failed to read ${label} file: ${String(error)}`, true);
+    }
+  });
+};
+
+const integrityBadge = (integrityStatus) => {
+  const status = String(integrityStatus || "").toLowerCase();
+  if (status === "verified") {
+    return { label: "integrity: verified", cls: "badge-green" };
+  }
+  if (status === "mismatch" || status === "missing_metadata") {
+    return { label: `integrity: ${status}`, cls: "badge-red" };
+  }
+  if (status === "signed_unverified" || status === "unverifiable") {
+    return { label: `integrity: ${status}`, cls: "badge-amber" };
+  }
+  return { label: "integrity: n/a", cls: "badge-amber" };
+};
+
 export async function refreshTools(status) {
   const tools = await listTools();
   const list = byId("tools-list");
@@ -87,6 +119,7 @@ export async function refreshTools(status) {
     const validation = await validateToolVersion(tool.name);
     const activeVersion = (versions.versions || []).find((item) => item.active);
     const badge = validationBadge(validation.state, Boolean(activeVersion));
+    const integrity = integrityBadge(validation.integrity_status);
     const details = document.createElement("span");
     details.textContent = `${tool.name} (${tool.risk_tier}) `;
     li.appendChild(details);
@@ -94,9 +127,15 @@ export async function refreshTools(status) {
     badgeEl.className = `tool-badge ${badge.cls}`;
     badgeEl.textContent = badge.label;
     li.appendChild(badgeEl);
+    const integrityEl = document.createElement("span");
+    integrityEl.className = `tool-badge ${integrity.cls}`;
+    integrityEl.textContent = integrity.label;
+    li.appendChild(integrityEl);
     const meta = document.createElement("span");
     meta.className = "tool-meta";
-    meta.textContent = ` active_version=${activeVersion ? activeVersion.version : "none"} state=${validation.state}`;
+    meta.textContent = ` active_version=${activeVersion ? activeVersion.version : "none"} state=${validation.state}${
+      validation.integrity_message ? ` integrity_message=${validation.integrity_message}` : ""
+    }`;
     li.appendChild(meta);
     li.appendChild(document.createTextNode(" "));
     const btn = document.createElement("button");
@@ -134,6 +173,8 @@ export function bindToolsScreen(status) {
       // Keep UX forgiving while user is typing incomplete JSON.
     }
   });
+  bindBundleFileInput("tool-bundle-yaml-file", "tool-bundle-yaml", "tool.yaml", status);
+  bindBundleFileInput("tool-bundle-handler-file", "tool-bundle-handler", "handler.py", status);
 
   byId("tool-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -151,6 +192,8 @@ export function bindToolsScreen(status) {
         throw new Error("Tool version is required for upload flow.");
       }
       const packageRef = byId("tool-package-ref").value.trim();
+      const bundleYaml = byId("tool-bundle-yaml").value.trim();
+      const bundleHandler = byId("tool-bundle-handler").value.trim();
 
       const imported = await importToolSchema(normalized.parametersSchema, {
         tool_name: name,
@@ -173,6 +216,13 @@ export function bindToolsScreen(status) {
           },
         },
         package_ref: packageRef,
+        package_bundle:
+          bundleYaml || bundleHandler
+            ? {
+                tool_yaml: bundleYaml,
+                handler_py: bundleHandler,
+              }
+            : undefined,
         activate: true,
       });
       if (!handlerInput) {
@@ -182,6 +232,10 @@ export function bindToolsScreen(status) {
       }
       if (String(uploaded.state).toLowerCase() === "invalid") {
         status(`Validation failed for ${imported.tool_name}@${version}: ${uploaded.errors.join("; ")}`, true);
+      } else {
+        status(
+          `Tool '${imported.tool_name}@${version}' active. integrity=${uploaded.integrity_status || "unknown"}`,
+        );
       }
       await refreshTools(status);
     } catch (error) {
