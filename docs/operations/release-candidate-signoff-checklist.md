@@ -22,6 +22,15 @@ and writes:
 
 - `.local/rc-signoff.md`
 
+The generated artifact includes execution metadata for auditability:
+
+- actor
+- repository
+- event/ref
+- commit SHA
+- PR number (when provided by CI env)
+- workflow run id/url
+
 ## CI Integration
 
 - Workflow: `.github/workflows/rc-signoff.yml`
