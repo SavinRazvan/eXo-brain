@@ -120,6 +120,8 @@ class ToolValidationResponse(BaseModel):
     warnings: list[str]
     normalized_schema_hash: str
     package_ref: str
+    integrity_status: str = "not_applicable"
+    integrity_message: str = ""
     active: bool
     created_at: str
 
