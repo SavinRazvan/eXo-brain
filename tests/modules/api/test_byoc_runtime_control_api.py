@@ -94,6 +94,9 @@ def test_byoc_runtime_control_issue_claim_submit_happy_path() -> None:
     assert claim_resp.status_code == 200
     job = claim_resp.json()["job"]
     assert job is not None
+    assert "artifact_bundle_hash_sha256" in job
+    assert "artifact_bundle_signature_hmac_sha256" in job
+    assert "artifact_signature_version" in job
     submit_resp = client.post(
         "/tenants/t1/admin/byoc/jobs/submit",
         json={
@@ -108,6 +111,9 @@ def test_byoc_runtime_control_issue_claim_submit_happy_path() -> None:
                 "output": {"ok": True},
                 "idempotency_key": job["idempotency_key"],
                 "lease_token": job["lease_token"],
+                "artifact_bundle_hash_sha256": "hash-api-v1",
+                "artifact_bundle_signature_hmac_sha256": "sig-api-v1",
+                "artifact_signature_version": "v1",
             },
             "request_nonce": "api-submit-nonce-001",
         },
@@ -227,6 +233,80 @@ def test_byoc_runtime_control_duplicate_submit_reports_duplicate() -> None:
     assert second.status_code == 200
     assert second.json()["accepted"] is True
     assert second.json()["duplicate"] is True
+
+
+def test_byoc_runtime_control_submit_rejects_artifact_integrity_mismatch() -> None:
+    client = _byoc_client()
+    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    adapter = ctx.tool_executor.execution_adapter()
+    assert adapter is not None
+    from src.schemas.tool_io import ToolCallContext
+    from src.tools.registry import ToolDescriptor
+
+    call = ToolCallContext(
+        schema_version="1.0",
+        call_id="api_call_integrity_1",
+        session_id="sess_integrity_1",
+        run_id="run_integrity_1",
+        job_id="job_integrity_1",
+        task_id="task_integrity_1",
+        agent_id="agent_integrity_1",
+        provider_id="openai-test",
+        tool_name="echo_tool",
+        arguments={"x": 10},
+        tenant_id="t1",
+    )
+    descriptor = ToolDescriptor(
+        name="echo_tool",
+        handler=lambda x: x,
+        timeout_ms=200,
+        metadata={
+            "artifact_bundle_hash_sha256": "hash-expected-api",
+            "artifact_bundle_signature_hmac_sha256": "sig-expected-api",
+            "artifact_signature_version": "v2",
+        },
+    )
+    run_thread = threading.Thread(target=lambda: adapter.execute(call, descriptor))
+    run_thread.start()
+    token_resp = client.post(
+        "/tenants/t1/admin/byoc/worker-token",
+        json={"worker_id": "worker-integrity-api"},
+        headers=_headers("t1"),
+    )
+    token = token_resp.json()["token"]
+    claim_resp = client.post(
+        "/tenants/t1/admin/byoc/jobs/claim",
+        json={"worker_token": token, "request_nonce": "api-claim-nonce-integrity-001"},
+        headers=_headers("t1"),
+    )
+    job = claim_resp.json()["job"]
+    assert job is not None
+    submit_resp = client.post(
+        "/tenants/t1/admin/byoc/jobs/submit",
+        json={
+            "worker_token": token,
+            "request_nonce": "api-submit-nonce-integrity-001",
+            "result": {
+                "job_id": job["job_id"],
+                "tenant_id": "t1",
+                "run_id": job["run_id"],
+                "call_id": job["call_id"],
+                "tool_name": job["tool_name"],
+                "status": "success",
+                "output": {"ok": True},
+                "idempotency_key": job["idempotency_key"],
+                "lease_token": job["lease_token"],
+                "artifact_bundle_hash_sha256": "hash-tampered-api",
+                "artifact_bundle_signature_hmac_sha256": "sig-expected-api",
+                "artifact_signature_version": "v2",
+            },
+        },
+        headers=_headers("t1"),
+    )
+    assert submit_resp.status_code == 200
+    assert submit_resp.json()["accepted"] is False
+    assert submit_resp.json()["reason_code"] == "BYOC_ARTIFACT_INTEGRITY_MISMATCH"
+    run_thread.join(timeout=1.0)
 
 
 def test_byoc_runtime_control_stats_include_health_metrics_and_cleanup_endpoint() -> None:
