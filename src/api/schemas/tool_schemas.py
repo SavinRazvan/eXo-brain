@@ -51,3 +51,81 @@ class ToolResponse(BaseModel):
 class ToolListResponse(BaseModel):
     tools: list[ToolResponse]
     total: int
+
+
+class ToolImportSchemaRequest(BaseModel):
+    payload: dict[str, Any] = Field(..., description="OpenAI-style function payload or raw JSON schema object")
+    tool_name: str = Field(
+        default="",
+        description="Optional explicit tool name override when payload has no name field",
+    )
+    description: str = Field(default="", description="Optional description override")
+    handler_ref: str = Field(
+        default="",
+        description='Optional explicit import path override: "module.path:function_name"',
+    )
+
+
+class ToolImportSchemaResponse(BaseModel):
+    tool_name: str
+    description: str
+    handler_ref: str
+    parameters_schema: dict[str, Any]
+    schema_fingerprint: str
+
+
+class ToolPackageManifestPayload(BaseModel):
+    tool_name: str
+    version: str
+    description: str = ""
+    input_schema: dict[str, Any] = Field(default_factory=dict)
+    timeout_ms: int = Field(default=30000, ge=100)
+    risk_tier: RiskTier = Field(default=RiskTier.LOW)
+    entry_file: str = "handler.py"
+    entrypoint: str = "run"
+    requirements: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolVersionUploadRequest(BaseModel):
+    manifest: ToolPackageManifestPayload
+    package_ref: str = Field(default="", description="Artifact reference (path/URI/hash) for uploaded package")
+    artifact_size_bytes: int = Field(
+        default=0,
+        ge=0,
+        description="Uploaded package size in bytes for artifact size policy checks",
+    )
+    activate: bool = Field(default=True, description="If true, set this version as active")
+
+
+class ToolValidationResponse(BaseModel):
+    tenant_id: str
+    tool_name: str
+    version: str
+    state: str
+    errors: list[str]
+    warnings: list[str]
+    normalized_schema_hash: str
+    package_ref: str
+    active: bool
+    created_at: str
+
+
+class ToolVersionListResponse(BaseModel):
+    tenant_id: str
+    tool_name: str
+    versions: list[ToolValidationResponse]
+    total: int
+
+
+class ToolRollbackRequest(BaseModel):
+    target_version: str = Field(..., description="Version to set as active")
+
+
+class ToolGovernanceResponse(BaseModel):
+    tenant_id: str
+    tool_name: str
+    version: str = ""
+    action: str
+    active_version: str = ""
+    revoked: bool = False

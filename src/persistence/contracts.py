@@ -144,6 +144,14 @@ class AuditStore(ABC):
     async def query_audit_events(self, correlation_id: str, tenant_id: str = "default") -> list[AuditRecord]:
         """Query audit records by correlation."""
 
+    @abstractmethod
+    async def list_audit_events(self, tenant_id: str = "default", limit: int = 100) -> list[AuditRecord]:
+        """List recent audit events for one tenant."""
+
+    @abstractmethod
+    async def cleanup_audit_events(self, tenant_id: str = "default", max_records: int = 1000) -> int:
+        """Prune oldest tenant audit events, returning number removed."""
+
 
 class EventStore(ABC):
     @abstractmethod
@@ -314,3 +322,86 @@ class ProviderStore(ABC):
     @abstractmethod
     async def list_providers(self) -> list[PersistedProviderRecord]:
         """List all persisted provider records."""
+
+
+# ---------------------------------------------------------------------------
+# Tenant user-tool package/version persistence (Hosted + BYOC foundation)
+# ---------------------------------------------------------------------------
+
+
+class ToolValidationState(str, Enum):
+    PENDING = "pending"
+    VALID = "valid"
+    INVALID = "invalid"
+
+
+@dataclass(slots=True)
+class ToolPackageManifest:
+    """Canonical manifest for tenant-submitted tool packages."""
+
+    tool_name: str
+    version: str
+    description: str = ""
+    input_schema: dict[str, Any] = field(default_factory=dict)
+    timeout_ms: int = 30000
+    risk_tier: str = "low"
+    entry_file: str = "handler.py"
+    entrypoint: str = "run"
+    requirements: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ToolValidationResult:
+    """Validation outcome for one tool version."""
+
+    tool_name: str
+    version: str
+    state: ToolValidationState = ToolValidationState.PENDING
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    normalized_schema_hash: str = ""
+
+
+@dataclass(slots=True)
+class ToolVersionRecord:
+    """Persisted versioned tenant tool artifact metadata."""
+
+    tenant_id: str
+    tool_name: str
+    version: str
+    manifest: ToolPackageManifest
+    validation: ToolValidationResult | None = None
+    package_ref: str = ""
+    active: bool = False
+    created_at: str = ""
+
+
+class ToolVersionStore(ABC):
+    @abstractmethod
+    async def save_tool_version(self, record: ToolVersionRecord) -> None:
+        """Insert or update one tenant tool version record."""
+
+    @abstractmethod
+    async def get_tool_version(self, tenant_id: str, tool_name: str, version: str) -> ToolVersionRecord | None:
+        """Return one tool version record if present."""
+
+    @abstractmethod
+    async def list_tool_versions(self, tenant_id: str, tool_name: str) -> list[ToolVersionRecord]:
+        """List all versions for one tenant tool."""
+
+    @abstractmethod
+    async def set_active_tool_version(self, tenant_id: str, tool_name: str, version: str) -> None:
+        """Mark one version as active and all others inactive."""
+
+    @abstractmethod
+    async def get_active_tool_version(self, tenant_id: str, tool_name: str) -> ToolVersionRecord | None:
+        """Return the currently active version for one tenant tool."""
+
+    @abstractmethod
+    async def clear_active_tool_version(self, tenant_id: str, tool_name: str) -> None:
+        """Mark all versions as inactive for one tenant tool."""
+
+    @abstractmethod
+    async def delete_tool_version(self, tenant_id: str, tool_name: str, version: str) -> None:
+        """Delete one persisted version for one tenant tool."""

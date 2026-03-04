@@ -52,6 +52,20 @@ class ToolResultEvent(BaseModel):
     correlation_id: str = ""
 
 
+class ToolProgressEvent(BaseModel):
+    event: Literal["tool_progress"] = "tool_progress"
+    call_id: str = ""
+    tool_name: str = ""
+    state: str = ""
+    tool_status: str = ""
+    error_code: str = ""
+    job_id: str = ""
+    lease_token: str = ""
+    lease_expires_at_epoch: str = ""
+    claim_attempt: str = ""
+    correlation_id: str = ""
+
+
 class RunCompleteEvent(BaseModel):
     event: Literal["run_complete"] = "run_complete"
     run_id: str = ""

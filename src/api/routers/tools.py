@@ -19,16 +19,50 @@ Notes:
 from __future__ import annotations
 
 import importlib
+from datetime import datetime, timezone
 from typing import Callable
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from src.api.dependencies import get_tenant_context, get_tool_store, require_valid_identity
-from src.api.schemas.tool_schemas import ToolListResponse, ToolRegisterRequest, ToolResponse
+from src.api.dependencies import (
+    get_tenant_context,
+    get_tool_store,
+    get_tool_version_store,
+    require_valid_identity,
+)
+from src.api.schemas.tool_schemas import (
+    ToolGovernanceResponse,
+    ToolImportSchemaRequest,
+    ToolImportSchemaResponse,
+    ToolListResponse,
+    ToolRollbackRequest,
+    ToolRegisterRequest,
+    ToolResponse,
+    ToolValidationResponse,
+    ToolVersionListResponse,
+    ToolVersionUploadRequest,
+)
 from src.identity.contracts import IdentityContext
-from src.persistence.contracts import PersistedToolRecord, ToolStore
+from src.persistence.contracts import (
+    PersistedToolRecord,
+    ToolPackageManifest,
+    ToolStore,
+    ToolValidationResult,
+    ToolValidationState,
+    ToolVersionRecord,
+    ToolVersionStore,
+)
 from src.runtime.tenant_runtime import TenantRuntimeContext
 from src.tools.registry import ToolDescriptor
+from src.policies.tool_package_policy import validate_tool_package_upload
+from src.tools.user_tool_contracts import (
+    SANDBOX_LIMITS_METADATA_KEY,
+    default_handler_ref,
+    normalize_manifest_metadata,
+    normalize_tool_payload,
+    parse_sandbox_limits,
+    schema_fingerprint,
+)
 
 router = APIRouter(tags=["tools"])
 
@@ -65,6 +99,62 @@ def _descriptor_to_response(descriptor: ToolDescriptor) -> ToolResponse:
         is_state_changing=descriptor.is_state_changing,
         timeout_ms=descriptor.timeout_ms,
         parameters_schema=descriptor.parameters_schema,
+    )
+
+
+def _to_validation_response(record: ToolVersionRecord) -> ToolValidationResponse:
+    validation = record.validation or ToolValidationResult(
+        tool_name=record.tool_name,
+        version=record.version,
+        state=ToolValidationState.PENDING,
+    )
+    return ToolValidationResponse(
+        tenant_id=record.tenant_id,
+        tool_name=record.tool_name,
+        version=record.version,
+        state=validation.state.value,
+        errors=validation.errors,
+        warnings=validation.warnings,
+        normalized_schema_hash=validation.normalized_schema_hash,
+        package_ref=record.package_ref,
+        active=record.active,
+        created_at=record.created_at,
+    )
+
+
+def _validation_for_manifest(manifest: ToolPackageManifest) -> ToolValidationResult:
+    errors: list[str] = []
+    warnings: list[str] = []
+    if not manifest.tool_name.strip():
+        errors.append("tool_name is required")
+    if not manifest.version.strip():
+        errors.append("version is required")
+    if not manifest.entry_file.endswith(".py"):
+        errors.append("entry_file must be a .py file")
+    if not manifest.entrypoint.strip():
+        errors.append("entrypoint is required")
+    if not isinstance(manifest.input_schema, dict):
+        errors.append("input_schema must be an object")
+    try:
+        limits = parse_sandbox_limits(manifest.metadata)
+        if limits is None:
+            warnings.append(
+                f"metadata.{SANDBOX_LIMITS_METADATA_KEY} is not provided; hosted runtime uses platform defaults"
+            )
+        elif limits.cpu_budget_ms is not None and limits.cpu_budget_ms > manifest.timeout_ms:
+            warnings.append("sandbox_limits.cpu_budget_ms exceeds timeout_ms and may never be reached")
+    except ValueError as exc:
+        errors.append(str(exc))
+    if manifest.entrypoint != "run":
+        warnings.append("entrypoint is not the standard 'run'")
+    state = ToolValidationState.VALID if not errors else ToolValidationState.INVALID
+    return ToolValidationResult(
+        tool_name=manifest.tool_name,
+        version=manifest.version,
+        state=state,
+        errors=errors,
+        warnings=warnings,
+        normalized_schema_hash=schema_fingerprint(manifest.input_schema or {}),
     )
 
 
@@ -117,6 +207,325 @@ async def register_tool(
         await tool_store.save_tool(tenant_id, record)
 
     return _descriptor_to_response(descriptor)
+
+
+@router.post("/{tenant_id}/tools/import-schema", response_model=ToolImportSchemaResponse)
+async def import_tool_schema(
+    tenant_id: str,
+    body: ToolImportSchemaRequest,
+    _identity: IdentityContext = Depends(require_valid_identity),
+) -> ToolImportSchemaResponse:
+    """Normalize user-pasted tool JSON into canonical fields for registration."""
+    _ = tenant_id
+    try:
+        normalized = normalize_tool_payload(body.payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    tool_name = (body.tool_name or normalized.name).strip()
+    if not tool_name:
+        raise HTTPException(status_code=422, detail="tool_name is required (explicitly or in payload.name)")
+    description = body.description.strip() or normalized.description
+    handler_ref = body.handler_ref.strip() or default_handler_ref(tool_name)
+    params = normalized.parameters_schema
+    return ToolImportSchemaResponse(
+        tool_name=tool_name,
+        description=description,
+        handler_ref=handler_ref,
+        parameters_schema=params,
+        schema_fingerprint=schema_fingerprint(params),
+    )
+
+
+@router.post("/{tenant_id}/tools/upload", response_model=ToolValidationResponse, status_code=201)
+async def upload_tool_package(
+    tenant_id: str,
+    request: Request,
+    body: ToolVersionUploadRequest,
+    _identity: IdentityContext = Depends(require_valid_identity),
+    tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
+) -> ToolValidationResponse:
+    """Register a tenant tool package version and store validation state."""
+    if tool_version_store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Tool version store is not configured (memory backend).",
+        )
+    rate_limiter = getattr(request.app.state, "tool_upload_rate_limiter", None)
+    if rate_limiter is not None:
+        allowed, _ = rate_limiter.allow(tenant_id)
+        if not allowed:
+            pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+            if pipeline is not None:
+                await pipeline.emit(
+                    event_type="tool_upload_rejected_rate_limit",
+                    correlation_id=f"{tenant_id}:{body.manifest.tool_name}:{body.manifest.version}",
+                    tenant_id=tenant_id,
+                    payload={"runtime_id": "registry_api"},
+                )
+            raise HTTPException(
+                status_code=429,
+                detail="TENANT_UPLOAD_RATE_LIMIT_EXCEEDED: too many tool uploads in the current window",
+            )
+
+    normalized_metadata = body.manifest.metadata
+    try:
+        normalized_metadata = normalize_manifest_metadata(body.manifest.metadata)
+    except ValueError:
+        # Keep raw metadata so _validation_for_manifest can record deterministic error details.
+        normalized_metadata = body.manifest.metadata
+
+    manifest = ToolPackageManifest(
+        tool_name=body.manifest.tool_name,
+        version=body.manifest.version,
+        description=body.manifest.description,
+        input_schema=body.manifest.input_schema,
+        timeout_ms=body.manifest.timeout_ms,
+        risk_tier=body.manifest.risk_tier.value,
+        entry_file=body.manifest.entry_file,
+        entrypoint=body.manifest.entrypoint,
+        requirements=body.manifest.requirements,
+        metadata=normalized_metadata,
+    )
+    policy_decision = validate_tool_package_upload(
+        manifest=manifest,
+        package_ref=body.package_ref,
+        artifact_size_bytes=body.artifact_size_bytes,
+        limits=request.app.state.settings.limits,
+    )
+    validation = _validation_for_manifest(manifest)
+    validation.errors.extend(policy_decision.errors)
+    validation.warnings.extend(policy_decision.warnings)
+    if validation.errors:
+        validation.state = ToolValidationState.INVALID
+    record = ToolVersionRecord(
+        tenant_id=tenant_id,
+        tool_name=manifest.tool_name,
+        version=manifest.version,
+        manifest=manifest,
+        validation=validation,
+        package_ref=body.package_ref,
+        active=False,
+        created_at=datetime.now(tz=timezone.utc).isoformat(),
+    )
+    await tool_version_store.save_tool_version(record)
+    pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    if pipeline is not None:
+        await pipeline.emit(
+            event_type="tool_upload_saved",
+            correlation_id=f"{tenant_id}:{manifest.tool_name}:{manifest.version}",
+            tenant_id=tenant_id,
+            payload={
+                "tool_name": manifest.tool_name,
+                "version": manifest.version,
+                "runtime_id": "registry_api",
+                "state": validation.state.value,
+                "package_ref": body.package_ref,
+            },
+        )
+    if body.activate:
+        await tool_version_store.set_active_tool_version(tenant_id, manifest.tool_name, manifest.version)
+        active_record = await tool_version_store.get_tool_version(tenant_id, manifest.tool_name, manifest.version)
+        if active_record is not None:
+            return _to_validation_response(active_record)
+    return _to_validation_response(record)
+
+
+@router.get("/{tenant_id}/tools/validate/{tool_name}", response_model=ToolValidationResponse)
+async def validate_tool_version(
+    tenant_id: str,
+    tool_name: str,
+    version: str | None = Query(default=None),
+    _identity: IdentityContext = Depends(require_valid_identity),
+    tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
+) -> ToolValidationResponse:
+    """Return stored validation status for a tenant tool version."""
+    if tool_version_store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Tool version store is not configured (memory backend).",
+        )
+
+    record: ToolVersionRecord | None
+    if version:
+        record = await tool_version_store.get_tool_version(tenant_id, tool_name, version)
+    else:
+        record = await tool_version_store.get_active_tool_version(tenant_id, tool_name)
+        if record is None:
+            versions = await tool_version_store.list_tool_versions(tenant_id, tool_name)
+            record = versions[0] if versions else None
+
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Tool version not found: {tool_name}")
+    return _to_validation_response(record)
+
+
+@router.get("/{tenant_id}/tools/versions/{tool_name}", response_model=ToolVersionListResponse)
+async def list_tool_versions(
+    tenant_id: str,
+    tool_name: str,
+    _identity: IdentityContext = Depends(require_valid_identity),
+    tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
+) -> ToolVersionListResponse:
+    """List all persisted versions for one tenant tool."""
+    if tool_version_store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Tool version store is not configured (memory backend).",
+        )
+    versions = await tool_version_store.list_tool_versions(tenant_id, tool_name)
+    return ToolVersionListResponse(
+        tenant_id=tenant_id,
+        tool_name=tool_name,
+        versions=[_to_validation_response(v) for v in versions],
+        total=len(versions),
+    )
+
+
+@router.get("/{tenant_id}/tools/version/{tool_name}", response_model=ToolVersionListResponse)
+async def list_tool_version_alias(
+    tenant_id: str,
+    tool_name: str,
+    _identity: IdentityContext = Depends(require_valid_identity),
+    tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
+) -> ToolVersionListResponse:
+    """Backward-compatible alias for clients using singular /tools/version path."""
+    return await list_tool_versions(
+        tenant_id=tenant_id,
+        tool_name=tool_name,
+        _identity=_identity,
+        tool_version_store=tool_version_store,
+    )
+
+
+@router.post(
+    "/{tenant_id}/tools/versions/{tool_name}/{version}/deactivate",
+    response_model=ToolGovernanceResponse,
+)
+async def deactivate_tool_version(
+    tenant_id: str,
+    tool_name: str,
+    version: str,
+    request: Request,
+    _identity: IdentityContext = Depends(require_valid_identity),
+    tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
+) -> ToolGovernanceResponse:
+    if tool_version_store is None:
+        raise HTTPException(status_code=503, detail="Tool version store is not configured (memory backend).")
+    active = await tool_version_store.get_active_tool_version(tenant_id, tool_name)
+    if active is None:
+        raise HTTPException(status_code=404, detail=f"No active version for tool '{tool_name}'.")
+    if active.version != version:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Version '{version}' is not active for tool '{tool_name}'. Active is '{active.version}'.",
+        )
+    await tool_version_store.clear_active_tool_version(tenant_id, tool_name)
+    pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    if pipeline is not None:
+        await pipeline.emit(
+            event_type="tool_version_deactivated",
+            correlation_id=f"{tenant_id}:{tool_name}:{version}",
+            tenant_id=tenant_id,
+            payload={"tool_name": tool_name, "version": version, "runtime_id": "registry_api"},
+        )
+    return ToolGovernanceResponse(
+        tenant_id=tenant_id,
+        tool_name=tool_name,
+        version=version,
+        action="deactivate",
+        active_version="",
+        revoked=False,
+    )
+
+
+@router.post(
+    "/{tenant_id}/tools/versions/{tool_name}/rollback",
+    response_model=ToolGovernanceResponse,
+)
+async def rollback_tool_version(
+    tenant_id: str,
+    tool_name: str,
+    body: ToolRollbackRequest,
+    request: Request,
+    _identity: IdentityContext = Depends(require_valid_identity),
+    tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
+) -> ToolGovernanceResponse:
+    if tool_version_store is None:
+        raise HTTPException(status_code=503, detail="Tool version store is not configured (memory backend).")
+    target = await tool_version_store.get_tool_version(tenant_id, tool_name, body.target_version)
+    if target is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Target rollback version '{body.target_version}' was not found for tool '{tool_name}'.",
+        )
+    await tool_version_store.set_active_tool_version(tenant_id, tool_name, body.target_version)
+    pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    if pipeline is not None:
+        await pipeline.emit(
+            event_type="tool_version_rollback",
+            correlation_id=f"{tenant_id}:{tool_name}:{body.target_version}",
+            tenant_id=tenant_id,
+            payload={"tool_name": tool_name, "version": body.target_version, "runtime_id": "registry_api"},
+        )
+    return ToolGovernanceResponse(
+        tenant_id=tenant_id,
+        tool_name=tool_name,
+        version=body.target_version,
+        action="rollback",
+        active_version=body.target_version,
+        revoked=False,
+    )
+
+
+@router.delete(
+    "/{tenant_id}/tools/versions/{tool_name}/{version}",
+    response_model=ToolGovernanceResponse,
+)
+async def revoke_tool_package_version(
+    tenant_id: str,
+    tool_name: str,
+    version: str,
+    request: Request,
+    force: bool = Query(default=False),
+    _identity: IdentityContext = Depends(require_valid_identity),
+    tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
+) -> ToolGovernanceResponse:
+    if tool_version_store is None:
+        raise HTTPException(status_code=503, detail="Tool version store is not configured (memory backend).")
+    record = await tool_version_store.get_tool_version(tenant_id, tool_name, version)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Tool version not found: {tool_name}@{version}")
+    if record.active and not force:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Tool version '{version}' is active; deactivate or use force=true to revoke.",
+        )
+    if record.active and force:
+        await tool_version_store.clear_active_tool_version(tenant_id, tool_name)
+    await tool_version_store.delete_tool_version(tenant_id, tool_name, version)
+    pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    if pipeline is not None:
+        await pipeline.emit(
+            event_type="tool_package_revoked",
+            correlation_id=f"{tenant_id}:{tool_name}:{version}",
+            tenant_id=tenant_id,
+            payload={
+                "tool_name": tool_name,
+                "version": version,
+                "runtime_id": "registry_api",
+                "force": bool(force),
+            },
+        )
+    active_after = await tool_version_store.get_active_tool_version(tenant_id, tool_name)
+    return ToolGovernanceResponse(
+        tenant_id=tenant_id,
+        tool_name=tool_name,
+        version=version,
+        action="revoke",
+        active_version=active_after.version if active_after is not None else "",
+        revoked=True,
+    )
 
 
 @router.get("/{tenant_id}/tools", response_model=ToolListResponse)
