@@ -22,6 +22,16 @@ and writes:
 
 - `.local/rc-signoff.md`
 
+## CI Integration
+
+- Workflow: `.github/workflows/rc-signoff.yml`
+- Trigger: pull requests targeting `main` (plus push to `main` and manual dispatch)
+- Behavior:
+  - runs `make rc-signoff`
+  - uploads `.local/rc-signoff.md` as artifact `rc-signoff-evidence` even on failure
+
+To hard-block merges, set `rc-signoff / rc_signoff` as a required status check in branch protection for `main`.
+
 ## Required Evidence-Link Documents
 
 The signoff runner verifies these files exist before running gates:

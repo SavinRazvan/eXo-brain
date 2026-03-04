@@ -1,0 +1,57 @@
+# File: rc-signoff.yml
+# Path: .github/workflows/rc-signoff.yml
+# Role: Enforces one-command release-candidate signoff on PRs to main.
+# Used By:
+#  - GitHub Actions
+# Depends On:
+#  - Makefile
+#  - scripts/release/rc_signoff.py
+# Notes:
+#  - Uploads `.local/rc-signoff.md` even when the gate fails.
+
+name: rc-signoff
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
+      - "docs/**"
+      - "ui/**"
+      - "Makefile"
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: rc-signoff-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rc_signoff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run one-command release-candidate signoff
+        run: make rc-signoff
+
+      - name: Upload RC signoff evidence artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc-signoff-evidence
+          path: .local/rc-signoff.md
+          if-no-files-found: error

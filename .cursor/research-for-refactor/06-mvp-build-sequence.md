@@ -57,6 +57,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Tenant Tool Execution — Slice 6.4 audit signing operationalization (key rotation + signature versioning) | Implemented | Added active signing key version selection, versioned signing keyring config, and backward-compatible verification for both versioned and legacy unsigned-version bundles. |
 | Tenant Tool Execution — Post 6.4 P0/P1/P2 gap closure track | Implemented | Completed `T1`-`T4`: tenant boundary enforcement, active uploaded-version runtime wiring, import-first Tool Manager baseline, and canonical docs synchronization. |
 | Tenant Tool Execution — N1/N2/N3 follow-through | Implemented | Completed Tool Manager bundle upload UX + integrity visibility (N1), BYOC artifact-integrity parity (N2), and rollout/ops hardening with profile defaults + dashboard/runbook baselines + evidence linkage (N3). |
+| RC signoff CI gate | Implemented | Added `.github/workflows/rc-signoff.yml` to run `make rc-signoff` on PRs to `main` and upload `.local/rc-signoff.md` as artifact evidence. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
