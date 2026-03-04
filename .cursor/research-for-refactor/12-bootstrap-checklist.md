@@ -553,6 +553,7 @@ Canonical reference:
   - [x] companion tracker sync and hosted external beta evidence linkage
 
 ### Hosted external beta evidence links
+- `docs/operations/release-candidate-signoff-checklist.md`
 - `src/config/settings.py`
 - `src/api/app.py`
 - `tests/modules/api/test_deployment_profile_defaults.py`
