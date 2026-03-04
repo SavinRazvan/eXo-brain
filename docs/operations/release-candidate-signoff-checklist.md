@@ -46,7 +46,8 @@ This parses `.local/rc-signoff.md` into a normalized JSON summary at `.local/rc-
 - Trigger: pull requests targeting `main` (plus push to `main` and manual dispatch)
 - Behavior:
   - runs `make rc-signoff`
-  - uploads `.local/rc-signoff.md` as artifact `rc-signoff-evidence` even on failure
+  - runs `make rc-signoff-json` to produce normalized JSON
+  - uploads both `.local/rc-signoff.md` and `.local/rc-signoff.json` as artifact `rc-signoff-evidence` even on failure
 
 To hard-block merges, set `rc-signoff / rc_signoff` as a required status check in branch protection for `main`.
 
