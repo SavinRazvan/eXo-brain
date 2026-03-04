@@ -115,6 +115,9 @@ class AuthSettings:
     jwt_secret: str = ""
     jwks_url: str = ""
     algorithm: str = "HS256"
+    # Disabled by default: tenant-scoped APIs enforce identity.tenant_id == path tenant_id.
+    allow_cross_tenant_admin: bool = False
+    cross_tenant_admin_roles: list[str] = field(default_factory=lambda: ["super_admin"])
 
 
 @dataclass(slots=True)
