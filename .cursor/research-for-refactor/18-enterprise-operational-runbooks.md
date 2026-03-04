@@ -229,6 +229,33 @@ Template: Stakeholder/customer-safe update
 - Mitigation is in progress and we are prioritizing restoration.
 - Next update by `<time>`.
 
+## 8) BYOC Artifact Integrity Mismatch Runbook
+
+Trigger examples:
+- `BYOC_ARTIFACT_INTEGRITY_MISMATCH`
+- `BYOC_ARTIFACT_INTEGRITY_MISSING`
+- `BYOC_ARTIFACT_SIGNATURE_VERSION_MISMATCH`
+
+Immediate actions (0-10 min):
+1. Freeze affected BYOC worker pool for impacted tenant(s).
+2. Collect claim/result envelopes (`job_id`, `call_id`, `tool_version`, hash/signature/version fields).
+3. Verify whether mismatch is isolated to one worker build or widespread.
+
+Containment:
+1. Block submission from affected worker identity until artifact parity is restored.
+2. Re-issue worker tokens after worker artifact sync is confirmed.
+3. Keep hosted deterministic path available where policy allows.
+
+Recovery:
+1. Re-run one known-good claim/submit parity check using latest worker artifact bundle.
+2. Monitor rejection reason-code rates for 30 minutes.
+3. Resume normal BYOC traffic gradually.
+
+Exit criteria:
+- mismatch reason-code rate returns to baseline
+- no unresolved stale signature version submissions
+- worker deployment and artifact provenance documented
+
 ## Post-Incident Review (Mandatory)
 - timeline with key decisions and evidence links
 - root cause(s), contributing factors, and detection gaps
@@ -242,6 +269,7 @@ Template: Stakeholder/customer-safe update
 - [ ] rollback and failover automations tested
 - [ ] communication templates approved
 - [ ] audit and compliance evidence path verified
+- [ ] BYOC artifact-integrity alerts and dashboards validated
 
 ## Related Docs
 - `14-enterprise-readiness-modules.md`

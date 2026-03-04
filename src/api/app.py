@@ -34,7 +34,7 @@ from src.config.provider_registry import (
     ProviderRecord,
     ProviderRegistry,
 )
-from src.config.settings import AppSettings, AuthSettings, LimitsSettings, RuntimeSettings
+from src.config.settings import AppSettings, AuthSettings, DeploymentProfile, LimitsSettings, RuntimeSettings
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 
 
@@ -45,9 +45,43 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _resolve_deployment_profile(raw: str) -> DeploymentProfile:
+    normalized = str(raw or "").strip().lower()
+    if normalized == DeploymentProfile.SELF_HOSTED.value:
+        return DeploymentProfile.SELF_HOSTED
+    if normalized == DeploymentProfile.HYBRID.value:
+        return DeploymentProfile.HYBRID
+    return DeploymentProfile.MANAGED_CLOUD
+
+
+def _profile_default(profile: DeploymentProfile, *, key: str, fallback: str) -> str:
+    defaults = {
+        DeploymentProfile.MANAGED_CLOUD: {
+            "tool_artifact_directory": ".exo_data/tool_artifacts/managed_cloud",
+            "audit_export_directory": ".exo_data/audit_exports/managed_cloud",
+            "byoc_store_backend": "sqlite",
+            "byoc_cleanup_interval_seconds": "20",
+        },
+        DeploymentProfile.SELF_HOSTED: {
+            "tool_artifact_directory": ".exo_data/tool_artifacts/self_hosted",
+            "audit_export_directory": ".exo_data/audit_exports/self_hosted",
+            "byoc_store_backend": "sqlite",
+            "byoc_cleanup_interval_seconds": "30",
+        },
+        DeploymentProfile.HYBRID: {
+            "tool_artifact_directory": ".exo_data/tool_artifacts/hybrid",
+            "audit_export_directory": ".exo_data/audit_exports/hybrid",
+            "byoc_store_backend": "sqlite",
+            "byoc_cleanup_interval_seconds": "25",
+        },
+    }
+    return defaults.get(profile, {}).get(key, fallback)
+
+
 def _default_settings() -> AppSettings:
     """Build app settings from lightweight environment defaults."""
     env = os.environ.get("EXO_ENV", "development")
+    deployment_profile = _resolve_deployment_profile(os.environ.get("EXO_DEPLOYMENT_PROFILE", "managed_cloud"))
     default_provider_id = os.environ.get("EXO_DEFAULT_PROVIDER_ID", "openai")
     jwt_secret = os.environ.get("EXO_AUTH_JWT_SECRET", "")
     jwt_alg = os.environ.get("EXO_AUTH_JWT_ALGORITHM", "HS256")
@@ -68,6 +102,7 @@ def _default_settings() -> AppSettings:
     return AppSettings(
         schema_version="1.0",
         environment=env,
+        deployment_profile=deployment_profile,
         runtime=RuntimeSettings(
             default_provider_id=default_provider_id,
             allowed_provider_ids=[default_provider_id],
@@ -80,11 +115,19 @@ def _default_settings() -> AppSettings:
             enable_byoc_tool_runtime=_env_bool("EXO_ENABLE_BYOC_TOOL_RUNTIME", default=False),
             byoc_worker_jwt_secret=os.environ.get("EXO_BYOC_WORKER_JWT_SECRET", "exo-byoc-dev-secret"),
             byoc_worker_token_ttl_seconds=int(os.environ.get("EXO_BYOC_WORKER_TOKEN_TTL_SECONDS", "300")),
-            byoc_store_backend=os.environ.get("EXO_BYOC_STORE_BACKEND", "memory"),
+            byoc_store_backend=os.environ.get(
+                "EXO_BYOC_STORE_BACKEND",
+                _profile_default(deployment_profile, key="byoc_store_backend", fallback="memory"),
+            ),
             byoc_sqlite_db_path=os.environ.get("EXO_BYOC_DB_PATH", os.environ.get("EXO_DB_PATH", ".exo_data/exo.db")),
             byoc_lease_ttl_seconds=int(os.environ.get("EXO_BYOC_LEASE_TTL_SECONDS", "30")),
             byoc_replay_ttl_seconds=int(os.environ.get("EXO_BYOC_REPLAY_TTL_SECONDS", "300")),
-            byoc_cleanup_interval_seconds=int(os.environ.get("EXO_BYOC_CLEANUP_INTERVAL_SECONDS", "30")),
+            byoc_cleanup_interval_seconds=int(
+                os.environ.get(
+                    "EXO_BYOC_CLEANUP_INTERVAL_SECONDS",
+                    _profile_default(deployment_profile, key="byoc_cleanup_interval_seconds", fallback="30"),
+                )
+            ),
             byoc_completed_ttl_seconds=int(os.environ.get("EXO_BYOC_COMPLETED_TTL_SECONDS", "3600")),
             byoc_cancelled_ttl_seconds=int(os.environ.get("EXO_BYOC_CANCELLED_TTL_SECONDS", "3600")),
             byoc_result_ttl_seconds=int(os.environ.get("EXO_BYOC_RESULT_TTL_SECONDS", "3600")),
@@ -120,7 +163,7 @@ def _default_settings() -> AppSettings:
             max_tool_upload_size_bytes=int(os.environ.get("EXO_MAX_TOOL_UPLOAD_SIZE_BYTES", "5000000")),
             tool_artifact_directory=os.environ.get(
                 "EXO_TOOL_ARTIFACT_DIRECTORY",
-                ".exo_data/tool_artifacts",
+                _profile_default(deployment_profile, key="tool_artifact_directory", fallback=".exo_data/tool_artifacts"),
             ),
             tool_artifact_signing_secret=os.environ.get(
                 "EXO_TOOL_ARTIFACT_SIGNING_SECRET",
@@ -133,7 +176,10 @@ def _default_settings() -> AppSettings:
             ],
             max_audit_records_per_tenant=int(os.environ.get("EXO_MAX_AUDIT_RECORDS_PER_TENANT", "10000")),
             max_audit_export_records=int(os.environ.get("EXO_MAX_AUDIT_EXPORT_RECORDS", "2000")),
-            audit_export_directory=os.environ.get("EXO_AUDIT_EXPORT_DIRECTORY", ".exo_data/audit_exports"),
+            audit_export_directory=os.environ.get(
+                "EXO_AUDIT_EXPORT_DIRECTORY",
+                _profile_default(deployment_profile, key="audit_export_directory", fallback=".exo_data/audit_exports"),
+            ),
             audit_bundle_signing_secret=os.environ.get(
                 "EXO_AUDIT_BUNDLE_SIGNING_SECRET",
                 "exo-audit-dev-secret",
