@@ -284,6 +284,247 @@ Provide a concrete startup checklist for creating the new repository and reachin
 
 ---
 
+## Tenant Tool Execution — Slice 2 Hardening (hosted runtime controls)
+
+### Runtime controls + isolation hardening
+- [x] `src/tools/sandbox/runtime.py` — process-isolated execution option, cancellation token hooks, control stats
+- [x] `src/tools/sandbox/process_runner.py` — process runner baseline with timeout terminate/kill semantics
+- [x] `src/tools/sandbox/pool.py` — cleanup counters/events and eviction-reason observability
+- [x] `src/tools/execution_adapter.py` — optional control hooks (`request_cancellation`, `control_stats`, `cleanup_events`)
+- [x] `src/tools/executor.py` — adapter getter for control-plane integrations
+
+### API/runtime orchestration controls
+- [x] `src/api/routers/runtime_control.py` — admin endpoints for stats, cleanup events, call/run cancellation
+- [x] `src/api/schemas/runtime_control_schemas.py` — typed control-plane responses/requests
+- [x] `src/core/run_control_registry.py` — canonical run lifecycle registry (tenant/session/run/call/status)
+- [x] `src/api/routers/turns.py` — run registry updates + SSE/WS cancellation forwarding via call_ids
+- [x] `src/api/bootstrap.py` — app-scoped run control registry wiring
+
+### Tests
+- [x] `tests/modules/tools/test_sandbox_runtime.py` — timeout/cancel/failure-recovery/concurrency/process-mode coverage
+- [x] `tests/modules/tools/test_sandbox_pool.py` — LRU/idle/cleanup counters/events coverage
+- [x] `tests/modules/api/test_runtime_control_api.py` — control-plane endpoint coverage
+- [x] `tests/modules/api/test_slice3_playground.py` — transport cancellation propagation + run registry assertions
+
+---
+
+## Tenant Tool Execution — Slice 4.1 Hardening (BYOC lease + replay)
+
+### BYOC queue/lease/runtime controls
+- [x] `src/tools/byoc/job_store.py` — durable queue/lease contract + in-memory adapter with claim/requeue semantics
+- [x] `src/tools/byoc/connector_runtime.py` — lease-aware claim/submit flow, lease timeout requeue polling, and cancellation forwarding
+- [x] `src/tools/byoc/job_contracts.py` — lease fields (`lease_token`, `lease_expires_at_epoch`, `claim_attempt`)
+
+### Replay/idempotency controls
+- [x] `src/tools/byoc/worker_auth.py` — short-lived JWTs with required `jti` claim
+- [x] `src/tools/byoc/result_store.py` — idempotent result store + replay guard (`nonce/jti`) support
+- [x] `src/api/routers/runtime_control.py` — BYOC claim/submit nonce enforcement through control plane
+
+### Tests
+- [x] `tests/modules/tools/test_byoc_runtime.py` — lease expiry reclaim, replay nonce rejection, duplicate callback race coverage
+- [x] `tests/modules/api/test_byoc_runtime_control_api.py` — BYOC API replay and duplicate-submit behavior
+- [x] `tests/modules/runtime/test_tenant_runtime.py` — hosted-default vs explicit BYOC runtime selection
+
+---
+
+## Tenant Tool Execution — Slice 4.2 Durability (BYOC sqlite persistence)
+
+### SQLite durability adapters
+- [x] `src/tools/byoc/sqlite_store.py` — SQLite BYOC job queue, result store, and replay guard adapters
+- [x] `src/tools/byoc/result_store.py` — one-shot result consumption contract for cross-instance completion
+- [x] `src/tools/byoc/connector_runtime.py` — result-store polling path for restart-safe BYOC execution flow
+
+### Runtime wiring
+- [x] `src/config/settings.py` — BYOC persistence backend/path/ttl settings (`byoc_store_backend`, `byoc_sqlite_db_path`, lease/replay ttl)
+- [x] `src/api/app.py` — env wiring for BYOC sqlite runtime options
+- [x] `src/runtime/tenant_runtime.py` — sqlite BYOC store injection when configured
+
+### Tests
+- [x] `tests/modules/tools/test_byoc_sqlite_recovery.py` — restart-recovery, lease requeue, replay persistence checks
+- [x] `tests/modules/tools/test_byoc_runtime.py` — regression coverage on in-memory + durable-compatible runtime behavior
+- [x] `tests/modules/runtime/test_tenant_runtime.py` — sqlite-backed BYOC runtime selection assertion
+
+---
+
+## Tenant Tool Execution — Slice 4.3 Operations (cleanup/retention + health metrics)
+
+### Runtime/store cleanup + retention hooks
+- [x] `src/tools/byoc/job_store.py` — tenant-scoped `health_metrics()` and `cleanup_retention()` contracts + in-memory implementation
+- [x] `src/tools/byoc/result_store.py` — result/replay health + retention hook contracts
+- [x] `src/tools/byoc/sqlite_store.py` — tenant-safe retention pruning for jobs/results/replay keys
+- [x] `src/tools/byoc/connector_runtime.py` — periodic cleanup hook + explicit cleanup control + aggregated cleanup counters
+
+### API/config/runtime wiring
+- [x] `src/api/routers/runtime_control.py` — `POST /admin/byoc/cleanup` endpoint and tenant-scoped BYOC stats in `control-stats`
+- [x] `src/api/schemas/runtime_control_schemas.py` — `ByocCleanupRequest/Response`
+- [x] `src/config/settings.py` — BYOC retention interval/TTL/cap settings
+- [x] `src/api/app.py` — env wiring for BYOC cleanup/retention settings
+- [x] `src/runtime/tenant_runtime.py` — retention settings wired into BYOC runtime adapter
+
+### Tests
+- [x] `tests/modules/tools/test_byoc_sqlite_recovery.py` — tenant-scoped cleanup retention and bounded pruning checks
+- [x] `tests/modules/api/test_byoc_runtime_control_api.py` — BYOC cleanup endpoint + runtime health metric assertions
+
+---
+
+## Tenant Tool Execution — Slice 5.0 Streaming State Machine (baseline)
+
+### Runtime/transport lifecycle events
+- [x] `src/schemas/events.py` — added `tool_progress` runtime event contract
+- [x] `src/core/orchestrator.py` — deterministic tool lifecycle state emissions (`queued/running/terminal`)
+- [x] `src/api/routers/turns.py` — SSE/WS mapping for `tool_progress` + call-id tracking for cancellation forwarding
+- [x] `src/api/schemas/turn_schemas.py` — `ToolProgressEvent` envelope
+
+### Tests
+- [x] `tests/modules/core/test_orchestrator_turn.py` — deterministic tool progress state machine assertion
+- [x] `tests/modules/api/test_slice3_playground.py` — runtime-event mapping + websocket cancel forwarding from `tool_progress`
+
+---
+
+## Tenant Tool Execution — Slice 5.1 BYOC adapter-originated progress events
+
+### Adapter/orchestration wiring
+- [x] `src/tools/execution_adapter.py` — added `drain_progress_events(call_id)` hook
+- [x] `src/tools/byoc/connector_runtime.py` — records BYOC lifecycle progress (`queued/running/terminal`) for adapter-originated emission
+- [x] `src/core/orchestrator.py` — consumes adapter progress events for BYOC calls and emits `tool_progress` from adapter path
+
+### Tests
+- [x] `tests/modules/core/test_orchestrator_turn.py` — BYOC adapter progress sequence assertion
+- [x] `tests/modules/api/test_slice3_playground.py` — SSE/WS ordered `tool_progress` transition assertions
+
+---
+
+## Tenant Tool Execution — Slice 5.2 BYOC metadata streaming + cancel race guarantees
+
+### BYOC progress metadata
+- [x] `src/schemas/events.py` — `tool_progress` payload includes `job_id`, `lease_token`, `lease_expires_at_epoch`, `claim_attempt`
+- [x] `src/tools/byoc/connector_runtime.py` — BYOC progress recorder attaches lease/job metadata across queued/running/terminal states
+- [x] `src/core/orchestrator.py` — adapter-originated progress relay preserves BYOC metadata fields
+- [x] `src/api/routers/turns.py` / `src/api/schemas/turn_schemas.py` — SSE/WS event mapping/schema include BYOC metadata
+
+### Cancel/disconnect terminal guarantees
+- [x] `src/api/routers/turns.py` — non-terminal guard helper prevents late-cancel overwrite of already-completed runs
+- [x] `src/api/routers/turns.py` — forced disconnect/cancel paths mark terminal cancelled state deterministically when run is still active
+
+### Tests
+- [x] `tests/modules/tools/test_byoc_runtime.py` — adapter progress metadata assertions
+- [x] `tests/modules/core/test_orchestrator_turn.py` — BYOC progress sequence with lease metadata
+- [x] `tests/modules/api/test_slice3_playground.py` — runtime-event metadata mapping + forced disconnect/late-cancel race coverage
+
+---
+
+## Tenant Tool Execution — Slice 5.3 in-flight cancelled progress + ordering guarantees
+
+### Cancellation progress emission
+- [x] `src/api/routers/turns.py` — added explicit cancelled `tool_progress` event emission for active `call_id`s when run cancel is requested in-flight
+- [x] `src/api/routers/turns.py` — WebSocket cancel path now emits ordered `tool_progress(cancelled)` before terminal `run_cancelled`
+- [x] `src/api/routers/turns.py` — SSE stream path now emits `tool_progress(cancelled)` on in-flight cancel and suppresses late terminal run event forwarding
+
+### Tests
+- [x] `tests/modules/api/test_slice3_playground.py` — SSE in-flight cancellation ordering assertion
+- [x] `tests/modules/api/test_slice3_playground.py` — WebSocket cancel-path cancelled progress ordering assertions
+
+---
+
+## Tenant Tool Execution — Slice 6.0 security/governance/scale baseline
+
+### Tool package policy controls
+- [x] `src/policies/tool_package_policy.py` — dependency token blocking + optional allowlist enforcement
+- [x] `src/api/routers/tools.py` — artifact size gate + package_ref scan + validation integration
+- [x] `src/api/schemas/tool_schemas.py` — `artifact_size_bytes` request field for upload-size enforcement
+
+### Tenant rate/concurrency controls
+- [x] `src/tenancy/rate_limiter.py` — process-local per-tenant fixed-window limiter
+- [x] `src/api/bootstrap.py` — wired tenant turn/upload limiters from settings
+- [x] `src/api/routers/turns.py` — SSE/WS turn rate + active-run concurrency enforcement
+- [x] `src/core/run_control_registry.py` — active run count helper for concurrency gating
+
+### Audit pipeline baseline
+- [x] `src/observability/tool_audit.py` — structured + persisted tool audit emission
+- [x] `src/api/bootstrap.py` — app-scoped audit pipeline/store/logger wiring
+- [x] `src/api/routers/tools.py` / `src/api/routers/turns.py` — audit events on upload and limit rejections
+
+### Tests
+- [x] `tests/modules/api/test_tool_version_api.py` — artifact-size, dependency-allowlist, and upload-rate-limit coverage
+- [x] `tests/modules/api/test_slice3_playground.py` — turn concurrency/rate-limit coverage on SSE/WS
+
+---
+
+## Tenant Tool Execution — Slice 6.1 lifecycle governance + audit query/report APIs
+
+### Lifecycle governance endpoints
+- [x] `src/api/routers/tools.py` — deactivate active version endpoint
+- [x] `src/api/routers/tools.py` — rollback endpoint to switch active version
+- [x] `src/api/routers/tools.py` — revoke package version endpoint with active-version guard/force option
+- [x] `src/api/schemas/tool_schemas.py` — governance request/response schemas
+
+### Persistence contracts/adapters
+- [x] `src/persistence/contracts.py` — `ToolVersionStore` lifecycle methods (`clear_active_tool_version`, `delete_tool_version`)
+- [x] `src/persistence/adapters/sqlite.py` — SQLite lifecycle method implementations
+
+### Audit query/report APIs
+- [x] `src/api/routers/audit.py` — tenant audit list/query/report endpoints
+- [x] `src/api/schemas/audit_schemas.py` — audit response schemas
+- [x] `src/persistence/contracts.py` / `src/persistence/audit_store.py` — audit list contract + in-memory implementation
+- [x] `src/api/app.py` — audit router wiring
+
+### Tests
+- [x] `tests/modules/api/test_tool_version_api.py` — lifecycle governance endpoint coverage
+- [x] `tests/modules/api/test_audit_api.py` — audit query/report endpoint coverage
+
+---
+
+## Tenant Tool Execution — Slice 6.2 audit export artifacts + retention controls
+
+### Audit export bundle
+- [x] `src/api/routers/audit.py` — export endpoint with deterministic hash-chain validation
+- [x] `src/api/schemas/audit_schemas.py` — export bundle response schema
+- [x] `src/audit/trail.py` reuse — tamper-evident chain helpers applied to exported records
+
+### Audit retention controls
+- [x] `src/persistence/contracts.py` / `src/persistence/audit_store.py` — audit cleanup contract + implementation
+- [x] `src/api/routers/audit.py` — cleanup endpoint for tenant-scoped retention pruning
+- [x] `src/config/settings.py` — audit retention/export limits
+
+### Tests
+- [x] `tests/modules/api/test_audit_api.py` — export chain-valid assertions + cleanup prune behavior
+
+---
+
+## Tenant Tool Execution — Slice 6.3 signed audit evidence + export-file verification workflow
+
+### Signed evidence bundle support
+- [x] `src/compliance/evidence_bundle.py` — deterministic bundle signing + signature verification helpers
+- [x] `src/api/schemas/audit_schemas.py` — signed export/verify request-response schemas
+
+### Export-to-file + verification APIs
+- [x] `src/api/routers/audit.py` — `POST /admin/audit/export-file` writes signed bundle JSON into configured export directory
+- [x] `src/api/routers/audit.py` — `POST /admin/audit/verify` validates signature + chain for file or inline bundle payload
+- [x] `src/api/routers/audit.py` — export directory boundary checks block traversal outside configured root
+
+### Config
+- [x] `src/config/settings.py` / `src/api/app.py` — `audit_export_directory` + `audit_bundle_signing_secret` settings and env wiring
+
+### Tests
+- [x] `tests/modules/api/test_audit_api.py` — export-file success + verify success + tampered bundle verify-failure coverage
+
+---
+
+## Tenant Tool Execution — Slice 6.4 audit signing key rotation + signature-version verification
+
+### Signing key rotation controls
+- [x] `src/compliance/evidence_bundle.py` — versioned signing keyring + active signing key resolution helpers
+- [x] `src/config/settings.py` / `src/api/app.py` — `audit_bundle_signing_active_version` + `audit_bundle_signing_secrets_by_version` config/env wiring
+
+### Backward-compatible verification
+- [x] `src/api/routers/audit.py` — verify supports explicit `signature_version` and legacy bundles without version field
+- [x] `src/api/schemas/audit_schemas.py` — export/verify response metadata includes signature-version details
+
+### Tests
+- [x] `tests/modules/api/test_audit_api.py` — rotated key verification + legacy no-version signature compatibility coverage
+
+---
+
 ## Platform Extensions — Slice 1 (Auth Hardening — branch: feature/slice1-auth-hardening)
 
 ### New contracts

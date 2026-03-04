@@ -39,6 +39,11 @@ from src.persistence.contracts import (
     SessionRecord,
     SessionStore,
     ToolStore,
+    ToolPackageManifest,
+    ToolValidationResult,
+    ToolValidationState,
+    ToolVersionRecord,
+    ToolVersionStore,
 )
 
 
@@ -723,4 +728,199 @@ class SQLiteProviderStore(ProviderStore):
             """
         )
         conn.commit()
+
+
+
+class SQLiteToolVersionStore(ToolVersionStore):
+    """SQLite-backed store for tenant tool package versions and validation status."""
+
+    def __init__(self, db_path: str | Path = ":memory:") -> None:
+        self._db_path = str(db_path)
+        self._shared_conn: sqlite3.Connection | None = (
+            sqlite3.connect(":memory:", check_same_thread=False)
+            if self._db_path == ":memory:"
+            else None
+        )
+        self._ensure_schema()
+
+    def _connect(self) -> sqlite3.Connection:
+        if self._shared_conn is not None:
+            return self._shared_conn
+        return sqlite3.connect(self._db_path)
+
+    async def save_tool_version(self, record: ToolVersionRecord) -> None:
+        manifest = {
+            "tool_name": record.manifest.tool_name,
+            "version": record.manifest.version,
+            "description": record.manifest.description,
+            "input_schema": record.manifest.input_schema,
+            "timeout_ms": record.manifest.timeout_ms,
+            "risk_tier": record.manifest.risk_tier,
+            "entry_file": record.manifest.entry_file,
+            "entrypoint": record.manifest.entrypoint,
+            "requirements": record.manifest.requirements,
+            "metadata": record.manifest.metadata,
+        }
+        validation = {
+            "tool_name": record.validation.tool_name if record.validation else record.tool_name,
+            "version": record.validation.version if record.validation else record.version,
+            "state": (record.validation.state.value if record.validation else ToolValidationState.PENDING.value),
+            "errors": record.validation.errors if record.validation else [],
+            "warnings": record.validation.warnings if record.validation else [],
+            "normalized_schema_hash": (record.validation.normalized_schema_hash if record.validation else ""),
+        }
+        conn = self._connect()
+        conn.execute(
+            """
+            INSERT INTO tool_versions (
+                tenant_id, tool_name, version, manifest_json, validation_json, package_ref, active, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(tenant_id, tool_name, version) DO UPDATE SET
+                manifest_json=excluded.manifest_json,
+                validation_json=excluded.validation_json,
+                package_ref=excluded.package_ref,
+                active=excluded.active,
+                created_at=excluded.created_at
+            """,
+            (
+                record.tenant_id,
+                record.tool_name,
+                record.version,
+                json.dumps(manifest),
+                json.dumps(validation),
+                record.package_ref,
+                1 if record.active else 0,
+                record.created_at,
+            ),
+        )
+        conn.commit()
+
+    async def get_tool_version(self, tenant_id: str, tool_name: str, version: str) -> ToolVersionRecord | None:
+        conn = self._connect()
+        row = conn.execute(
+            """
+            SELECT tenant_id, tool_name, version, manifest_json, validation_json, package_ref, active, created_at
+            FROM tool_versions
+            WHERE tenant_id = ? AND tool_name = ? AND version = ?
+            """,
+            (tenant_id, tool_name, version),
+        ).fetchone()
+        return self._row_to_record(row) if row else None
+
+    async def list_tool_versions(self, tenant_id: str, tool_name: str) -> list[ToolVersionRecord]:
+        conn = self._connect()
+        rows = conn.execute(
+            """
+            SELECT tenant_id, tool_name, version, manifest_json, validation_json, package_ref, active, created_at
+            FROM tool_versions
+            WHERE tenant_id = ? AND tool_name = ?
+            ORDER BY version DESC
+            """,
+            (tenant_id, tool_name),
+        ).fetchall()
+        return [self._row_to_record(row) for row in rows]
+
+    async def set_active_tool_version(self, tenant_id: str, tool_name: str, version: str) -> None:
+        conn = self._connect()
+        conn.execute(
+            "UPDATE tool_versions SET active = 0 WHERE tenant_id = ? AND tool_name = ?",
+            (tenant_id, tool_name),
+        )
+        conn.execute(
+            """
+            UPDATE tool_versions
+            SET active = 1
+            WHERE tenant_id = ? AND tool_name = ? AND version = ?
+            """,
+            (tenant_id, tool_name, version),
+        )
+        conn.commit()
+
+    async def get_active_tool_version(self, tenant_id: str, tool_name: str) -> ToolVersionRecord | None:
+        conn = self._connect()
+        row = conn.execute(
+            """
+            SELECT tenant_id, tool_name, version, manifest_json, validation_json, package_ref, active, created_at
+            FROM tool_versions
+            WHERE tenant_id = ? AND tool_name = ? AND active = 1
+            LIMIT 1
+            """,
+            (tenant_id, tool_name),
+        ).fetchone()
+        return self._row_to_record(row) if row else None
+
+    async def clear_active_tool_version(self, tenant_id: str, tool_name: str) -> None:
+        conn = self._connect()
+        conn.execute(
+            "UPDATE tool_versions SET active = 0 WHERE tenant_id = ? AND tool_name = ?",
+            (tenant_id, tool_name),
+        )
+        conn.commit()
+
+    async def delete_tool_version(self, tenant_id: str, tool_name: str, version: str) -> None:
+        conn = self._connect()
+        conn.execute(
+            """
+            DELETE FROM tool_versions
+            WHERE tenant_id = ? AND tool_name = ? AND version = ?
+            """,
+            (tenant_id, tool_name, version),
+        )
+        conn.commit()
+
+    def _row_to_record(self, row: tuple) -> ToolVersionRecord:
+        tenant_id, tool_name, version, manifest_json, validation_json, package_ref, active, created_at = row
+        manifest_data = json.loads(manifest_json)
+        validation_data = json.loads(validation_json)
+        manifest = ToolPackageManifest(
+            tool_name=manifest_data.get("tool_name", tool_name),
+            version=manifest_data.get("version", version),
+            description=manifest_data.get("description", ""),
+            input_schema=manifest_data.get("input_schema", {}),
+            timeout_ms=manifest_data.get("timeout_ms", 30000),
+            risk_tier=manifest_data.get("risk_tier", "low"),
+            entry_file=manifest_data.get("entry_file", "handler.py"),
+            entrypoint=manifest_data.get("entrypoint", "run"),
+            requirements=manifest_data.get("requirements", []),
+            metadata=manifest_data.get("metadata", {}),
+        )
+        validation = ToolValidationResult(
+            tool_name=validation_data.get("tool_name", tool_name),
+            version=validation_data.get("version", version),
+            state=ToolValidationState(validation_data.get("state", ToolValidationState.PENDING.value)),
+            errors=validation_data.get("errors", []),
+            warnings=validation_data.get("warnings", []),
+            normalized_schema_hash=validation_data.get("normalized_schema_hash", ""),
+        )
+        return ToolVersionRecord(
+            tenant_id=tenant_id,
+            tool_name=tool_name,
+            version=version,
+            manifest=manifest,
+            validation=validation,
+            package_ref=package_ref,
+            active=bool(active),
+            created_at=created_at,
+        )
+
+    def _ensure_schema(self) -> None:
+        conn = self._connect()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tool_versions (
+                tenant_id TEXT NOT NULL,
+                tool_name TEXT NOT NULL,
+                version TEXT NOT NULL,
+                manifest_json TEXT NOT NULL,
+                validation_json TEXT NOT NULL,
+                package_ref TEXT NOT NULL DEFAULT '',
+                active INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (tenant_id, tool_name, version)
+            )
+            """
+        )
+        conn.commit()
+
 

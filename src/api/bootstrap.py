@@ -31,9 +31,14 @@ from fastapi import FastAPI
 
 from src.config.provider_registry import ProviderRegistry
 from src.config.settings import AppSettings
-from src.persistence.contracts import AgentStore, ApiKeyStore, ProviderStore, ToolStore
+from src.core.run_control_registry import RunControlRegistry
+from src.observability.logging import StructuredLogger
+from src.observability.tool_audit import ToolAuditPipeline
+from src.persistence.audit_store import InMemoryAuditStore
+from src.persistence.contracts import AgentStore, ApiKeyStore, ProviderStore, ToolStore, ToolVersionStore
 from src.runtime.tenant_runtime import TenantRuntimeFactory
 from src.tenancy.policy_overlay import TenantPolicyOverlayStore
+from src.tenancy.rate_limiter import TenantRateLimiter
 
 
 def bootstrap(
@@ -51,6 +56,7 @@ def bootstrap(
     agent_store: AgentStore | None = None
     api_key_store: ApiKeyStore | None = None
     provider_store: ProviderStore | None = None
+    tool_version_store: ToolVersionStore | None = None
     session_store = None
 
     if persistence_backend == "sqlite":
@@ -60,6 +66,7 @@ def bootstrap(
             SQLiteProviderStore,
             SQLiteSessionStore,
             SQLiteToolStore,
+            SQLiteToolVersionStore,
         )
 
         db_path_str = os.environ.get("EXO_DB_PATH", ".exo_data/exo.db")
@@ -71,6 +78,7 @@ def bootstrap(
         agent_store = SQLiteAgentStore(db_path)
         api_key_store = SQLiteApiKeyStore(db_path)
         provider_store = SQLiteProviderStore(db_path)
+        tool_version_store = SQLiteToolVersionStore(db_path)
 
     tenant_factory = TenantRuntimeFactory(
         provider_registry=provider_registry,
@@ -86,7 +94,23 @@ def bootstrap(
     app.state.agent_store = agent_store
     app.state.api_key_store = api_key_store
     app.state.provider_store = provider_store
+    app.state.tool_version_store = tool_version_store
     app.state.session_store = session_store
+    app.state.run_control_registry = RunControlRegistry()
+    app.state.structured_logger = StructuredLogger()
+    app.state.audit_store = InMemoryAuditStore()
+    app.state.tool_audit_pipeline = ToolAuditPipeline(
+        logger=app.state.structured_logger,
+        audit_store=app.state.audit_store,
+    )
+    app.state.turn_rate_limiter = TenantRateLimiter(
+        max_requests=settings.limits.max_turn_requests_per_minute_per_tenant,
+        window_seconds=60,
+    )
+    app.state.tool_upload_rate_limiter = TenantRateLimiter(
+        max_requests=settings.limits.max_tool_uploads_per_minute_per_tenant,
+        window_seconds=60,
+    )
 
     if persistence_backend == "sqlite":
         from src.api.startup import hydrate_tenant_registries

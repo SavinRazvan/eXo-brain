@@ -27,7 +27,7 @@ from src.policies.middleware import PolicyMiddleware
 from src.runtime.mode_selector import select_execution_mode
 from src.runtime.runtime_adapter import RuntimeAdapter
 from src.schemas.events import RuntimeEvent, RuntimeEventType
-from src.schemas.tool_io import PolicyAction, RiskTier, ToolCallContext, ToolExecutionMode, blocked_result
+from src.schemas.tool_io import PolicyAction, RiskTier, ToolCallContext, ToolExecutionMode, ToolStatus, blocked_result
 from src.tools.executor import DeterministicToolExecutor
 
 
@@ -76,9 +76,31 @@ class Orchestrator:
                 yield self._apply_output_policy(event)
                 continue
 
+            adapter = self._tool_executor.execution_adapter()
+            use_adapter_progress = bool(adapter is not None and adapter.backend_id == "byoc_pull_worker_runtime")
+            if not use_adapter_progress:
+                yield RuntimeEvent.tool_progress(
+                    session_id=session_id,
+                    run_id=event.run_id,
+                    call_id=event.tool_call.call_id,
+                    tool_name=event.tool_call.tool_name,
+                    state="queued",
+                    correlation_id=event.correlation_id,
+                )
             decision = self._policy.before_tool_call(event.tool_call)
             if decision.decision != PolicyAction.ALLOW:
                 blocked = self._tool_executor.execute(event.tool_call)
+                if not use_adapter_progress:
+                    yield RuntimeEvent.tool_progress(
+                        session_id=session_id,
+                        run_id=event.run_id,
+                        call_id=event.tool_call.call_id,
+                        tool_name=event.tool_call.tool_name,
+                        state="failed",
+                        tool_status=str(blocked.status.value),
+                        error_code=str(blocked.error.code),
+                        correlation_id=event.correlation_id,
+                    )
                 async for follow_up in self._runtime_adapter.submit_tool_results(
                     session_id=session_id,
                     run_id=event.run_id,
@@ -93,7 +115,40 @@ class Orchestrator:
                 policy_decision=decision,
             )
             if mode == ToolExecutionMode.DETERMINISTIC:
+                if not use_adapter_progress:
+                    yield RuntimeEvent.tool_progress(
+                        session_id=session_id,
+                        run_id=event.run_id,
+                        call_id=event.tool_call.call_id,
+                        tool_name=event.tool_call.tool_name,
+                        state="running",
+                        correlation_id=event.correlation_id,
+                    )
                 result = self._tool_executor.execute(event.tool_call)
+                emitted_adapter_progress = False
+                if use_adapter_progress and adapter is not None:
+                    adapter_progress_events = self._emit_adapter_progress(
+                        session_id=session_id,
+                        run_id=event.run_id,
+                        correlation_id=event.correlation_id,
+                        call_id=event.tool_call.call_id,
+                        adapter=adapter,
+                    )
+                    emitted_adapter_progress = len(adapter_progress_events) > 0
+                    for progress_event in adapter_progress_events:
+                        yield progress_event
+                if not emitted_adapter_progress:
+                    terminal_state = self._terminal_tool_state(result.status)
+                    yield RuntimeEvent.tool_progress(
+                        session_id=session_id,
+                        run_id=event.run_id,
+                        call_id=event.tool_call.call_id,
+                        tool_name=event.tool_call.tool_name,
+                        state=terminal_state,
+                        tool_status=str(result.status.value),
+                        error_code=str(result.error.code),
+                        correlation_id=event.correlation_id,
+                    )
                 async for follow_up in self._runtime_adapter.submit_tool_results(
                     session_id=session_id,
                     run_id=event.run_id,
@@ -127,6 +182,46 @@ class Orchestrator:
 
     def _requires_deterministic_envelope(self, tool_call: ToolCallContext) -> bool:
         return tool_call.is_state_changing or tool_call.risk_tier in {RiskTier.HIGH, RiskTier.CRITICAL}
+
+    def _terminal_tool_state(self, status: ToolStatus) -> str:
+        if status == ToolStatus.SUCCESS:
+            return "completed"
+        if status == ToolStatus.TIMEOUT:
+            return "timed_out"
+        if status == ToolStatus.CANCELLED:
+            return "cancelled"
+        return "failed"
+
+    def _emit_adapter_progress(
+        self,
+        *,
+        session_id: str,
+        run_id: str,
+        correlation_id: str,
+        call_id: str,
+        adapter,
+    ) -> list[RuntimeEvent]:
+        drain = getattr(adapter, "drain_progress_events", None)
+        if not callable(drain):
+            return []
+        progress_events = drain(call_id)
+        rendered: list[RuntimeEvent] = []
+        for progress in progress_events:
+            rendered.append(RuntimeEvent.tool_progress(
+                session_id=session_id,
+                run_id=run_id,
+                call_id=str(progress.get("call_id", call_id)),
+                tool_name=str(progress.get("tool_name", "")),
+                state=str(progress.get("state", "")),
+                tool_status=str(progress.get("tool_status", "")),
+                error_code=str(progress.get("error_code", "")),
+                job_id=str(progress.get("job_id", "")),
+                lease_token=str(progress.get("lease_token", "")),
+                lease_expires_at_epoch=str(progress.get("lease_expires_at_epoch", "")),
+                claim_attempt=str(progress.get("claim_attempt", "")),
+                correlation_id=correlation_id,
+            ))
+        return rendered
 
     def _apply_agent_handoff(self, context: dict[str, Any]) -> dict[str, str] | None:
         if self._agent_registry is None:

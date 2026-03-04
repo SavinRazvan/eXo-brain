@@ -35,6 +35,7 @@ from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 from src.runtime.tenant_runtime import TenantRuntimeContext, TenantRuntimeFactory
 from src.runtime.tool_wiring import build_agent_tools
 from src.schemas.tool_io import RiskTier
+from src.tools.execution_adapter import ToolExecutionAdapter
 from src.tools.executor import DeterministicToolExecutor
 from src.tools.registry import ToolDescriptor, ToolRegistry
 
@@ -185,6 +186,91 @@ def test_list_tenants_returns_registered_tenant_ids() -> None:
     factory.get_or_create("tenant-1")
     factory.get_or_create("tenant-2")
     assert sorted(factory.list_tenants()) == ["tenant-1", "tenant-2"]
+
+
+def test_tenant_factory_keeps_local_executor_when_hosted_runtime_flag_disabled() -> None:
+    factory = _make_factory()
+    ctx = factory.get_or_create("tenant-local-runtime")
+    assert getattr(ctx.tool_executor, "_enable_hosted_runtime") is False
+    assert getattr(ctx.tool_executor, "_execution_adapter") is None
+
+
+def test_tenant_factory_wires_hosted_runtime_stub_when_flag_enabled() -> None:
+    settings = _make_settings()
+    settings.runtime.enable_hosted_tool_runtime = True
+    factory = TenantRuntimeFactory(
+        provider_registry=_make_provider_registry(),
+        settings=settings,
+    )
+    ctx = factory.get_or_create("tenant-hosted-runtime")
+    adapter = getattr(ctx.tool_executor, "_execution_adapter")
+    assert getattr(ctx.tool_executor, "_enable_hosted_runtime") is True
+    assert isinstance(adapter, ToolExecutionAdapter)
+    assert adapter.backend_id == "hosted_sandbox_runtime"
+
+
+def test_tenant_factory_enables_process_isolation_when_flag_enabled() -> None:
+    settings = _make_settings()
+    settings.runtime.enable_hosted_tool_runtime = True
+    settings.runtime.enable_hosted_tool_process_isolation = True
+    factory = TenantRuntimeFactory(
+        provider_registry=_make_provider_registry(),
+        settings=settings,
+    )
+    ctx = factory.get_or_create("tenant-hosted-runtime-process")
+    adapter = getattr(ctx.tool_executor, "_execution_adapter")
+    assert isinstance(adapter, ToolExecutionAdapter)
+    assert getattr(adapter, "_enable_process_isolation") is True
+
+
+def test_tenant_factory_defaults_to_hosted_runtime_when_byoc_disabled() -> None:
+    settings = _make_settings()
+    settings.runtime.enable_hosted_tool_runtime = True
+    settings.runtime.enable_byoc_tool_runtime = False
+    factory = TenantRuntimeFactory(
+        provider_registry=_make_provider_registry(),
+        settings=settings,
+    )
+    ctx = factory.get_or_create("tenant-hosted-default")
+    adapter = getattr(ctx.tool_executor, "_execution_adapter")
+    assert isinstance(adapter, ToolExecutionAdapter)
+    assert adapter.backend_id == "hosted_sandbox_runtime"
+
+
+def test_tenant_factory_uses_byoc_runtime_when_flag_enabled() -> None:
+    settings = _make_settings()
+    settings.runtime.enable_hosted_tool_runtime = True
+    settings.runtime.enable_byoc_tool_runtime = True
+    settings.runtime.byoc_worker_jwt_secret = "test-secret"
+    factory = TenantRuntimeFactory(
+        provider_registry=_make_provider_registry(),
+        settings=settings,
+    )
+    ctx = factory.get_or_create("tenant-byoc-runtime")
+    adapter = getattr(ctx.tool_executor, "_execution_adapter")
+    assert isinstance(adapter, ToolExecutionAdapter)
+    assert adapter.backend_id == "byoc_pull_worker_runtime"
+
+
+def test_tenant_factory_uses_sqlite_backed_byoc_stores_when_configured(tmp_path) -> None:
+    from src.tools.byoc.sqlite_store import SQLiteByocJobQueueStore, SQLiteByocResultStore, SQLiteReplayGuard
+
+    settings = _make_settings()
+    settings.runtime.enable_byoc_tool_runtime = True
+    settings.runtime.byoc_store_backend = "sqlite"
+    settings.runtime.byoc_sqlite_db_path = str(tmp_path / "tenant_byoc.db")
+    settings.runtime.byoc_worker_jwt_secret = "test-secret"
+    factory = TenantRuntimeFactory(
+        provider_registry=_make_provider_registry(),
+        settings=settings,
+    )
+    ctx = factory.get_or_create("tenant-byoc-sqlite")
+    adapter = getattr(ctx.tool_executor, "_execution_adapter")
+    assert isinstance(adapter, ToolExecutionAdapter)
+    assert adapter.backend_id == "byoc_pull_worker_runtime"
+    assert isinstance(getattr(adapter, "_job_store"), SQLiteByocJobQueueStore)
+    assert isinstance(getattr(adapter, "_result_store"), SQLiteByocResultStore)
+    assert isinstance(getattr(adapter, "_replay_guard"), SQLiteReplayGuard)
 
 
 # ---------------------------------------------------------------------------

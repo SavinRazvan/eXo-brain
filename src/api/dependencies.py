@@ -25,7 +25,7 @@ from fastapi import Depends, HTTPException, Request
 
 from src.api.middleware.auth import extract_identity, is_identity_usable
 from src.identity.contracts import IdentityContext
-from src.persistence.contracts import AgentStore, ToolStore
+from src.persistence.contracts import AgentStore, ToolStore, ToolVersionStore
 from src.runtime.tenant_runtime import TenantRuntimeContext, TenantRuntimeFactory
 from src.tenancy.policy_overlay import TenantPolicyOverlayStore
 
@@ -96,3 +96,13 @@ def get_tool_store(request: Request) -> ToolStore | None:
 def get_agent_store(request: Request) -> AgentStore | None:
     """Return the AgentStore from app.state, or None when running in-memory (tests)."""
     return getattr(request.app.state, "agent_store", None)
+
+
+def get_tool_version_store(request: Request) -> ToolVersionStore | None:
+    """Return the ToolVersionStore from app.state, or None when running in-memory (tests)."""
+    return getattr(request.app.state, "tool_version_store", None)
+
+
+def get_run_control_registry(request: Request):
+    """Return the app-scoped run control registry."""
+    return getattr(request.app.state, "run_control_registry", None)
