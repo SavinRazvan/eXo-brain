@@ -21,6 +21,7 @@ This executes:
 and writes:
 
 - `.local/rc-signoff.md`
+- `.local/rc-signoff.json` (via `make rc-signoff-json`)
 
 The generated artifact includes execution metadata for auditability:
 
@@ -30,6 +31,14 @@ The generated artifact includes execution metadata for auditability:
 - commit SHA
 - PR number (when provided by CI env)
 - workflow run id/url
+
+For dashboard/alert ingestion, run:
+
+```bash
+make rc-signoff-json
+```
+
+This parses `.local/rc-signoff.md` into a normalized JSON summary at `.local/rc-signoff.json`.
 
 ## CI Integration
 
