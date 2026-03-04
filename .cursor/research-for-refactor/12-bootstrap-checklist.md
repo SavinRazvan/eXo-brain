@@ -525,6 +525,32 @@ Provide a concrete startup checklist for creating the new repository and reachin
 
 ---
 
+## Tenant Tool Execution — Post 6.4 gap-closure track (prioritized)
+
+Canonical reference:
+- `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
+
+### P0 tenant boundary enforcement
+- [ ] Add shared tenant-scope guard to enforce `identity.tenant_id == path tenant_id` on tenant-scoped APIs.
+- [ ] Add explicit, role-gated super-admin bypass only if intentionally enabled.
+- [ ] Add API tests for same-tenant allow + cross-tenant deny (+ override path if enabled).
+
+### P0 active uploaded version execution wiring
+- [ ] Wire active `ToolVersionStore` entries into hosted/BYOC runtime execution selection.
+- [ ] Ensure turns execute active uploaded versions, not only legacy registry `handler_ref` descriptors.
+- [ ] Add end-to-end tests: upload -> activate -> execute -> rollback -> execute prior version.
+
+### P1 import-first Tool Manager UX completion
+- [ ] Make UI default flow: `import-schema` -> `upload` -> `validate` -> `versions`.
+- [ ] Add red/amber/green validation badges + active version visibility in UI.
+- [ ] Add browser/UI tests for validation-state transitions and happy-path flow.
+
+### P2 canonical docs synchronization
+- [ ] Remove or relabel stale "next implementation slice" markers where superseded.
+- [ ] Maintain one canonical current-state section and reference it from companion plans.
+
+---
+
 ## Platform Extensions — Slice 1 (Auth Hardening — branch: feature/slice1-auth-hardening)
 
 ### New contracts
