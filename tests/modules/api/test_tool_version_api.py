@@ -13,6 +13,7 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -548,3 +549,277 @@ def test_startup_hydrates_active_tool_versions_into_registry(tmp_path: Path) -> 
         descriptor = ctx.tool_registry.resolve("calculate_result")
         assert descriptor.metadata.get("tool_version") == "1.0.0"
         assert descriptor.metadata.get("source") == "tool_version_store"
+
+
+def test_inline_uploaded_source_executes_and_rollback_switches_behavior(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_inline_uploads.db")
+    v1_source = """
+def run(operation: str, operand1: float, operand2: float) -> dict:
+    if operation != "add":
+        raise ValueError("unsupported operation")
+    return {"result": operand1 + operand2, "impl": "v1"}
+""".strip()
+    v2_source = """
+def run(operation: str, operand1: float, operand2: float) -> dict:
+    if operation != "add":
+        raise ValueError("unsupported operation")
+    return {"result": (operand1 + operand2) * 10, "impl": "v2"}
+""".strip()
+    with TestClient(app) as client:
+        upload_v1 = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "inline_calc",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "inline_handler_source": v1_source,
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert upload_v1.status_code == 201, upload_v1.text
+        assert upload_v1.json()["active"] is True
+        assert upload_v1.json()["state"] == "valid"
+
+        ctx = app.state.tenant_factory.get_or_create("t1")
+        descriptor_v1 = ctx.tool_registry.resolve("inline_calc")
+        artifact_handler_v1 = descriptor_v1.metadata.get("artifact_handler_path", "")
+        artifact_manifest_v1 = descriptor_v1.metadata.get("artifact_manifest_path", "")
+        assert artifact_handler_v1
+        assert artifact_manifest_v1
+        assert Path(str(artifact_handler_v1)).exists()
+        assert Path(str(artifact_manifest_v1)).exists()
+        stored_v1 = asyncio.run(app.state.tool_version_store.get_tool_version("t1", "inline_calc", "1.0.0"))
+        assert stored_v1 is not None
+        assert stored_v1.manifest.metadata.get("artifact_handler_path")
+        assert stored_v1.manifest.metadata.get("artifact_manifest_path")
+        first_call = ToolCallContext(
+            schema_version="1.0",
+            call_id="inline_call_v1",
+            session_id="inline_sess_v1",
+            run_id="inline_run_v1",
+            job_id="inline_job_v1",
+            task_id="inline_task_v1",
+            agent_id="inline_agent_v1",
+            provider_id="openai-test",
+            tenant_id="t1",
+            tool_name="inline_calc",
+            arguments={"operation": "add", "operand1": 2, "operand2": 3},
+        )
+        first_result = ctx.tool_executor.execute(first_call)
+        assert first_result.status == ToolStatus.SUCCESS
+        assert first_result.result is not None
+        assert first_result.result["value"]["result"] == 5
+        assert first_result.result["value"]["impl"] == "v1"
+        assert first_result.result.get("runtime", {}).get("tool_version") == "1.0.0"
+
+        upload_v2 = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "inline_calc",
+                    "version": "2.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "inline_handler_source": v2_source,
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert upload_v2.status_code == 201, upload_v2.text
+        assert upload_v2.json()["active"] is True
+        assert upload_v2.json()["state"] == "valid"
+
+        second_call = ToolCallContext(
+            schema_version="1.0",
+            call_id="inline_call_v2",
+            session_id="inline_sess_v2",
+            run_id="inline_run_v2",
+            job_id="inline_job_v2",
+            task_id="inline_task_v2",
+            agent_id="inline_agent_v2",
+            provider_id="openai-test",
+            tenant_id="t1",
+            tool_name="inline_calc",
+            arguments={"operation": "add", "operand1": 2, "operand2": 3},
+        )
+        second_result = ctx.tool_executor.execute(second_call)
+        assert second_result.status == ToolStatus.SUCCESS
+        assert second_result.result is not None
+        assert second_result.result["value"]["result"] == 50
+        assert second_result.result["value"]["impl"] == "v2"
+        assert second_result.result.get("runtime", {}).get("tool_version") == "2.0.0"
+        descriptor_v2 = ctx.tool_registry.resolve("inline_calc")
+        assert descriptor_v2.metadata.get("handler_ref") == "artifact://uploaded-bundle"
+
+        rollback = client.post(
+            "/tenants/t1/tools/versions/inline_calc/rollback",
+            json={"target_version": "1.0.0"},
+            headers=_x_identity(),
+        )
+        assert rollback.status_code == 200, rollback.text
+        assert rollback.json()["active_version"] == "1.0.0"
+
+        after_rollback_call = ToolCallContext(
+            schema_version="1.0",
+            call_id="inline_call_after_rollback",
+            session_id="inline_sess_v3",
+            run_id="inline_run_v3",
+            job_id="inline_job_v3",
+            task_id="inline_task_v3",
+            agent_id="inline_agent_v3",
+            provider_id="openai-test",
+            tenant_id="t1",
+            tool_name="inline_calc",
+            arguments={"operation": "add", "operand1": 2, "operand2": 3},
+        )
+        after_rollback_result = ctx.tool_executor.execute(after_rollback_call)
+        assert after_rollback_result.status == ToolStatus.SUCCESS
+        assert after_rollback_result.result is not None
+        assert after_rollback_result.result["value"]["result"] == 5
+        assert after_rollback_result.result["value"]["impl"] == "v1"
+        assert after_rollback_result.result.get("runtime", {}).get("tool_version") == "1.0.0"
+
+
+def test_upload_with_explicit_package_bundle_persists_files_and_executes(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_package_bundle_uploads.db")
+    with TestClient(app) as client:
+        upload = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "bundle_calc",
+                    "version": "1.0.0",
+                    "description": "bundle-backed tool",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "package_bundle": {
+                    "tool_yaml": "tool_name: bundle_calc\nversion: 1.0.0\n",
+                    "handler_py": (
+                        "def run(operation: str, operand1: float, operand2: float) -> dict:\n"
+                        "    if operation != 'add':\n"
+                        "        raise ValueError('unsupported operation')\n"
+                        "    return {'result': operand1 + operand2, 'impl': 'bundle'}\n"
+                    ),
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert upload.status_code == 201, upload.text
+        assert upload.json()["state"] == "valid"
+        assert upload.json()["active"] is True
+
+        ctx = app.state.tenant_factory.get_or_create("t1")
+        descriptor = ctx.tool_registry.resolve("bundle_calc")
+        assert descriptor.metadata.get("handler_ref") == "artifact://uploaded-bundle"
+        artifact_handler = Path(str(descriptor.metadata.get("artifact_handler_path", "")))
+        artifact_manifest = Path(str(descriptor.metadata.get("artifact_manifest_path", "")))
+        assert artifact_handler.exists()
+        assert artifact_manifest.exists()
+
+        call = ToolCallContext(
+            schema_version="1.0",
+            call_id="bundle_call_v1",
+            session_id="bundle_sess_v1",
+            run_id="bundle_run_v1",
+            job_id="bundle_job_v1",
+            task_id="bundle_task_v1",
+            agent_id="bundle_agent_v1",
+            provider_id="openai-test",
+            tenant_id="t1",
+            tool_name="bundle_calc",
+            arguments={"operation": "add", "operand1": 7, "operand2": 8},
+        )
+        result = ctx.tool_executor.execute(call)
+        assert result.status == ToolStatus.SUCCESS
+        assert result.result is not None
+        assert result.result["value"]["result"] == 15
+        assert result.result["value"]["impl"] == "bundle"
+
+
+def test_artifact_integrity_verification_blocks_tampered_version_activation(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_bundle_integrity.db")
+    with TestClient(app) as client:
+        upload_v1 = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "integrity_calc",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "package_bundle": {
+                    "tool_yaml": "tool_name: integrity_calc\nversion: 1.0.0\n",
+                    "handler_py": (
+                        "def run(operation: str, operand1: float, operand2: float) -> dict:\n"
+                        "    if operation != 'add':\n"
+                        "        raise ValueError('unsupported operation')\n"
+                        "    return {'result': operand1 + operand2, 'impl': 'v1'}\n"
+                    ),
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert upload_v1.status_code == 201, upload_v1.text
+        assert upload_v1.json()["active"] is True
+
+        upload_v2 = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "integrity_calc",
+                    "version": "2.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "package_bundle": {
+                    "tool_yaml": "tool_name: integrity_calc\nversion: 2.0.0\n",
+                    "handler_py": (
+                        "def run(operation: str, operand1: float, operand2: float) -> dict:\n"
+                        "    if operation != 'add':\n"
+                        "        raise ValueError('unsupported operation')\n"
+                        "    return {'result': (operand1 + operand2) * 10, 'impl': 'v2'}\n"
+                    ),
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert upload_v2.status_code == 201, upload_v2.text
+        assert upload_v2.json()["active"] is True
+
+        stored_v1 = asyncio.run(app.state.tool_version_store.get_tool_version("t1", "integrity_calc", "1.0.0"))
+        assert stored_v1 is not None
+        handler_path = Path(str(stored_v1.manifest.metadata.get("artifact_handler_path", "")))
+        assert handler_path.exists()
+        handler_path.write_text(
+            "def run(operation: str, operand1: float, operand2: float) -> dict:\n"
+            "    return {'result': 999, 'impl': 'tampered'}\n",
+            encoding="utf-8",
+        )
+
+        rollback = client.post(
+            "/tenants/t1/tools/versions/integrity_calc/rollback",
+            json={"target_version": "1.0.0"},
+            headers=_x_identity(),
+        )
+        assert rollback.status_code == 422, rollback.text
+        assert "bundle hash mismatch" in rollback.text
