@@ -682,6 +682,10 @@ N3 (P2): Rollout and operations hardening
 - Add runbook updates for integrity incident triage and key-rotation procedures.
 - Sync companion trackers and release checklist evidence links for hosted external beta.
 
+N3 current progress snapshot:
+- In progress: profile-aware app defaults for deployment profiles (`managed_cloud`, `self_hosted`, `hybrid`) covering artifact/audit directories and BYOC store/cleanup settings.
+- In progress: operational documentation baseline added for BYOC artifact-integrity dashboard panels/alerts and runbook response steps.
+
 Priority next execution order:
 1. N1 (P1) Tool Manager bundle upload UX + integrity visibility.
 2. N2 (P1) BYOC artifact integrity parity.
