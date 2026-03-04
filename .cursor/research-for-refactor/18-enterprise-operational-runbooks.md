@@ -256,6 +256,42 @@ Exit criteria:
 - no unresolved stale signature version submissions
 - worker deployment and artifact provenance documented
 
+## 9) Audit/Artifact Signing Key Rotation Runbook
+
+Trigger examples:
+- scheduled monthly rotation drill (`SEC-05`)
+- suspected signing-secret compromise
+- emergency cryptographic hygiene rotation
+
+Pre-checks:
+1. Prepare new versioned secret material in secret manager for both:
+   - audit bundle signing keyring
+   - tool artifact signing secret
+2. Confirm fallback verification secrets remain available for prior active versions.
+3. Confirm rollback owner and decision log entry with incident/change ID.
+
+Execution:
+1. Add new key version mapping in deployment environment:
+   - `EXO_AUDIT_BUNDLE_SIGNING_ACTIVE_VERSION`
+   - `EXO_AUDIT_BUNDLE_SIGNING_SECRETS_BY_VERSION`
+   - `EXO_TOOL_ARTIFACT_SIGNING_SECRET` (if rotated in same window)
+2. Deploy configuration update using normal rollout guardrails.
+3. Run verification checks:
+   - export signed audit bundle and verify with admin verify endpoint
+   - validate legacy bundle verification still succeeds for prior version
+   - execute one BYOC claim/submit parity flow for artifact signature acceptance
+
+Rollback/fallback:
+1. Revert `EXO_AUDIT_BUNDLE_SIGNING_ACTIVE_VERSION` to previous known-good value.
+2. Keep both key versions configured until verification fully recovers.
+3. If artifact signature mismatch rates rise, freeze affected BYOC submissions and follow Runbook 8.
+
+Exit criteria:
+- new signing version verifies successfully in export/verify flow
+- previous bundle versions remain backward verifiable
+- no sustained integrity mismatch increase after rotation
+- drill evidence recorded in release/security evidence pack
+
 ## Post-Incident Review (Mandatory)
 - timeline with key decisions and evidence links
 - root cause(s), contributing factors, and detection gaps
@@ -270,6 +306,7 @@ Exit criteria:
 - [ ] communication templates approved
 - [ ] audit and compliance evidence path verified
 - [ ] BYOC artifact-integrity alerts and dashboards validated
+- [ ] signing key-rotation drill executed and evidence linked
 
 ## Related Docs
 - `14-enterprise-readiness-modules.md`

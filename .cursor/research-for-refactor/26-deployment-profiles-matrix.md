@@ -62,6 +62,18 @@ Notes:
 - Explicit environment variables continue to override profile defaults.
 - Existing behavior remains backward compatible when `EXO_DEPLOYMENT_PROFILE` is unset (`managed_cloud`).
 
+### Hosted external beta release evidence links
+
+- Profile-default runtime/config implementation:
+  - `src/config/settings.py`
+  - `src/api/app.py`
+- Regression coverage for profile behavior:
+  - `tests/modules/api/test_deployment_profile_defaults.py`
+- Operations hardening artifacts:
+  - `docs/operations/byoc-artifact-integrity-dashboard.md`
+  - `.cursor/research-for-refactor/18-enterprise-operational-runbooks.md`
+  - `docs/plans/tenant-tool-execution-architecture.md`
+
 ## Validation Matrix (Must Pass for Both Profiles)
 - contract tests (adapters, tools, policies, storage)
 - deterministic replay tests for high-risk workflows
