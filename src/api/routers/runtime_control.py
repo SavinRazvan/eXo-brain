@@ -312,6 +312,7 @@ async def submit_byoc_job_result(
             retryable=bool(payload.get("retryable", False)),
             idempotency_key=str(payload.get("idempotency_key", "")),
             lease_token=str(payload.get("lease_token", "")),
+            tool_version=str(payload.get("tool_version", "")),
         )
         outcome = adapter.submit_result(
             tenant_id=tenant_id,

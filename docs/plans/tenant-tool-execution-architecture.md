@@ -15,6 +15,19 @@ Move from developer-only `module.path:function_name` registration to a SaaS-safe
 - Existing deterministic execution contract remains intact (`model intent -> deterministic runtime executes side effects`).
 - Streaming remains first-class for both SSE and WebSocket with tool-progress and cancellation propagation.
 
+## Canonical Current State (single source)
+
+- Completed implementation baseline:
+  - Slices `0`, `1`, `2`, `4.0` through `4.3`, `5.0` through `5.3`, and `6.0` through `6.4`.
+- Open gap-closure track (active execution priorities):
+  1. `T1` (P0) tenant path/identity enforcement.
+  2. `T2` (P0) active uploaded-version runtime wiring.
+  3. `T3` (P1) import-first Tool Manager UX completion.
+  4. `T4` (P2) canonical docs synchronization.
+- Companion trackers that should mirror this exact status:
+  - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
+  - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
+
 ## Architecture Slice Plan
 
 ### Slice A — Contracts & Standard (no runtime execution yet)
@@ -262,7 +275,7 @@ Done criteria:
 - Duplicate callback/result delivery is safely de-duplicated.
 - Auth and replay tests pass for invalid/expired signatures.
 
-Next implementation slice (prepared): Slice 4.0 — BYOC Pull Worker Skeleton
+Historical checkpoint (already implemented): Slice 4.0 — BYOC Pull Worker Skeleton
 
 Scope:
 - Add `TenantByocConnectorRuntime` skeleton behind runtime configuration gate (no default-path behavior change).
@@ -289,7 +302,7 @@ Delivered evidence snapshot (Slice 4.1):
 - API control plane: `src/api/routers/runtime_control.py`, `src/api/schemas/runtime_control_schemas.py`.
 - Tests: `tests/modules/tools/test_byoc_runtime.py`, `tests/modules/api/test_byoc_runtime_control_api.py`, `tests/modules/runtime/test_tenant_runtime.py`.
 
-Next implementation slice (prepared): Slice 4.2 — BYOC Durable Persistence Adapter
+Historical checkpoint (already implemented): Slice 4.2 — BYOC Durable Persistence Adapter
 
 Scope:
 - Add SQLite-backed `ByocJobQueueStore` and `ByocResultStore` adapters for process-restart durability.
@@ -344,7 +357,7 @@ Delivered evidence snapshot (Slice 4.3):
   - `tests/modules/api/test_byoc_runtime_control_api.py`
   - existing BYOC/runtime regression suites
 
-Next implementation slice (prepared): Slice 5 — Streaming And Cancellation Across Runtimes
+Historical checkpoint (already implemented): Slice 5 — Streaming And Cancellation Across Runtimes
 
 Scope:
 - Unify hosted/BYOC tool state machine for stream events (`queued/running/partial/completed/failed/timed_out/cancelled`).
@@ -601,6 +614,54 @@ Delivered evidence snapshot (Slice 6.4):
   - `src/api/app.py`
 - Tests:
   - `tests/modules/api/test_audit_api.py`
+
+## Clarifications And Follow-up Tasks (post Slice 6.4)
+
+Clarification C1 (tenant boundary policy):
+- Cross-tenant admin operations are **not** the default behavior for tenant-scoped routes.
+- Any route under `/tenants/{tenant_id}/...` must enforce tenant scoping by default.
+- If future global-admin exceptions are introduced, they must be explicitly documented with:
+  - role requirement
+  - endpoint scope
+  - audit trail requirements
+  - tests proving non-admin users cannot cross tenant boundaries
+
+Clarification C2 (tool upload semantics):
+- `tools/import-schema` and `tools/upload` are not intended to be metadata-only end state.
+- The intended end state is executable active versions:
+  - uploaded package version selected as active for tenant/tool
+  - runtime execution resolves against that active version in hosted/BYOC paths
+- Legacy `handler_ref` remains internal/dev compatibility path only until external import-first execution wiring is fully complete.
+
+Task T1 (P0): tenant-identity enforcement on tenant-scoped APIs
+- Add a shared dependency guard that enforces `identity.tenant_id == path tenant_id` for tenant-scoped endpoints.
+- Add explicit role-gated bypass only if super-admin scope is intentionally enabled.
+- Add API tests for:
+  - same-tenant access allowed
+  - cross-tenant access denied
+  - super-admin override behavior (if enabled)
+
+Task T2 (P0): bind active uploaded tool version to runtime execution
+- Implement runtime resolution path from active `ToolVersionStore` record to executable handler package.
+- Ensure hosted runtime and BYOC runtime execute the tenant's active version (not only legacy registry descriptors).
+- Add end-to-end tests: upload -> activate -> turn executes uploaded version -> rollback changes executed version.
+
+Task T3 (P1): complete import-first Tool Manager UX
+- Switch default UI flow to `import-schema -> upload -> validate -> versions`.
+- Surface validation status badges (red/amber/green) and active version details.
+- De-emphasize raw `handler_ref` input for external-user flows.
+- Add browser/UI tests for badge transitions and full happy-path registration flow.
+
+Task T4 (P2): documentation synchronization cleanup
+- Remove or relabel stale "next slice prepared" notes now that slices are implemented.
+- Keep one canonical status block for completed vs pending tasks.
+- Add explicit links to required evidence artifacts for operational sign-off.
+
+Priority next execution order:
+1. T1 (P0) tenant path/identity boundary enforcement.
+2. T2 (P0) active uploaded version -> runtime execution wiring.
+3. T3 (P1) import-first Tool Manager UX completion.
+4. T4 (P2) canonical plan/doc synchronization cleanup.
 
 ## Execution Order And Dependencies
 

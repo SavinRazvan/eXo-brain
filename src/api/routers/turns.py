@@ -29,7 +29,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from sse_starlette.sse import EventSourceResponse
 
-from src.api.dependencies import get_tenant_context, require_valid_identity
+from src.api.dependencies import get_tenant_context, require_tenant_scope_identity
+from src.api.middleware.auth import extract_identity, is_identity_usable
 from src.api.schemas.turn_schemas import TurnSubmitRequest
 from src.core.session_context import SessionContext
 from src.identity.contracts import IdentityContext
@@ -45,6 +46,22 @@ def _get_factory(request: Request):
 
 def _get_run_registry(request: Request):
     return request.app.state.run_control_registry
+
+
+def _websocket_cross_tenant_admin_allowed(websocket: WebSocket, identity: IdentityContext) -> bool:
+    path = str(getattr(websocket.url, "path", "")).strip()
+    if "/tenants/" not in path or "/admin/" not in path:
+        return False
+    settings = getattr(websocket.app.state, "settings", None)
+    auth = getattr(settings, "auth", None)
+    allow_bypass = bool(getattr(auth, "allow_cross_tenant_admin", False))
+    if not allow_bypass:
+        return False
+    configured_roles = getattr(auth, "cross_tenant_admin_roles", ["super_admin"])
+    allowed_roles = {str(role).strip() for role in configured_roles if str(role).strip()}
+    if not allowed_roles:
+        return False
+    return any(role in allowed_roles for role in identity.roles)
 
 
 def _forward_runtime_cancellations(
@@ -209,7 +226,7 @@ async def submit_turn_sse(
     body: TurnSubmitRequest,
     request: Request,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    identity: IdentityContext = Depends(require_valid_identity),
+    identity: IdentityContext = Depends(require_tenant_scope_identity),
 ) -> EventSourceResponse:
     """Submit a single agent turn and stream runtime events as SSE.
 
@@ -384,6 +401,16 @@ async def websocket_turn(
     factory = websocket.app.state.tenant_factory
     ctx = factory.get_or_create(tenant_id)
 
+    identity = await extract_identity(websocket)
+    if identity is None or not is_identity_usable(identity):
+        await websocket.close(code=4401, reason="Authentication required")
+        return
+    if str(identity.tenant_id).strip() != str(tenant_id).strip() and not _websocket_cross_tenant_admin_allowed(
+        websocket, identity
+    ):
+        await websocket.close(code=4403, reason="TENANT_SCOPE_MISMATCH")
+        return
+
     # Verify session exists before accepting WebSocket
     try:
         factory.get_session_runtime(session_id)
@@ -397,8 +424,6 @@ async def websocket_turn(
     active_tasks: dict[str, asyncio.Task] = {}
     # Map run_id → tool call_ids observed during stream for runtime cancellation forwarding.
     active_run_tool_calls: dict[str, dict[str, str]] = {}
-    # Minimal identity — WebSocket upgrades skip the X-Identity dependency for simplicity
-    identity = IdentityContext(subject="ws-client", tenant_id=tenant_id)
     execution_adapter = ctx.tool_executor.execution_adapter()
     run_registry = websocket.app.state.run_control_registry
     turn_rate_limiter = getattr(websocket.app.state, "turn_rate_limiter", None)

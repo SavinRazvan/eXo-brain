@@ -63,6 +63,7 @@ from src.tools.user_tool_contracts import (
     parse_sandbox_limits,
     schema_fingerprint,
 )
+from src.tools.version_projection import descriptor_from_tool_version
 
 router = APIRouter(tags=["tools"])
 
@@ -158,6 +159,24 @@ def _validation_for_manifest(manifest: ToolPackageManifest) -> ToolValidationRes
     )
 
 
+async def _sync_active_tool_descriptor(
+    *,
+    tenant_id: str,
+    tool_name: str,
+    ctx: TenantRuntimeContext,
+    tool_version_store: ToolVersionStore,
+) -> None:
+    active = await tool_version_store.get_active_tool_version(tenant_id, tool_name)
+    if active is None:
+        try:
+            ctx.tool_registry.unregister(tool_name)
+        except KeyError:
+            pass
+        return
+    descriptor = descriptor_from_tool_version(active)
+    ctx.tool_registry.register(descriptor)
+
+
 @router.post("/{tenant_id}/tools", status_code=201, response_model=ToolResponse)
 async def register_tool(
     tenant_id: str,
@@ -243,6 +262,7 @@ async def upload_tool_package(
     request: Request,
     body: ToolVersionUploadRequest,
     _identity: IdentityContext = Depends(require_valid_identity),
+    ctx: TenantRuntimeContext = Depends(get_tenant_context),
     tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
 ) -> ToolValidationResponse:
     """Register a tenant tool package version and store validation state."""
@@ -324,7 +344,19 @@ async def upload_tool_package(
             },
         )
     if body.activate:
+        if validation.state == ToolValidationState.INVALID:
+            return _to_validation_response(record)
+        try:
+            descriptor_from_tool_version(record)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         await tool_version_store.set_active_tool_version(tenant_id, manifest.tool_name, manifest.version)
+        await _sync_active_tool_descriptor(
+            tenant_id=tenant_id,
+            tool_name=manifest.tool_name,
+            ctx=ctx,
+            tool_version_store=tool_version_store,
+        )
         active_record = await tool_version_store.get_tool_version(tenant_id, manifest.tool_name, manifest.version)
         if active_record is not None:
             return _to_validation_response(active_record)
@@ -408,6 +440,7 @@ async def deactivate_tool_version(
     version: str,
     request: Request,
     _identity: IdentityContext = Depends(require_valid_identity),
+    ctx: TenantRuntimeContext = Depends(get_tenant_context),
     tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
 ) -> ToolGovernanceResponse:
     if tool_version_store is None:
@@ -421,6 +454,12 @@ async def deactivate_tool_version(
             detail=f"Version '{version}' is not active for tool '{tool_name}'. Active is '{active.version}'.",
         )
     await tool_version_store.clear_active_tool_version(tenant_id, tool_name)
+    await _sync_active_tool_descriptor(
+        tenant_id=tenant_id,
+        tool_name=tool_name,
+        ctx=ctx,
+        tool_version_store=tool_version_store,
+    )
     pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
     if pipeline is not None:
         await pipeline.emit(
@@ -449,6 +488,7 @@ async def rollback_tool_version(
     body: ToolRollbackRequest,
     request: Request,
     _identity: IdentityContext = Depends(require_valid_identity),
+    ctx: TenantRuntimeContext = Depends(get_tenant_context),
     tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
 ) -> ToolGovernanceResponse:
     if tool_version_store is None:
@@ -459,7 +499,22 @@ async def rollback_tool_version(
             status_code=404,
             detail=f"Target rollback version '{body.target_version}' was not found for tool '{tool_name}'.",
         )
+    if target.validation is not None and target.validation.state == ToolValidationState.INVALID:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Target rollback version '{body.target_version}' is invalid and cannot be activated.",
+        )
+    try:
+        descriptor_from_tool_version(target)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     await tool_version_store.set_active_tool_version(tenant_id, tool_name, body.target_version)
+    await _sync_active_tool_descriptor(
+        tenant_id=tenant_id,
+        tool_name=tool_name,
+        ctx=ctx,
+        tool_version_store=tool_version_store,
+    )
     pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
     if pipeline is not None:
         await pipeline.emit(
@@ -489,6 +544,7 @@ async def revoke_tool_package_version(
     request: Request,
     force: bool = Query(default=False),
     _identity: IdentityContext = Depends(require_valid_identity),
+    ctx: TenantRuntimeContext = Depends(get_tenant_context),
     tool_version_store: ToolVersionStore | None = Depends(get_tool_version_store),
 ) -> ToolGovernanceResponse:
     if tool_version_store is None:
@@ -504,6 +560,12 @@ async def revoke_tool_package_version(
     if record.active and force:
         await tool_version_store.clear_active_tool_version(tenant_id, tool_name)
     await tool_version_store.delete_tool_version(tenant_id, tool_name, version)
+    await _sync_active_tool_descriptor(
+        tenant_id=tenant_id,
+        tool_name=tool_name,
+        ctx=ctx,
+        tool_version_store=tool_version_store,
+    )
     pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
     if pipeline is not None:
         await pipeline.emit(

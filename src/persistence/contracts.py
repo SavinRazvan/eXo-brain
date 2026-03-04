@@ -405,3 +405,11 @@ class ToolVersionStore(ABC):
     @abstractmethod
     async def delete_tool_version(self, tenant_id: str, tool_name: str, version: str) -> None:
         """Delete one persisted version for one tenant tool."""
+
+    @abstractmethod
+    async def list_tenant_ids(self) -> list[str]:
+        """List tenant IDs that have persisted tool versions."""
+
+    @abstractmethod
+    async def list_active_tool_versions(self, tenant_id: str) -> list[ToolVersionRecord]:
+        """List active tool versions for one tenant."""

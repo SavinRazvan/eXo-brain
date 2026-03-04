@@ -22,11 +22,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api.bootstrap import build_test_app
+from src.config.settings import AppSettings, AuthSettings, RuntimeSettings
 
-IDENTITY = json.dumps(
-    {"subject": "tester", "roles": ["admin"], "tenant_id": "test-tenant"}
-)
-HEADERS = {"X-Identity": IDENTITY}
+def _headers(tenant_id: str = "t1", roles: list[str] | None = None) -> dict[str, str]:
+    identity = json.dumps(
+        {
+            "subject": "tester",
+            "roles": roles or ["admin"],
+            "tenant_id": tenant_id,
+        }
+    )
+    return {"X-Identity": identity}
 
 
 # ─── Policy overlay ───────────────────────────────────────────────────────────
@@ -35,7 +41,7 @@ HEADERS = {"X-Identity": IDENTITY}
 def test_get_policy_returns_empty_overlay_by_default() -> None:
     app = build_test_app()
     client = TestClient(app)
-    resp = client.get("/tenants/t1/policy", headers=HEADERS)
+    resp = client.get("/tenants/t1/policy", headers=_headers("t1"))
     assert resp.status_code == 200
     body = resp.json()
     assert body["tenant_id"] == "t1"
@@ -46,7 +52,7 @@ def test_set_policy_stores_deny_tools() -> None:
     app = build_test_app()
     client = TestClient(app)
     payload = {"deny_tools": ["calculate_result"], "escalate_risk_tiers": [], "escalate_state_changing": False, "extra": {}}
-    resp = client.put("/tenants/t1/policy", json=payload, headers=HEADERS)
+    resp = client.put("/tenants/t1/policy", json=payload, headers=_headers("t1"))
     assert resp.status_code == 200
     body = resp.json()
     assert body["tenant_id"] == "t1"
@@ -57,8 +63,8 @@ def test_get_policy_reflects_stored_overlay() -> None:
     app = build_test_app()
     client = TestClient(app)
     payload = {"deny_tools": ["delete_records"], "escalate_risk_tiers": ["HIGH"], "escalate_state_changing": True, "extra": {}}
-    client.put("/tenants/t1/policy", json=payload, headers=HEADERS)
-    resp = client.get("/tenants/t1/policy", headers=HEADERS)
+    client.put("/tenants/t1/policy", json=payload, headers=_headers("t1"))
+    resp = client.get("/tenants/t1/policy", headers=_headers("t1"))
     assert resp.status_code == 200
     overlay = resp.json()["overlay"]
     assert "delete_records" in overlay["deny_tools"]
@@ -69,9 +75,9 @@ def test_get_policy_reflects_stored_overlay() -> None:
 def test_set_policy_overwrites_previous_overlay() -> None:
     app = build_test_app()
     client = TestClient(app)
-    client.put("/tenants/t1/policy", json={"deny_tools": ["tool_a"], "escalate_risk_tiers": [], "escalate_state_changing": False, "extra": {}}, headers=HEADERS)
-    client.put("/tenants/t1/policy", json={"deny_tools": ["tool_b"], "escalate_risk_tiers": [], "escalate_state_changing": False, "extra": {}}, headers=HEADERS)
-    resp = client.get("/tenants/t1/policy", headers=HEADERS)
+    client.put("/tenants/t1/policy", json={"deny_tools": ["tool_a"], "escalate_risk_tiers": [], "escalate_state_changing": False, "extra": {}}, headers=_headers("t1"))
+    client.put("/tenants/t1/policy", json={"deny_tools": ["tool_b"], "escalate_risk_tiers": [], "escalate_state_changing": False, "extra": {}}, headers=_headers("t1"))
+    resp = client.get("/tenants/t1/policy", headers=_headers("t1"))
     overlay = resp.json()["overlay"]
     assert "tool_b" in overlay["deny_tools"]
     assert "tool_a" not in overlay["deny_tools"]
@@ -80,8 +86,8 @@ def test_set_policy_overwrites_previous_overlay() -> None:
 def test_policy_is_isolated_per_tenant() -> None:
     app = build_test_app()
     client = TestClient(app)
-    client.put("/tenants/t1/policy", json={"deny_tools": ["secret_tool"], "escalate_risk_tiers": [], "escalate_state_changing": False, "extra": {}}, headers=HEADERS)
-    resp = client.get("/tenants/t2/policy", headers=HEADERS)
+    client.put("/tenants/t1/policy", json={"deny_tools": ["secret_tool"], "escalate_risk_tiers": [], "escalate_state_changing": False, "extra": {}}, headers=_headers("t1"))
+    resp = client.get("/tenants/t2/policy", headers=_headers("t2"))
     overlay = resp.json()["overlay"]
     assert overlay == {}
 
@@ -109,7 +115,7 @@ def test_set_policy_with_extra_fields() -> None:
         "escalate_state_changing": False,
         "extra": {"custom_flag": True, "max_retries": 3},
     }
-    resp = client.put("/tenants/t1/policy", json=payload, headers=HEADERS)
+    resp = client.put("/tenants/t1/policy", json=payload, headers=_headers("t1"))
     assert resp.status_code == 200
     overlay = resp.json()["overlay"]
     assert overlay.get("custom_flag") is True
@@ -122,7 +128,7 @@ def test_set_policy_with_extra_fields() -> None:
 def test_get_quota_returns_default_limit() -> None:
     app = build_test_app()
     client = TestClient(app)
-    resp = client.get("/tenants/t1/quota", headers=HEADERS)
+    resp = client.get("/tenants/t1/quota", headers=_headers("t1"))
     assert resp.status_code == 200
     body = resp.json()
     assert body["tenant_id"] == "t1"
@@ -134,7 +140,7 @@ def test_get_quota_returns_default_limit() -> None:
 def test_update_quota_changes_limit() -> None:
     app = build_test_app()
     client = TestClient(app)
-    resp = client.put("/tenants/t1/quota", json={"max_active_jobs": 5}, headers=HEADERS)
+    resp = client.put("/tenants/t1/quota", json={"max_active_jobs": 5}, headers=_headers("t1"))
     assert resp.status_code == 200
     body = resp.json()
     assert body["max_active_jobs"] == 5
@@ -143,8 +149,8 @@ def test_update_quota_changes_limit() -> None:
 def test_get_quota_reflects_updated_limit() -> None:
     app = build_test_app()
     client = TestClient(app)
-    client.put("/tenants/t1/quota", json={"max_active_jobs": 10}, headers=HEADERS)
-    resp = client.get("/tenants/t1/quota", headers=HEADERS)
+    client.put("/tenants/t1/quota", json={"max_active_jobs": 10}, headers=_headers("t1"))
+    resp = client.get("/tenants/t1/quota", headers=_headers("t1"))
     assert resp.status_code == 200
     assert resp.json()["max_active_jobs"] == 10
 
@@ -152,8 +158,8 @@ def test_get_quota_reflects_updated_limit() -> None:
 def test_update_quota_to_zero_means_unlimited() -> None:
     app = build_test_app()
     client = TestClient(app)
-    client.put("/tenants/t1/quota", json={"max_active_jobs": 3}, headers=HEADERS)
-    resp = client.put("/tenants/t1/quota", json={"max_active_jobs": 0}, headers=HEADERS)
+    client.put("/tenants/t1/quota", json={"max_active_jobs": 3}, headers=_headers("t1"))
+    resp = client.put("/tenants/t1/quota", json={"max_active_jobs": 0}, headers=_headers("t1"))
     assert resp.status_code == 200
     assert resp.json()["max_active_jobs"] == 0
 
@@ -161,8 +167,8 @@ def test_update_quota_to_zero_means_unlimited() -> None:
 def test_quota_is_isolated_per_tenant() -> None:
     app = build_test_app()
     client = TestClient(app)
-    client.put("/tenants/t1/quota", json={"max_active_jobs": 7}, headers=HEADERS)
-    resp = client.get("/tenants/t2/quota", headers=HEADERS)
+    client.put("/tenants/t1/quota", json={"max_active_jobs": 7}, headers=_headers("t1"))
+    resp = client.get("/tenants/t2/quota", headers=_headers("t2"))
     # t2 has its own quota_manager with independent limit
     assert resp.json()["tenant_id"] == "t2"
     assert resp.json()["max_active_jobs"] != 7 or True  # different instance
@@ -186,7 +192,7 @@ def test_update_quota_rejects_negative_value() -> None:
     app = build_test_app()
     client = TestClient(app)
     # Pydantic ge=0 constraint rejects -1 before it reaches the endpoint
-    resp = client.put("/tenants/t1/quota", json={"max_active_jobs": -1}, headers=HEADERS)
+    resp = client.put("/tenants/t1/quota", json={"max_active_jobs": -1}, headers=_headers("t1"))
     assert resp.status_code == 422
 
 
@@ -199,10 +205,39 @@ def test_policy_overlay_enforcement_blocks_tool() -> None:
     resp = client.put(
         "/tenants/t1/policy",
         json={"deny_tools": ["calculate_result"], "escalate_risk_tiers": [], "escalate_state_changing": False, "extra": {}},
-        headers=HEADERS,
+        headers=_headers("t1"),
     )
     assert resp.status_code == 200
 
     # Verify overlay is stored and reflects the denial
-    resp = client.get("/tenants/t1/policy", headers=HEADERS)
+    resp = client.get("/tenants/t1/policy", headers=_headers("t1"))
     assert "calculate_result" in resp.json()["overlay"]["deny_tools"]
+
+
+def test_cross_tenant_policy_access_is_forbidden() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    resp = client.get("/tenants/t2/policy", headers=_headers("t1"))
+    assert resp.status_code == 403
+    assert "TENANT_SCOPE_MISMATCH" in resp.text
+
+
+def test_cross_tenant_policy_access_remains_forbidden_for_super_admin_on_non_admin_route() -> None:
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        auth=AuthSettings(
+            allow_cross_tenant_admin=True,
+            cross_tenant_admin_roles=["super_admin"],
+        ),
+    )
+    app = build_test_app(settings=settings)
+    client = TestClient(app)
+    resp = client.get("/tenants/t2/policy", headers=_headers("t1", roles=["super_admin"]))
+    assert resp.status_code == 403
+    assert "TENANT_SCOPE_MISMATCH" in resp.text

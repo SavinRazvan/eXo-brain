@@ -71,6 +71,58 @@ async def require_valid_identity(
     return identity
 
 
+def _cross_tenant_admin_allowed(request: Request, identity: IdentityContext) -> bool:
+    """Return True if explicit cross-tenant admin bypass is enabled and role matches.
+
+    Bypass is intentionally restricted to tenant-scoped admin routes only.
+    """
+    path = str(getattr(request.url, "path", "")).strip()
+    if "/tenants/" not in path or "/admin/" not in path:
+        return False
+    settings = getattr(request.app.state, "settings", None)
+    auth = getattr(settings, "auth", None)
+    allow_bypass = bool(getattr(auth, "allow_cross_tenant_admin", False))
+    if not allow_bypass:
+        return False
+    configured_roles = getattr(auth, "cross_tenant_admin_roles", ["super_admin"])
+    allowed_roles = {str(role).strip() for role in configured_roles if str(role).strip()}
+    if not allowed_roles:
+        return False
+    return any(role in allowed_roles for role in identity.roles)
+
+
+def enforce_tenant_scope(
+    *,
+    tenant_id: str,
+    identity: IdentityContext,
+    request: Request,
+) -> None:
+    """Enforce tenant-scoped route isolation (with optional explicit admin bypass)."""
+    identity_tenant = str(identity.tenant_id or "").strip()
+    path_tenant = str(tenant_id or "").strip()
+    if identity_tenant and identity_tenant == path_tenant:
+        return
+    if _cross_tenant_admin_allowed(request, identity):
+        return
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "TENANT_SCOPE_MISMATCH: authenticated identity is not allowed to access "
+            f"tenant '{path_tenant}'."
+        ),
+    )
+
+
+async def require_tenant_scope_identity(
+    tenant_id: str,
+    request: Request,
+    identity: IdentityContext = Depends(require_valid_identity),
+) -> IdentityContext:
+    """Require valid identity and enforce identity tenant against path tenant."""
+    enforce_tenant_scope(tenant_id=tenant_id, identity=identity, request=request)
+    return identity
+
+
 async def get_tenant_context(
     tenant_id: str,
     factory: TenantRuntimeFactory = Depends(_get_tenant_factory),

@@ -33,6 +33,7 @@ def build_agent_tools(
     session_id: str = "",
     agent_id: str = "exo-agent",
     provider_id: str = "openai",
+    tenant_id: str = "default",
 ) -> list[FunctionTool]:
     """Return a fresh list of FunctionTool wrappers for every descriptor in the registry.
 
@@ -40,7 +41,7 @@ def build_agent_tools(
     """
     tools: list[FunctionTool] = []
     for descriptor in tool_registry.list_descriptors():
-        tools.append(_make_function_tool(descriptor, tool_executor, session_id, agent_id, provider_id))
+        tools.append(_make_function_tool(descriptor, tool_executor, session_id, agent_id, provider_id, tenant_id))
     return tools
 
 
@@ -50,6 +51,7 @@ def _make_function_tool(
     session_id: str,
     agent_id: str,
     provider_id: str,
+    tenant_id: str,
 ) -> FunctionTool:
     """Build a single FunctionTool that routes through DeterministicToolExecutor."""
 
@@ -72,6 +74,7 @@ def _make_function_tool(
             provider_id=provider_id,
             tool_name=desc.name,
             arguments=kwargs,
+            tenant_id=tenant_id,
             risk_tier=desc.risk_tier,
             is_state_changing=desc.is_state_changing,
         )
