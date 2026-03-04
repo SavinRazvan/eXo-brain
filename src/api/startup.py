@@ -183,7 +183,10 @@ async def hydrate_tenant_registries(app: "FastAPI") -> None:
             hydrated_active = 0
             for record in active_versions:
                 try:
-                    descriptor = descriptor_from_tool_version(record)
+                    descriptor = descriptor_from_tool_version(
+                        record,
+                        artifact_signing_secret=str(app.state.settings.limits.tool_artifact_signing_secret or ""),
+                    )
                 except ValueError as exc:
                     logger.warning(
                         "Skipping active tool version %r@%r during hydration: %s",

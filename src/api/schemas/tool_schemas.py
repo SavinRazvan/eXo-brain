@@ -87,9 +87,22 @@ class ToolPackageManifestPayload(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class ToolPackageBundlePayload(BaseModel):
+    tool_yaml: str = Field(default="", description="Serialized tool.yaml content")
+    handler_py: str = Field(default="", description="Python source for handler.py")
+
+
 class ToolVersionUploadRequest(BaseModel):
     manifest: ToolPackageManifestPayload
     package_ref: str = Field(default="", description="Artifact reference (path/URI/hash) for uploaded package")
+    package_bundle: ToolPackageBundlePayload | None = Field(
+        default=None,
+        description="Optional uploaded bundle files to persist as tool.yaml + handler.py artifacts",
+    )
+    inline_handler_source: str = Field(
+        default="",
+        description="Optional inline Python source that defines the manifest entrypoint callable",
+    )
     artifact_size_bytes: int = Field(
         default=0,
         ge=0,
