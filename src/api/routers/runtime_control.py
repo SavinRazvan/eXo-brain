@@ -313,6 +313,9 @@ async def submit_byoc_job_result(
             idempotency_key=str(payload.get("idempotency_key", "")),
             lease_token=str(payload.get("lease_token", "")),
             tool_version=str(payload.get("tool_version", "")),
+            artifact_bundle_hash_sha256=str(payload.get("artifact_bundle_hash_sha256", "")),
+            artifact_bundle_signature_hmac_sha256=str(payload.get("artifact_bundle_signature_hmac_sha256", "")),
+            artifact_signature_version=str(payload.get("artifact_signature_version", "")),
         )
         outcome = adapter.submit_result(
             tenant_id=tenant_id,
