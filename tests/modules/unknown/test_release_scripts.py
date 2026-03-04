@@ -80,3 +80,73 @@ def test_rollback_release_writes_evidence(tmp_path: Path, monkeypatch) -> None:
     content = (tmp_path / "artifacts" / "evidence" / "rollback.txt").read_text(encoding="utf-8")
     assert "rollback-status: executed" in content
     assert "environment: stage" in content
+
+
+def test_parse_rc_signoff_writes_normalized_json(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module("parse_rc_signoff_script", SCRIPTS_DIR / "parse_rc_signoff.py")
+    source = tmp_path / ".local" / "rc-signoff.md"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(
+        "\n".join(
+            [
+                "# Release Candidate Signoff Evidence",
+                "",
+                "- Started: `2026-01-01T00:00:00+00:00`",
+                "- Ended: `2026-01-01T00:05:00+00:00`",
+                "",
+                "## Execution Context",
+                "- Actor: `bot`",
+                "- Repository: `SavinRazvan/eXo-brain`",
+                "- Event: `pull_request`",
+                "- Ref: `feature/x`",
+                "- Commit: `abc123`",
+                "- PR Number: `99`",
+                "- Run ID: `12345`",
+                "- Run URL: `https://github.com/SavinRazvan/eXo-brain/actions/runs/12345`",
+                "",
+                "## Required Evidence Links",
+                "- [OK] `docs/plans/tenant-tool-execution-architecture.md`",
+                "- [MISSING] `docs/operations/byoc-artifact-integrity-dashboard.md`",
+                "",
+                "## Gate Results",
+                "### pytest: PASS",
+                "```text",
+                "ok",
+                "```",
+                "",
+                "### validate_layers: FAIL",
+                "```text",
+                "failed",
+                "```",
+                "",
+                "## Overall",
+                "- Result: `FAIL`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "parse_rc_signoff.py",
+            "--in",
+            ".local/rc-signoff.md",
+            "--out",
+            ".local/rc-signoff.json",
+        ],
+    )
+    assert module.main() == 0
+
+    payload = json.loads((tmp_path / ".local" / "rc-signoff.json").read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "1.0"
+    assert payload["started_at"] == "2026-01-01T00:00:00+00:00"
+    assert payload["context"]["actor"] == "bot"
+    assert payload["overall"]["passed"] is False
+    assert payload["overall"]["missing_evidence_links"] == [
+        "docs/operations/byoc-artifact-integrity-dashboard.md"
+    ]
+    assert payload["overall"]["failed_gates"] == ["validate_layers"]
