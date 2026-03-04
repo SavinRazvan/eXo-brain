@@ -28,6 +28,12 @@ class ModeSelectorStrategy(str, Enum):
     PROVIDER_NATIVE_PREFERRED = "provider_native_preferred"
 
 
+class DeploymentProfile(str, Enum):
+    MANAGED_CLOUD = "managed_cloud"
+    SELF_HOSTED = "self_hosted"
+    HYBRID = "hybrid"
+
+
 @dataclass(slots=True)
 class RuntimeSettings:
     default_provider_id: str
@@ -127,6 +133,7 @@ class AppSettings:
     schema_version: str
     environment: str
     runtime: RuntimeSettings
+    deployment_profile: DeploymentProfile = DeploymentProfile.MANAGED_CLOUD
     policy: PolicySettings = field(default_factory=PolicySettings)
     observability: ObservabilitySettings = field(default_factory=ObservabilitySettings)
     limits: LimitsSettings = field(default_factory=LimitsSettings)
