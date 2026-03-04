@@ -525,29 +525,40 @@ Provide a concrete startup checklist for creating the new repository and reachin
 
 ---
 
-## Tenant Tool Execution — Post 6.4 gap-closure track (prioritized)
+## Tenant Tool Execution — Post 6.4 and N-track follow-through
 
 Canonical reference:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
 
-### P0 tenant boundary enforcement
-- [ ] Add shared tenant-scope guard to enforce `identity.tenant_id == path tenant_id` on tenant-scoped APIs.
-- [ ] Add explicit, role-gated super-admin bypass only if intentionally enabled.
-- [ ] Add API tests for same-tenant allow + cross-tenant deny (+ override path if enabled).
+### Completed: Post-6.4 gap-closure track (`T1`-`T4`)
+- [x] Add shared tenant-scope guard to enforce `identity.tenant_id == path tenant_id` on tenant-scoped APIs.
+- [x] Add explicit, role-gated super-admin bypass only if intentionally enabled.
+- [x] Add API tests for same-tenant allow + cross-tenant deny (+ override path if enabled).
+- [x] Wire active `ToolVersionStore` entries into hosted/BYOC runtime execution selection.
+- [x] Ensure turns execute active uploaded versions, not only legacy registry `handler_ref` descriptors.
+- [x] Add end-to-end tests: upload -> activate -> execute -> rollback -> execute prior version.
+- [x] Make UI default flow: `import-schema` -> `upload` -> `validate` -> `versions`.
+- [x] Add red/amber/green validation badges + active version visibility in UI.
+- [x] Add browser/UI tests for validation-state transitions and happy-path flow.
+- [x] Remove or relabel stale "next implementation slice" markers where superseded.
+- [x] Maintain one canonical current-state section and reference it from companion plans.
 
-### P0 active uploaded version execution wiring
-- [ ] Wire active `ToolVersionStore` entries into hosted/BYOC runtime execution selection.
-- [ ] Ensure turns execute active uploaded versions, not only legacy registry `handler_ref` descriptors.
-- [ ] Add end-to-end tests: upload -> activate -> execute -> rollback -> execute prior version.
+### Completed: N1/N2/N3 follow-through
+- [x] N1: Tool Manager bundle upload UX + artifact integrity visibility.
+- [x] N2: BYOC claim/result artifact-integrity parity with deterministic rejection codes.
+- [x] N3: rollout/operations hardening:
+  - [x] deployment-profile defaults for artifact/audit/BYOC settings
+  - [x] BYOC integrity dashboard baseline
+  - [x] integrity mismatch + signing key-rotation operational runbooks
+  - [x] companion tracker sync and hosted external beta evidence linkage
 
-### P1 import-first Tool Manager UX completion
-- [ ] Make UI default flow: `import-schema` -> `upload` -> `validate` -> `versions`.
-- [ ] Add red/amber/green validation badges + active version visibility in UI.
-- [ ] Add browser/UI tests for validation-state transitions and happy-path flow.
-
-### P2 canonical docs synchronization
-- [ ] Remove or relabel stale "next implementation slice" markers where superseded.
-- [ ] Maintain one canonical current-state section and reference it from companion plans.
+### Hosted external beta evidence links
+- `src/config/settings.py`
+- `src/api/app.py`
+- `tests/modules/api/test_deployment_profile_defaults.py`
+- `docs/operations/byoc-artifact-integrity-dashboard.md`
+- `.cursor/research-for-refactor/18-enterprise-operational-runbooks.md`
+- `.cursor/research-for-refactor/26-deployment-profiles-matrix.md`
 
 ---
 

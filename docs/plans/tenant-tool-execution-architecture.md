@@ -662,7 +662,7 @@ Task T4 (P2): documentation synchronization cleanup — completed baseline
 - Keep one canonical status block for completed vs pending tasks.
 - Add explicit links to required evidence artifacts for operational sign-off.
 
-## Next Implementation Track (prepared after PR #38)
+## Next Implementation Track (delivered after PR #38)
 
 N1 (P1): Tool Manager bundle upload UX + integrity visibility
 - Add user-facing bundle upload controls for `tool.yaml` and `handler.py` in Tool Manager.
@@ -682,14 +682,25 @@ N3 (P2): Rollout and operations hardening
 - Add runbook updates for integrity incident triage and key-rotation procedures.
 - Sync companion trackers and release checklist evidence links for hosted external beta.
 
-N3 current progress snapshot:
-- In progress: profile-aware app defaults for deployment profiles (`managed_cloud`, `self_hosted`, `hybrid`) covering artifact/audit directories and BYOC store/cleanup settings.
-- In progress: operational documentation baseline added for BYOC artifact-integrity dashboard panels/alerts and runbook response steps.
+N3 completion snapshot:
+- Completed: profile-aware app defaults for deployment profiles (`managed_cloud`, `self_hosted`, `hybrid`) covering artifact/audit directories and BYOC store/cleanup settings.
+- Completed: operational dashboard/runbook baseline for BYOC artifact-integrity triage and alerting.
+- Completed: key-rotation runbook procedure added for audit/artifact signing operational drills.
+- Completed: companion tracker synchronization with hosted external beta evidence links.
 
-Priority next execution order:
-1. N1 (P1) Tool Manager bundle upload UX + integrity visibility.
-2. N2 (P1) BYOC artifact integrity parity.
-3. N3 (P2) rollout and operations hardening.
+Hosted external beta evidence links:
+- Profile defaults wiring + tests:
+  - `src/config/settings.py`
+  - `src/api/app.py`
+  - `tests/modules/api/test_deployment_profile_defaults.py`
+- Operational docs:
+  - `docs/operations/byoc-artifact-integrity-dashboard.md`
+  - `.cursor/research-for-refactor/18-enterprise-operational-runbooks.md`
+  - `.cursor/research-for-refactor/26-deployment-profiles-matrix.md`
+- Required gates:
+  - `python -m pytest -q`
+  - `python scripts/architecture/validate_layers.py`
+  - `python scripts/architecture/scan_forbidden_imports.py`
 
 ## Execution Order And Dependencies
 
