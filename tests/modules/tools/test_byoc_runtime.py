@@ -106,12 +106,15 @@ def test_byoc_claim_includes_active_version_metadata() -> None:
     descriptor = ToolDescriptor(
         name="echo_tool",
         handler=lambda value: value,
-        timeout_ms=1500,
+        timeout_ms=200,
         metadata={
             "tool_version": "2.0.0",
             "package_ref": "pkg://echo/2.0.0",
             "entry_file": "handler.py",
             "entrypoint": "run",
+            "artifact_bundle_hash_sha256": "hash-v2",
+            "artifact_bundle_signature_hmac_sha256": "sig-v2",
+            "artifact_signature_version": "v1",
         },
     )
     token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-1")
@@ -123,6 +126,9 @@ def test_byoc_claim_includes_active_version_metadata() -> None:
     assert job["package_ref"] == "pkg://echo/2.0.0"
     assert job["entry_file"] == "handler.py"
     assert job["entrypoint"] == "run"
+    assert job["artifact_bundle_hash_sha256"] == "hash-v2"
+    assert job["artifact_bundle_signature_hmac_sha256"] == "sig-v2"
+    assert job["artifact_signature_version"] == "v1"
     runtime.submit_result(
         tenant_id="t1",
         worker_token=token,
@@ -137,6 +143,9 @@ def test_byoc_claim_includes_active_version_metadata() -> None:
             idempotency_key=job["idempotency_key"],
             lease_token=job["lease_token"],
             tool_version="2.0.0",
+            artifact_bundle_hash_sha256="hash-v2",
+            artifact_bundle_signature_hmac_sha256="sig-v2",
+            artifact_signature_version="v1",
         ),
         request_nonce="nonce-submit-version-meta",
     )
@@ -374,4 +383,142 @@ def test_byoc_runtime_progress_events_include_job_and_lease_metadata() -> None:
     assert str(running.get("lease_token", "")).startswith("lease_")
     assert str(running.get("lease_expires_at_epoch", "")).isdigit()
     assert str(running.get("claim_attempt", "")) == "1"
+
+
+def test_byoc_result_maps_artifact_integrity_metadata_into_runtime_payload() -> None:
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    call = _call()
+    descriptor = ToolDescriptor(
+        name="echo_tool",
+        handler=lambda value: value,
+        timeout_ms=1500,
+        metadata={
+            "tool_version": "3.0.0",
+            "artifact_bundle_hash_sha256": "hash-v3",
+            "artifact_bundle_signature_hmac_sha256": "sig-v3",
+            "artifact_signature_version": "v2",
+        },
+    )
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-meta")
+    result_holder: dict[str, object] = {}
+
+    def _execute() -> None:
+        result_holder["result"] = runtime.execute(call, descriptor)
+
+    thread = threading.Thread(target=_execute)
+    thread.start()
+    job = _wait_claim(runtime, token, "nonce-meta-claim-001")
+    assert job is not None
+    runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-meta-submit-001",
+        result=ByocToolResultEnvelope(
+            job_id=job["job_id"],
+            tenant_id="t1",
+            run_id=job["run_id"],
+            call_id=job["call_id"],
+            tool_name=job["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 42},
+            idempotency_key=job["idempotency_key"],
+            lease_token=job["lease_token"],
+            tool_version="3.0.0",
+            artifact_bundle_hash_sha256="hash-v3",
+            artifact_bundle_signature_hmac_sha256="sig-v3",
+            artifact_signature_version="v2",
+        ),
+    )
+    thread.join(timeout=2.0)
+    result = result_holder["result"]
+    assert result.status == ToolStatus.SUCCESS
+    assert result.result is not None
+    runtime_meta = result.result.get("runtime", {})
+    assert runtime_meta.get("artifact_bundle_hash_sha256") == "hash-v3"
+    assert runtime_meta.get("artifact_bundle_signature_hmac_sha256") == "sig-v3"
+    assert runtime_meta.get("artifact_signature_version") == "v2"
+
+
+def test_byoc_submit_rejects_artifact_integrity_mismatch() -> None:
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    call = _call()
+    descriptor = ToolDescriptor(
+        name="echo_tool",
+        handler=lambda value: value,
+        timeout_ms=1500,
+        metadata={
+            "artifact_bundle_hash_sha256": "hash-expected",
+            "artifact_bundle_signature_hmac_sha256": "sig-expected",
+            "artifact_signature_version": "v1",
+        },
+    )
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-integrity")
+    run_thread = threading.Thread(target=lambda: runtime.execute(call, descriptor))
+    run_thread.start()
+    job = _wait_claim(runtime, token, "nonce-integrity-claim-001")
+    assert job is not None
+    outcome = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-integrity-submit-001",
+        result=ByocToolResultEnvelope(
+            job_id=job["job_id"],
+            tenant_id="t1",
+            run_id=job["run_id"],
+            call_id=job["call_id"],
+            tool_name=job["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 1},
+            idempotency_key=job["idempotency_key"],
+            lease_token=job["lease_token"],
+            artifact_bundle_hash_sha256="hash-tampered",
+            artifact_bundle_signature_hmac_sha256="sig-expected",
+            artifact_signature_version="v1",
+        ),
+    )
+    assert outcome.accepted is False
+    assert outcome.reason_code == "BYOC_ARTIFACT_INTEGRITY_MISMATCH"
+    run_thread.join(timeout=1.0)
+
+
+def test_byoc_submit_rejects_signature_version_mismatch() -> None:
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    call = _call()
+    descriptor = ToolDescriptor(
+        name="echo_tool",
+        handler=lambda value: value,
+        timeout_ms=200,
+        metadata={
+            "artifact_bundle_hash_sha256": "hash-expected",
+            "artifact_bundle_signature_hmac_sha256": "sig-expected",
+            "artifact_signature_version": "v2",
+        },
+    )
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-integrity-version")
+    run_thread = threading.Thread(target=lambda: runtime.execute(call, descriptor))
+    run_thread.start()
+    job = _wait_claim(runtime, token, "nonce-version-claim-001")
+    assert job is not None
+    outcome = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-version-submit-001",
+        result=ByocToolResultEnvelope(
+            job_id=job["job_id"],
+            tenant_id="t1",
+            run_id=job["run_id"],
+            call_id=job["call_id"],
+            tool_name=job["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 2},
+            idempotency_key=job["idempotency_key"],
+            lease_token=job["lease_token"],
+            artifact_bundle_hash_sha256="hash-expected",
+            artifact_bundle_signature_hmac_sha256="sig-expected",
+            artifact_signature_version="v1",
+        ),
+    )
+    assert outcome.accepted is False
+    assert outcome.reason_code == "BYOC_ARTIFACT_SIGNATURE_VERSION_MISMATCH"
+    run_thread.join(timeout=1.0)
 

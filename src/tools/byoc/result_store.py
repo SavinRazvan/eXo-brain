@@ -39,6 +39,10 @@ class ByocResultStore(ABC):
     def consume(self, job_id: str) -> ByocToolResultEnvelope | None:
         """Consume and remove one stored result envelope for a job."""
 
+    def has_idempotency_key(self, key: str) -> bool:
+        """Return True when idempotency key was already ingested."""
+        return False
+
     def health_metrics(self, *, tenant_id: str) -> dict[str, int]:
         """Return retention/queue metrics for one tenant."""
         return {"pending_result_payloads": 0}
@@ -106,6 +110,13 @@ class InMemoryByocResultStore(ByocResultStore):
             return None
         with self._lock:
             return self._results_by_job_id.pop(normalized, None)
+
+    def has_idempotency_key(self, key: str) -> bool:
+        normalized = str(key).strip()
+        if not normalized:
+            return False
+        with self._lock:
+            return normalized in self._seen_idempotency_keys
 
     def health_metrics(self, *, tenant_id: str) -> dict[str, int]:
         normalized = str(tenant_id).strip()

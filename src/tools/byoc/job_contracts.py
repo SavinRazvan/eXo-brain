@@ -44,6 +44,9 @@ class ByocToolJobEnvelope:
     package_ref: str = ""
     entry_file: str = ""
     entrypoint: str = ""
+    artifact_bundle_hash_sha256: str = ""
+    artifact_bundle_signature_hmac_sha256: str = ""
+    artifact_signature_version: str = ""
 
 
 @dataclass(slots=True)
@@ -61,4 +64,7 @@ class ByocToolResultEnvelope:
     idempotency_key: str = ""
     lease_token: str = ""
     tool_version: str = ""
+    artifact_bundle_hash_sha256: str = ""
+    artifact_bundle_signature_hmac_sha256: str = ""
+    artifact_signature_version: str = ""
 
