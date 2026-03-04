@@ -471,7 +471,8 @@ Slice 3 depends on Slices 0 and 2 being done (stable data + provider registratio
 
 ### Follow-up priority notes
 
-1. P0: enforce tenant identity/path boundary on tenant-scoped API routes (+ tests).
-2. P0: bind active uploaded tool versions to real runtime execution selection.
-3. P1: finish import-first Tool Manager UX around import/upload/validate/version.
-4. P2: keep one canonical current-state section across plan docs and trackers.
+1. Completed: tenant identity/path boundary enforcement on tenant-scoped API routes (+ tests).
+2. Completed: active uploaded tool versions bound to runtime execution selection.
+3. Completed baseline: import-first Tool Manager UX around import/upload/validate/version.
+4. Completed baseline: canonical current-state section established and linked in companion docs.
+5. Next track (see `docs/plans/tenant-tool-execution-architecture.md`): Tool Manager bundle upload UX, BYOC artifact-integrity parity, and rollout hardening.
