@@ -100,6 +100,49 @@ def test_byoc_runtime_enqueue_claim_submit_happy_path() -> None:
     assert result.result["value"] == {"value": 42}
 
 
+def test_byoc_claim_includes_active_version_metadata() -> None:
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    call = _call()
+    descriptor = ToolDescriptor(
+        name="echo_tool",
+        handler=lambda value: value,
+        timeout_ms=1500,
+        metadata={
+            "tool_version": "2.0.0",
+            "package_ref": "pkg://echo/2.0.0",
+            "entry_file": "handler.py",
+            "entrypoint": "run",
+        },
+    )
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-1")
+    thread = threading.Thread(target=lambda: runtime.execute(call, descriptor))
+    thread.start()
+    job = _wait_claim(runtime, token, "nonce-claim-version-meta")
+    assert job is not None
+    assert job["tool_version"] == "2.0.0"
+    assert job["package_ref"] == "pkg://echo/2.0.0"
+    assert job["entry_file"] == "handler.py"
+    assert job["entrypoint"] == "run"
+    runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        result=ByocToolResultEnvelope(
+            job_id=job["job_id"],
+            tenant_id="t1",
+            run_id=job["run_id"],
+            call_id=job["call_id"],
+            tool_name=job["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 42},
+            idempotency_key=job["idempotency_key"],
+            lease_token=job["lease_token"],
+            tool_version="2.0.0",
+        ),
+        request_nonce="nonce-submit-version-meta",
+    )
+    thread.join(timeout=2.0)
+
+
 def test_byoc_runtime_duplicate_submit_is_idempotent_noop() -> None:
     runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
     call = _call()

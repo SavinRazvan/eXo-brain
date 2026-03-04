@@ -40,6 +40,10 @@ class ByocToolJobEnvelope:
     lease_token: str = ""
     lease_expires_at_epoch: int = 0
     claim_attempt: int = 0
+    tool_version: str = ""
+    package_ref: str = ""
+    entry_file: str = ""
+    entrypoint: str = ""
 
 
 @dataclass(slots=True)
@@ -56,4 +60,5 @@ class ByocToolResultEnvelope:
     retryable: bool = False
     idempotency_key: str = ""
     lease_token: str = ""
+    tool_version: str = ""
 
