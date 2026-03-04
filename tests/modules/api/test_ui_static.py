@@ -27,6 +27,10 @@ def test_ui_index_is_served() -> None:
     assert "Import + Upload + Activate" in resp.text
     assert "tool-version" in resp.text
     assert "tool-package-ref" in resp.text
+    assert "tool-bundle-yaml" in resp.text
+    assert "tool-bundle-handler" in resp.text
+    assert "tool-bundle-yaml-file" in resp.text
+    assert "tool-bundle-handler-file" in resp.text
 
 
 def test_ui_js_bundle_is_served() -> None:
@@ -44,6 +48,9 @@ def test_ui_js_bundle_is_served() -> None:
     assert "uploadToolVersion" in tools_js.text
     assert "validateToolVersion" in tools_js.text
     assert "listToolVersions" in tools_js.text
+    assert "integrity_status" in tools_js.text
+    assert "tool-bundle-yaml-file" in tools_js.text
+    assert "tool-bundle-handler-file" in tools_js.text
 
 
 def test_ui_css_is_served() -> None:
