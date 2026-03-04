@@ -76,6 +76,36 @@ body {
   padding-left: 1.2rem;
 }
 
+.tool-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-red {
+  border: 1px solid #a33;
+  color: #a33;
+}
+
+.badge-amber {
+  border: 1px solid #b07a00;
+  color: #b07a00;
+}
+
+.badge-green {
+  border: 1px solid #2f7a2f;
+  color: #2f7a2f;
+}
+
+.tool-meta {
+  margin-left: 0.35rem;
+  opacity: 0.85;
+  font-size: 0.85rem;
+}
+
 .status {
   border: 1px solid #666;
   padding: 0.5rem;

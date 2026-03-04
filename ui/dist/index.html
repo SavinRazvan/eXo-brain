@@ -39,7 +39,9 @@ Notes:
         <h2>Tool Manager</h2>
         <form id="tool-form" class="form-grid">
           <input id="tool-name" placeholder="name (auto-filled from pasted schema)" required />
-          <input id="tool-handler" placeholder="Optional: module.path:function_name (auto if empty)" />
+          <input id="tool-version" placeholder="version (for example 1.0.0)" value="1.0.0" required />
+          <input id="tool-package-ref" placeholder="package ref (optional, e.g. pkg://my-tool/1.0.0)" />
+          <input id="tool-handler" placeholder="Optional advanced: module.path:function_name" />
           <input id="tool-description" placeholder="description" />
           <select id="tool-risk">
             <option value="low">low</option>
@@ -52,7 +54,7 @@ Notes:
 1) {"name":"...","description":"...","parameters":{...}}
 2) {"type":"function","function":{"name":"...","description":"...","parameters":{...}}}
 3) {"type":"object","properties":{...}}'></textarea>
-          <button type="submit">Register Tool</button>
+          <button type="submit">Import + Upload + Activate</button>
         </form>
         <ul id="tools-list" class="list"></ul>
       </section>

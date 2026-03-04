@@ -24,6 +24,9 @@ def test_ui_index_is_served() -> None:
     assert resp.status_code == 200
     assert "text/html" in resp.headers.get("content-type", "")
     assert "eXo-brain Dashboard" in resp.text
+    assert "Import + Upload + Activate" in resp.text
+    assert "tool-version" in resp.text
+    assert "tool-package-ref" in resp.text
 
 
 def test_ui_js_bundle_is_served() -> None:
@@ -33,6 +36,14 @@ def test_ui_js_bundle_is_served() -> None:
     assert resp.status_code == 200
     assert "javascript" in resp.headers.get("content-type", "")
     assert "Dashboard entry point" in resp.text
+
+    tools_js = client.get("/ui/screens/tools.js")
+    assert tools_js.status_code == 200
+    assert "javascript" in tools_js.headers.get("content-type", "")
+    assert "importToolSchema" in tools_js.text
+    assert "uploadToolVersion" in tools_js.text
+    assert "validateToolVersion" in tools_js.text
+    assert "listToolVersions" in tools_js.text
 
 
 def test_ui_css_is_served() -> None:

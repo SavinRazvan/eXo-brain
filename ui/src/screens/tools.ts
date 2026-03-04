@@ -11,7 +11,15 @@ Notes:
  - Exposes bind + refresh functions for app orchestrator.
 */
 
-import { api, getTenantId, listTools } from "../api.js";
+import {
+  api,
+  getTenantId,
+  importToolSchema,
+  listTools,
+  listToolVersions,
+  uploadToolVersion,
+  validateToolVersion,
+} from "../api.js";
 
 const byId = (id) => {
   const el = document.getElementById(id);
@@ -58,13 +66,39 @@ const normalizeToolSchemaInput = (raw) => {
 
 const defaultHandlerRef = (toolName) => `src.tools.user_tools:${toolName}`;
 
+const validationBadge = (validationState, isActive) => {
+  const state = String(validationState || "").toLowerCase();
+  if (state === "invalid") {
+    return { label: "red - invalid", cls: "badge-red" };
+  }
+  if (state === "valid" && isActive) {
+    return { label: "green - active", cls: "badge-green" };
+  }
+  return { label: "amber - pending/partial", cls: "badge-amber" };
+};
+
 export async function refreshTools(status) {
   const tools = await listTools();
   const list = byId("tools-list");
   list.innerHTML = "";
   for (const tool of tools) {
     const li = document.createElement("li");
-    li.textContent = `${tool.name} (${tool.risk_tier}) `;
+    const versions = await listToolVersions(tool.name);
+    const validation = await validateToolVersion(tool.name);
+    const activeVersion = (versions.versions || []).find((item) => item.active);
+    const badge = validationBadge(validation.state, Boolean(activeVersion));
+    const details = document.createElement("span");
+    details.textContent = `${tool.name} (${tool.risk_tier}) `;
+    li.appendChild(details);
+    const badgeEl = document.createElement("span");
+    badgeEl.className = `tool-badge ${badge.cls}`;
+    badgeEl.textContent = badge.label;
+    li.appendChild(badgeEl);
+    const meta = document.createElement("span");
+    meta.className = "tool-meta";
+    meta.textContent = ` active_version=${activeVersion ? activeVersion.version : "none"} state=${validation.state}`;
+    li.appendChild(meta);
+    li.appendChild(document.createTextNode(" "));
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = "Delete";
@@ -112,20 +146,42 @@ export function bindToolsScreen(status) {
       const handlerInput = byId("tool-handler").value.trim();
       const handlerRef = handlerInput || defaultHandlerRef(name);
       const description = byId("tool-description").value.trim() || normalized.suggestedDescription;
-      const body = {
-        name,
-        handler_ref: handlerRef,
+      const version = byId("tool-version").value.trim();
+      if (!version) {
+        throw new Error("Tool version is required for upload flow.");
+      }
+      const packageRef = byId("tool-package-ref").value.trim();
+
+      const imported = await importToolSchema(normalized.parametersSchema, {
+        tool_name: name,
         description,
-        risk_tier: byId("tool-risk").value,
-        is_state_changing: byId("tool-state-changing").checked,
-        timeout_ms: Number(byId("tool-timeout").value || 30000),
-        parameters_schema: normalized.parametersSchema,
-      };
-      await api(`/tenants/${getTenantId()}/tools`, "POST", body);
+        handler_ref: handlerRef,
+      });
+      const uploaded = await uploadToolVersion({
+        manifest: {
+          tool_name: imported.tool_name,
+          version,
+          description: imported.description,
+          input_schema: imported.parameters_schema,
+          timeout_ms: Number(byId("tool-timeout").value || 30000),
+          risk_tier: byId("tool-risk").value,
+          entry_file: "handler.py",
+          entrypoint: "run",
+          metadata: {
+            handler_ref: imported.handler_ref,
+            is_state_changing: byId("tool-state-changing").checked,
+          },
+        },
+        package_ref: packageRef,
+        activate: true,
+      });
       if (!handlerInput) {
-        status(`Tool '${body.name}' created (auto handler: ${handlerRef})`);
+        status(`Tool '${imported.tool_name}' uploaded via import-first flow (auto handler: ${imported.handler_ref})`);
       } else {
-        status(`Tool '${body.name}' created`);
+        status(`Tool '${imported.tool_name}' uploaded via import-first flow`);
+      }
+      if (String(uploaded.state).toLowerCase() === "invalid") {
+        status(`Validation failed for ${imported.tool_name}@${version}: ${uploaded.errors.join("; ")}`, true);
       }
       await refreshTools(status);
     } catch (error) {
