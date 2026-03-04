@@ -16,6 +16,7 @@ Notes:
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -26,6 +27,18 @@ from pathlib import Path
 class GateCommand:
     name: str
     command: list[str]
+
+
+@dataclass(frozen=True)
+class ExecutionContext:
+    actor: str
+    repo: str
+    event_name: str
+    ref_name: str
+    commit_sha: str
+    pull_request_number: str
+    run_id: str
+    run_url: str
 
 
 GATES: tuple[GateCommand, ...] = (
@@ -61,6 +74,45 @@ def _run_gate(gate: GateCommand) -> tuple[bool, str]:
     return completed.returncode == 0, output
 
 
+def _command_output(command: list[str]) -> str:
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    if completed.returncode != 0:
+        return ""
+    return completed.stdout.strip()
+
+
+def _git_commit_sha() -> str:
+    return _command_output(["git", "rev-parse", "HEAD"]) or "unknown"
+
+
+def _git_ref_name() -> str:
+    return _command_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]) or "unknown"
+
+
+def _execution_context() -> ExecutionContext:
+    actor = os.getenv("GITHUB_ACTOR", "local")
+    repo = os.getenv("GITHUB_REPOSITORY", _command_output(["git", "remote", "get-url", "origin"]) or "unknown")
+    event_name = os.getenv("GITHUB_EVENT_NAME", "local")
+    ref_name = os.getenv("GITHUB_REF_NAME", _git_ref_name())
+    commit_sha = os.getenv("GITHUB_SHA", _git_commit_sha())
+    pull_request_number = os.getenv("PR_NUMBER", os.getenv("GITHUB_PR_NUMBER", "n/a"))
+    run_id = os.getenv("GITHUB_RUN_ID", "local")
+    server_url = os.getenv("GITHUB_SERVER_URL", "https://github.com")
+    run_url = "n/a"
+    if run_id != "local" and repo != "unknown":
+        run_url = f"{server_url}/{repo}/actions/runs/{run_id}"
+    return ExecutionContext(
+        actor=actor,
+        repo=repo,
+        event_name=event_name,
+        ref_name=ref_name,
+        commit_sha=commit_sha,
+        pull_request_number=pull_request_number,
+        run_id=run_id,
+        run_url=run_url,
+    )
+
+
 def _ensure_required_links() -> list[str]:
     missing: list[str] = []
     for rel_path in REQUIRED_EVIDENCE_LINKS:
@@ -74,6 +126,7 @@ def _write_report(
     out_path: Path,
     started_at: datetime,
     ended_at: datetime,
+    context: ExecutionContext,
     gate_results: list[tuple[GateCommand, bool, str]],
     missing_links: list[str],
 ) -> None:
@@ -83,6 +136,16 @@ def _write_report(
     lines.append("")
     lines.append(f"- Started: `{started_at.isoformat()}`")
     lines.append(f"- Ended: `{ended_at.isoformat()}`")
+    lines.append("")
+    lines.append("## Execution Context")
+    lines.append(f"- Actor: `{context.actor}`")
+    lines.append(f"- Repository: `{context.repo}`")
+    lines.append(f"- Event: `{context.event_name}`")
+    lines.append(f"- Ref: `{context.ref_name}`")
+    lines.append(f"- Commit: `{context.commit_sha}`")
+    lines.append(f"- PR Number: `{context.pull_request_number}`")
+    lines.append(f"- Run ID: `{context.run_id}`")
+    lines.append(f"- Run URL: `{context.run_url}`")
     lines.append("")
     lines.append("## Required Evidence Links")
     for rel_path in REQUIRED_EVIDENCE_LINKS:
@@ -114,6 +177,7 @@ def main() -> int:
     args = parser.parse_args()
 
     started_at = datetime.now(UTC)
+    context = _execution_context()
     missing_links = _ensure_required_links()
     gate_results: list[tuple[GateCommand, bool, str]] = []
 
@@ -130,6 +194,7 @@ def main() -> int:
         out_path=out_path,
         started_at=started_at,
         ended_at=ended_at,
+        context=context,
         gate_results=gate_results,
         missing_links=missing_links,
     )
