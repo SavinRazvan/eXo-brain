@@ -10,7 +10,7 @@
 # Notes:
 #  - Keep targets thin wrappers around versioned scripts.
 
-.PHONY: ui-build ui-verify rc-signoff
+.PHONY: ui-build ui-verify rc-signoff rc-signoff-json
 
 ui-build:
 	./scripts/ui/build.sh
@@ -20,3 +20,6 @@ ui-verify:
 
 rc-signoff:
 	python scripts/release/rc_signoff.py --out .local/rc-signoff.md
+
+rc-signoff-json:
+	python scripts/release/parse_rc_signoff.py --in .local/rc-signoff.md --out .local/rc-signoff.json
