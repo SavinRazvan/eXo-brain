@@ -869,6 +869,30 @@ class SQLiteToolVersionStore(ToolVersionStore):
         )
         conn.commit()
 
+    async def list_tenant_ids(self) -> list[str]:
+        conn = self._connect()
+        rows = conn.execute(
+            """
+            SELECT DISTINCT tenant_id
+            FROM tool_versions
+            ORDER BY tenant_id
+            """
+        ).fetchall()
+        return [str(row[0]) for row in rows]
+
+    async def list_active_tool_versions(self, tenant_id: str) -> list[ToolVersionRecord]:
+        conn = self._connect()
+        rows = conn.execute(
+            """
+            SELECT tenant_id, tool_name, version, manifest_json, validation_json, package_ref, active, created_at
+            FROM tool_versions
+            WHERE tenant_id = ? AND active = 1
+            ORDER BY tool_name
+            """,
+            (tenant_id,),
+        ).fetchall()
+        return [self._row_to_record(row) for row in rows]
+
     def _row_to_record(self, row: tuple) -> ToolVersionRecord:
         tenant_id, tool_name, version, manifest_json, validation_json, package_ref, active, created_at = row
         manifest_data = json.loads(manifest_json)

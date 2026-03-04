@@ -19,6 +19,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from src.api.bootstrap import build_test_app
+from src.schemas.tool_io import ToolCallContext, ToolStatus
 
 
 def _x_identity(tenant_id: str = "t1") -> dict:
@@ -409,3 +410,141 @@ def test_deactivate_rollback_and_revoke_tool_versions(tmp_path: Path) -> None:
         assert versions_after_revoke.status_code == 200
         remaining_versions = [row["version"] for row in versions_after_revoke.json()["versions"]]
         assert "1.0.0" not in remaining_versions
+
+
+def test_active_uploaded_version_drives_runtime_execution_and_rollback(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_runtime_version_wiring.db")
+    with TestClient(app) as client:
+        v1 = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                    "metadata": {"handler_ref": "src.tools.user_tools:calculate_result"},
+                },
+                "package_ref": "pkg://calc/1.0.0",
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert v1.status_code == 201, v1.text
+        assert v1.json()["active"] is True
+
+        ctx = app.state.tenant_factory.get_or_create("t1")
+        call_v1 = ToolCallContext(
+            schema_version="1.0",
+            call_id="call_version_v1",
+            session_id="sess_v1",
+            run_id="run_v1",
+            job_id="job_v1",
+            task_id="task_v1",
+            agent_id="agent_v1",
+            provider_id="openai-test",
+            tenant_id="t1",
+            tool_name="calculate_result",
+            arguments={"operation": "add", "operand1": 2, "operand2": 3},
+        )
+        result_v1 = ctx.tool_executor.execute(call_v1)
+        assert result_v1.status == ToolStatus.SUCCESS
+        assert result_v1.result is not None
+        assert result_v1.result.get("runtime", {}).get("tool_version") == "1.0.0"
+
+        v2 = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "2.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                    "metadata": {"handler_ref": "src.tools.user_tools:calculate_result"},
+                },
+                "package_ref": "pkg://calc/2.0.0",
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert v2.status_code == 201, v2.text
+        assert v2.json()["active"] is True
+
+        call_v2 = ToolCallContext(
+            schema_version="1.0",
+            call_id="call_version_v2",
+            session_id="sess_v2",
+            run_id="run_v2",
+            job_id="job_v2",
+            task_id="task_v2",
+            agent_id="agent_v2",
+            provider_id="openai-test",
+            tenant_id="t1",
+            tool_name="calculate_result",
+            arguments={"operation": "add", "operand1": 4, "operand2": 6},
+        )
+        result_v2 = ctx.tool_executor.execute(call_v2)
+        assert result_v2.status == ToolStatus.SUCCESS
+        assert result_v2.result is not None
+        assert result_v2.result.get("runtime", {}).get("tool_version") == "2.0.0"
+
+        rollback = client.post(
+            "/tenants/t1/tools/versions/calculate_result/rollback",
+            json={"target_version": "1.0.0"},
+            headers=_x_identity(),
+        )
+        assert rollback.status_code == 200, rollback.text
+        assert rollback.json()["active_version"] == "1.0.0"
+
+        call_after_rollback = ToolCallContext(
+            schema_version="1.0",
+            call_id="call_version_after_rollback",
+            session_id="sess_v3",
+            run_id="run_v3",
+            job_id="job_v3",
+            task_id="task_v3",
+            agent_id="agent_v3",
+            provider_id="openai-test",
+            tenant_id="t1",
+            tool_name="calculate_result",
+            arguments={"operation": "add", "operand1": 1, "operand2": 1},
+        )
+        result_after_rollback = ctx.tool_executor.execute(call_after_rollback)
+        assert result_after_rollback.status == ToolStatus.SUCCESS
+        assert result_after_rollback.result is not None
+        assert result_after_rollback.result.get("runtime", {}).get("tool_version") == "1.0.0"
+
+
+def test_startup_hydrates_active_tool_versions_into_registry(tmp_path: Path) -> None:
+    db_path = tmp_path / "exo_runtime_hydration.db"
+    app = _build_sqlite_test_app(db_path)
+    with TestClient(app) as client:
+        upload = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                    "metadata": {"handler_ref": "src.tools.user_tools:calculate_result"},
+                },
+                "package_ref": "pkg://calc/1.0.0",
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert upload.status_code == 201, upload.text
+
+    restarted = _build_sqlite_test_app(db_path)
+    with TestClient(restarted):
+        ctx = restarted.state.tenant_factory.get_or_create("t1")
+        descriptor = ctx.tool_registry.resolve("calculate_result")
+        assert descriptor.metadata.get("tool_version") == "1.0.0"
+        assert descriptor.metadata.get("source") == "tool_version_store"
