@@ -228,7 +228,7 @@ def test_byoc_runtime_requeues_expired_lease_then_reclaims() -> None:
         lease_ttl_seconds=1,
     )
     call = _call()
-    descriptor = ToolDescriptor(name="echo_tool", handler=lambda value: value, timeout_ms=4000)
+    descriptor = _descriptor()
     token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-1")
     result_holder: dict[str, object] = {}
 
