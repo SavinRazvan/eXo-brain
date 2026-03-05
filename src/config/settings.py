@@ -76,6 +76,9 @@ class RuntimeSettings:
     byoc_anomaly_reason_share_threshold: float = 0.6
     byoc_anomaly_min_submit_attempts: int = 5
     byoc_anomaly_min_rejection_count: int = 3
+    byoc_fair_admission_enabled: bool = False
+    byoc_fair_admission_max_inflight_global: int = 8
+    byoc_fair_admission_wait_timeout_ms: int = 1000
 
 
 @dataclass(slots=True)

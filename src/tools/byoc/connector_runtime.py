@@ -30,6 +30,7 @@ from src.schemas.tool_io import (
     ToolResult,
     ToolStatus,
 )
+from src.policies.byoc_fairness import ByocFairAdmissionCoordinator, FairAdmissionToken
 from src.tools.byoc.job_contracts import ByocResultStatus, ByocToolJobEnvelope, ByocToolResultEnvelope
 from src.tools.byoc.integrity_verifier import verify_result_artifact_metadata
 from src.tools.byoc.job_store import ByocJobQueueStore, InMemoryByocJobQueueStore
@@ -61,6 +62,8 @@ def _normalized_nonce(value: str) -> str:
 
 class TenantByocConnectorRuntime(ToolExecutionAdapter):
     """Tenant-scoped BYOC pull-worker adapter with idempotent result ingestion."""
+    _coordinator_lock = threading.Lock()
+    _fair_admission_by_key: dict[int, ByocFairAdmissionCoordinator] = {}
 
     def __init__(
         self,
@@ -86,6 +89,9 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         cost_error_microunits: int = 40,
         cost_timeout_microunits: int = 60,
         cost_cancelled_microunits: int = 20,
+        fair_admission_enabled: bool = False,
+        fair_admission_max_inflight_global: int = 8,
+        fair_admission_wait_timeout_ms: int = 1000,
         job_store: ByocJobQueueStore | None = None,
         result_store: ByocResultStore | None = None,
         replay_guard: ReplayGuard | None = None,
@@ -111,6 +117,9 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._cost_error_microunits = max(int(cost_error_microunits), 0)
         self._cost_timeout_microunits = max(int(cost_timeout_microunits), 0)
         self._cost_cancelled_microunits = max(int(cost_cancelled_microunits), 0)
+        self._fair_admission_enabled = bool(fair_admission_enabled)
+        self._fair_admission_max_inflight_global = max(int(fair_admission_max_inflight_global), 1)
+        self._fair_admission_wait_timeout_ms = max(int(fair_admission_wait_timeout_ms), 1)
         self._job_store = job_store or InMemoryByocJobQueueStore()
         self._result_store = result_store or InMemoryByocResultStore()
         self._replay_guard = replay_guard or InMemoryReplayGuard()
@@ -152,69 +161,78 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                     tenant_id=tenant_id,
                     reason_code=reason_code,
                 )
+        fair_token: FairAdmissionToken | None = None
+        if self._fair_admission_enabled:
+            fair_token = self._acquire_fair_admission(tenant_id=tenant_id)
+            if fair_token is None:
+                return self._fair_admission_timeout_result(call, timeout_ms=timeout_ms, tenant_id=tenant_id)
         self._run_periodic_cleanup(tenant_id=tenant_id)
-        idempotency_key = f"{tenant_id}:{call.call_id}:{call.run_id or 'run'}"
-        job = ByocToolJobEnvelope(
-            job_id=f"job_{uuid.uuid4().hex[:12]}",
-            tenant_id=tenant_id,
-            run_id=str(call.run_id),
-            call_id=str(call.call_id),
-            tool_name=descriptor.name,
-            arguments=dict(call.arguments),
-            timeout_ms=timeout_ms,
-            correlation_id=str(call.call_id),
-            idempotency_key=idempotency_key,
-            tool_version=str(descriptor.metadata.get("tool_version", "")),
-            package_ref=str(descriptor.metadata.get("package_ref", "")),
-            entry_file=str(descriptor.metadata.get("entry_file", "")),
-            entrypoint=str(descriptor.metadata.get("entrypoint", "")),
-            artifact_bundle_hash_sha256=str(descriptor.metadata.get(ARTIFACT_BUNDLE_HASH_METADATA_KEY, "")),
-            artifact_bundle_signature_hmac_sha256=str(
-                descriptor.metadata.get(ARTIFACT_BUNDLE_SIGNATURE_METADATA_KEY, "")
-            ),
-            artifact_signature_version=str(descriptor.metadata.get(ARTIFACT_SIGNATURE_VERSION_METADATA_KEY, "")),
-        )
-        self._job_store.enqueue(job)
-        self._record_progress(
-            call_id=call.call_id,
-            tool_name=descriptor.name,
-            state="queued",
-            job_id=job.job_id,
-        )
-        with self._lock:
-            self._enqueued_jobs_total += 1
+        try:
+            idempotency_key = f"{tenant_id}:{call.call_id}:{call.run_id or 'run'}"
+            job = ByocToolJobEnvelope(
+                job_id=f"job_{uuid.uuid4().hex[:12]}",
+                tenant_id=tenant_id,
+                run_id=str(call.run_id),
+                call_id=str(call.call_id),
+                tool_name=descriptor.name,
+                arguments=dict(call.arguments),
+                timeout_ms=timeout_ms,
+                correlation_id=str(call.call_id),
+                idempotency_key=idempotency_key,
+                tool_version=str(descriptor.metadata.get("tool_version", "")),
+                package_ref=str(descriptor.metadata.get("package_ref", "")),
+                entry_file=str(descriptor.metadata.get("entry_file", "")),
+                entrypoint=str(descriptor.metadata.get("entrypoint", "")),
+                artifact_bundle_hash_sha256=str(descriptor.metadata.get(ARTIFACT_BUNDLE_HASH_METADATA_KEY, "")),
+                artifact_bundle_signature_hmac_sha256=str(
+                    descriptor.metadata.get(ARTIFACT_BUNDLE_SIGNATURE_METADATA_KEY, "")
+                ),
+                artifact_signature_version=str(descriptor.metadata.get(ARTIFACT_SIGNATURE_VERSION_METADATA_KEY, "")),
+            )
+            self._job_store.enqueue(job)
+            self._record_progress(
+                call_id=call.call_id,
+                tool_name=descriptor.name,
+                state="queued",
+                job_id=job.job_id,
+            )
+            with self._lock:
+                self._enqueued_jobs_total += 1
 
-        deadline = perf_counter() + (timeout_ms / 1000.0)
-        while True:
-            self._requeue_expired_leases(tenant_id=tenant_id)
-            result = self._result_store.consume(job.job_id)
-            if result is not None:
-                break
-            remaining = deadline - perf_counter()
-            if remaining <= 0:
-                timeout_result = self._timeout_result(call, started, started_clock, timeout_ms, tenant_id, job.job_id)
-                self._record_tenant_cost(tenant_id=tenant_id, amount=self._cost_timeout_microunits)
-                self._record_progress(
-                    call_id=call.call_id,
-                    tool_name=descriptor.name,
-                    state="timed_out",
-                    tool_status=timeout_result.status.value,
-                    error_code=str(timeout_result.error.code or ""),
-                    job_id=job.job_id,
-                )
-                return timeout_result
-            threading.Event().wait(timeout=min(remaining, 0.1))
-        mapped = self._map_result(call, started, started_clock, timeout_ms, tenant_id, result)
-        self._record_progress(
-            call_id=call.call_id,
-            tool_name=descriptor.name,
-            state=self._terminal_state(mapped.status),
-            tool_status=mapped.status.value,
-            error_code=str(mapped.error.code or ""),
-            job_id=result.job_id,
-            lease_token=str(result.lease_token),
-        )
-        return mapped
+            deadline = perf_counter() + (timeout_ms / 1000.0)
+            while True:
+                self._requeue_expired_leases(tenant_id=tenant_id)
+                result = self._result_store.consume(job.job_id)
+                if result is not None:
+                    break
+                remaining = deadline - perf_counter()
+                if remaining <= 0:
+                    timeout_result = self._timeout_result(call, started, started_clock, timeout_ms, tenant_id, job.job_id)
+                    self._record_tenant_cost(tenant_id=tenant_id, amount=self._cost_timeout_microunits)
+                    self._record_progress(
+                        call_id=call.call_id,
+                        tool_name=descriptor.name,
+                        state="timed_out",
+                        tool_status=timeout_result.status.value,
+                        error_code=str(timeout_result.error.code or ""),
+                        job_id=job.job_id,
+                    )
+                    return timeout_result
+                threading.Event().wait(timeout=min(remaining, 0.1))
+            mapped = self._map_result(call, started, started_clock, timeout_ms, tenant_id, result)
+            self._record_progress(
+                call_id=call.call_id,
+                tool_name=descriptor.name,
+                state=self._terminal_state(mapped.status),
+                tool_status=mapped.status.value,
+                error_code=str(mapped.error.code or ""),
+                job_id=result.job_id,
+                lease_token=str(result.lease_token),
+            )
+            return mapped
+        finally:
+            if fair_token is not None:
+                self._fair_admission_coordinator().release(fair_token)
 
     def issue_worker_token(self, *, tenant_id: str, worker_id: str, ttl_seconds: int | None = None) -> str:
         return mint_worker_token(
@@ -405,7 +423,11 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 "cost_limit_microunits_per_tenant": self._cost_limit_microunits_per_tenant,
                 "cost_window_policy_enabled": int(self._enable_cost_window_policy),
                 "cost_window_seconds": self._cost_window_seconds,
+                "fair_admission_enabled": int(self._fair_admission_enabled),
+                "fair_admission_wait_timeout_ms": self._fair_admission_wait_timeout_ms,
             }
+        if self._fair_admission_enabled:
+            metrics.update(self._fair_admission_coordinator().stats())
         return metrics
 
     def control_stats_for_tenant(self, *, tenant_id: str) -> dict[str, int]:
@@ -648,6 +670,48 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             self._tenant_cost_window_started_epoch.setdefault(tenant_id, start)
             self._tenant_cost_window_microunits.setdefault(tenant_id, cost)
         return (start, cost)
+
+    def _fair_admission_coordinator(self) -> ByocFairAdmissionCoordinator:
+        key = int(self._fair_admission_max_inflight_global)
+        with self._coordinator_lock:
+            coordinator = self._fair_admission_by_key.get(key)
+            if coordinator is None:
+                coordinator = ByocFairAdmissionCoordinator(max_inflight_global=key)
+                self._fair_admission_by_key[key] = coordinator
+            return coordinator
+
+    def _acquire_fair_admission(self, *, tenant_id: str) -> FairAdmissionToken | None:
+        return self._fair_admission_coordinator().acquire(
+            tenant_id=tenant_id,
+            wait_timeout_ms=self._fair_admission_wait_timeout_ms,
+        )
+
+    def _fair_admission_timeout_result(
+        self,
+        call: ToolCallContext,
+        *,
+        timeout_ms: int,
+        tenant_id: str,
+    ) -> ToolResult:
+        self._increment_tenant_rejection(tenant_id=tenant_id, reason_code="BYOC_FAIR_ADMISSION_TIMEOUT")
+        return ToolResult(
+            schema_version="1.0",
+            call_id=call.call_id,
+            tool_name=call.tool_name,
+            status=ToolStatus.ERROR,
+            error=NormalizedError(
+                code="BYOC_FAIR_ADMISSION_TIMEOUT",
+                category="policy",
+                message="BYOC fair admission wait timeout exceeded.",
+                retryable=True,
+                details={"backend_id": self.backend_id, "tenant_id": tenant_id},
+            ),
+            execution=ExecutionMetadata(
+                mode_used=ToolExecutionMode.DETERMINISTIC,
+                timeout_ms=timeout_ms,
+            ),
+            audit=ToolAudit(correlation_id=call.call_id),
+        )
 
     def _timeout_result(
         self,

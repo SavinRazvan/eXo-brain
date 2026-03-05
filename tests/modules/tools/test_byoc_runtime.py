@@ -749,3 +749,36 @@ def test_byoc_runtime_windowed_cost_limit_resets_and_enforces_window_reason() ->
     assert not second_thread.is_alive()
     assert second_holder["result"].status == ToolStatus.SUCCESS
 
+
+def test_byoc_runtime_fair_admission_timeout_under_cross_tenant_contention() -> None:
+    runtime_t1 = TenantByocConnectorRuntime(
+        worker_jwt_secret="test-secret",
+        fair_admission_enabled=True,
+        fair_admission_max_inflight_global=1,
+        fair_admission_wait_timeout_ms=50,
+    )
+    runtime_t2 = TenantByocConnectorRuntime(
+        worker_jwt_secret="test-secret",
+        fair_admission_enabled=True,
+        fair_admission_max_inflight_global=1,
+        fair_admission_wait_timeout_ms=50,
+    )
+    call_t1 = _call()
+    call_t1.tenant_id = "t1"
+    call_t1.call_id = "call_t1_fair_1"
+    call_t1.run_id = "run_t1_fair_1"
+    call_t2 = _call()
+    call_t2.tenant_id = "t2"
+    call_t2.call_id = "call_t2_fair_1"
+    call_t2.run_id = "run_t2_fair_1"
+    descriptor = ToolDescriptor(name="echo_tool", handler=lambda value: value, timeout_ms=500)
+    holder: dict[str, object] = {}
+    t1_thread = threading.Thread(target=lambda: holder.setdefault("t1", runtime_t1.execute(call_t1, descriptor)))
+    t1_thread.start()
+    time.sleep(0.05)
+    blocked = runtime_t2.execute(call_t2, descriptor)
+    assert blocked.status == ToolStatus.ERROR
+    assert blocked.error.code == "BYOC_FAIR_ADMISSION_TIMEOUT"
+    t1_thread.join(timeout=2.0)
+    assert not t1_thread.is_alive()
+
