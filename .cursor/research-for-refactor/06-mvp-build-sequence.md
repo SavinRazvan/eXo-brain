@@ -67,6 +67,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | P2-4 tenancy/cost governance baseline | Implemented (baseline) | Added tenant-scoped BYOC cost/rejection counters with optional cost-limit enforcement gate and runtime-control metrics for dashboard/alert wiring. |
 | P0-2 local-data durability baseline | Implemented (baseline) | Added `scripts/release/local_data_safety.py` backup/restore/validate commands, make targets (`db-backup`/`db-restore`/`db-validate`), recovery runbook steps, and script-level regression tests. |
 | P0-3 RC signoff data-safety gate baseline | Implemented (baseline) | Added RC evidence `Local Data Safety` section and parser normalization (`data_safety`) with default advisory mode plus opt-in required blocking via `EXO_RC_SIGNOFF_REQUIRE_DATA_SAFETY=true`. |
+| P1-1 governance metrics export contract | Implemented (baseline) | Added tenant-scoped BYOC governance export API with normalized cost/submission metrics and rejection reason rollups for dashboard/alert ingestion. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).

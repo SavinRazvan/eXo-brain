@@ -577,6 +577,7 @@ Canonical reference:
 ### Backlog reconciliation v2 progress
 - [x] P0-2 baseline completed: local data durability scripts (`backup`/`restore`/`validate`) plus Makefile wrappers and operator runbook procedure for deterministic local SQLite recovery drills.
 - [x] P0-3 baseline completed: RC signoff evidence now includes local data-safety metadata and normalized parser output (`data_safety`) with advisory-by-default and opt-in required mode.
+- [x] P1-1 baseline completed: BYOC governance metrics export contract added with tenant-scoped cost utilization, submission/rejection rates, and rejection reason rollup API response.
 
 ---
 
