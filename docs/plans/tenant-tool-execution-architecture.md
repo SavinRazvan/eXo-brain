@@ -36,20 +36,15 @@ Move from developer-only `module.path:function_name` registration to a SaaS-safe
   - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
   - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
 
-### Reconciled Open Backlog (post-delivery hardening queue)
+### Reconciled Backlog Status (post-delivery)
 
-- P0:
-  - tenant-aware access-request contract propagation (`AccessRequest` tenant context).
-  - async-safe SQLite paths for async runtime methods (remove event-loop blocking risk).
-  - canonical deferred-backlog reconciliation across plan/tracker docs.
-- P1:
-  - provider delete graceful-drain mode (policy-gated; keep `409` default behavior).
-  - observability sink/export hardening (structured logs + tracer export path).
-  - resilience/quota deferred edge-path completion.
-- P2:
-  - BYOC webhook-mode follow-up and remaining MVP expansion backlog.
-  - Baseline delivered: webhook submit path for BYOC worker push results (`/tenants/{tenant_id}/admin/byoc/webhook/jobs/submit`).
-  - Expansion queue tracked in `docs/plans/p2-expansion-roadmap.md`.
+- Closed/delivered:
+  - P0 backlog closure: tenant-aware access-request contract propagation, async-safe SQLite runtime paths, and canonical deferred-backlog reconciliation across plan/tracker docs.
+  - P1 backlog closure: provider delete graceful-drain mode (policy-gated), observability sink/export hardening, and resilience/quota deferred edge-path coverage.
+  - P2 baseline closure: BYOC webhook submit path for worker push results (`/tenants/{tenant_id}/admin/byoc/webhook/jobs/submit`).
+- Open implementation queue:
+  - Remaining P2 expansion backlog only (autoscaling, DLQ/replay workflow, advanced conflict resolution, tenancy/cost governance).
+  - Canonical queue: `docs/plans/p2-expansion-roadmap.md`.
 
 ## Architecture Slice Plan
 
