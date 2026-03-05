@@ -574,6 +574,9 @@ Canonical reference:
 - [x] P2-4 baseline completed: tenant-scoped BYOC cost/rejection instrumentation with optional limit-enforcement gate and runtime-control metrics for governance dashboards.
 - [x] P2 expansion queue closed and handed off to next planning board: `docs/plans/backlog-reconciliation-v2-execution-board.md`.
 
+### Backlog reconciliation v2 progress
+- [x] P0-2 baseline completed: local data durability scripts (`backup`/`restore`/`validate`) plus Makefile wrappers and operator runbook procedure for deterministic local SQLite recovery drills.
+
 ---
 
 ## Platform Extensions — Slice 1 (Auth Hardening — branch: feature/slice1-auth-hardening)
