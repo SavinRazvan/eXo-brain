@@ -33,7 +33,17 @@ def _x_identity() -> dict:
     }
 
 
-def _build_sqlite_provider_app(db_path: Path):
+def _x_identity_with_roles(*roles: str) -> dict:
+    payload = {
+        "subject": "admin@test",
+        "roles": [role for role in roles],
+        "tenant_id": "t1",
+        "token_validation_state": "valid",
+    }
+    return {"X-Identity": json.dumps(payload)}
+
+
+def _build_sqlite_provider_app(db_path: Path, *, enable_graceful_drain: bool = False):
     """Build a test app with SQLite persistence and one bootstrap provider."""
     import os
     from src.api.app import create_app
@@ -57,6 +67,7 @@ def _build_sqlite_provider_app(db_path: Path):
             default_provider_id="openai-test",
             allowed_provider_ids=["openai-test"],
             require_provider_healthcheck_on_start=False,
+            enable_provider_delete_graceful_drain=enable_graceful_drain,
         ),
     )
     adapter = OpenAIAgentsRuntimeAdapter(provider_id="openai-test")
@@ -272,3 +283,85 @@ def test_provider_store_unavailable_returns_503() -> None:
         del_resp = client.delete("/providers/openai-test", headers=_x_identity())
     assert post_resp.status_code == 503
     assert del_resp.status_code == 503
+
+
+def test_delete_provider_force_drain_rejected_when_feature_disabled(tmp_path: Path) -> None:
+    app = _build_sqlite_provider_app(tmp_path / "exo.db", enable_graceful_drain=False)
+    with TestClient(app) as client:
+        client.post(
+            "/providers",
+            json={
+                "provider_id": "busy-provider",
+                "display_name": "Busy",
+                "adapter_class_ref": "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
+            },
+            headers=_x_identity(),
+        )
+        client.post(
+            "/tenants/t1/agents",
+            json={
+                "agent_id": "ag1",
+                "role": "assistant",
+                "capability_tags": [],
+                "instructions": "Help",
+            },
+            headers=_x_identity(),
+        )
+        client.post(
+            "/tenants/t1/sessions",
+            json={
+                "agent_id": "ag1",
+                "provider_id": "busy-provider",
+                "correlation_id": "corr1",
+            },
+            headers=_x_identity(),
+        )
+        del_resp = client.delete("/providers/busy-provider?force_drain=true", headers=_x_identity())
+    assert del_resp.status_code == 403
+    assert "Graceful drain is disabled" in del_resp.json()["detail"]
+
+
+def test_delete_provider_force_drain_succeeds_when_feature_enabled(tmp_path: Path) -> None:
+    import asyncio
+
+    app = _build_sqlite_provider_app(tmp_path / "exo.db", enable_graceful_drain=True)
+    with TestClient(app) as client:
+        client.post(
+            "/providers",
+            json={
+                "provider_id": "busy-provider",
+                "display_name": "Busy",
+                "adapter_class_ref": "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
+            },
+            headers=_x_identity(),
+        )
+        client.post(
+            "/tenants/t1/agents",
+            json={
+                "agent_id": "ag1",
+                "role": "assistant",
+                "capability_tags": [],
+                "instructions": "Help",
+            },
+            headers=_x_identity(),
+        )
+        client.post(
+            "/tenants/t1/sessions",
+            json={
+                "agent_id": "ag1",
+                "provider_id": "busy-provider",
+                "correlation_id": "corr1",
+            },
+            headers=_x_identity(),
+        )
+        del_resp = client.delete(
+            "/providers/busy-provider?force_drain=true",
+            headers=_x_identity_with_roles("admin"),
+        )
+        assert del_resp.status_code == 204
+        list_resp = client.get("/providers", headers=_x_identity())
+        ids = [p["provider_id"] for p in list_resp.json()["providers"]]
+        assert "busy-provider" not in ids
+
+    remaining = asyncio.run(app.state.session_store.count_active_sessions_by_provider("busy-provider"))
+    assert remaining == 0

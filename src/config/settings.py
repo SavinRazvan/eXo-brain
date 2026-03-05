@@ -45,6 +45,7 @@ class RuntimeSettings:
     enable_hosted_tool_runtime: bool = False
     enable_hosted_tool_process_isolation: bool = False
     enable_byoc_tool_runtime: bool = False
+    enable_provider_delete_graceful_drain: bool = False
     byoc_worker_jwt_secret: str = "exo-byoc-dev-secret"
     byoc_worker_token_ttl_seconds: int = 300
     byoc_store_backend: str = "memory"

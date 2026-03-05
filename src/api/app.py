@@ -113,6 +113,10 @@ def _default_settings() -> AppSettings:
                 default=False,
             ),
             enable_byoc_tool_runtime=_env_bool("EXO_ENABLE_BYOC_TOOL_RUNTIME", default=False),
+            enable_provider_delete_graceful_drain=_env_bool(
+                "EXO_ENABLE_PROVIDER_DELETE_GRACEFUL_DRAIN",
+                default=False,
+            ),
             byoc_worker_jwt_secret=os.environ.get("EXO_BYOC_WORKER_JWT_SECRET", "exo-byoc-dev-secret"),
             byoc_worker_token_ttl_seconds=int(os.environ.get("EXO_BYOC_WORKER_TOKEN_TTL_SECONDS", "300")),
             byoc_store_backend=os.environ.get(
