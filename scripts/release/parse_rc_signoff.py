@@ -27,6 +27,9 @@ _LINE_RE = re.compile(r"^- ([^:]+): `(.*)`$")
 _EVIDENCE_RE = re.compile(r"^- \[(OK|MISSING)\] `(.*)`$")
 _GATE_RE = re.compile(r"^### ([^:]+): (PASS|FAIL)$")
 _OVERALL_RE = re.compile(r"^- Result: `(PASS|FAIL)`$")
+_GATE_COMMAND_RE = re.compile(r"^- Command: `(.*)`$")
+_GATE_EXIT_RE = re.compile(r"^- Exit Code: `(-?\d+)`$")
+_GATE_DURATION_RE = re.compile(r"^- Duration Ms: `(\d+)`$")
 
 
 def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
@@ -81,12 +84,31 @@ def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
         elif line.startswith("### "):
             parsed_gate = _GATE_RE.match(line)
             if parsed_gate:
+                gate_record: dict[str, Any] = {
+                    "name": parsed_gate.group(1),
+                    "status": parsed_gate.group(2).lower(),
+                    "ok": parsed_gate.group(2) == "PASS",
+                    "command": "",
+                    "exit_code": None,
+                    "duration_ms": None,
+                }
+                cursor = idx + 1
+                while cursor < len(lines):
+                    maybe = lines[cursor].strip()
+                    if maybe.startswith("### ") or maybe == "## Overall":
+                        break
+                    command_match = _GATE_COMMAND_RE.match(maybe)
+                    if command_match:
+                        gate_record["command"] = command_match.group(1)
+                    exit_match = _GATE_EXIT_RE.match(maybe)
+                    if exit_match:
+                        gate_record["exit_code"] = int(exit_match.group(1))
+                    duration_match = _GATE_DURATION_RE.match(maybe)
+                    if duration_match:
+                        gate_record["duration_ms"] = int(duration_match.group(1))
+                    cursor += 1
                 gates.append(
-                    {
-                        "name": parsed_gate.group(1),
-                        "status": parsed_gate.group(2).lower(),
-                        "ok": parsed_gate.group(2) == "PASS",
-                    }
+                    gate_record
                 )
         elif line == "## Overall":
             idx += 1

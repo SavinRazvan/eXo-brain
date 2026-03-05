@@ -110,11 +110,17 @@ def test_parse_rc_signoff_writes_normalized_json(tmp_path: Path, monkeypatch) ->
                 "",
                 "## Gate Results",
                 "### pytest: PASS",
+                "- Command: `python -m pytest -q`",
+                "- Exit Code: `0`",
+                "- Duration Ms: `1200`",
                 "```text",
                 "ok",
                 "```",
                 "",
                 "### validate_layers: FAIL",
+                "- Command: `python scripts/architecture/validate_layers.py`",
+                "- Exit Code: `1`",
+                "- Duration Ms: `210`",
                 "```text",
                 "failed",
                 "```",
@@ -146,7 +152,55 @@ def test_parse_rc_signoff_writes_normalized_json(tmp_path: Path, monkeypatch) ->
     assert payload["started_at"] == "2026-01-01T00:00:00+00:00"
     assert payload["context"]["actor"] == "bot"
     assert payload["overall"]["passed"] is False
+    assert payload["gates"][0]["command"] == "python -m pytest -q"
+    assert payload["gates"][0]["exit_code"] == 0
+    assert payload["gates"][0]["duration_ms"] == 1200
     assert payload["overall"]["missing_evidence_links"] == [
         "docs/operations/byoc-artifact-integrity-dashboard.md"
     ]
     assert payload["overall"]["failed_gates"] == ["validate_layers"]
+
+
+def test_parse_rc_signoff_backward_compatible_without_gate_metadata(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module("parse_rc_signoff_script_legacy", SCRIPTS_DIR / "parse_rc_signoff.py")
+    source = tmp_path / ".local" / "rc-signoff.md"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(
+        "\n".join(
+            [
+                "# Release Candidate Signoff Evidence",
+                "",
+                "- Started: `2026-01-01T00:00:00+00:00`",
+                "- Ended: `2026-01-01T00:05:00+00:00`",
+                "",
+                "## Gate Results",
+                "### pytest: PASS",
+                "```text",
+                "ok",
+                "```",
+                "",
+                "## Overall",
+                "- Result: `PASS`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "parse_rc_signoff.py",
+            "--in",
+            ".local/rc-signoff.md",
+            "--out",
+            ".local/rc-signoff.json",
+        ],
+    )
+    assert module.main() == 0
+    payload = json.loads((tmp_path / ".local" / "rc-signoff.json").read_text(encoding="utf-8"))
+    assert payload["overall"]["passed"] is True
+    assert payload["gates"][0]["command"] == ""
+    assert payload["gates"][0]["exit_code"] is None
+    assert payload["gates"][0]["duration_ms"] is None
