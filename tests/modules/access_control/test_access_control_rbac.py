@@ -104,3 +104,43 @@ def test_access_policy_allows_when_plugin_scope_permission_present() -> None:
         )
     )
     assert decision.decision == PolicyAction.ALLOW
+
+
+def test_access_policy_denies_cross_tenant_scope_without_permission() -> None:
+    engine = AccessPolicyEngine()
+    decision = engine.evaluate(
+        AccessRequest(
+            subject="user_tenant",
+            roles=["reader"],
+            tool_name="sum_tool",
+            is_state_changing=False,
+            is_high_impact=False,
+            request_tenant_id="tenant_app",
+            identity_tenant_id="tenant_other",
+        )
+    )
+    assert decision.decision == PolicyAction.DENY
+    assert decision.reason_code == "ACCESS_DENIED_TENANT_SCOPE"
+
+
+def test_access_policy_allows_cross_tenant_scope_with_explicit_permission() -> None:
+    engine = AccessPolicyEngine(
+        config=AccessControlConfig(
+            role_permissions={
+                "cross_tenant_operator": {"tool:execute", "tenant:cross_scope"},
+            }
+        )
+    )
+    decision = engine.evaluate(
+        AccessRequest(
+            subject="user_cross_tenant",
+            roles=["cross_tenant_operator"],
+            tool_name="sum_tool",
+            is_state_changing=False,
+            is_high_impact=False,
+            request_tenant_id="tenant_app",
+            identity_tenant_id="tenant_other",
+        )
+    )
+    assert decision.decision == PolicyAction.ALLOW
+    assert decision.reason_code == "ACCESS_ALLOWED_BASE_PERMISSION"

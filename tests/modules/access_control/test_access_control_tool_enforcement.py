@@ -22,7 +22,14 @@ from src.tools.executor import DeterministicToolExecutor
 from src.tools.registry import ToolDescriptor, ToolRegistry
 
 
-def _call(identity_subject: str, identity_roles: list[str], is_state_changing: bool) -> ToolCallContext:
+def _call(
+    identity_subject: str,
+    identity_roles: list[str],
+    is_state_changing: bool,
+    *,
+    tenant_id: str = "tenant_app",
+    identity_tenant_id: str = "tenant_app",
+) -> ToolCallContext:
     return ToolCallContext(
         schema_version="1.0",
         call_id="tc_access",
@@ -34,6 +41,8 @@ def _call(identity_subject: str, identity_roles: list[str], is_state_changing: b
         provider_id="openai",
         tool_name="stateful_tool",
         arguments={"value": 2},
+        tenant_id=tenant_id,
+        identity_tenant_id=identity_tenant_id,
         identity_subject=identity_subject,
         identity_roles=identity_roles,
         plugin_scope="analytics",
@@ -68,4 +77,26 @@ def test_tool_execution_blocked_when_plugin_scope_permission_missing() -> None:
     assert result.status == ToolStatus.BLOCKED
     assert result.error.code == "POLICY_BLOCKED"
     assert result.error.details == {"reason_code": "ACCESS_DENIED_PLUGIN_SCOPE"}
+
+
+def test_tool_execution_blocked_when_tenant_scope_mismatch() -> None:
+    policy = DeterministicFirstPolicyMiddleware(
+        risk_gate_config=RiskGateConfig(access_policy_engine=AccessPolicyEngine())
+    )
+    registry = ToolRegistry()
+    registry.register(ToolDescriptor(name="stateful_tool", handler=lambda value: value + 1))
+    executor = DeterministicToolExecutor(registry=registry, policy=policy)
+
+    result = executor.execute(
+        _call(
+            identity_subject="user_low",
+            identity_roles=["reader"],
+            is_state_changing=False,
+            tenant_id="tenant_app",
+            identity_tenant_id="tenant_other",
+        )
+    )
+    assert result.status == ToolStatus.BLOCKED
+    assert result.error.code == "POLICY_BLOCKED"
+    assert result.error.details == {"reason_code": "ACCESS_DENIED_TENANT_SCOPE"}
 
