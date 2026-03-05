@@ -524,3 +524,52 @@ def test_byoc_dlq_list_and_replay_api_flow() -> None:
     assert submit_resp.json()["accepted"] is True
     run_thread.join(timeout=2.0)
 
+
+def test_byoc_governance_metrics_export_contract_includes_reason_rollup() -> None:
+    client = _byoc_client()
+    token_resp = client.post(
+        "/tenants/t1/admin/byoc/worker-token",
+        json={"worker_id": "worker-governance"},
+        headers=_headers("t1"),
+    )
+    assert token_resp.status_code == 200
+    token = token_resp.json()["token"]
+
+    reject_resp = client.post(
+        "/tenants/t1/admin/byoc/jobs/submit",
+        json={
+            "worker_token": token,
+            "request_nonce": "api-submit-nonce-governance-001",
+            "result": {
+                "job_id": "missing-job",
+                "tenant_id": "t1",
+                "run_id": "run-missing",
+                "call_id": "call-missing",
+                "tool_name": "echo_tool",
+                "status": "error",
+                "output": {},
+                "idempotency_key": "gov-idempotency-1",
+                "lease_token": "bad-lease",
+            },
+        },
+        headers=_headers("t1"),
+    )
+    assert reject_resp.status_code == 200
+    assert reject_resp.json()["accepted"] is False
+
+    metrics_resp = client.get(
+        "/tenants/t1/admin/byoc/governance-metrics",
+        headers=_headers("t1"),
+    )
+    assert metrics_resp.status_code == 200
+    payload = metrics_resp.json()
+    assert payload["tenant_id"] == "t1"
+    assert payload["backend_id"] == "byoc_pull_worker_runtime"
+    assert payload["cost"]["window"] == "lifetime"
+    assert payload["submissions"]["window"] == "lifetime"
+    assert payload["submissions"]["submit_attempts_total"] >= 1
+    assert payload["submissions"]["rejected_results_total"] >= 1
+    assert 0.0 <= payload["submissions"]["rejection_rate"] <= 1.0
+    reason_codes = {item["reason_code"] for item in payload["rejection_reasons"]}
+    assert "BYOC_LEASE_INVALID_OR_EXPIRED" in reason_codes
+
