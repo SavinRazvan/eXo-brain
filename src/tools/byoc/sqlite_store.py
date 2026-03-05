@@ -23,7 +23,13 @@ import uuid
 
 from src.tools.byoc.job_contracts import ByocToolJobEnvelope, ByocToolResultEnvelope
 from src.tools.byoc.job_store import ByocJobQueueStore, JobLeaseClaim
-from src.tools.byoc.result_store import ByocResultIngestOutcome, ByocResultStore, ReplayGuard
+from src.tools.byoc.result_store import (
+    ByocResultConflictStrategy,
+    ByocResultIngestOutcome,
+    ByocResultStore,
+    ReplayGuard,
+    resolve_result_conflict,
+)
 
 
 class _SQLiteStoreMixin:
@@ -227,9 +233,12 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 artifact_signature_version=str(row[19]),
             )
 
-    def requeue_expired_leases(self) -> int:
+    def requeue_expired_leases(self, *, max_claim_attempts_before_dlq: int | None = None) -> int:
         with self._lock:
-            return self._requeue_expired_leases_unlocked(time.time())
+            return self._requeue_expired_leases_unlocked(
+                time.time(),
+                max_claim_attempts_before_dlq=max_claim_attempts_before_dlq,
+            )
 
     def cancel_pending_call(self, *, call_id: str) -> int:
         normalized = str(call_id).strip()
@@ -256,7 +265,7 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 (normalized,),
             )
             conn.commit()
-            self._requeue_expired_leases_unlocked(time.time())
+            self._requeue_expired_leases_unlocked(time.time(), max_claim_attempts_before_dlq=None)
             return affected
 
     def queue_depth(self) -> int:
@@ -266,6 +275,84 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 "SELECT COUNT(1) FROM byoc_jobs WHERE status = 'queued'"
             ).fetchone()
             return int(row[0]) if row else 0
+
+    def dead_letter_count(self, *, tenant_id: str) -> int:
+        normalized = str(tenant_id).strip()
+        if not normalized:
+            return 0
+        with self._lock:
+            conn = self._connect()
+            row = conn.execute(
+                "SELECT COUNT(1) FROM byoc_jobs WHERE tenant_id = ? AND status = 'dead_lettered'",
+                (normalized,),
+            ).fetchone()
+            return int(row[0]) if row else 0
+
+    def list_dead_letter_jobs(self, *, tenant_id: str, limit: int = 100) -> list[dict[str, str]]:
+        normalized = str(tenant_id).strip()
+        bounded_limit = max(1, int(limit))
+        if not normalized:
+            return []
+        with self._lock:
+            conn = self._connect()
+            rows = conn.execute(
+                """
+                SELECT job_id, call_id, tool_name, idempotency_key, claim_attempt,
+                       dead_letter_reason_code, dead_lettered_at_epoch, replay_count
+                FROM byoc_jobs
+                WHERE tenant_id = ? AND status = 'dead_lettered'
+                ORDER BY dead_lettered_at_epoch DESC, rowid DESC
+                LIMIT ?
+                """,
+                (normalized, bounded_limit),
+            ).fetchall()
+        return [
+            {
+                "job_id": str(row[0]),
+                "call_id": str(row[1]),
+                "tool_name": str(row[2]),
+                "idempotency_key": str(row[3]),
+                "claim_attempt": str(int(row[4])),
+                "dead_letter_reason_code": str(row[5]),
+                "dead_lettered_at_epoch": str(int(float(row[6]))),
+                "replay_count": str(int(row[7])),
+            }
+            for row in rows
+        ]
+
+    def replay_dead_letter_job(self, *, tenant_id: str, job_id: str) -> bool:
+        normalized_tenant = str(tenant_id).strip()
+        normalized_job = str(job_id).strip()
+        if not normalized_tenant or not normalized_job:
+            return False
+        with self._lock:
+            conn = self._connect()
+            row = conn.execute(
+                """
+                SELECT status
+                FROM byoc_jobs
+                WHERE tenant_id = ? AND job_id = ?
+                """,
+                (normalized_tenant, normalized_job),
+            ).fetchone()
+            if row is None or str(row[0]) != "dead_lettered":
+                return False
+            conn.execute(
+                """
+                UPDATE byoc_jobs
+                SET status = 'queued',
+                    leased_by_worker_id = '',
+                    lease_token = '',
+                    lease_expires_at_epoch = 0,
+                    dead_letter_reason_code = '',
+                    dead_lettered_at_epoch = 0,
+                    replay_count = replay_count + 1
+                WHERE tenant_id = ? AND job_id = ?
+                """,
+                (normalized_tenant, normalized_job),
+            )
+            conn.commit()
+            return True
 
     def health_metrics(self, *, tenant_id: str) -> dict[str, int]:
         normalized = str(tenant_id).strip()
@@ -287,7 +374,13 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 """,
                 (normalized,),
             ).fetchall()
-        metrics = {"queued_jobs": 0, "leased_jobs": 0, "completed_jobs": 0, "cancelled_jobs": 0}
+        metrics = {
+            "queued_jobs": 0,
+            "leased_jobs": 0,
+            "completed_jobs": 0,
+            "cancelled_jobs": 0,
+            "dead_lettered_jobs": 0,
+        }
         for status, count in rows:
             key = f"{str(status)}_jobs"
             if key in metrics:
@@ -365,8 +458,31 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
             conn.commit()
         return {"completed_pruned": completed_pruned, "cancelled_pruned": cancelled_pruned}
 
-    def _requeue_expired_leases_unlocked(self, now: float) -> int:
+    def _requeue_expired_leases_unlocked(
+        self,
+        now: float,
+        *,
+        max_claim_attempts_before_dlq: int | None = None,
+    ) -> int:
         conn = self._connect()
+        if max_claim_attempts_before_dlq is not None and max_claim_attempts_before_dlq > 0:
+            conn.execute(
+                """
+                UPDATE byoc_jobs
+                SET status = 'dead_lettered',
+                    leased_by_worker_id = '',
+                    lease_token = '',
+                    lease_expires_at_epoch = 0,
+                    dead_letter_reason_code = 'BYOC_LEASE_RETRY_EXHAUSTED',
+                    dead_lettered_at_epoch = ?,
+                    completed_at_epoch = 0,
+                    cancelled_at_epoch = 0
+                WHERE status = 'leased'
+                  AND lease_expires_at_epoch <= ?
+                  AND claim_attempt >= ?
+                """,
+                (now, now, int(max_claim_attempts_before_dlq)),
+            )
         conn.execute(
             """
             UPDATE byoc_jobs
@@ -406,6 +522,9 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                     claim_attempt INTEGER NOT NULL DEFAULT 0,
                     completed_at_epoch REAL NOT NULL DEFAULT 0,
                     cancelled_at_epoch REAL NOT NULL DEFAULT 0,
+                    dead_lettered_at_epoch REAL NOT NULL DEFAULT 0,
+                    dead_letter_reason_code TEXT NOT NULL DEFAULT '',
+                    replay_count INTEGER NOT NULL DEFAULT 0,
                     tool_version TEXT NOT NULL DEFAULT '',
                     package_ref TEXT NOT NULL DEFAULT '',
                     entry_file TEXT NOT NULL DEFAULT '',
@@ -420,6 +539,12 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 conn.execute("ALTER TABLE byoc_jobs ADD COLUMN completed_at_epoch REAL NOT NULL DEFAULT 0")
             if not self._has_column(conn, "byoc_jobs", "cancelled_at_epoch"):
                 conn.execute("ALTER TABLE byoc_jobs ADD COLUMN cancelled_at_epoch REAL NOT NULL DEFAULT 0")
+            if not self._has_column(conn, "byoc_jobs", "dead_lettered_at_epoch"):
+                conn.execute("ALTER TABLE byoc_jobs ADD COLUMN dead_lettered_at_epoch REAL NOT NULL DEFAULT 0")
+            if not self._has_column(conn, "byoc_jobs", "dead_letter_reason_code"):
+                conn.execute("ALTER TABLE byoc_jobs ADD COLUMN dead_letter_reason_code TEXT NOT NULL DEFAULT ''")
+            if not self._has_column(conn, "byoc_jobs", "replay_count"):
+                conn.execute("ALTER TABLE byoc_jobs ADD COLUMN replay_count INTEGER NOT NULL DEFAULT 0")
             if not self._has_column(conn, "byoc_jobs", "tool_version"):
                 conn.execute("ALTER TABLE byoc_jobs ADD COLUMN tool_version TEXT NOT NULL DEFAULT ''")
             if not self._has_column(conn, "byoc_jobs", "package_ref"):
@@ -452,8 +577,14 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
 class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
     """SQLite-backed idempotent result store with one-shot consumption."""
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(
+        self,
+        db_path: str,
+        *,
+        conflict_strategy: ByocResultConflictStrategy = ByocResultConflictStrategy.FIRST_WRITE_WINS,
+    ) -> None:
         super().__init__(db_path)
+        self._conflict_strategy = conflict_strategy
         self._ensure_schema()
 
     def ingest(self, result: ByocToolResultEnvelope) -> ByocResultIngestOutcome:
@@ -485,6 +616,28 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
         now = time.time()
         with self._lock:
             conn = self._connect()
+            existing_row = conn.execute(
+                """
+                SELECT payload_json
+                FROM byoc_result_payloads
+                WHERE job_id = ?
+                """,
+                (result.job_id,),
+            ).fetchone()
+            if existing_row is not None:
+                existing = self._payload_to_envelope(str(existing_row[0]))
+                if str(existing.idempotency_key).strip() != key:
+                    should_replace = resolve_result_conflict(
+                        existing=existing,
+                        incoming=result,
+                        strategy=self._conflict_strategy,
+                    )
+                    if not should_replace:
+                        return ByocResultIngestOutcome(
+                            accepted=False,
+                            duplicate=False,
+                            reason_code="BYOC_RESULT_CONFLICT_REJECTED",
+                        )
             try:
                 conn.execute(
                     """
@@ -511,6 +664,12 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
                 (result.job_id, result.tenant_id, json.dumps(payload), now),
             )
             conn.commit()
+            if existing_row is not None:
+                return ByocResultIngestOutcome(
+                    accepted=True,
+                    duplicate=False,
+                    reason_code="BYOC_RESULT_CONFLICT_REPLACED",
+                )
             return ByocResultIngestOutcome(
                 accepted=True,
                 duplicate=False,
@@ -673,6 +832,28 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
                 "CREATE INDEX IF NOT EXISTS idx_byoc_result_idempotency_tenant ON byoc_result_idempotency (tenant_id)"
             )
             conn.commit()
+
+    @staticmethod
+    def _payload_to_envelope(payload_json: str) -> ByocToolResultEnvelope:
+        data = json.loads(payload_json)
+        return ByocToolResultEnvelope(
+            job_id=str(data.get("job_id", "")),
+            tenant_id=str(data.get("tenant_id", "")),
+            run_id=str(data.get("run_id", "")),
+            call_id=str(data.get("call_id", "")),
+            tool_name=str(data.get("tool_name", "")),
+            status=str(data.get("status", "")),
+            output=dict(data.get("output", {}) or {}),
+            error_code=str(data.get("error_code", "")),
+            error_message=str(data.get("error_message", "")),
+            retryable=bool(data.get("retryable", False)),
+            idempotency_key=str(data.get("idempotency_key", "")),
+            lease_token=str(data.get("lease_token", "")),
+            tool_version=str(data.get("tool_version", "")),
+            artifact_bundle_hash_sha256=str(data.get("artifact_bundle_hash_sha256", "")),
+            artifact_bundle_signature_hmac_sha256=str(data.get("artifact_bundle_signature_hmac_sha256", "")),
+            artifact_signature_version=str(data.get("artifact_signature_version", "")),
+        )
 
 
 class SQLiteReplayGuard(_SQLiteStoreMixin, ReplayGuard):

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 import threading
 import time
 
@@ -28,6 +29,29 @@ class ByocResultIngestOutcome:
     accepted: bool
     duplicate: bool
     reason_code: str
+
+
+class ByocResultConflictStrategy(str, Enum):
+    FIRST_WRITE_WINS = "first_write_wins"
+    LAST_WRITE_WINS = "last_write_wins"
+    PREFER_SUCCESS = "prefer_success"
+
+
+def resolve_result_conflict(
+    *,
+    existing: ByocToolResultEnvelope,
+    incoming: ByocToolResultEnvelope,
+    strategy: ByocResultConflictStrategy,
+) -> bool:
+    """Return True when incoming result should replace existing payload."""
+    if strategy == ByocResultConflictStrategy.LAST_WRITE_WINS:
+        return True
+    if strategy == ByocResultConflictStrategy.PREFER_SUCCESS:
+        existing_success = str(existing.status).strip().lower() == "success"
+        incoming_success = str(incoming.status).strip().lower() == "success"
+        if incoming_success and not existing_success:
+            return True
+    return False
 
 
 class ByocResultStore(ABC):
@@ -76,8 +100,13 @@ class ReplayGuard(ABC):
 class InMemoryByocResultStore(ByocResultStore):
     """Thread-safe in-memory idempotency store for BYOC result callbacks."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        conflict_strategy: ByocResultConflictStrategy = ByocResultConflictStrategy.FIRST_WRITE_WINS,
+    ) -> None:
         self._lock = threading.Lock()
+        self._conflict_strategy = conflict_strategy
         self._seen_idempotency_keys: set[str] = set()
         self._results_by_job_id: dict[str, ByocToolResultEnvelope] = {}
 
@@ -95,6 +124,26 @@ class InMemoryByocResultStore(ByocResultStore):
                     accepted=True,
                     duplicate=True,
                     reason_code="IDEMPOTENT_DUPLICATE",
+                )
+            existing = self._results_by_job_id.get(result.job_id)
+            if existing is not None and str(existing.idempotency_key).strip() != key:
+                should_replace = resolve_result_conflict(
+                    existing=existing,
+                    incoming=result,
+                    strategy=self._conflict_strategy,
+                )
+                if not should_replace:
+                    return ByocResultIngestOutcome(
+                        accepted=False,
+                        duplicate=False,
+                        reason_code="BYOC_RESULT_CONFLICT_REJECTED",
+                    )
+                self._seen_idempotency_keys.add(key)
+                self._results_by_job_id[result.job_id] = result
+                return ByocResultIngestOutcome(
+                    accepted=True,
+                    duplicate=False,
+                    reason_code="BYOC_RESULT_CONFLICT_REPLACED",
                 )
             self._seen_idempotency_keys.add(key)
             self._results_by_job_id[result.job_id] = result
