@@ -65,6 +65,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | P2-2 DLQ/replay baseline | Implemented (baseline) | Added BYOC dead-letter routing on lease-attempt exhaustion plus runtime-control list/replay APIs and deterministic test coverage for replay back into successful completion. |
 | P2-3 conflict-resolution baseline | Implemented (baseline) | Added strategy-driven BYOC result conflict resolution (`first_write_wins`, `last_write_wins`, `prefer_success`) with deterministic reject/replace reason codes and store-level conflict tests. |
 | P2-4 tenancy/cost governance baseline | Implemented (baseline) | Added tenant-scoped BYOC cost/rejection counters with optional cost-limit enforcement gate and runtime-control metrics for dashboard/alert wiring. |
+| P0-2 local-data durability baseline | Implemented (baseline) | Added `scripts/release/local_data_safety.py` backup/restore/validate commands, make targets (`db-backup`/`db-restore`/`db-validate`), recovery runbook steps, and script-level regression tests. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
