@@ -572,6 +572,7 @@ Canonical reference:
 - [x] P2-2 baseline completed: BYOC dead-letter routing + replay workflow (`/admin/byoc/dlq` list and replay API) with lease-exhaustion and replay-success coverage.
 - [x] P2-3 baseline completed: BYOC result conflict-resolution strategy wiring (`first_write_wins`/`last_write_wins`/`prefer_success`) with deterministic conflict reject/replace test coverage.
 - [x] P2-4 baseline completed: tenant-scoped BYOC cost/rejection instrumentation with optional limit-enforcement gate and runtime-control metrics for governance dashboards.
+- [x] P2 expansion queue closed and handed off to next planning board: `docs/plans/backlog-reconciliation-v2-execution-board.md`.
 
 ---
 

@@ -43,8 +43,8 @@ Move from developer-only `module.path:function_name` registration to a SaaS-safe
   - P1 backlog closure: provider delete graceful-drain mode (policy-gated), observability sink/export hardening, and resilience/quota deferred edge-path coverage.
   - P2 baseline closure: BYOC webhook submit path for worker push results (`/tenants/{tenant_id}/admin/byoc/webhook/jobs/submit`).
 - Open implementation queue:
-  - Remaining P2 expansion backlog only (autoscaling, DLQ/replay workflow, advanced conflict resolution, tenancy/cost governance).
-  - Canonical queue: `docs/plans/p2-expansion-roadmap.md`.
+  - P2 expansion queue is closed in `docs/plans/p2-expansion-roadmap.md`.
+  - Next planning/implementation source: `docs/plans/backlog-reconciliation-v2-execution-board.md`.
 
 ## Architecture Slice Plan
 
