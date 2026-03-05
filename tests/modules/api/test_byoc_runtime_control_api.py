@@ -36,6 +36,8 @@ def _byoc_client(
     *,
     max_claim_attempts_before_dlq: int = 3,
     lease_ttl_seconds: int = 30,
+    enable_cost_window_policy: bool = False,
+    cost_window_seconds: int = 3600,
 ) -> TestClient:
     settings = AppSettings(
         schema_version="1.0",
@@ -48,6 +50,8 @@ def _byoc_client(
             byoc_worker_jwt_secret="test-secret",
             byoc_lease_ttl_seconds=lease_ttl_seconds,
             byoc_max_claim_attempts_before_dlq=max_claim_attempts_before_dlq,
+            byoc_enable_cost_window_policy=enable_cost_window_policy,
+            byoc_cost_window_seconds=cost_window_seconds,
         ),
     )
     return TestClient(build_test_app(settings=settings))
@@ -572,4 +576,17 @@ def test_byoc_governance_metrics_export_contract_includes_reason_rollup() -> Non
     assert 0.0 <= payload["submissions"]["rejection_rate"] <= 1.0
     reason_codes = {item["reason_code"] for item in payload["rejection_reasons"]}
     assert "BYOC_LEASE_INVALID_OR_EXPIRED" in reason_codes
+
+
+def test_byoc_governance_metrics_export_uses_windowed_cost_fields_when_enabled() -> None:
+    client = _byoc_client(enable_cost_window_policy=True, cost_window_seconds=120)
+    metrics_resp = client.get(
+        "/tenants/t1/admin/byoc/governance-metrics",
+        headers=_headers("t1"),
+    )
+    assert metrics_resp.status_code == 200
+    payload = metrics_resp.json()
+    assert payload["cost"]["window"] == "windowed"
+    assert payload["cost"]["window_seconds"] == 120
+    assert payload["cost"]["window_started_at_epoch"] >= 0
 
