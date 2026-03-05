@@ -100,6 +100,12 @@ class ByocSubmitResultRequest(BaseModel):
     result: dict
 
 
+class ByocWebhookSubmitResultRequest(BaseModel):
+    webhook_secret: str = Field(..., min_length=1)
+    webhook_request_id: str = Field(..., min_length=8)
+    result: dict
+
+
 class ByocSubmitResultResponse(BaseModel):
     tenant_id: str
     backend_id: str

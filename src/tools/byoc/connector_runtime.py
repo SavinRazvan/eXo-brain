@@ -262,6 +262,34 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         replay_key = f"{tenant_id}:submit:{claims.token_id}:{nonce}"
         if not self._replay_guard.mark_once(key=replay_key, ttl_seconds=self._replay_ttl_seconds):
             raise ValueError("WORKER_REQUEST_REPLAYED")
+        return self._ingest_result_after_auth(tenant_id=tenant_id, result=result)
+
+    def submit_result_webhook(
+        self,
+        *,
+        tenant_id: str,
+        webhook_secret: str,
+        webhook_request_id: str,
+        result: ByocToolResultEnvelope,
+    ) -> ByocResultIngestOutcome:
+        self._run_periodic_cleanup(tenant_id=tenant_id)
+        provided_secret = str(webhook_secret).strip()
+        if not provided_secret or provided_secret != self._worker_jwt_secret:
+            raise ValueError("WEBHOOK_AUTH_INVALID")
+        request_id = _normalized_nonce(webhook_request_id)
+        if not request_id:
+            raise ValueError("WEBHOOK_REQUEST_ID_REQUIRED")
+        replay_key = f"{tenant_id}:webhook:{request_id}"
+        if not self._replay_guard.mark_once(key=replay_key, ttl_seconds=self._replay_ttl_seconds):
+            raise ValueError("WEBHOOK_REQUEST_REPLAYED")
+        return self._ingest_result_after_auth(tenant_id=tenant_id, result=result)
+
+    def _ingest_result_after_auth(
+        self,
+        *,
+        tenant_id: str,
+        result: ByocToolResultEnvelope,
+    ) -> ByocResultIngestOutcome:
         if result.tenant_id != tenant_id:
             raise ValueError("WORKER_RESULT_TENANT_MISMATCH")
         existing_key = str(result.idempotency_key).strip()

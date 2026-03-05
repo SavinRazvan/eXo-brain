@@ -337,3 +337,88 @@ def test_byoc_runtime_control_stats_include_health_metrics_and_cleanup_endpoint(
     assert "result_records_pruned" in cleanup_stats
     assert "replay_records_pruned" in cleanup_stats
 
+
+def test_byoc_webhook_submit_happy_path_and_auth_failure() -> None:
+    client = _byoc_client()
+    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    adapter = ctx.tool_executor.execution_adapter()
+    assert adapter is not None
+    from src.schemas.tool_io import ToolCallContext
+    from src.tools.registry import ToolDescriptor
+
+    call = ToolCallContext(
+        schema_version="1.0",
+        call_id="api_call_webhook_1",
+        session_id="sess_webhook_1",
+        run_id="run_webhook_1",
+        job_id="job_webhook_1",
+        task_id="task_webhook_1",
+        agent_id="agent_webhook_1",
+        provider_id="openai-test",
+        tool_name="echo_tool",
+        arguments={"x": 3},
+        tenant_id="t1",
+    )
+    descriptor = ToolDescriptor(name="echo_tool", handler=lambda x: x, timeout_ms=1500)
+    run_thread = threading.Thread(target=lambda: adapter.execute(call, descriptor))
+    run_thread.start()
+
+    token_resp = client.post(
+        "/tenants/t1/admin/byoc/worker-token",
+        json={"worker_id": "worker-webhook"},
+        headers=_headers("t1"),
+    )
+    token = token_resp.json()["token"]
+    claim_resp = client.post(
+        "/tenants/t1/admin/byoc/jobs/claim",
+        json={"worker_token": token, "request_nonce": "api-claim-nonce-webhook-001"},
+        headers=_headers("t1"),
+    )
+    job = claim_resp.json()["job"]
+    assert job is not None
+
+    bad_resp = client.post(
+        "/tenants/t1/admin/byoc/webhook/jobs/submit",
+        json={
+            "webhook_secret": "wrong-secret",
+            "webhook_request_id": "api-webhook-rid-001",
+            "result": {
+                "job_id": job["job_id"],
+                "tenant_id": "t1",
+                "run_id": job["run_id"],
+                "call_id": job["call_id"],
+                "tool_name": job["tool_name"],
+                "status": "success",
+                "output": {"ok": True},
+                "idempotency_key": job["idempotency_key"],
+                "lease_token": job["lease_token"],
+            },
+        },
+        headers=_headers("t1"),
+    )
+    assert bad_resp.status_code == 401
+    assert bad_resp.json()["detail"] == "WEBHOOK_AUTH_INVALID"
+
+    good_resp = client.post(
+        "/tenants/t1/admin/byoc/webhook/jobs/submit",
+        json={
+            "webhook_secret": "test-secret",
+            "webhook_request_id": "api-webhook-rid-002",
+            "result": {
+                "job_id": job["job_id"],
+                "tenant_id": "t1",
+                "run_id": job["run_id"],
+                "call_id": job["call_id"],
+                "tool_name": job["tool_name"],
+                "status": "success",
+                "output": {"ok": True},
+                "idempotency_key": job["idempotency_key"],
+                "lease_token": job["lease_token"],
+            },
+        },
+        headers=_headers("t1"),
+    )
+    assert good_resp.status_code == 200
+    assert good_resp.json()["accepted"] is True
+    run_thread.join(timeout=2.0)
+
