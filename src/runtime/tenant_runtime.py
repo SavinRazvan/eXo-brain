@@ -101,7 +101,11 @@ class TenantRuntimeFactory:
         execution_adapter = None
         if self._settings.runtime.enable_byoc_tool_runtime:
             from src.tools.byoc import TenantByocConnectorRuntime
-            from src.tools.byoc.result_store import InMemoryByocResultStore, InMemoryReplayGuard
+            from src.tools.byoc.result_store import (
+                ByocResultConflictStrategy,
+                InMemoryByocResultStore,
+                InMemoryReplayGuard,
+            )
             from src.tools.byoc.job_store import InMemoryByocJobQueueStore
             from src.tools.byoc.sqlite_store import (
                 SQLiteByocJobQueueStore,
@@ -112,12 +116,22 @@ class TenantRuntimeFactory:
             if self._settings.runtime.byoc_store_backend == "sqlite":
                 db_path = Path(self._settings.runtime.byoc_sqlite_db_path)
                 db_path.parent.mkdir(parents=True, exist_ok=True)
+                strategy_raw = str(self._settings.runtime.byoc_result_conflict_strategy).strip().lower()
+                try:
+                    conflict_strategy = ByocResultConflictStrategy(strategy_raw)
+                except ValueError:
+                    conflict_strategy = ByocResultConflictStrategy.FIRST_WRITE_WINS
                 job_store = SQLiteByocJobQueueStore(str(db_path))
-                result_store = SQLiteByocResultStore(str(db_path))
+                result_store = SQLiteByocResultStore(str(db_path), conflict_strategy=conflict_strategy)
                 replay_guard = SQLiteReplayGuard(str(db_path))
             else:
+                strategy_raw = str(self._settings.runtime.byoc_result_conflict_strategy).strip().lower()
+                try:
+                    conflict_strategy = ByocResultConflictStrategy(strategy_raw)
+                except ValueError:
+                    conflict_strategy = ByocResultConflictStrategy.FIRST_WRITE_WINS
                 job_store = InMemoryByocJobQueueStore()
-                result_store = InMemoryByocResultStore()
+                result_store = InMemoryByocResultStore(conflict_strategy=conflict_strategy)
                 replay_guard = InMemoryReplayGuard()
 
             execution_adapter = TenantByocConnectorRuntime(
@@ -133,6 +147,7 @@ class TenantRuntimeFactory:
                 max_completed_records=self._settings.runtime.byoc_max_completed_records,
                 max_cancelled_records=self._settings.runtime.byoc_max_cancelled_records,
                 max_result_records=self._settings.runtime.byoc_max_result_records,
+                max_claim_attempts_before_dlq=self._settings.runtime.byoc_max_claim_attempts_before_dlq,
                 job_store=job_store,
                 result_store=result_store,
                 replay_guard=replay_guard,
