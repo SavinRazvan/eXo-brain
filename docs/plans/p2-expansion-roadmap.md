@@ -24,10 +24,15 @@ Track execution of post-P1 expansion items in dependency order while keeping det
   - added strategy-driven conflict resolution (`first_write_wins`, `last_write_wins`, `prefer_success`)
   - added runtime setting/env wiring for conflict strategy selection
   - enforced deterministic conflict outcomes with explicit reason codes for reject/replace paths
+- Implemented P2-4 fine-grained tenancy/cost governance instrumentation baseline:
+  - added tenant-scoped cost counters and configurable per-status BYOC cost units
+  - added optional enforcement gate (`EXO_BYOC_ENFORCE_COST_LIMIT`) with deterministic rejection code
+  - exposed tenant-level governance counters in runtime-control stats for dashboard/alerting
+  - expanded operations dashboard guidance with governance panels and alert thresholds
 
 ## Remaining P2 Expansion Queue
 
-1. Fine-grained tenancy and cost governance instrumentation.
+- No open P2 expansion items in this roadmap. Next queue should be sourced from a fresh backlog reconciliation slice.
 
 ## Acceptance Gates
 

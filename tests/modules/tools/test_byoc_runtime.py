@@ -582,3 +582,94 @@ def test_byoc_runtime_moves_expired_lease_to_dlq_and_replays() -> None:
     result = result_holder["result"]
     assert result.status == ToolStatus.SUCCESS
 
+
+def test_byoc_runtime_emits_tenant_cost_counters() -> None:
+    runtime = TenantByocConnectorRuntime(
+        worker_jwt_secret="test-secret",
+        cost_success_microunits=7,
+        cost_error_microunits=11,
+        cost_timeout_microunits=13,
+        cost_cancelled_microunits=5,
+    )
+    call = _call()
+    descriptor = _descriptor()
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-cost")
+    result_holder: dict[str, object] = {}
+
+    def _execute() -> None:
+        result_holder["result"] = runtime.execute(call, descriptor)
+
+    thread = threading.Thread(target=_execute)
+    thread.start()
+    claim = _wait_claim(runtime, token, "nonce-cost-claim-001")
+    assert claim is not None
+    outcome = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-cost-submit-001",
+        result=ByocToolResultEnvelope(
+            job_id=claim["job_id"],
+            tenant_id="t1",
+            run_id=claim["run_id"],
+            call_id=claim["call_id"],
+            tool_name=claim["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 1},
+            idempotency_key=claim["idempotency_key"],
+            lease_token=claim["lease_token"],
+        ),
+    )
+    assert outcome.accepted is True
+    thread.join(timeout=2.0)
+    assert result_holder["result"].status == ToolStatus.SUCCESS
+    stats = runtime.control_stats_for_tenant(tenant_id="t1")
+    assert stats["tenant_submit_attempts_total"] == 1
+    assert stats["tenant_cost_microunits_total"] == 7
+    assert stats["tenant_cost_remaining_microunits"] == stats["tenant_cost_limit_microunits"] - 7
+
+
+def test_byoc_runtime_rejects_execute_when_cost_limit_exceeded() -> None:
+    runtime = TenantByocConnectorRuntime(
+        worker_jwt_secret="test-secret",
+        enforce_cost_limit=True,
+        cost_limit_microunits_per_tenant=1,
+        cost_success_microunits=2,
+    )
+    call = _call()
+    descriptor = _descriptor()
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-limit")
+    result_holder: dict[str, object] = {}
+
+    def _execute_first() -> None:
+        result_holder["first"] = runtime.execute(call, descriptor)
+
+    first_thread = threading.Thread(target=_execute_first)
+    first_thread.start()
+    claim = _wait_claim(runtime, token, "nonce-limit-claim-001")
+    assert claim is not None
+    first_submit = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-limit-submit-001",
+        result=ByocToolResultEnvelope(
+            job_id=claim["job_id"],
+            tenant_id="t1",
+            run_id=claim["run_id"],
+            call_id=claim["call_id"],
+            tool_name=claim["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 2},
+            idempotency_key=claim["idempotency_key"],
+            lease_token=claim["lease_token"],
+        ),
+    )
+    assert first_submit.accepted is True
+    first_thread.join(timeout=2.0)
+    assert result_holder["first"].status == ToolStatus.SUCCESS
+
+    second = runtime.execute(call, descriptor)
+    assert second.status == ToolStatus.ERROR
+    assert second.error.code == "BYOC_COST_LIMIT_EXCEEDED"
+    stats = runtime.control_stats_for_tenant(tenant_id="t1")
+    assert stats["tenant_rejected_reason_BYOC_COST_LIMIT_EXCEEDED"] >= 1
+
