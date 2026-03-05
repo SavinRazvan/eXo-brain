@@ -171,6 +171,23 @@ class ByocGovernanceSubmissionMetrics(BaseModel):
     rejection_rate: float = 0.0
 
 
+class ByocGovernanceAnomaly(BaseModel):
+    code: str
+    severity: str
+    message: str
+    value: float
+    threshold: float
+    reason_code: str = ""
+
+
+class ByocGovernanceAnomalyReport(BaseModel):
+    enabled: bool = True
+    advisory_only: bool = True
+    min_submit_attempts: int = 0
+    min_rejection_count: int = 0
+    anomalies: list[ByocGovernanceAnomaly] = Field(default_factory=list)
+
+
 class ByocGovernanceMetricsResponse(BaseModel):
     tenant_id: str
     backend_id: str
@@ -178,3 +195,4 @@ class ByocGovernanceMetricsResponse(BaseModel):
     cost: ByocGovernanceCostMetrics
     submissions: ByocGovernanceSubmissionMetrics
     rejection_reasons: list[ByocGovernanceReasonCount] = Field(default_factory=list)
+    anomaly_report: ByocGovernanceAnomalyReport = Field(default_factory=ByocGovernanceAnomalyReport)

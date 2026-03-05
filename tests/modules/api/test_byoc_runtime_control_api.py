@@ -38,6 +38,10 @@ def _byoc_client(
     lease_ttl_seconds: int = 30,
     enable_cost_window_policy: bool = False,
     cost_window_seconds: int = 3600,
+    anomaly_detection_enabled: bool = True,
+    anomaly_rejection_rate_threshold: float = 0.2,
+    anomaly_min_submit_attempts: int = 5,
+    anomaly_min_rejection_count: int = 3,
 ) -> TestClient:
     settings = AppSettings(
         schema_version="1.0",
@@ -52,6 +56,10 @@ def _byoc_client(
             byoc_max_claim_attempts_before_dlq=max_claim_attempts_before_dlq,
             byoc_enable_cost_window_policy=enable_cost_window_policy,
             byoc_cost_window_seconds=cost_window_seconds,
+            byoc_anomaly_detection_enabled=anomaly_detection_enabled,
+            byoc_anomaly_rejection_rate_threshold=anomaly_rejection_rate_threshold,
+            byoc_anomaly_min_submit_attempts=anomaly_min_submit_attempts,
+            byoc_anomaly_min_rejection_count=anomaly_min_rejection_count,
         ),
     )
     return TestClient(build_test_app(settings=settings))
@@ -574,6 +582,8 @@ def test_byoc_governance_metrics_export_contract_includes_reason_rollup() -> Non
     assert payload["submissions"]["submit_attempts_total"] >= 1
     assert payload["submissions"]["rejected_results_total"] >= 1
     assert 0.0 <= payload["submissions"]["rejection_rate"] <= 1.0
+    assert payload["anomaly_report"]["enabled"] is True
+    assert payload["anomaly_report"]["advisory_only"] is True
     reason_codes = {item["reason_code"] for item in payload["rejection_reasons"]}
     assert "BYOC_LEASE_INVALID_OR_EXPIRED" in reason_codes
 
@@ -589,4 +599,44 @@ def test_byoc_governance_metrics_export_uses_windowed_cost_fields_when_enabled()
     assert payload["cost"]["window"] == "windowed"
     assert payload["cost"]["window_seconds"] == 120
     assert payload["cost"]["window_started_at_epoch"] >= 0
+
+
+def test_byoc_governance_metrics_export_includes_anomaly_findings_when_threshold_exceeded() -> None:
+    client = _byoc_client(
+        anomaly_rejection_rate_threshold=0.5,
+        anomaly_min_submit_attempts=1,
+        anomaly_min_rejection_count=1,
+    )
+    token_resp = client.post(
+        "/tenants/t1/admin/byoc/worker-token",
+        json={"worker_id": "worker-anomaly"},
+        headers=_headers("t1"),
+    )
+    token = token_resp.json()["token"]
+    reject_resp = client.post(
+        "/tenants/t1/admin/byoc/jobs/submit",
+        json={
+            "worker_token": token,
+            "request_nonce": "api-submit-nonce-anomaly-001",
+            "result": {
+                "job_id": "missing-job",
+                "tenant_id": "t1",
+                "run_id": "run-missing",
+                "call_id": "call-missing",
+                "tool_name": "echo_tool",
+                "status": "error",
+                "output": {},
+                "idempotency_key": "gov-anomaly-idempotency",
+                "lease_token": "bad-lease",
+            },
+        },
+        headers=_headers("t1"),
+    )
+    assert reject_resp.status_code == 200
+    assert reject_resp.json()["accepted"] is False
+
+    metrics_resp = client.get("/tenants/t1/admin/byoc/governance-metrics", headers=_headers("t1"))
+    payload = metrics_resp.json()
+    codes = {item["code"] for item in payload["anomaly_report"]["anomalies"]}
+    assert "BYOC_REJECTION_RATE_SPIKE" in codes
 
