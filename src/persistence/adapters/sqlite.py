@@ -19,9 +19,11 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 from pathlib import Path
+from typing import Callable, TypeVar
 
 from src.core.session_context import SessionContext
 from src.persistence.contracts import (
@@ -46,6 +48,13 @@ from src.persistence.contracts import (
     ToolVersionStore,
 )
 
+_T = TypeVar("_T")
+
+
+async def _run_blocking(callable_fn: Callable[[], _T]) -> _T:
+    """Execute blocking sqlite operations off the event loop."""
+    return await asyncio.to_thread(callable_fn)
+
 
 def _assert_tenant_match(stored_tenant_id: str, requested_tenant_id: str, entity_type: str) -> None:
     if stored_tenant_id != requested_tenant_id:
@@ -63,65 +72,74 @@ class SQLiteSessionStore(SessionStore):
         self._ensure_schema()
 
     async def save_session(self, record: SessionRecord) -> None:
-        with sqlite3.connect(self._db_path) as conn:
-            conn.execute(
-                """
-                INSERT INTO sessions (
-                    tenant_id, session_id, run_id, job_id, task_id, agent_id, provider_id, correlation_id,
-                    metadata_json, state, data_json
+        def _save() -> None:
+            with sqlite3.connect(self._db_path) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO sessions (
+                        tenant_id, session_id, run_id, job_id, task_id, agent_id, provider_id, correlation_id,
+                        metadata_json, state, data_json
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(tenant_id, session_id) DO UPDATE SET
+                        run_id=excluded.run_id,
+                        job_id=excluded.job_id,
+                        task_id=excluded.task_id,
+                        agent_id=excluded.agent_id,
+                        provider_id=excluded.provider_id,
+                        correlation_id=excluded.correlation_id,
+                        metadata_json=excluded.metadata_json,
+                        state=excluded.state,
+                        data_json=excluded.data_json
+                    """,
+                    (
+                        record.tenant_id,
+                        record.session.session_id,
+                        record.session.run_id,
+                        record.session.job_id,
+                        record.session.task_id,
+                        record.session.agent_id,
+                        record.session.provider_id,
+                        record.session.correlation_id,
+                        json.dumps(record.session.metadata),
+                        record.state,
+                        json.dumps(record.data),
+                    ),
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(tenant_id, session_id) DO UPDATE SET
-                    run_id=excluded.run_id,
-                    job_id=excluded.job_id,
-                    task_id=excluded.task_id,
-                    agent_id=excluded.agent_id,
-                    provider_id=excluded.provider_id,
-                    correlation_id=excluded.correlation_id,
-                    metadata_json=excluded.metadata_json,
-                    state=excluded.state,
-                    data_json=excluded.data_json
-                """,
-                (
-                    record.tenant_id,
-                    record.session.session_id,
-                    record.session.run_id,
-                    record.session.job_id,
-                    record.session.task_id,
-                    record.session.agent_id,
-                    record.session.provider_id,
-                    record.session.correlation_id,
-                    json.dumps(record.session.metadata),
-                    record.state,
-                    json.dumps(record.data),
-                ),
-            )
-            conn.commit()
+                conn.commit()
+
+        await _run_blocking(_save)
 
     async def get_session(self, session_id: str, tenant_id: str = "default") -> SessionRecord | None:
-        with sqlite3.connect(self._db_path) as conn:
-            row = conn.execute(
-                """
-                SELECT tenant_id, session_id, run_id, job_id, task_id, agent_id, provider_id, correlation_id, metadata_json, state, data_json
-                FROM sessions
-                WHERE tenant_id = ? AND session_id = ?
-                """,
-                (tenant_id, session_id),
-            ).fetchone()
-            if row is None:
-                collision_row = conn.execute(
+        def _load() -> tuple | None:
+            with sqlite3.connect(self._db_path) as conn:
+                row = conn.execute(
                     """
-                    SELECT tenant_id FROM sessions WHERE session_id = ? LIMIT 1
+                    SELECT tenant_id, session_id, run_id, job_id, task_id, agent_id, provider_id, correlation_id, metadata_json, state, data_json
+                    FROM sessions
+                    WHERE tenant_id = ? AND session_id = ?
                     """,
-                    (session_id,),
+                    (tenant_id, session_id),
                 ).fetchone()
-                if collision_row is not None:
-                    _assert_tenant_match(
-                        stored_tenant_id=collision_row[0],
-                        requested_tenant_id=tenant_id,
-                        entity_type="session",
-                    )
-                return None
+                if row is None:
+                    collision_row = conn.execute(
+                        """
+                        SELECT tenant_id FROM sessions WHERE session_id = ? LIMIT 1
+                        """,
+                        (session_id,),
+                    ).fetchone()
+                    if collision_row is not None:
+                        _assert_tenant_match(
+                            stored_tenant_id=collision_row[0],
+                            requested_tenant_id=tenant_id,
+                            entity_type="session",
+                        )
+                    return None
+                return row
+
+        row = await _run_blocking(_load)
+        if row is None:
+            return None
         _assert_tenant_match(stored_tenant_id=row[0], requested_tenant_id=tenant_id, entity_type="session")
         session = SessionContext(
             session_id=row[1],
@@ -136,12 +154,31 @@ class SQLiteSessionStore(SessionStore):
         return SessionRecord(session=session, tenant_id=row[0], state=row[9], data=json.loads(row[10]))
 
     async def count_active_sessions_by_provider(self, provider_id: str) -> int:
-        with sqlite3.connect(self._db_path) as conn:
-            row = conn.execute(
-                "SELECT COUNT(1) FROM sessions WHERE provider_id = ? AND state = 'active'",
-                (provider_id,),
-            ).fetchone()
-        return row[0] if row else 0
+        def _count() -> int:
+            with sqlite3.connect(self._db_path) as conn:
+                row = conn.execute(
+                    "SELECT COUNT(1) FROM sessions WHERE provider_id = ? AND state = 'active'",
+                    (provider_id,),
+                ).fetchone()
+            return row[0] if row else 0
+
+        return await _run_blocking(_count)
+
+    async def deactivate_sessions_by_provider(self, provider_id: str) -> int:
+        def _deactivate() -> int:
+            with sqlite3.connect(self._db_path) as conn:
+                cursor = conn.execute(
+                    """
+                    UPDATE sessions
+                    SET state = 'cancelled'
+                    WHERE provider_id = ? AND state = 'active'
+                    """,
+                    (provider_id,),
+                )
+                conn.commit()
+                return int(cursor.rowcount or 0)
+
+        return await _run_blocking(_deactivate)
 
     def _ensure_schema(self) -> None:
         with sqlite3.connect(self._db_path) as conn:
@@ -172,40 +209,46 @@ class SQLiteCheckpointStore(CheckpointStoreContract):
         self._ensure_schema()
 
     async def save_checkpoint(self, checkpoint: CheckpointRecord) -> None:
-        with sqlite3.connect(self._db_path) as conn:
-            conn.execute(
-                """
-                INSERT INTO checkpoints (tenant_id, job_id, node_id, status, attempt, reason_code, payload_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(tenant_id, job_id, node_id) DO UPDATE SET
-                    status=excluded.status,
-                    attempt=excluded.attempt,
-                    reason_code=excluded.reason_code,
-                    payload_json=excluded.payload_json
-                """,
-                (
-                    checkpoint.tenant_id,
-                    checkpoint.job_id,
-                    checkpoint.node_id,
-                    checkpoint.status.value,
-                    checkpoint.attempt,
-                    checkpoint.reason_code,
-                    json.dumps(checkpoint.payload),
-                ),
-            )
-            conn.commit()
+        def _save() -> None:
+            with sqlite3.connect(self._db_path) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO checkpoints (tenant_id, job_id, node_id, status, attempt, reason_code, payload_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(tenant_id, job_id, node_id) DO UPDATE SET
+                        status=excluded.status,
+                        attempt=excluded.attempt,
+                        reason_code=excluded.reason_code,
+                        payload_json=excluded.payload_json
+                    """,
+                    (
+                        checkpoint.tenant_id,
+                        checkpoint.job_id,
+                        checkpoint.node_id,
+                        checkpoint.status.value,
+                        checkpoint.attempt,
+                        checkpoint.reason_code,
+                        json.dumps(checkpoint.payload),
+                    ),
+                )
+                conn.commit()
+
+        await _run_blocking(_save)
 
     async def list_checkpoints(self, job_id: str, tenant_id: str = "default") -> list[CheckpointRecord]:
-        with sqlite3.connect(self._db_path) as conn:
-            rows = conn.execute(
-                """
-                SELECT tenant_id, job_id, node_id, status, attempt, reason_code, payload_json
-                FROM checkpoints
-                WHERE tenant_id = ? AND job_id = ?
-                ORDER BY node_id ASC
-                """,
-                (tenant_id, job_id),
-            ).fetchall()
+        def _list() -> list[tuple]:
+            with sqlite3.connect(self._db_path) as conn:
+                return conn.execute(
+                    """
+                    SELECT tenant_id, job_id, node_id, status, attempt, reason_code, payload_json
+                    FROM checkpoints
+                    WHERE tenant_id = ? AND job_id = ?
+                    ORDER BY node_id ASC
+                    """,
+                    (tenant_id, job_id),
+                ).fetchall()
+
+        rows = await _run_blocking(_list)
         checkpoints = [self._row_to_checkpoint(row) for row in rows]
         for checkpoint in checkpoints:
             _assert_tenant_match(
@@ -216,29 +259,35 @@ class SQLiteCheckpointStore(CheckpointStoreContract):
         return checkpoints
 
     async def get_checkpoint(self, job_id: str, node_id: str, tenant_id: str = "default") -> CheckpointRecord | None:
-        with sqlite3.connect(self._db_path) as conn:
-            row = conn.execute(
-                """
-                SELECT tenant_id, job_id, node_id, status, attempt, reason_code, payload_json
-                FROM checkpoints
-                WHERE tenant_id = ? AND job_id = ? AND node_id = ?
-                """,
-                (tenant_id, job_id, node_id),
-            ).fetchone()
-            if row is None:
-                collision_row = conn.execute(
+        def _load() -> tuple | None:
+            with sqlite3.connect(self._db_path) as conn:
+                row = conn.execute(
                     """
-                    SELECT tenant_id FROM checkpoints WHERE job_id = ? AND node_id = ? LIMIT 1
+                    SELECT tenant_id, job_id, node_id, status, attempt, reason_code, payload_json
+                    FROM checkpoints
+                    WHERE tenant_id = ? AND job_id = ? AND node_id = ?
                     """,
-                    (job_id, node_id),
+                    (tenant_id, job_id, node_id),
                 ).fetchone()
-                if collision_row is not None:
-                    _assert_tenant_match(
-                        stored_tenant_id=collision_row[0],
-                        requested_tenant_id=tenant_id,
-                        entity_type="checkpoint",
-                    )
-                return None
+                if row is None:
+                    collision_row = conn.execute(
+                        """
+                        SELECT tenant_id FROM checkpoints WHERE job_id = ? AND node_id = ? LIMIT 1
+                        """,
+                        (job_id, node_id),
+                    ).fetchone()
+                    if collision_row is not None:
+                        _assert_tenant_match(
+                            stored_tenant_id=collision_row[0],
+                            requested_tenant_id=tenant_id,
+                            entity_type="checkpoint",
+                        )
+                    return None
+                return row
+
+        row = await _run_blocking(_load)
+        if row is None:
+            return None
         checkpoint = self._row_to_checkpoint(row)
         _assert_tenant_match(
             stored_tenant_id=checkpoint.tenant_id,

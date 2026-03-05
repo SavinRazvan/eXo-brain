@@ -104,6 +104,7 @@ class OpenAIAgentsRuntimeAdapter(RuntimeAdapter):
                     provider_id=self._provider_id,
                     tool_name=tool_name,
                     arguments=dict(planned_call.get("arguments", {})),
+                    identity_tenant_id=str((context.get("identity") or {}).get("tenant_id", "")),
                     identity_subject=str((context.get("identity") or {}).get("subject", "")),
                     identity_roles=[
                         str(role)
