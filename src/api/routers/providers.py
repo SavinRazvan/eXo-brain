@@ -57,6 +57,16 @@ def _get_session_store(request: Request):
     return getattr(request.app.state, "session_store", None)
 
 
+def _can_use_provider_drain(request: Request, identity: IdentityContext) -> bool:
+    settings = getattr(request.app.state, "settings", None)
+    runtime = getattr(settings, "runtime", None) if settings is not None else None
+    drain_enabled = bool(getattr(runtime, "enable_provider_delete_graceful_drain", False))
+    if not drain_enabled:
+        return False
+    roles = {str(role).strip() for role in identity.roles if str(role).strip()}
+    return bool({"admin", "super_admin", "platform_admin"} & roles)
+
+
 @router.post("/providers", status_code=201, response_model=ProviderRegisterResponse)
 async def register_provider(
     body: ProviderRegisterRequest,
@@ -136,6 +146,7 @@ async def register_provider(
 async def unregister_provider(
     provider_id: str,
     request: Request,
+    force_drain: bool = False,
     _identity: IdentityContext = Depends(require_valid_identity),
 ) -> None:
     """Unregister a provider. Returns 409 if active sessions use this provider."""
@@ -150,10 +161,41 @@ async def unregister_provider(
     if session_store is not None:
         count = await session_store.count_active_sessions_by_provider(provider_id)
         if count > 0:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Cannot delete provider '{provider_id}': {count} active session(s) depend on it.",
-            )
+            if force_drain:
+                if not _can_use_provider_drain(request, _identity):
+                    raise HTTPException(
+                        status_code=403,
+                        detail=(
+                            "Graceful drain is disabled or caller lacks admin role required "
+                            "for provider-drain override."
+                        ),
+                    )
+                drain_fn = getattr(session_store, "deactivate_sessions_by_provider", None)
+                if not callable(drain_fn):
+                    raise HTTPException(
+                        status_code=422,
+                        detail="Session store does not support provider-drain operation.",
+                    )
+                _ = await drain_fn(provider_id)
+                tenant_factory = getattr(request.app.state, "tenant_factory", None)
+                if tenant_factory is not None and hasattr(tenant_factory, "evict_sessions_for_provider"):
+                    tenant_factory.evict_sessions_for_provider(provider_id)
+                count = await session_store.count_active_sessions_by_provider(provider_id)
+                if count == 0:
+                    pass
+                else:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"Cannot delete provider '{provider_id}': {count} active session(s) "
+                            "remain after attempted drain."
+                        ),
+                    )
+            else:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Cannot delete provider '{provider_id}': {count} active session(s) depend on it.",
+                )
     in_registry = provider_id in registry._providers
     persisted = await store.get_provider(provider_id)
     in_store = persisted is not None

@@ -46,3 +46,13 @@ class InMemorySessionStore(SessionStore):
             for r in self._records.values()
             if r.session.provider_id == provider_id and r.state == "active"
         )
+
+    async def deactivate_sessions_by_provider(self, provider_id: str) -> int:
+        """Best-effort drain helper used by provider unregister flow."""
+        changed = 0
+        for key, record in list(self._records.items()):
+            if record.session.provider_id != provider_id or record.state != "active":
+                continue
+            self._records[key] = replace(record, state="cancelled", data=dict(record.data))
+            changed += 1
+        return changed
