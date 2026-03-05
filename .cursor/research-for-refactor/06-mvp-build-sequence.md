@@ -62,6 +62,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Backlog reconciliation freeze | Implemented | Added reconciled post-delivery hardening queue and evidence artifacts (`.local/alignment-audit.md`, `.local/alignment-todos.md`) and synced canonical status references. |
 | P2 expansion webhook baseline | Implemented (baseline) | Added BYOC webhook submit endpoint and replay-safe auth flow for worker push result ingestion; remaining P2 queue tracked in `docs/plans/p2-expansion-roadmap.md`. |
 | P2-1 autoscaling/backpressure baseline | Implemented (baseline) | Added `src/core/agent_scaler.py` plus background-runtime admission wiring for scale-up and deterministic backpressure thresholds, with unit/integration coverage in core runtime tests. |
+| P2-2 DLQ/replay baseline | Implemented (baseline) | Added BYOC dead-letter routing on lease-attempt exhaustion plus runtime-control list/replay APIs and deterministic test coverage for replay back into successful completion. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
