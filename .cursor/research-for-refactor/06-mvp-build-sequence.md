@@ -72,6 +72,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | P1-3 governance alert evidence bundle | Implemented (baseline) | Added RC signoff advisory governance-alert extraction from metrics input, threshold evaluation for utilization/rejection rates, markdown evidence section, and normalized parser output (`governance_alerts`). |
 | P2-1 BYOC recovery chaos suite | Implemented (baseline) | Added deterministic sqlite-backed BYOC stress tests for lease-expiry storms, restart races under parallel execute/claim/submit flow, replay collision pressure, and bulk conflict-resolution consistency. |
 | P2-2 governance anomaly detectors | Implemented (baseline) | Added deterministic governance anomaly detector policy module and wired advisory anomaly findings into tenant governance metrics export for cost utilization, rejection-rate, and reason-dominance patterns. |
+| P2-3 BYOC multi-tenant budget fairness | Implemented (baseline) | Added feature-gated BYOC fair-admission coordinator with deterministic tie-break ordering and contention tests/simulations verifying no tenant starvation under configured limits. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).

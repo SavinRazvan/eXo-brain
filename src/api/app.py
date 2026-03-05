@@ -172,6 +172,13 @@ def _default_settings() -> AppSettings:
             byoc_anomaly_min_rejection_count=int(
                 os.environ.get("EXO_BYOC_ANOMALY_MIN_REJECTION_COUNT", "3")
             ),
+            byoc_fair_admission_enabled=_env_bool("EXO_BYOC_FAIR_ADMISSION_ENABLED", default=False),
+            byoc_fair_admission_max_inflight_global=int(
+                os.environ.get("EXO_BYOC_FAIR_ADMISSION_MAX_INFLIGHT_GLOBAL", "8")
+            ),
+            byoc_fair_admission_wait_timeout_ms=int(
+                os.environ.get("EXO_BYOC_FAIR_ADMISSION_WAIT_TIMEOUT_MS", "1000")
+            ),
         ),
         auth=AuthSettings(
             jwt_secret=jwt_secret,
