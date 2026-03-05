@@ -16,12 +16,15 @@ Track execution of post-P1 expansion items in dependency order while keeping det
   - wired submission-time scaling decisions into background runtime admission path
   - exposed scheduler/worker-pool scale-up hooks (safe scale-up only; no live scale-down mutation)
   - added deterministic unit/integration coverage for scale-up and backpressure rejection behavior
+- Implemented P2-2 DLQ/replay baseline for BYOC:
+  - lease-expiry retries now route jobs to dead-letter when claim-attempt threshold is exhausted
+  - added BYOC admin APIs to list dead-letter jobs and replay one dead-lettered job back into queue
+  - added runtime/API coverage for end-to-end dead-letter then replay completion path
 
 ## Remaining P2 Expansion Queue
 
-1. Dead-letter queue policy and replay/retry workflow.
-2. Advanced result conflict-resolution strategies in aggregator paths.
-3. Fine-grained tenancy and cost governance instrumentation.
+1. Advanced result conflict-resolution strategies in aggregator paths.
+2. Fine-grained tenancy and cost governance instrumentation.
 
 ## Acceptance Gates
 

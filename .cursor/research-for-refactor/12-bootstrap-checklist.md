@@ -569,6 +569,7 @@ Canonical reference:
 
 ### P2 expansion progress
 - [x] P2-1 baseline completed: autoscaling/backpressure policy scaffolding (`AgentScaler`) wired into background runtime submission path with deterministic threshold tests.
+- [x] P2-2 baseline completed: BYOC dead-letter routing + replay workflow (`/admin/byoc/dlq` list and replay API) with lease-exhaustion and replay-success coverage.
 
 ---
 
