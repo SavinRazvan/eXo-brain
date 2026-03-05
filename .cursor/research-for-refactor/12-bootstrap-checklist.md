@@ -584,6 +584,32 @@ Canonical reference:
 - [x] P2-2 baseline completed: governance anomaly detector policy module added with deterministic threshold checks (utilization, rejection-rate, reason-dominance) and advisory findings included in governance metrics export.
 - [x] P2-3 baseline completed: BYOC fair-admission coordinator added with deterministic tenant tie-break policy, optional feature-gated runtime wiring, and starvation-free fairness simulations/tests under concurrent contention.
 
+### Backlog reconciliation v3 progress
+- [x] P0-1 baseline completed: added one-command local UI readiness and smoke pack:
+  - `make ui-smoke`
+  - `scripts/ui/local_ui_readiness_smoke.py`
+  - `docs/operations/local-ui-readiness-smoke.md`
+- [x] P0-2 baseline completed: bridged runtime snapshots into release evidence:
+  - smoke snapshot export: `.local/ui-smoke-runtime-snapshots.json`
+  - rc signoff advisory section: `Runtime Snapshots`
+  - normalized parser output: `runtime_snapshots` in `.local/rc-signoff.json`
+- [x] P1-1 baseline completed: Tool Manager guided onboarding:
+  - guided flow panel for import/upload/validate/version
+  - diagnostics panel with reason-code extraction + remediation hints
+  - API/static UI regression coverage updates
+- [x] P1-2 baseline completed: runtime fairness observability surface:
+  - added `fair_admission_timeout_total` and `tenant_fair_admission_timeout_total` in runtime-control stats
+  - added Playground fairness diagnostics panel with runtime-control refresh path
+  - added deterministic contention test coverage for fairness timeout indicators
+- [x] P2-1 baseline completed: long-run multi-tenant soak suite:
+  - added `tests/modules/api/test_byoc_soak_suite.py` (opt-in marker + env gate)
+  - added non-blocking `soak` marker registration in `pytest.ini`
+  - added deterministic multi-tenant assertions for fairness starvation prevention and anomaly signal detection
+- [x] P2-2 baseline completed: BYOC failure injection playbook:
+  - added `docs/operations/byoc-failure-injection-playbook.md`
+  - mapped failure classes to runtime-control signals, evidence paths, and remediation commands
+  - linked playbook into dashboard and RC signoff checklist operator flow
+
 ---
 
 ## Platform Extensions — Slice 1 (Auth Hardening — branch: feature/slice1-auth-hardening)
