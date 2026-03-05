@@ -142,6 +142,22 @@ def test_parse_rc_signoff_writes_normalized_json(tmp_path: Path, monkeypatch) ->
                 "## Overall",
                 "- Result: `FAIL`",
                 "",
+                "## Governance Alerts",
+                "- Enabled: `true`",
+                "- Advisory Only: `true`",
+                "- Metrics Path: `.local/byoc-governance-metrics.json`",
+                "- Metrics Available: `true`",
+                "- Cost Utilization Threshold: `0.9000`",
+                "- Rejection Rate Threshold: `0.1000`",
+                "- Cost Utilization Ratio: `0.9100`",
+                "- Rejection Rate: `0.0400`",
+                "- Alert Count: `1`",
+                "- Alerts: `cost_utilization_threshold_exceeded`",
+                "- Result: `ALERT`",
+                "```text",
+                "Governance metrics evaluated against configured advisory thresholds.",
+                "```",
+                "",
             ]
         ),
         encoding="utf-8",
@@ -174,6 +190,12 @@ def test_parse_rc_signoff_writes_normalized_json(tmp_path: Path, monkeypatch) ->
     assert payload["data_safety"]["mode"] == "advisory"
     assert payload["data_safety"]["ok"] is True
     assert payload["data_safety"]["meta_path"] == ".local/db-validate-meta.json"
+    assert payload["governance_alerts"]["enabled"] is True
+    assert payload["governance_alerts"]["advisory_only"] is True
+    assert payload["governance_alerts"]["metrics_available"] is True
+    assert payload["governance_alerts"]["alert_count"] == 1
+    assert payload["governance_alerts"]["alerts"] == ["cost_utilization_threshold_exceeded"]
+    assert payload["governance_alerts"]["result"] == "ALERT"
     assert payload["overall"]["missing_evidence_links"] == [
         "docs/operations/byoc-artifact-integrity-dashboard.md"
     ]
@@ -225,6 +247,8 @@ def test_parse_rc_signoff_backward_compatible_without_gate_metadata(tmp_path: Pa
     assert payload["gates"][0]["duration_ms"] is None
     assert payload["data_safety"]["enabled"] is False
     assert payload["data_safety"]["ok"] is None
+    assert payload["governance_alerts"]["enabled"] is False
+    assert payload["governance_alerts"]["alerts"] == []
 
 
 def test_rc_signoff_writes_data_safety_section(tmp_path: Path, monkeypatch) -> None:
@@ -246,8 +270,27 @@ def test_rc_signoff_writes_data_safety_section(tmp_path: Path, monkeypatch) -> N
             meta_path=".local/db-validate-meta.json",
         ),
     )
+    monkeypatch.setattr(
+        module,
+        "_run_governance_alerts",
+        lambda metrics_path, cost_utilization_threshold, rejection_rate_threshold: module.GovernanceAlertResult(
+            enabled=True,
+            advisory_only=True,
+            metrics_path=metrics_path,
+            metrics_available=True,
+            cost_utilization_threshold=cost_utilization_threshold,
+            rejection_rate_threshold=rejection_rate_threshold,
+            cost_utilization_ratio=0.91,
+            rejection_rate=0.02,
+            alerts=["cost_utilization_threshold_exceeded"],
+            result="ALERT",
+            output="advisory alert",
+        ),
+    )
     monkeypatch.setattr(sys, "argv", ["rc_signoff.py", "--out", ".local/rc-signoff.md"])
     assert module.main() == 0
     content = (tmp_path / ".local" / "rc-signoff.md").read_text(encoding="utf-8")
     assert "## Local Data Safety" in content
+    assert "## Governance Alerts" in content
+    assert "- Alert Count: `1`" in content
     assert "- Result: `PASS`" in content

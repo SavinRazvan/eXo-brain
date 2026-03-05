@@ -47,6 +47,23 @@ RC evidence also includes a `Local Data Safety` section with:
 - advisory/required mode flag
 - normalized parser output under `data_safety` in `.local/rc-signoff.json`
 
+RC evidence now also includes a `Governance Alerts` section with:
+- advisory threshold evaluation against BYOC governance metrics (`cost.utilization_ratio`, `submissions.rejection_rate`)
+- normalized parser output under `governance_alerts` in `.local/rc-signoff.json`
+- advisory-only behavior when governance metrics input is unavailable or incomplete
+
+Default governance metrics input path:
+
+```bash
+.local/byoc-governance-metrics.json
+```
+
+Override path at runtime:
+
+```bash
+python scripts/release/rc_signoff.py --governance-metrics-in .local/custom-governance-metrics.json --out .local/rc-signoff.md
+```
+
 Default behavior is advisory (non-blocking). To make data safety mandatory:
 
 ```bash
@@ -80,6 +97,7 @@ The signoff runner verifies these files exist before running gates:
 - [ ] Run `make rc-signoff`.
 - [ ] Confirm `.local/rc-signoff.md` exists and `Overall` is `PASS`.
 - [ ] Confirm `Local Data Safety` section is present and reviewed.
+- [ ] Confirm `Governance Alerts` section is present and reviewed (advisory signal).
 - [ ] Attach `.local/rc-signoff.md` to release/PR records.
 - [ ] Confirm required PR artifacts exist:
   - `.local/review.md`

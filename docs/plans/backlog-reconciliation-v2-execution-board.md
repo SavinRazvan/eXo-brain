@@ -36,6 +36,7 @@ Define the next approved execution queue after closure of:
 - P0 docs/data-safety sequence is completed (`p0-1`, `p0-2`, `p0-3`).
 - P1-1 governance metrics export contract is completed.
 - P1-2 tenant budget window policy is completed.
+- P1-3 governance alert evidence bundle is completed.
 
 ## Proposed Execution Order (Approval Required)
 
@@ -146,4 +147,4 @@ Define the next approved execution queue after closure of:
 
 ## Immediate Next Step
 
-Next implementation target: `p1-3-governance-alert-evidence-bundle`.
+Next implementation target: `p2-1-byoc-recovery-chaos-suite`.
