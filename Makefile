@@ -10,13 +10,16 @@
 # Notes:
 #  - Keep targets thin wrappers around versioned scripts.
 
-.PHONY: ui-build ui-verify rc-signoff rc-signoff-json db-backup db-restore db-validate
+.PHONY: ui-build ui-verify ui-smoke rc-signoff rc-signoff-json db-backup db-restore db-validate
 
 ui-build:
 	./scripts/ui/build.sh
 
 ui-verify:
 	./scripts/ui/verify_dist_sync.sh
+
+ui-smoke:
+	python scripts/ui/local_ui_readiness_smoke.py
 
 rc-signoff:
 	python scripts/release/rc_signoff.py --out .local/rc-signoff.md

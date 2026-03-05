@@ -52,6 +52,11 @@ RC evidence now also includes a `Governance Alerts` section with:
 - normalized parser output under `governance_alerts` in `.local/rc-signoff.json`
 - advisory-only behavior when governance metrics input is unavailable or incomplete
 
+RC evidence also includes a `Runtime Snapshots` section with:
+- advisory linkage to local UI smoke runtime snapshots (`before`/`after`)
+- default input path `.local/ui-smoke-runtime-snapshots.json`
+- normalized parser output under `runtime_snapshots` in `.local/rc-signoff.json`
+
 Default governance metrics input path:
 
 ```bash
@@ -94,10 +99,13 @@ The signoff runner verifies these files exist before running gates:
 
 ## Operator Checklist
 
+- [ ] Run `make ui-smoke` (local API/UI + first-turn readiness smoke).
 - [ ] Run `make rc-signoff`.
 - [ ] Confirm `.local/rc-signoff.md` exists and `Overall` is `PASS`.
 - [ ] Confirm `Local Data Safety` section is present and reviewed.
 - [ ] Confirm `Governance Alerts` section is present and reviewed (advisory signal).
+- [ ] Confirm `Runtime Snapshots` section is present and linked (advisory signal).
+- [ ] If BYOC anomalies/rejections are present, run the matching drill in `docs/operations/byoc-failure-injection-playbook.md`.
 - [ ] Attach `.local/rc-signoff.md` to release/PR records.
 - [ ] Confirm required PR artifacts exist:
   - `.local/review.md`
