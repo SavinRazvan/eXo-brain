@@ -15,6 +15,8 @@ Notes:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from src.api.dependencies import get_tenant_context, require_valid_identity
@@ -26,6 +28,10 @@ from src.api.schemas.runtime_control_schemas import (
     ByocDlqListResponse,
     ByocDlqRecord,
     ByocDlqReplayResponse,
+    ByocGovernanceCostMetrics,
+    ByocGovernanceMetricsResponse,
+    ByocGovernanceReasonCount,
+    ByocGovernanceSubmissionMetrics,
     ByocSubmitResultRequest,
     ByocSubmitResultResponse,
     ByocWebhookSubmitResultRequest,
@@ -45,6 +51,10 @@ from src.runtime.tenant_runtime import TenantRuntimeContext
 from src.tools.byoc.job_contracts import ByocToolResultEnvelope
 
 router = APIRouter(tags=["runtime-control"])
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _resolve_runtime_adapter(ctx: TenantRuntimeContext):
@@ -438,4 +448,54 @@ async def replay_byoc_dead_letter_job(
         backend_id=adapter.backend_id,
         job_id=job_id,
         replayed=replayed,
+    )
+
+
+@router.get(
+    "/{tenant_id}/admin/byoc/governance-metrics",
+    response_model=ByocGovernanceMetricsResponse,
+)
+async def get_byoc_governance_metrics(
+    tenant_id: str,
+    ctx: TenantRuntimeContext = Depends(get_tenant_context),
+    _identity: IdentityContext = Depends(require_valid_identity),
+) -> ByocGovernanceMetricsResponse:
+    adapter = _resolve_byoc_adapter(ctx)
+    stats_method = getattr(adapter, "control_stats_for_tenant", None)
+    control_stats = adapter.control_stats()
+    if callable(stats_method):
+        control_stats = stats_method(tenant_id=tenant_id)
+
+    cost_total = int(control_stats.get("tenant_cost_microunits_total", 0))
+    cost_limit = int(control_stats.get("tenant_cost_limit_microunits", 0))
+    cost_remaining = int(control_stats.get("tenant_cost_remaining_microunits", max(cost_limit - cost_total, 0)))
+    submit_attempts = int(control_stats.get("tenant_submit_attempts_total", 0))
+    rejected_total = int(control_stats.get("tenant_rejected_results_total", 0))
+    utilization_ratio = float(cost_total / cost_limit) if cost_limit > 0 else 0.0
+    rejection_rate = float(rejected_total / submit_attempts) if submit_attempts > 0 else 0.0
+
+    reasons: list[ByocGovernanceReasonCount] = []
+    for key, value in control_stats.items():
+        if not key.startswith("tenant_rejected_reason_"):
+            continue
+        reason_code = key.removeprefix("tenant_rejected_reason_")
+        reasons.append(ByocGovernanceReasonCount(reason_code=reason_code, count=int(value)))
+    reasons.sort(key=lambda item: (-item.count, item.reason_code))
+
+    return ByocGovernanceMetricsResponse(
+        tenant_id=tenant_id,
+        backend_id=adapter.backend_id,
+        generated_at_utc=_utc_now(),
+        cost=ByocGovernanceCostMetrics(
+            cost_microunits_total=cost_total,
+            cost_limit_microunits=cost_limit,
+            cost_remaining_microunits=max(cost_remaining, 0),
+            utilization_ratio=utilization_ratio,
+        ),
+        submissions=ByocGovernanceSubmissionMetrics(
+            submit_attempts_total=submit_attempts,
+            rejected_results_total=rejected_total,
+            rejection_rate=rejection_rate,
+        ),
+        rejection_reasons=reasons,
     )
