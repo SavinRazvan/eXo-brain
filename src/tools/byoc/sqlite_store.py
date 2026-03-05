@@ -23,7 +23,13 @@ import uuid
 
 from src.tools.byoc.job_contracts import ByocToolJobEnvelope, ByocToolResultEnvelope
 from src.tools.byoc.job_store import ByocJobQueueStore, JobLeaseClaim
-from src.tools.byoc.result_store import ByocResultIngestOutcome, ByocResultStore, ReplayGuard
+from src.tools.byoc.result_store import (
+    ByocResultConflictStrategy,
+    ByocResultIngestOutcome,
+    ByocResultStore,
+    ReplayGuard,
+    resolve_result_conflict,
+)
 
 
 class _SQLiteStoreMixin:
@@ -571,8 +577,14 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
 class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
     """SQLite-backed idempotent result store with one-shot consumption."""
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(
+        self,
+        db_path: str,
+        *,
+        conflict_strategy: ByocResultConflictStrategy = ByocResultConflictStrategy.FIRST_WRITE_WINS,
+    ) -> None:
         super().__init__(db_path)
+        self._conflict_strategy = conflict_strategy
         self._ensure_schema()
 
     def ingest(self, result: ByocToolResultEnvelope) -> ByocResultIngestOutcome:
@@ -604,6 +616,28 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
         now = time.time()
         with self._lock:
             conn = self._connect()
+            existing_row = conn.execute(
+                """
+                SELECT payload_json
+                FROM byoc_result_payloads
+                WHERE job_id = ?
+                """,
+                (result.job_id,),
+            ).fetchone()
+            if existing_row is not None:
+                existing = self._payload_to_envelope(str(existing_row[0]))
+                if str(existing.idempotency_key).strip() != key:
+                    should_replace = resolve_result_conflict(
+                        existing=existing,
+                        incoming=result,
+                        strategy=self._conflict_strategy,
+                    )
+                    if not should_replace:
+                        return ByocResultIngestOutcome(
+                            accepted=False,
+                            duplicate=False,
+                            reason_code="BYOC_RESULT_CONFLICT_REJECTED",
+                        )
             try:
                 conn.execute(
                     """
@@ -630,6 +664,12 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
                 (result.job_id, result.tenant_id, json.dumps(payload), now),
             )
             conn.commit()
+            if existing_row is not None:
+                return ByocResultIngestOutcome(
+                    accepted=True,
+                    duplicate=False,
+                    reason_code="BYOC_RESULT_CONFLICT_REPLACED",
+                )
             return ByocResultIngestOutcome(
                 accepted=True,
                 duplicate=False,
@@ -792,6 +832,28 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
                 "CREATE INDEX IF NOT EXISTS idx_byoc_result_idempotency_tenant ON byoc_result_idempotency (tenant_id)"
             )
             conn.commit()
+
+    @staticmethod
+    def _payload_to_envelope(payload_json: str) -> ByocToolResultEnvelope:
+        data = json.loads(payload_json)
+        return ByocToolResultEnvelope(
+            job_id=str(data.get("job_id", "")),
+            tenant_id=str(data.get("tenant_id", "")),
+            run_id=str(data.get("run_id", "")),
+            call_id=str(data.get("call_id", "")),
+            tool_name=str(data.get("tool_name", "")),
+            status=str(data.get("status", "")),
+            output=dict(data.get("output", {}) or {}),
+            error_code=str(data.get("error_code", "")),
+            error_message=str(data.get("error_message", "")),
+            retryable=bool(data.get("retryable", False)),
+            idempotency_key=str(data.get("idempotency_key", "")),
+            lease_token=str(data.get("lease_token", "")),
+            tool_version=str(data.get("tool_version", "")),
+            artifact_bundle_hash_sha256=str(data.get("artifact_bundle_hash_sha256", "")),
+            artifact_bundle_signature_hmac_sha256=str(data.get("artifact_bundle_signature_hmac_sha256", "")),
+            artifact_signature_version=str(data.get("artifact_signature_version", "")),
+        )
 
 
 class SQLiteReplayGuard(_SQLiteStoreMixin, ReplayGuard):

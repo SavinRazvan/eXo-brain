@@ -323,11 +323,6 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 duplicate=False,
                 reason_code=artifact_reason,
             )
-        outcome = self._result_store.ingest(result)
-        if outcome.duplicate:
-            with self._lock:
-                self._duplicate_results_total += 1
-            return outcome
         lease_ok = self._job_store.complete_claim(job_id=result.job_id, lease_token=result.lease_token)
         if not lease_ok:
             return ByocResultIngestOutcome(
@@ -335,6 +330,11 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 duplicate=False,
                 reason_code="BYOC_LEASE_INVALID_OR_EXPIRED",
             )
+        outcome = self._result_store.ingest(result)
+        if outcome.duplicate:
+            with self._lock:
+                self._duplicate_results_total += 1
+            return outcome
         if outcome.accepted:
             with self._lock:
                 self._submitted_results_total += 1

@@ -142,6 +142,10 @@ def _default_settings() -> AppSettings:
             byoc_max_claim_attempts_before_dlq=int(
                 os.environ.get("EXO_BYOC_MAX_CLAIM_ATTEMPTS_BEFORE_DLQ", "3")
             ),
+            byoc_result_conflict_strategy=os.environ.get(
+                "EXO_BYOC_RESULT_CONFLICT_STRATEGY",
+                "first_write_wins",
+            ),
         ),
         auth=AuthSettings(
             jwt_secret=jwt_secret,
