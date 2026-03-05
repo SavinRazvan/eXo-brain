@@ -31,9 +31,17 @@ _GATE_COMMAND_RE = re.compile(r"^- Command: `(.*)`$")
 _GATE_EXIT_RE = re.compile(r"^- Exit Code: `(-?\d+)`$")
 _GATE_DURATION_RE = re.compile(r"^- Duration Ms: `(\d+)`$")
 _BOOL_RE = re.compile(r"^- (Enabled|Required): `(true|false)`$")
+_GOV_BOOL_RE = re.compile(r"^- (Enabled|Advisory Only|Metrics Available): `(true|false)`$")
 _MODE_RE = re.compile(r"^- Mode: `(advisory|required)`$")
 _RESULT_RE = re.compile(r"^- Result: `(PASS|FAIL)`$")
 _META_PATH_RE = re.compile(r"^- Meta Path: `(.*)`$")
+_GOV_METRICS_PATH_RE = re.compile(r"^- Metrics Path: `(.*)`$")
+_GOV_FLOAT_RE = re.compile(
+    r"^- (Cost Utilization Threshold|Rejection Rate Threshold|Cost Utilization Ratio|Rejection Rate): `([^`]*)`$"
+)
+_GOV_ALERT_COUNT_RE = re.compile(r"^- Alert Count: `(\d+)`$")
+_GOV_ALERTS_RE = re.compile(r"^- Alerts: `(.*)`$")
+_GOV_RESULT_RE = re.compile(r"^- Result: `(PASS|ALERT|UNAVAILABLE)`$")
 
 
 def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
@@ -55,6 +63,19 @@ def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
         "result": "",
         "ok": None,
         "meta_path": "",
+    }
+    governance_alerts: dict[str, Any] = {
+        "enabled": False,
+        "advisory_only": True,
+        "metrics_path": "",
+        "metrics_available": False,
+        "cost_utilization_threshold": None,
+        "rejection_rate_threshold": None,
+        "cost_utilization_ratio": None,
+        "rejection_rate": None,
+        "alert_count": 0,
+        "alerts": [],
+        "result": "UNAVAILABLE",
     }
 
     while idx < len(lines):
@@ -157,6 +178,49 @@ def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
                 cursor += 1
             idx = cursor
             continue
+        elif line == "## Governance Alerts":
+            cursor = idx + 1
+            while cursor < len(lines):
+                maybe = lines[cursor].strip()
+                if maybe.startswith("## "):
+                    break
+                bool_match = _GOV_BOOL_RE.match(maybe)
+                if bool_match:
+                    key = (
+                        bool_match.group(1)
+                        .strip()
+                        .lower()
+                        .replace(" ", "_")
+                    )
+                    governance_alerts[key] = bool_match.group(2) == "true"
+                metrics_path_match = _GOV_METRICS_PATH_RE.match(maybe)
+                if metrics_path_match:
+                    governance_alerts["metrics_path"] = metrics_path_match.group(1)
+                float_match = _GOV_FLOAT_RE.match(maybe)
+                if float_match:
+                    key = (
+                        float_match.group(1)
+                        .strip()
+                        .lower()
+                        .replace(" ", "_")
+                    )
+                    value = float_match.group(2).strip()
+                    governance_alerts[key] = None if value == "n/a" else float(value)
+                count_match = _GOV_ALERT_COUNT_RE.match(maybe)
+                if count_match:
+                    governance_alerts["alert_count"] = int(count_match.group(1))
+                alerts_match = _GOV_ALERTS_RE.match(maybe)
+                if alerts_match:
+                    raw_alerts = alerts_match.group(1).strip()
+                    governance_alerts["alerts"] = [] if raw_alerts in {"", "none"} else [
+                        item.strip() for item in raw_alerts.split(",") if item.strip()
+                    ]
+                result_match = _GOV_RESULT_RE.match(maybe)
+                if result_match:
+                    governance_alerts["result"] = result_match.group(1)
+                cursor += 1
+            idx = cursor
+            continue
         elif line == "## Overall":
             idx += 1
             while idx < len(lines):
@@ -182,6 +246,7 @@ def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
         "required_evidence_links": required_links,
         "gates": gates,
         "data_safety": data_safety,
+        "governance_alerts": governance_alerts,
         "overall": {
             "result": overall_result,
             "passed": passed,

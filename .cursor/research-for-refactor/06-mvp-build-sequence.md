@@ -69,6 +69,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | P0-3 RC signoff data-safety gate baseline | Implemented (baseline) | Added RC evidence `Local Data Safety` section and parser normalization (`data_safety`) with default advisory mode plus opt-in required blocking via `EXO_RC_SIGNOFF_REQUIRE_DATA_SAFETY=true`. |
 | P1-1 governance metrics export contract | Implemented (baseline) | Added tenant-scoped BYOC governance export API with normalized cost/submission metrics and rejection reason rollups for dashboard/alert ingestion. |
 | P1-2 tenant budget window policy | Implemented (baseline) | Added BYOC windowed budget policy controls (`EXO_BYOC_ENABLE_COST_WINDOW_POLICY`, `EXO_BYOC_COST_WINDOW_SECONDS`) with deterministic reset boundaries, window-specific rejection code, and governance export window fields. |
+| P1-3 governance alert evidence bundle | Implemented (baseline) | Added RC signoff advisory governance-alert extraction from metrics input, threshold evaluation for utilization/rejection rates, markdown evidence section, and normalized parser output (`governance_alerts`). |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
