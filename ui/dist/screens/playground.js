@@ -13,7 +13,7 @@ Notes:
  - WebSocket path keeps a persistent connection per session.
 */
 
-import { api, authHeaders, getTenantId, listAgents, listProviders } from "../api.js";
+import { api, authHeaders, getRuntimeControlStats, getTenantId, listAgents, listProviders } from "../api.js";
 import { appendChat, appendTrace, handleTurnEvent } from "../components/chat.js";
 
 const byId = (id) => {
@@ -71,6 +71,36 @@ function ensureWebSocket(state) {
   });
 }
 
+function renderFairnessDiagnostics(payload) {
+  const target = byId("pg-fairness-stats");
+  const stats = payload && typeof payload === "object" ? payload.control_stats || {} : {};
+  const enabled = Number(stats.fair_admission_enabled || 0) === 1;
+  const waitTimeoutMs = Number(stats.fair_admission_wait_timeout_ms || 0);
+  const timeoutTotal = Number(stats.fair_admission_timeout_total || 0);
+  const tenantTimeoutTotal = Number(stats.tenant_fair_admission_timeout_total || 0);
+  const inflightTotal = Number(stats.fair_admission_inflight_total || 0);
+  const pendingTotal = Number(stats.fair_admission_pending_total || 0);
+  target.textContent = [
+    `fair_admission_enabled=${enabled ? "true" : "false"}`,
+    `fair_admission_wait_timeout_ms=${waitTimeoutMs}`,
+    `fair_admission_timeout_total=${timeoutTotal}`,
+    `tenant_fair_admission_timeout_total=${tenantTimeoutTotal}`,
+    `fair_admission_inflight_total=${inflightTotal}`,
+    `fair_admission_pending_total=${pendingTotal}`,
+  ].join("\n");
+}
+
+async function refreshFairnessDiagnostics(status) {
+  try {
+    const payload = await getRuntimeControlStats();
+    renderFairnessDiagnostics(payload);
+    status("Fairness diagnostics refreshed");
+  } catch (error) {
+    byId("pg-fairness-stats").textContent = `Fairness diagnostics unavailable: ${String(error)}`;
+    status(String(error), true);
+  }
+}
+
 async function sendWsTurn(state, input) {
   const ws = await ensureWebSocket(state);
   ws.send(JSON.stringify({ type: "turn", input }));
@@ -103,6 +133,10 @@ export function bindPlayground(
   state,
   status,
 ) {
+  byId("pg-fairness-refresh").addEventListener("click", async () => {
+    await refreshFairnessDiagnostics(status);
+  });
+
   byId("pg-create-session").addEventListener("click", async () => {
     try {
       const data = await api(`/tenants/${getTenantId()}/sessions`, "POST", {
@@ -112,6 +146,7 @@ export function bindPlayground(
       state.sessionId = data.session_id;
       appendTrace(`session created: ${state.sessionId}`);
       status("Playground session created");
+      await refreshFairnessDiagnostics(status);
     } catch (error) {
       status(String(error), true);
     }
@@ -135,6 +170,7 @@ export function bindPlayground(
       } else {
         await sendSseTurn(state.sessionId, input);
       }
+      await refreshFairnessDiagnostics(status);
     } catch (error) {
       status(String(error), true);
     }

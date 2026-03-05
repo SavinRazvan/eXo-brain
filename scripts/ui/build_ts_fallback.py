@@ -40,6 +40,19 @@ def _copy_ts_to_js(src: Path, dist: Path) -> int:
     return copied
 
 
+def _copy_static_assets(src: Path, dist: Path) -> int:
+    copied = 0
+    for rel in ("index.html", "styles.css"):
+        src_file = src / rel
+        if not src_file.exists():
+            continue
+        out = dist / rel
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(src_file.read_text(encoding="utf-8"), encoding="utf-8")
+        copied += 1
+    return copied
+
+
 def main() -> int:
     args = _parse_args()
     src = Path(args.src)
@@ -47,8 +60,9 @@ def main() -> int:
     if not src.exists():
         raise FileNotFoundError(f"Source directory does not exist: {src}")
     dist.mkdir(parents=True, exist_ok=True)
-    copied = _copy_ts_to_js(src, dist)
-    print(f"Copied {copied} module(s) from {src} to {dist}")
+    copied_modules = _copy_ts_to_js(src, dist)
+    copied_assets = _copy_static_assets(src, dist)
+    print(f"Copied {copied_modules} module(s) and {copied_assets} static asset(s) from {src} to {dist}")
     return 0
 
 

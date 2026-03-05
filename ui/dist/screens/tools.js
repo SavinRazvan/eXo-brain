@@ -109,6 +109,115 @@ const integrityBadge = (integrityStatus) => {
   return { label: "integrity: n/a", cls: "badge-amber" };
 };
 
+const TOOL_REASON_REMEDIATION = {
+  TENANT_UPLOAD_RATE_LIMIT_EXCEEDED: "Too many uploads in the current window. Wait and retry, or reduce automated retries.",
+  TENANT_CONCURRENCY_LIMIT_EXCEEDED: "Tenant run concurrency is saturated. Stop active runs or increase tenant concurrency limits.",
+  TENANT_TURN_RATE_LIMIT_EXCEEDED: "Turn requests are rate-limited. Slow request bursts or increase turn rate limit policy.",
+  TOOL_ARTIFACT_SIZE_LIMIT_EXCEEDED: "Bundle is too large. Remove unnecessary files or split logic into smaller tools.",
+  TOOL_PACKAGE_POLICY_BLOCKED: "Tool package policy rejected this upload. Check blocked dependencies/imports.",
+  BYOC_COST_LIMIT_EXCEEDED: "Tenant BYOC budget was exceeded. Wait for budget reset window or raise tenant budget limits.",
+  BYOC_COST_LIMIT_WINDOW_EXCEEDED: "Current budget window is exhausted. Retry after window reset.",
+  BYOC_FAIR_ADMISSION_TIMEOUT: "Tenant admission timed out under contention. Retry shortly or tune fairness settings.",
+};
+
+const TOOL_FLOW_STEPS = [
+  "1) Paste function JSON schema",
+  "2) Confirm tool name/version",
+  "3) Optional: load tool.yaml + handler.py",
+  "4) Import schema",
+  "5) Upload and activate version",
+  "6) Validate and confirm badge = green",
+];
+
+const extractReasonCode = (raw) => {
+  const text = String(raw || "");
+  const match = text.match(/[A-Z][A-Z0-9_]{4,}/);
+  return match ? match[0] : "";
+};
+
+const explainToolError = (raw) => {
+  const reasonCode = extractReasonCode(raw);
+  if (!reasonCode) {
+    return {
+      reasonCode: "",
+      remediation:
+        "Check JSON payload format, required fields (tool name/version), and tenant identity context.",
+    };
+  }
+  return {
+    reasonCode,
+    remediation:
+      TOOL_REASON_REMEDIATION[reasonCode] ||
+      "Review backend error detail and apply the nearest policy/runtime fix for this reason code.",
+  };
+};
+
+const updateToolGuidance = (message, isError = false) => {
+  const panel = byId("tools-guidance-current");
+  panel.textContent = message;
+  panel.className = isError ? "tools-guidance-current error" : "tools-guidance-current";
+};
+
+const renderToolFlowSteps = () => {
+  const list = byId("tools-flow-steps");
+  list.innerHTML = "";
+  for (const step of TOOL_FLOW_STEPS) {
+    const li = document.createElement("li");
+    li.textContent = step;
+    list.appendChild(li);
+  }
+};
+
+const renderToolDiagnostics = ({ errors = [], warnings = [], reasonCode = "", remediation = "" }) => {
+  const box = byId("tools-diagnostics");
+  box.innerHTML = "";
+
+  if (!errors.length && !warnings.length && !reasonCode && !remediation) {
+    box.textContent = "No diagnostics yet. Submit a tool flow to see validation and remediation hints.";
+    return;
+  }
+
+  if (reasonCode) {
+    const reason = document.createElement("div");
+    reason.className = "tool-diagnostic reason";
+    reason.textContent = `Reason code: ${reasonCode}`;
+    box.appendChild(reason);
+  }
+
+  if (remediation) {
+    const hint = document.createElement("div");
+    hint.className = "tool-diagnostic remediation";
+    hint.textContent = `Remediation: ${remediation}`;
+    box.appendChild(hint);
+  }
+
+  if (errors.length) {
+    const header = document.createElement("div");
+    header.className = "tool-diagnostic errors";
+    header.textContent = "Validation errors:";
+    box.appendChild(header);
+    for (const entry of errors) {
+      const item = document.createElement("div");
+      item.className = "tool-diagnostic error-item";
+      item.textContent = `- ${entry}`;
+      box.appendChild(item);
+    }
+  }
+
+  if (warnings.length) {
+    const header = document.createElement("div");
+    header.className = "tool-diagnostic warnings";
+    header.textContent = "Validation warnings:";
+    box.appendChild(header);
+    for (const entry of warnings) {
+      const item = document.createElement("div");
+      item.className = "tool-diagnostic warning-item";
+      item.textContent = `- ${entry}`;
+      box.appendChild(item);
+    }
+  }
+};
+
 export async function refreshTools(status) {
   const tools = await listTools();
   const list = byId("tools-list");
@@ -160,6 +269,10 @@ export function bindToolsScreen(status) {
   const toolDescInput = byId("tool-description");
   const toolSchemaInput = byId("tool-schema");
 
+  renderToolFlowSteps();
+  updateToolGuidance("Paste a function schema JSON to start guided import/upload flow.");
+  renderToolDiagnostics({});
+
   toolSchemaInput.addEventListener("change", () => {
     try {
       const normalized = normalizeToolSchemaInput(toolSchemaInput.value);
@@ -169,6 +282,9 @@ export function bindToolsScreen(status) {
       if (!toolDescInput.value.trim() && normalized.suggestedDescription) {
         toolDescInput.value = normalized.suggestedDescription;
       }
+      updateToolGuidance(
+        `Schema parsed. Suggested tool name: ${normalized.suggestedName || "(none)"}; proceed with version and upload.`,
+      );
     } catch (_error) {
       // Keep UX forgiving while user is typing incomplete JSON.
     }
@@ -179,6 +295,7 @@ export function bindToolsScreen(status) {
   byId("tool-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
+      updateToolGuidance("Running import -> upload -> activate workflow...");
       const normalized = normalizeToolSchemaInput(byId("tool-schema").value);
       const name = byId("tool-name").value.trim() || normalized.suggestedName;
       if (!name) {
@@ -231,14 +348,44 @@ export function bindToolsScreen(status) {
         status(`Tool '${imported.tool_name}' uploaded via import-first flow`);
       }
       if (String(uploaded.state).toLowerCase() === "invalid") {
+        const validationErrors = Array.isArray(uploaded.errors) ? uploaded.errors : [];
+        const validationWarnings = Array.isArray(uploaded.warnings) ? uploaded.warnings : [];
+        const reason = extractReasonCode(validationErrors.join(" "));
+        const remediation = reason
+          ? explainToolError(reason).remediation
+          : "Fix validation errors and retry upload.";
+        renderToolDiagnostics({
+          errors: validationErrors,
+          warnings: validationWarnings,
+          reasonCode: reason,
+          remediation,
+        });
+        updateToolGuidance("Upload completed but validation is invalid. Review diagnostics and retry.", true);
         status(`Validation failed for ${imported.tool_name}@${version}: ${uploaded.errors.join("; ")}`, true);
       } else {
+        renderToolDiagnostics({
+          errors: [],
+          warnings: Array.isArray(uploaded.warnings) ? uploaded.warnings : [],
+          reasonCode: "",
+          remediation: "",
+        });
+        updateToolGuidance(
+          `Tool ${imported.tool_name}@${version} is active. Next step: verify green badge and test from Playground.`,
+        );
         status(
           `Tool '${imported.tool_name}@${version}' active. integrity=${uploaded.integrity_status || "unknown"}`,
         );
       }
       await refreshTools(status);
     } catch (error) {
+      const explanation = explainToolError(error);
+      renderToolDiagnostics({
+        reasonCode: explanation.reasonCode,
+        remediation: explanation.remediation,
+        errors: [String(error)],
+        warnings: [],
+      });
+      updateToolGuidance("Tool flow failed. Use reason code + remediation below, then retry.", true);
       status(String(error), true);
     }
   });
