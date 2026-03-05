@@ -63,6 +63,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | P2 expansion webhook baseline | Implemented (baseline) | Added BYOC webhook submit endpoint and replay-safe auth flow for worker push result ingestion; remaining P2 queue tracked in `docs/plans/p2-expansion-roadmap.md`. |
 | P2-1 autoscaling/backpressure baseline | Implemented (baseline) | Added `src/core/agent_scaler.py` plus background-runtime admission wiring for scale-up and deterministic backpressure thresholds, with unit/integration coverage in core runtime tests. |
 | P2-2 DLQ/replay baseline | Implemented (baseline) | Added BYOC dead-letter routing on lease-attempt exhaustion plus runtime-control list/replay APIs and deterministic test coverage for replay back into successful completion. |
+| P2-3 conflict-resolution baseline | Implemented (baseline) | Added strategy-driven BYOC result conflict resolution (`first_write_wins`, `last_write_wins`, `prefer_success`) with deterministic reject/replace reason codes and store-level conflict tests. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).

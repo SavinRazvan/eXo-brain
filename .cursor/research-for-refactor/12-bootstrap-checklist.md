@@ -570,6 +570,7 @@ Canonical reference:
 ### P2 expansion progress
 - [x] P2-1 baseline completed: autoscaling/backpressure policy scaffolding (`AgentScaler`) wired into background runtime submission path with deterministic threshold tests.
 - [x] P2-2 baseline completed: BYOC dead-letter routing + replay workflow (`/admin/byoc/dlq` list and replay API) with lease-exhaustion and replay-success coverage.
+- [x] P2-3 baseline completed: BYOC result conflict-resolution strategy wiring (`first_write_wins`/`last_write_wins`/`prefer_success`) with deterministic conflict reject/replace test coverage.
 
 ---
 

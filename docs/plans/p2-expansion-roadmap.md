@@ -20,11 +20,14 @@ Track execution of post-P1 expansion items in dependency order while keeping det
   - lease-expiry retries now route jobs to dead-letter when claim-attempt threshold is exhausted
   - added BYOC admin APIs to list dead-letter jobs and replay one dead-lettered job back into queue
   - added runtime/API coverage for end-to-end dead-letter then replay completion path
+- Implemented P2-3 conflict-resolution baseline for BYOC result ingestion:
+  - added strategy-driven conflict resolution (`first_write_wins`, `last_write_wins`, `prefer_success`)
+  - added runtime setting/env wiring for conflict strategy selection
+  - enforced deterministic conflict outcomes with explicit reason codes for reject/replace paths
 
 ## Remaining P2 Expansion Queue
 
-1. Advanced result conflict-resolution strategies in aggregator paths.
-2. Fine-grained tenancy and cost governance instrumentation.
+1. Fine-grained tenancy and cost governance instrumentation.
 
 ## Acceptance Gates
 
