@@ -35,6 +35,7 @@ Define the next approved execution queue after closure of:
 - `.local/alignment-audit.md` and `.local/alignment-todos.md` are closed snapshots for the completed P2 track.
 - P0 docs/data-safety sequence is completed (`p0-1`, `p0-2`, `p0-3`).
 - P1-1 governance metrics export contract is completed.
+- P1-2 tenant budget window policy is completed.
 
 ## Proposed Execution Order (Approval Required)
 
@@ -145,4 +146,4 @@ Define the next approved execution queue after closure of:
 
 ## Immediate Next Step
 
-Next implementation target: `p1-2-tenant-budget-window-policy`.
+Next implementation target: `p1-3-governance-alert-evidence-bundle`.

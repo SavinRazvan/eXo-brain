@@ -64,6 +64,8 @@ class RuntimeSettings:
     byoc_result_conflict_strategy: str = "first_write_wins"
     byoc_cost_limit_microunits_per_tenant: int = 1_000_000
     byoc_enforce_cost_limit: bool = False
+    byoc_enable_cost_window_policy: bool = False
+    byoc_cost_window_seconds: int = 3600
     byoc_cost_success_microunits: int = 100
     byoc_cost_error_microunits: int = 40
     byoc_cost_timeout_microunits: int = 60

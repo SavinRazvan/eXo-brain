@@ -150,6 +150,8 @@ class TenantRuntimeFactory:
                 max_claim_attempts_before_dlq=self._settings.runtime.byoc_max_claim_attempts_before_dlq,
                 cost_limit_microunits_per_tenant=self._settings.runtime.byoc_cost_limit_microunits_per_tenant,
                 enforce_cost_limit=self._settings.runtime.byoc_enforce_cost_limit,
+                enable_cost_window_policy=self._settings.runtime.byoc_enable_cost_window_policy,
+                cost_window_seconds=self._settings.runtime.byoc_cost_window_seconds,
                 cost_success_microunits=self._settings.runtime.byoc_cost_success_microunits,
                 cost_error_microunits=self._settings.runtime.byoc_cost_error_microunits,
                 cost_timeout_microunits=self._settings.runtime.byoc_cost_timeout_microunits,
