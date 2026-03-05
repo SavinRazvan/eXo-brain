@@ -77,6 +77,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         max_completed_records: int = 2000,
         max_cancelled_records: int = 2000,
         max_result_records: int = 2000,
+        max_claim_attempts_before_dlq: int = 3,
         job_store: ByocJobQueueStore | None = None,
         result_store: ByocResultStore | None = None,
         replay_guard: ReplayGuard | None = None,
@@ -93,6 +94,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._max_completed_records = max(int(max_completed_records), 0)
         self._max_cancelled_records = max(int(max_cancelled_records), 0)
         self._max_result_records = max(int(max_result_records), 0)
+        self._max_claim_attempts_before_dlq = max(int(max_claim_attempts_before_dlq), 1)
         self._job_store = job_store or InMemoryByocJobQueueStore()
         self._result_store = result_store or InMemoryByocResultStore()
         self._replay_guard = replay_guard or InMemoryReplayGuard()
@@ -103,6 +105,8 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._duplicate_results_total = 0
         self._cancel_requested_total = 0
         self._lease_requeue_total = 0
+        self._dlq_moved_total = 0
+        self._dlq_replayed_total = 0
         self._cleanup_runs_total = 0
         self._cleanup_pruned_total = 0
         self._last_cleanup_epoch = 0.0
@@ -151,7 +155,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
 
         deadline = perf_counter() + (timeout_ms / 1000.0)
         while True:
-            self._requeue_expired_leases()
+            self._requeue_expired_leases(tenant_id=tenant_id)
             result = self._result_store.consume(job.job_id)
             if result is not None:
                 break
@@ -190,6 +194,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
 
     def claim_next_job(self, *, tenant_id: str, worker_token: str, request_nonce: str) -> dict[str, Any] | None:
         self._run_periodic_cleanup(tenant_id=tenant_id)
+        self._requeue_expired_leases(tenant_id=tenant_id)
         claims = verify_worker_token(
             token=worker_token,
             secret=self._worker_jwt_secret,
@@ -353,6 +358,8 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 "duplicate_results_total": self._duplicate_results_total,
                 "cancel_requested_total": self._cancel_requested_total,
                 "lease_requeue_total": self._lease_requeue_total,
+                "dlq_moved_total": self._dlq_moved_total,
+                "dlq_replayed_total": self._dlq_replayed_total,
                 "cleanup_runs_total": self._cleanup_runs_total,
                 "cleanup_pruned_total": self._cleanup_pruned_total,
                 "queue_depth": self._job_store.queue_depth(),
@@ -373,6 +380,16 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
     def cleanup_retention(self, *, tenant_id: str, force: bool = False) -> dict[str, int]:
         return self._run_cleanup(tenant_id=tenant_id, force=force)
 
+    def list_dead_letter_jobs(self, *, tenant_id: str, limit: int = 100) -> list[dict[str, str]]:
+        return self._job_store.list_dead_letter_jobs(tenant_id=tenant_id, limit=limit)
+
+    def replay_dead_letter_job(self, *, tenant_id: str, job_id: str) -> bool:
+        replayed = self._job_store.replay_dead_letter_job(tenant_id=tenant_id, job_id=job_id)
+        if replayed:
+            with self._lock:
+                self._dlq_replayed_total += 1
+        return replayed
+
     def drain_progress_events(self, call_id: str) -> list[dict[str, str]]:
         normalized = str(call_id).strip()
         if not normalized:
@@ -380,11 +397,19 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         with self._lock:
             return list(self._progress_events_by_call_id.pop(normalized, []))
 
-    def _requeue_expired_leases(self) -> None:
-        requeued = self._job_store.requeue_expired_leases()
+    def _requeue_expired_leases(self, *, tenant_id: str | None = None) -> None:
+        normalized_tenant = str(tenant_id or "").strip()
+        before_dlq = self._job_store.dead_letter_count(tenant_id=normalized_tenant) if normalized_tenant else 0
+        requeued = self._job_store.requeue_expired_leases(
+            max_claim_attempts_before_dlq=self._max_claim_attempts_before_dlq
+        )
         if requeued > 0:
             with self._lock:
                 self._lease_requeue_total += requeued
+        after_dlq = self._job_store.dead_letter_count(tenant_id=normalized_tenant) if normalized_tenant else 0
+        if after_dlq > before_dlq:
+            with self._lock:
+                self._dlq_moved_total += max(after_dlq - before_dlq, 0)
 
     def _run_periodic_cleanup(self, *, tenant_id: str) -> None:
         self._run_cleanup(tenant_id=tenant_id, force=False)

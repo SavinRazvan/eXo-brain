@@ -227,9 +227,12 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 artifact_signature_version=str(row[19]),
             )
 
-    def requeue_expired_leases(self) -> int:
+    def requeue_expired_leases(self, *, max_claim_attempts_before_dlq: int | None = None) -> int:
         with self._lock:
-            return self._requeue_expired_leases_unlocked(time.time())
+            return self._requeue_expired_leases_unlocked(
+                time.time(),
+                max_claim_attempts_before_dlq=max_claim_attempts_before_dlq,
+            )
 
     def cancel_pending_call(self, *, call_id: str) -> int:
         normalized = str(call_id).strip()
@@ -256,7 +259,7 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 (normalized,),
             )
             conn.commit()
-            self._requeue_expired_leases_unlocked(time.time())
+            self._requeue_expired_leases_unlocked(time.time(), max_claim_attempts_before_dlq=None)
             return affected
 
     def queue_depth(self) -> int:
@@ -266,6 +269,84 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 "SELECT COUNT(1) FROM byoc_jobs WHERE status = 'queued'"
             ).fetchone()
             return int(row[0]) if row else 0
+
+    def dead_letter_count(self, *, tenant_id: str) -> int:
+        normalized = str(tenant_id).strip()
+        if not normalized:
+            return 0
+        with self._lock:
+            conn = self._connect()
+            row = conn.execute(
+                "SELECT COUNT(1) FROM byoc_jobs WHERE tenant_id = ? AND status = 'dead_lettered'",
+                (normalized,),
+            ).fetchone()
+            return int(row[0]) if row else 0
+
+    def list_dead_letter_jobs(self, *, tenant_id: str, limit: int = 100) -> list[dict[str, str]]:
+        normalized = str(tenant_id).strip()
+        bounded_limit = max(1, int(limit))
+        if not normalized:
+            return []
+        with self._lock:
+            conn = self._connect()
+            rows = conn.execute(
+                """
+                SELECT job_id, call_id, tool_name, idempotency_key, claim_attempt,
+                       dead_letter_reason_code, dead_lettered_at_epoch, replay_count
+                FROM byoc_jobs
+                WHERE tenant_id = ? AND status = 'dead_lettered'
+                ORDER BY dead_lettered_at_epoch DESC, rowid DESC
+                LIMIT ?
+                """,
+                (normalized, bounded_limit),
+            ).fetchall()
+        return [
+            {
+                "job_id": str(row[0]),
+                "call_id": str(row[1]),
+                "tool_name": str(row[2]),
+                "idempotency_key": str(row[3]),
+                "claim_attempt": str(int(row[4])),
+                "dead_letter_reason_code": str(row[5]),
+                "dead_lettered_at_epoch": str(int(float(row[6]))),
+                "replay_count": str(int(row[7])),
+            }
+            for row in rows
+        ]
+
+    def replay_dead_letter_job(self, *, tenant_id: str, job_id: str) -> bool:
+        normalized_tenant = str(tenant_id).strip()
+        normalized_job = str(job_id).strip()
+        if not normalized_tenant or not normalized_job:
+            return False
+        with self._lock:
+            conn = self._connect()
+            row = conn.execute(
+                """
+                SELECT status
+                FROM byoc_jobs
+                WHERE tenant_id = ? AND job_id = ?
+                """,
+                (normalized_tenant, normalized_job),
+            ).fetchone()
+            if row is None or str(row[0]) != "dead_lettered":
+                return False
+            conn.execute(
+                """
+                UPDATE byoc_jobs
+                SET status = 'queued',
+                    leased_by_worker_id = '',
+                    lease_token = '',
+                    lease_expires_at_epoch = 0,
+                    dead_letter_reason_code = '',
+                    dead_lettered_at_epoch = 0,
+                    replay_count = replay_count + 1
+                WHERE tenant_id = ? AND job_id = ?
+                """,
+                (normalized_tenant, normalized_job),
+            )
+            conn.commit()
+            return True
 
     def health_metrics(self, *, tenant_id: str) -> dict[str, int]:
         normalized = str(tenant_id).strip()
@@ -287,7 +368,13 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 """,
                 (normalized,),
             ).fetchall()
-        metrics = {"queued_jobs": 0, "leased_jobs": 0, "completed_jobs": 0, "cancelled_jobs": 0}
+        metrics = {
+            "queued_jobs": 0,
+            "leased_jobs": 0,
+            "completed_jobs": 0,
+            "cancelled_jobs": 0,
+            "dead_lettered_jobs": 0,
+        }
         for status, count in rows:
             key = f"{str(status)}_jobs"
             if key in metrics:
@@ -365,8 +452,31 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
             conn.commit()
         return {"completed_pruned": completed_pruned, "cancelled_pruned": cancelled_pruned}
 
-    def _requeue_expired_leases_unlocked(self, now: float) -> int:
+    def _requeue_expired_leases_unlocked(
+        self,
+        now: float,
+        *,
+        max_claim_attempts_before_dlq: int | None = None,
+    ) -> int:
         conn = self._connect()
+        if max_claim_attempts_before_dlq is not None and max_claim_attempts_before_dlq > 0:
+            conn.execute(
+                """
+                UPDATE byoc_jobs
+                SET status = 'dead_lettered',
+                    leased_by_worker_id = '',
+                    lease_token = '',
+                    lease_expires_at_epoch = 0,
+                    dead_letter_reason_code = 'BYOC_LEASE_RETRY_EXHAUSTED',
+                    dead_lettered_at_epoch = ?,
+                    completed_at_epoch = 0,
+                    cancelled_at_epoch = 0
+                WHERE status = 'leased'
+                  AND lease_expires_at_epoch <= ?
+                  AND claim_attempt >= ?
+                """,
+                (now, now, int(max_claim_attempts_before_dlq)),
+            )
         conn.execute(
             """
             UPDATE byoc_jobs
@@ -406,6 +516,9 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                     claim_attempt INTEGER NOT NULL DEFAULT 0,
                     completed_at_epoch REAL NOT NULL DEFAULT 0,
                     cancelled_at_epoch REAL NOT NULL DEFAULT 0,
+                    dead_lettered_at_epoch REAL NOT NULL DEFAULT 0,
+                    dead_letter_reason_code TEXT NOT NULL DEFAULT '',
+                    replay_count INTEGER NOT NULL DEFAULT 0,
                     tool_version TEXT NOT NULL DEFAULT '',
                     package_ref TEXT NOT NULL DEFAULT '',
                     entry_file TEXT NOT NULL DEFAULT '',
@@ -420,6 +533,12 @@ class SQLiteByocJobQueueStore(_SQLiteStoreMixin, ByocJobQueueStore):
                 conn.execute("ALTER TABLE byoc_jobs ADD COLUMN completed_at_epoch REAL NOT NULL DEFAULT 0")
             if not self._has_column(conn, "byoc_jobs", "cancelled_at_epoch"):
                 conn.execute("ALTER TABLE byoc_jobs ADD COLUMN cancelled_at_epoch REAL NOT NULL DEFAULT 0")
+            if not self._has_column(conn, "byoc_jobs", "dead_lettered_at_epoch"):
+                conn.execute("ALTER TABLE byoc_jobs ADD COLUMN dead_lettered_at_epoch REAL NOT NULL DEFAULT 0")
+            if not self._has_column(conn, "byoc_jobs", "dead_letter_reason_code"):
+                conn.execute("ALTER TABLE byoc_jobs ADD COLUMN dead_letter_reason_code TEXT NOT NULL DEFAULT ''")
+            if not self._has_column(conn, "byoc_jobs", "replay_count"):
+                conn.execute("ALTER TABLE byoc_jobs ADD COLUMN replay_count INTEGER NOT NULL DEFAULT 0")
             if not self._has_column(conn, "byoc_jobs", "tool_version"):
                 conn.execute("ALTER TABLE byoc_jobs ADD COLUMN tool_version TEXT NOT NULL DEFAULT ''")
             if not self._has_column(conn, "byoc_jobs", "package_ref"):

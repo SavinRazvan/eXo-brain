@@ -133,6 +133,7 @@ class TenantRuntimeFactory:
                 max_completed_records=self._settings.runtime.byoc_max_completed_records,
                 max_cancelled_records=self._settings.runtime.byoc_max_cancelled_records,
                 max_result_records=self._settings.runtime.byoc_max_result_records,
+                max_claim_attempts_before_dlq=self._settings.runtime.byoc_max_claim_attempts_before_dlq,
                 job_store=job_store,
                 result_store=result_store,
                 replay_guard=replay_guard,
