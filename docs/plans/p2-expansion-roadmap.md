@@ -11,13 +11,17 @@ Track execution of post-P1 expansion items in dependency order while keeping det
   - auth: shared webhook secret
   - replay guard: `webhook_request_id`
   - result ingestion path reuses deterministic lease/idempotency/integrity checks.
+- Implemented P2-1 autoscaling/backpressure baseline:
+  - added `AgentScaler` policy with explicit scale-up and backpressure thresholds
+  - wired submission-time scaling decisions into background runtime admission path
+  - exposed scheduler/worker-pool scale-up hooks (safe scale-up only; no live scale-down mutation)
+  - added deterministic unit/integration coverage for scale-up and backpressure rejection behavior
 
 ## Remaining P2 Expansion Queue
 
-1. Autoscaling policy implementation (`AgentScaler`) with explicit backpressure thresholds.
-2. Dead-letter queue policy and replay/retry workflow.
-3. Advanced result conflict-resolution strategies in aggregator paths.
-4. Fine-grained tenancy and cost governance instrumentation.
+1. Dead-letter queue policy and replay/retry workflow.
+2. Advanced result conflict-resolution strategies in aggregator paths.
+3. Fine-grained tenancy and cost governance instrumentation.
 
 ## Acceptance Gates
 

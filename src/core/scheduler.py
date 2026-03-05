@@ -59,6 +59,13 @@ class TaskScheduler:
         self._tracer = tracer
         self._retry_policy = retry_policy or RetryPolicy()
 
+    @property
+    def worker_pool_concurrency(self) -> int:
+        return self._worker_pool.max_concurrency
+
+    def scale_worker_pool_up_to(self, target_concurrency: int) -> bool:
+        return self._worker_pool.scale_up_to(target_concurrency)
+
     async def execute(
         self,
         job_id: str,

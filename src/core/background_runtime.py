@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from src.core.agent_scaler import AgentScaler, AgentScalerDecision
 from src.core.scheduler import SchedulerResult, TaskScheduler
 from src.core.task_graph import TaskGraph
 from src.observability.logging import LogLevel, StructuredLogger
@@ -55,6 +56,7 @@ class BackgroundRuntime:
         timeline: RuntimeTimeline | None = None,
         tracer: RuntimeTracer | None = None,
         tenant_quota_manager: TenantQuotaManager | None = None,
+        agent_scaler: AgentScaler | None = None,
     ) -> None:
         self._scheduler = scheduler
         self._jobs: dict[str, BackgroundJob] = {}
@@ -64,12 +66,44 @@ class BackgroundRuntime:
         self._timeline = timeline
         self._tracer = tracer
         self._tenant_quota_manager = tenant_quota_manager or TenantQuotaManager()
+        self._agent_scaler = agent_scaler
 
     def submit(self, graph: TaskGraph, payload: dict[str, Any] | None = None, job_id: str | None = None) -> str:
         resolved_job_id = job_id or f"job_{uuid.uuid4().hex}"
         resolved_payload = dict(payload or {})
         tenant_id = str(resolved_payload.get("tenant_id", "default"))
         active_jobs = self._count_active_jobs(tenant_id)
+        pending_jobs = self._count_pending_jobs(tenant_id)
+        scaler_decision = self._evaluate_scaler(
+            active_jobs=active_jobs,
+            pending_jobs=pending_jobs,
+        )
+        if scaler_decision.scale_up:
+            scaled = self._scheduler.scale_worker_pool_up_to(scaler_decision.target_concurrency)
+            if scaled:
+                self._emit(
+                    correlation_id=resolved_job_id,
+                    tenant_id=tenant_id,
+                    event="background.scaler_scale_up",
+                    message="Background scaler increased worker pool concurrency",
+                    context={
+                        "target_concurrency": scaler_decision.target_concurrency,
+                        "reason_code": scaler_decision.reason_code,
+                    },
+                    level=LogLevel.INFO,
+                )
+                if self._metrics is not None:
+                    self._metrics.inc("background.scaler.scale_up")
+                    self._metrics.set_gauge(
+                        "background.scaler.target_concurrency",
+                        float(scaler_decision.target_concurrency),
+                    )
+        if scaler_decision.backpressure:
+            if self._metrics is not None:
+                self._metrics.inc("background.scaler.backpressure_rejected")
+            raise ValueError(
+                "BACKPRESSURE_THRESHOLD_EXCEEDED: Submission rejected because backlog and active load exceeded threshold"
+            )
         quota_decision = self._tenant_quota_manager.check_submission(tenant_id=tenant_id, active_jobs=active_jobs)
         if not quota_decision.allowed:
             raise ValueError(f"{quota_decision.reason_code}: {quota_decision.message}")
@@ -253,6 +287,27 @@ class BackgroundRuntime:
             1
             for job in self._jobs.values()
             if str(job.metadata.get("tenant_id", "default")) == tenant_id and job.status in active_statuses
+        )
+
+    def _count_pending_jobs(self, tenant_id: str) -> int:
+        return sum(
+            1
+            for job in self._jobs.values()
+            if str(job.metadata.get("tenant_id", "default")) == tenant_id and job.status == JobStatus.PENDING
+        )
+
+    def _evaluate_scaler(self, *, active_jobs: int, pending_jobs: int) -> AgentScalerDecision:
+        if self._agent_scaler is None:
+            return AgentScalerDecision(
+                target_concurrency=self._scheduler.worker_pool_concurrency,
+                scale_up=False,
+                backpressure=False,
+                reason_code="SCALER_NOT_CONFIGURED",
+            )
+        return self._agent_scaler.evaluate(
+            active_jobs=active_jobs,
+            pending_jobs=pending_jobs,
+            current_concurrency=self._scheduler.worker_pool_concurrency,
         )
 
     def _start_span(
