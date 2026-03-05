@@ -15,10 +15,12 @@ from __future__ import annotations
 
 import threading
 import time
+from pathlib import Path
 
 from src.schemas.tool_io import ToolCallContext, ToolStatus
 from src.tools.byoc.connector_runtime import TenantByocConnectorRuntime
 from src.tools.byoc.job_contracts import ByocResultStatus, ByocToolJobEnvelope, ByocToolResultEnvelope
+from src.tools.byoc.result_store import ByocResultConflictStrategy
 from src.tools.byoc.sqlite_store import SQLiteByocJobQueueStore, SQLiteByocResultStore, SQLiteReplayGuard
 from src.tools.registry import ToolDescriptor
 
@@ -35,6 +37,22 @@ def _call() -> ToolCallContext:
         provider_id="openai-test",
         tool_name="echo_tool",
         arguments={"value": 55},
+        tenant_id="t1",
+    )
+
+
+def _call_for_index(index: int) -> ToolCallContext:
+    return ToolCallContext(
+        schema_version="1.0",
+        call_id=f"call_sqlite_{index}",
+        session_id=f"sess_sqlite_{index}",
+        run_id=f"run_sqlite_{index}",
+        job_id=f"job_sqlite_{index}",
+        task_id=f"task_sqlite_{index}",
+        agent_id="agent_sqlite_storm",
+        provider_id="openai-test",
+        tool_name="echo_tool",
+        arguments={"value": index},
         tenant_id="t1",
     )
 
@@ -248,4 +266,220 @@ def test_sqlite_cleanup_retention_is_tenant_scoped(tmp_path) -> None:
     # t2 must remain intact.
     t2_metrics = job_store.health_metrics(tenant_id="t2")
     assert t2_metrics["completed_jobs"] >= 1
+
+
+def test_sqlite_job_store_lease_expiry_storm_routes_to_dlq(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "byoc_lease_storm.db")
+    store = SQLiteByocJobQueueStore(db_path)
+    tenant_id = "t1"
+    total_jobs = 12
+    for idx in range(total_jobs):
+        store.enqueue(
+            ByocToolJobEnvelope(
+                job_id=f"job_storm_{idx}",
+                tenant_id=tenant_id,
+                run_id=f"run_storm_{idx}",
+                call_id=f"call_storm_{idx}",
+                tool_name="echo_tool",
+                arguments={"value": idx},
+                timeout_ms=1200,
+                correlation_id=f"corr_storm_{idx}",
+                idempotency_key=f"idem_storm_{idx}",
+            )
+        )
+
+    for _ in range(2):
+        claimed = 0
+        while True:
+            lease = store.claim_next(tenant_id=tenant_id, worker_id="worker-storm", lease_ttl_seconds=1)
+            if lease is None:
+                break
+            claimed += 1
+        assert claimed == total_jobs
+        time.sleep(1.1)
+        store.requeue_expired_leases(max_claim_attempts_before_dlq=2)
+
+    assert store.queue_depth() == 0
+    assert store.dead_letter_count(tenant_id=tenant_id) == total_jobs
+    records = store.list_dead_letter_jobs(tenant_id=tenant_id, limit=20)
+    assert len(records) == total_jobs
+    assert all(row["dead_letter_reason_code"] == "BYOC_LEASE_RETRY_EXHAUSTED" for row in records)
+
+
+def test_byoc_runtime_sqlite_restart_race_recovers_under_parallel_load(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "byoc_restart_race.db")
+    runtime_a = TenantByocConnectorRuntime(
+        worker_jwt_secret="test-secret",
+        job_store=SQLiteByocJobQueueStore(db_path),
+        result_store=SQLiteByocResultStore(db_path),
+        replay_guard=SQLiteReplayGuard(db_path),
+        lease_ttl_seconds=2,
+    )
+    runtime_b = TenantByocConnectorRuntime(
+        worker_jwt_secret="test-secret",
+        job_store=SQLiteByocJobQueueStore(db_path),
+        result_store=SQLiteByocResultStore(db_path),
+        replay_guard=SQLiteReplayGuard(db_path),
+        lease_ttl_seconds=2,
+    )
+    token = runtime_b.issue_worker_token(tenant_id="t1", worker_id="worker-race")
+    descriptor = _descriptor()
+    total_calls = 10
+    threads: list[threading.Thread] = []
+    results: dict[int, object] = {}
+
+    def _execute(index: int) -> None:
+        results[index] = runtime_a.execute(_call_for_index(index), descriptor)
+
+    for idx in range(total_calls):
+        thread = threading.Thread(target=_execute, args=(idx,))
+        threads.append(thread)
+        thread.start()
+
+    seen_jobs: set[str] = set()
+    deadline = time.time() + 10.0
+    claim_attempt = 0
+    while len(seen_jobs) < total_calls and time.time() < deadline:
+        claim_attempt += 1
+        claim = runtime_b.claim_next_job(
+            tenant_id="t1",
+            worker_token=token,
+            request_nonce=f"nonce-race-claim-{claim_attempt}",
+        )
+        if claim is None:
+            time.sleep(0.02)
+            continue
+        seen_jobs.add(str(claim["job_id"]))
+        outcome = runtime_b.submit_result(
+            tenant_id="t1",
+            worker_token=token,
+            request_nonce=f"nonce-race-submit-{len(seen_jobs)}",
+            result=ByocToolResultEnvelope(
+                job_id=str(claim["job_id"]),
+                tenant_id="t1",
+                run_id=str(claim["run_id"]),
+                call_id=str(claim["call_id"]),
+                tool_name=str(claim["tool_name"]),
+                status=ByocResultStatus.SUCCESS,
+                output={"value": claim["arguments"]["value"]},
+                idempotency_key=str(claim["idempotency_key"]),
+                lease_token=str(claim["lease_token"]),
+            ),
+        )
+        assert outcome.accepted is True
+
+    assert len(seen_jobs) == total_calls
+    for thread in threads:
+        thread.join(timeout=6.0)
+        assert not thread.is_alive()
+    assert len(results) == total_calls
+    for result in results.values():
+        assert result.status == ToolStatus.SUCCESS
+
+
+def test_byoc_runtime_sqlite_replay_collision_under_submit_pressure(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "byoc_replay_collision.db")
+    runtime = TenantByocConnectorRuntime(
+        worker_jwt_secret="test-secret",
+        job_store=SQLiteByocJobQueueStore(db_path),
+        result_store=SQLiteByocResultStore(db_path),
+        replay_guard=SQLiteReplayGuard(db_path),
+    )
+    descriptor = _descriptor()
+    result_holder: dict[str, object] = {}
+
+    def _execute() -> None:
+        result_holder["result"] = runtime.execute(_call(), descriptor)
+
+    execution_thread = threading.Thread(target=_execute)
+    execution_thread.start()
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-replay-collision")
+    claim = _wait_claim(runtime, token, "nonce-replay-collision-claim")
+    assert claim is not None
+
+    accepted_outcomes: list[object] = []
+    replay_errors: list[str] = []
+    submit_nonce = "nonce-replay-collision-submit"
+    gate = threading.Barrier(5)
+
+    def _submit() -> None:
+        gate.wait()
+        try:
+            outcome = runtime.submit_result(
+                tenant_id="t1",
+                worker_token=token,
+                request_nonce=submit_nonce,
+                result=ByocToolResultEnvelope(
+                    job_id=str(claim["job_id"]),
+                    tenant_id="t1",
+                    run_id=str(claim["run_id"]),
+                    call_id=str(claim["call_id"]),
+                    tool_name=str(claim["tool_name"]),
+                    status=ByocResultStatus.SUCCESS,
+                    output={"value": 55},
+                    idempotency_key=str(claim["idempotency_key"]),
+                    lease_token=str(claim["lease_token"]),
+                ),
+            )
+            accepted_outcomes.append(outcome)
+        except ValueError as exc:
+            replay_errors.append(str(exc))
+
+    submit_threads = [threading.Thread(target=_submit) for _ in range(5)]
+    for thread in submit_threads:
+        thread.start()
+    for thread in submit_threads:
+        thread.join(timeout=3.0)
+        assert not thread.is_alive()
+
+    execution_thread.join(timeout=4.0)
+    assert result_holder["result"].status == ToolStatus.SUCCESS
+    assert len(accepted_outcomes) == 1
+    assert all(item == "WORKER_REQUEST_REPLAYED" for item in replay_errors)
+    assert len(replay_errors) == 4
+
+
+def test_sqlite_result_store_conflict_strategy_under_bulk_load(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "byoc_conflict_load.db")
+    store = SQLiteByocResultStore(
+        str(db_path),
+        conflict_strategy=ByocResultConflictStrategy.PREFER_SUCCESS,
+    )
+    total_jobs = 40
+    for idx in range(total_jobs):
+        first = store.ingest(
+            ByocToolResultEnvelope(
+                job_id=f"job_conflict_{idx}",
+                tenant_id="t1",
+                run_id=f"run_conflict_{idx}",
+                call_id=f"call_conflict_{idx}",
+                tool_name="echo_tool",
+                status=ByocResultStatus.ERROR,
+                output={"value": idx},
+                idempotency_key=f"t1:{idx}:a",
+                lease_token=f"lease_{idx}",
+            )
+        )
+        second = store.ingest(
+            ByocToolResultEnvelope(
+                job_id=f"job_conflict_{idx}",
+                tenant_id="t1",
+                run_id=f"run_conflict_{idx}",
+                call_id=f"call_conflict_{idx}",
+                tool_name="echo_tool",
+                status=ByocResultStatus.SUCCESS,
+                output={"value": idx + 1000},
+                idempotency_key=f"t1:{idx}:b",
+                lease_token=f"lease_{idx}",
+            )
+        )
+        assert first.accepted is True
+        assert second.accepted is True
+        assert second.reason_code == "BYOC_RESULT_CONFLICT_REPLACED"
+
+    for idx in range(total_jobs):
+        result = store.consume(f"job_conflict_{idx}")
+        assert result is not None
+        assert result.status == ByocResultStatus.SUCCESS
+        assert result.output["value"] == idx + 1000
 
