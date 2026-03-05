@@ -30,6 +30,10 @@ _OVERALL_RE = re.compile(r"^- Result: `(PASS|FAIL)`$")
 _GATE_COMMAND_RE = re.compile(r"^- Command: `(.*)`$")
 _GATE_EXIT_RE = re.compile(r"^- Exit Code: `(-?\d+)`$")
 _GATE_DURATION_RE = re.compile(r"^- Duration Ms: `(\d+)`$")
+_BOOL_RE = re.compile(r"^- (Enabled|Required): `(true|false)`$")
+_MODE_RE = re.compile(r"^- Mode: `(advisory|required)`$")
+_RESULT_RE = re.compile(r"^- Result: `(PASS|FAIL)`$")
+_META_PATH_RE = re.compile(r"^- Meta Path: `(.*)`$")
 
 
 def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
@@ -41,6 +45,17 @@ def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
     required_links: list[dict[str, Any]] = []
     gates: list[dict[str, Any]] = []
     overall_result = "FAIL"
+    data_safety: dict[str, Any] = {
+        "enabled": False,
+        "required": False,
+        "mode": "advisory",
+        "command": "",
+        "exit_code": None,
+        "duration_ms": None,
+        "result": "",
+        "ok": None,
+        "meta_path": "",
+    }
 
     while idx < len(lines):
         line = lines[idx].strip()
@@ -110,6 +125,38 @@ def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
                 gates.append(
                     gate_record
                 )
+        elif line == "## Local Data Safety":
+            cursor = idx + 1
+            while cursor < len(lines):
+                maybe = lines[cursor].strip()
+                if maybe.startswith("## "):
+                    break
+                bool_match = _BOOL_RE.match(maybe)
+                if bool_match:
+                    key = bool_match.group(1).strip().lower()
+                    data_safety[key] = bool_match.group(2) == "true"
+                mode_match = _MODE_RE.match(maybe)
+                if mode_match:
+                    data_safety["mode"] = mode_match.group(1)
+                command_match = _GATE_COMMAND_RE.match(maybe)
+                if command_match:
+                    data_safety["command"] = command_match.group(1)
+                exit_match = _GATE_EXIT_RE.match(maybe)
+                if exit_match:
+                    data_safety["exit_code"] = int(exit_match.group(1))
+                duration_match = _GATE_DURATION_RE.match(maybe)
+                if duration_match:
+                    data_safety["duration_ms"] = int(duration_match.group(1))
+                result_match = _RESULT_RE.match(maybe)
+                if result_match:
+                    data_safety["result"] = result_match.group(1)
+                    data_safety["ok"] = result_match.group(1) == "PASS"
+                meta_match = _META_PATH_RE.match(maybe)
+                if meta_match:
+                    data_safety["meta_path"] = meta_match.group(1)
+                cursor += 1
+            idx = cursor
+            continue
         elif line == "## Overall":
             idx += 1
             while idx < len(lines):
@@ -134,6 +181,7 @@ def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
         "context": context,
         "required_evidence_links": required_links,
         "gates": gates,
+        "data_safety": data_safety,
         "overall": {
             "result": overall_result,
             "passed": passed,

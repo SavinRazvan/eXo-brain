@@ -42,6 +42,17 @@ This parses `.local/rc-signoff.md` into a normalized JSON summary at `.local/rc-
 The normalized payload now includes per-gate execution metadata (`command`, `exit_code`, `duration_ms`)
 to support alerting and trend dashboards.
 
+RC evidence also includes a `Local Data Safety` section with:
+- backup/restore validation command metadata
+- advisory/required mode flag
+- normalized parser output under `data_safety` in `.local/rc-signoff.json`
+
+Default behavior is advisory (non-blocking). To make data safety mandatory:
+
+```bash
+EXO_RC_SIGNOFF_REQUIRE_DATA_SAFETY=true make rc-signoff
+```
+
 ## CI Integration
 
 - Workflow: `.github/workflows/rc-signoff.yml`
@@ -68,6 +79,7 @@ The signoff runner verifies these files exist before running gates:
 
 - [ ] Run `make rc-signoff`.
 - [ ] Confirm `.local/rc-signoff.md` exists and `Overall` is `PASS`.
+- [ ] Confirm `Local Data Safety` section is present and reviewed.
 - [ ] Attach `.local/rc-signoff.md` to release/PR records.
 - [ ] Confirm required PR artifacts exist:
   - `.local/review.md`
