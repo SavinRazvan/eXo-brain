@@ -61,6 +61,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | RC signoff evidence metadata hardening | Implemented | `scripts/release/rc_signoff.py` now emits per-gate command/exit-code/duration metadata; `scripts/release/parse_rc_signoff.py` parses these fields with backward compatibility for prior markdown evidence format. |
 | Backlog reconciliation freeze | Implemented | Added reconciled post-delivery hardening queue and evidence artifacts (`.local/alignment-audit.md`, `.local/alignment-todos.md`) and synced canonical status references. |
 | P2 expansion webhook baseline | Implemented (baseline) | Added BYOC webhook submit endpoint and replay-safe auth flow for worker push result ingestion; remaining P2 queue tracked in `docs/plans/p2-expansion-roadmap.md`. |
+| P2-1 autoscaling/backpressure baseline | Implemented (baseline) | Added `src/core/agent_scaler.py` plus background-runtime admission wiring for scale-up and deterministic backpressure thresholds, with unit/integration coverage in core runtime tests. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
