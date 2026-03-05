@@ -70,6 +70,12 @@ class RuntimeSettings:
     byoc_cost_error_microunits: int = 40
     byoc_cost_timeout_microunits: int = 60
     byoc_cost_cancelled_microunits: int = 20
+    byoc_anomaly_detection_enabled: bool = True
+    byoc_anomaly_cost_utilization_threshold: float = 0.9
+    byoc_anomaly_rejection_rate_threshold: float = 0.2
+    byoc_anomaly_reason_share_threshold: float = 0.6
+    byoc_anomaly_min_submit_attempts: int = 5
+    byoc_anomaly_min_rejection_count: int = 3
 
 
 @dataclass(slots=True)

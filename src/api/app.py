@@ -156,6 +156,22 @@ def _default_settings() -> AppSettings:
             byoc_cost_error_microunits=int(os.environ.get("EXO_BYOC_COST_ERROR_MICROUNITS", "40")),
             byoc_cost_timeout_microunits=int(os.environ.get("EXO_BYOC_COST_TIMEOUT_MICROUNITS", "60")),
             byoc_cost_cancelled_microunits=int(os.environ.get("EXO_BYOC_COST_CANCELLED_MICROUNITS", "20")),
+            byoc_anomaly_detection_enabled=_env_bool("EXO_BYOC_ANOMALY_DETECTION_ENABLED", default=True),
+            byoc_anomaly_cost_utilization_threshold=float(
+                os.environ.get("EXO_BYOC_ANOMALY_COST_UTILIZATION_THRESHOLD", "0.9")
+            ),
+            byoc_anomaly_rejection_rate_threshold=float(
+                os.environ.get("EXO_BYOC_ANOMALY_REJECTION_RATE_THRESHOLD", "0.2")
+            ),
+            byoc_anomaly_reason_share_threshold=float(
+                os.environ.get("EXO_BYOC_ANOMALY_REASON_SHARE_THRESHOLD", "0.6")
+            ),
+            byoc_anomaly_min_submit_attempts=int(
+                os.environ.get("EXO_BYOC_ANOMALY_MIN_SUBMIT_ATTEMPTS", "5")
+            ),
+            byoc_anomaly_min_rejection_count=int(
+                os.environ.get("EXO_BYOC_ANOMALY_MIN_REJECTION_COUNT", "3")
+            ),
         ),
         auth=AuthSettings(
             jwt_secret=jwt_secret,

@@ -71,6 +71,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | P1-2 tenant budget window policy | Implemented (baseline) | Added BYOC windowed budget policy controls (`EXO_BYOC_ENABLE_COST_WINDOW_POLICY`, `EXO_BYOC_COST_WINDOW_SECONDS`) with deterministic reset boundaries, window-specific rejection code, and governance export window fields. |
 | P1-3 governance alert evidence bundle | Implemented (baseline) | Added RC signoff advisory governance-alert extraction from metrics input, threshold evaluation for utilization/rejection rates, markdown evidence section, and normalized parser output (`governance_alerts`). |
 | P2-1 BYOC recovery chaos suite | Implemented (baseline) | Added deterministic sqlite-backed BYOC stress tests for lease-expiry storms, restart races under parallel execute/claim/submit flow, replay collision pressure, and bulk conflict-resolution consistency. |
+| P2-2 governance anomaly detectors | Implemented (baseline) | Added deterministic governance anomaly detector policy module and wired advisory anomaly findings into tenant governance metrics export for cost utilization, rejection-rate, and reason-dominance patterns. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
