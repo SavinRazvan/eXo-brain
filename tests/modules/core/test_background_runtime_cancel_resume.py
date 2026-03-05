@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 
+from src.core.agent_scaler import AgentScaler, AgentScalerConfig
 from src.core.background_runtime import BackgroundRuntime, JobStatus
 from src.core.checkpoint_store import InMemoryCheckpointStore
 from src.core.scheduler import TaskScheduler
@@ -123,5 +124,78 @@ def test_background_runtime_emits_trace_spans() -> None:
         background_span = next(span for span in spans if span.name == "background.run_job")
         scheduler_span = next(span for span in spans if span.name == "scheduler.execute")
         assert scheduler_span.parent_span_id == background_span.span_id
+
+    asyncio.run(scenario())
+
+
+def test_background_runtime_scales_up_worker_pool_when_backlog_grows() -> None:
+    gate = asyncio.Event()
+
+    async def slow_node(_: dict) -> dict:
+        await gate.wait()
+        return {"ok": True}
+
+    async def scenario() -> None:
+        scheduler = TaskScheduler(
+            worker_pool=WorkerPool(max_concurrency=1),
+            checkpoint_store=InMemoryCheckpointStore(),
+        )
+        scaler = AgentScaler(
+            AgentScalerConfig(
+                enabled=True,
+                min_concurrency=1,
+                max_concurrency=3,
+                scale_up_backlog_threshold=1,
+                scale_up_step=1,
+                backpressure_backlog_threshold=50,
+            )
+        )
+        runtime = BackgroundRuntime(scheduler=scheduler, agent_scaler=scaler)
+        graph = TaskGraph([TaskNode(node_id="n1", handler=slow_node)])
+
+        first = runtime.submit(graph=graph, payload={"tenant_id": "t1"})
+        second = runtime.submit(graph=graph, payload={"tenant_id": "t1"})
+        assert first != second
+        assert scheduler.worker_pool_concurrency == 2
+        gate.set()
+        await _wait_for_status(runtime, first, {JobStatus.COMPLETED, JobStatus.FAILED}, timeout_s=1.5)
+        await _wait_for_status(runtime, second, {JobStatus.COMPLETED, JobStatus.FAILED}, timeout_s=1.5)
+
+    asyncio.run(scenario())
+
+
+def test_background_runtime_rejects_submission_on_backpressure_threshold() -> None:
+    gate = asyncio.Event()
+
+    async def slow_node(_: dict) -> dict:
+        await gate.wait()
+        return {"ok": True}
+
+    async def scenario() -> None:
+        scheduler = TaskScheduler(
+            worker_pool=WorkerPool(max_concurrency=1),
+            checkpoint_store=InMemoryCheckpointStore(),
+        )
+        scaler = AgentScaler(
+            AgentScalerConfig(
+                enabled=True,
+                min_concurrency=1,
+                max_concurrency=1,
+                scale_up_backlog_threshold=50,
+                backpressure_backlog_threshold=1,
+                backpressure_active_ratio_threshold=1.0,
+            )
+        )
+        runtime = BackgroundRuntime(scheduler=scheduler, agent_scaler=scaler)
+        graph = TaskGraph([TaskNode(node_id="n1", handler=slow_node)])
+
+        runtime.submit(graph=graph, payload={"tenant_id": "t1"})
+        try:
+            runtime.submit(graph=graph, payload={"tenant_id": "t1"})
+            assert False, "Expected backpressure rejection"
+        except ValueError as exc:
+            assert "BACKPRESSURE_THRESHOLD_EXCEEDED" in str(exc)
+        finally:
+            gate.set()
 
     asyncio.run(scenario())
