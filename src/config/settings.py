@@ -61,6 +61,7 @@ class RuntimeSettings:
     byoc_max_cancelled_records: int = 2000
     byoc_max_result_records: int = 2000
     byoc_max_claim_attempts_before_dlq: int = 3
+    byoc_result_conflict_strategy: str = "first_write_wins"
 
 
 @dataclass(slots=True)
