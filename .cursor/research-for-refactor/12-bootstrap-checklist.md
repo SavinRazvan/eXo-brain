@@ -563,6 +563,10 @@ Canonical reference:
 - `.cursor/research-for-refactor/18-enterprise-operational-runbooks.md`
 - `.cursor/research-for-refactor/26-deployment-profiles-matrix.md`
 
+### Reconciliation artifacts
+- `.local/alignment-audit.md`
+- `.local/alignment-todos.md`
+
 ---
 
 ## Platform Extensions — Slice 1 (Auth Hardening — branch: feature/slice1-auth-hardening)

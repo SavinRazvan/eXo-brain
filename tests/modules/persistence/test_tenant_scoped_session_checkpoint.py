@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+import time
 
 import pytest
 
@@ -116,5 +117,44 @@ def test_postgres_session_and_checkpoint_stores_enforce_tenant_isolation() -> No
 
         with pytest.raises(PersistenceIsolationError):
             await checkpoint_store.get_checkpoint("job_1", "node_1", tenant_id="tenant_c")
+
+    asyncio.run(scenario())
+
+
+def test_sqlite_session_checkpoint_calls_do_not_block_event_loop(tmp_path: Path, monkeypatch) -> None:
+    from src.persistence.adapters import sqlite as sqlite_module
+
+    original_connect = sqlite_module.sqlite3.connect
+
+    def slow_connect(*args, **kwargs):
+        time.sleep(0.03)
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sqlite_module.sqlite3, "connect", slow_connect)
+
+    async def scenario() -> None:
+        session_store = SQLiteSessionStore(db_path=tmp_path / "async_sessions.db")
+        checkpoint_store = SQLiteCheckpointStore(db_path=tmp_path / "async_checkpoints.db")
+        ticks = 0
+        done = asyncio.Event()
+
+        async def ticker() -> None:
+            nonlocal ticks
+            while not done.is_set():
+                ticks += 1
+                await asyncio.sleep(0.005)
+
+        tick_task = asyncio.create_task(ticker())
+        await session_store.save_session(_session_record(session_id="sess_async", tenant_id="tenant_a", state="active"))
+        await checkpoint_store.save_checkpoint(
+            _checkpoint_record(node_id="node_async", tenant_id="tenant_a", status=CheckpointStatus.RUNNING)
+        )
+        _ = await session_store.get_session("sess_async", tenant_id="tenant_a")
+        _ = await checkpoint_store.get_checkpoint("job_1", "node_async", tenant_id="tenant_a")
+        done.set()
+        await tick_task
+
+        # If sqlite calls run on the loop thread, ticker barely advances.
+        assert ticks >= 4
 
     asyncio.run(scenario())

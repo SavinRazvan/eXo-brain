@@ -32,6 +32,7 @@ class AccessControlConfig:
     )
     review_channel: str = "security-review"
     audit_only_mode: bool = False
+    cross_tenant_permission: str = "tenant:cross_scope"
 
 
 class AccessPolicyEngine:
@@ -49,6 +50,22 @@ class AccessPolicyEngine:
             )
 
         permissions = aggregate_permissions(request.roles, self._config.role_permissions)
+
+        request_tenant = str(request.request_tenant_id).strip()
+        identity_tenant = str(request.identity_tenant_id).strip()
+        if request_tenant and identity_tenant and request_tenant != identity_tenant:
+            cross_scope_allowed = (
+                "*" in permissions or self._config.cross_tenant_permission in permissions
+            )
+            if not cross_scope_allowed:
+                return self._finalize(
+                    AccessDecision(
+                        decision=PolicyAction.DENY,
+                        reason_code="ACCESS_DENIED_TENANT_SCOPE",
+                        message="Identity tenant scope does not match request tenant scope.",
+                    )
+                )
+
         if "*" in permissions:
             return self._finalize(
                 AccessDecision(

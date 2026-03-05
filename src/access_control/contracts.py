@@ -26,6 +26,8 @@ class AccessRequest:
     tool_name: str
     is_state_changing: bool
     is_high_impact: bool
+    request_tenant_id: str = ""
+    identity_tenant_id: str = ""
     plugin_scope: str = ""
 
 

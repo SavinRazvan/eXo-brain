@@ -21,3 +21,19 @@ def test_circuit_breaker_opens_after_threshold_failures() -> None:
     breaker.record_failure("srv:tool")
     assert breaker.allow("srv:tool") is False
 
+
+def test_circuit_breaker_record_success_resets_open_state() -> None:
+    breaker = CircuitBreaker(failure_threshold=2)
+    breaker.record_failure("srv:tool")
+    breaker.record_failure("srv:tool")
+    assert breaker.allow("srv:tool") is False
+    breaker.record_success("srv:tool")
+    assert breaker.allow("srv:tool") is True
+
+
+def test_circuit_breaker_state_isolated_per_key() -> None:
+    breaker = CircuitBreaker(failure_threshold=1)
+    breaker.record_failure("srv:a")
+    assert breaker.allow("srv:a") is False
+    assert breaker.allow("srv:b") is True
+

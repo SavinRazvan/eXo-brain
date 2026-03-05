@@ -25,6 +25,7 @@ from src.api.schemas.runtime_control_schemas import (
     ByocClaimJobResponse,
     ByocSubmitResultRequest,
     ByocSubmitResultResponse,
+    ByocWebhookSubmitResultRequest,
     ByocWorkerTokenRequest,
     ByocWorkerTokenResponse,
     RuntimeCancellationRequest,
@@ -68,6 +69,27 @@ def _resolve_byoc_adapter(ctx: TenantRuntimeContext):
             detail="BYOC runtime adapter is not enabled for this tenant.",
         )
     return adapter
+
+
+def _to_byoc_result_envelope(payload: dict, tenant_id: str) -> ByocToolResultEnvelope:
+    return ByocToolResultEnvelope(
+        job_id=str(payload.get("job_id", "")),
+        tenant_id=str(payload.get("tenant_id", tenant_id)),
+        run_id=str(payload.get("run_id", "")),
+        call_id=str(payload.get("call_id", "")),
+        tool_name=str(payload.get("tool_name", "")),
+        status=str(payload.get("status", "success")),
+        output=dict(payload.get("output", {}) or {}),
+        error_code=str(payload.get("error_code", "")),
+        error_message=str(payload.get("error_message", "")),
+        retryable=bool(payload.get("retryable", False)),
+        idempotency_key=str(payload.get("idempotency_key", "")),
+        lease_token=str(payload.get("lease_token", "")),
+        tool_version=str(payload.get("tool_version", "")),
+        artifact_bundle_hash_sha256=str(payload.get("artifact_bundle_hash_sha256", "")),
+        artifact_bundle_signature_hmac_sha256=str(payload.get("artifact_bundle_signature_hmac_sha256", "")),
+        artifact_signature_version=str(payload.get("artifact_signature_version", "")),
+    )
 
 
 @router.get(
@@ -299,28 +321,42 @@ async def submit_byoc_job_result(
     adapter = _resolve_byoc_adapter(ctx)
     payload = body.result or {}
     try:
-        envelope = ByocToolResultEnvelope(
-            job_id=str(payload.get("job_id", "")),
-            tenant_id=str(payload.get("tenant_id", tenant_id)),
-            run_id=str(payload.get("run_id", "")),
-            call_id=str(payload.get("call_id", "")),
-            tool_name=str(payload.get("tool_name", "")),
-            status=str(payload.get("status", "success")),
-            output=dict(payload.get("output", {}) or {}),
-            error_code=str(payload.get("error_code", "")),
-            error_message=str(payload.get("error_message", "")),
-            retryable=bool(payload.get("retryable", False)),
-            idempotency_key=str(payload.get("idempotency_key", "")),
-            lease_token=str(payload.get("lease_token", "")),
-            tool_version=str(payload.get("tool_version", "")),
-            artifact_bundle_hash_sha256=str(payload.get("artifact_bundle_hash_sha256", "")),
-            artifact_bundle_signature_hmac_sha256=str(payload.get("artifact_bundle_signature_hmac_sha256", "")),
-            artifact_signature_version=str(payload.get("artifact_signature_version", "")),
-        )
+        envelope = _to_byoc_result_envelope(payload, tenant_id)
         outcome = adapter.submit_result(
             tenant_id=tenant_id,
             worker_token=body.worker_token,
             request_nonce=body.request_nonce,
+            result=envelope,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    return ByocSubmitResultResponse(
+        tenant_id=tenant_id,
+        backend_id=adapter.backend_id,
+        accepted=outcome.accepted,
+        duplicate=outcome.duplicate,
+        reason_code=outcome.reason_code,
+    )
+
+
+@router.post(
+    "/{tenant_id}/admin/byoc/webhook/jobs/submit",
+    response_model=ByocSubmitResultResponse,
+)
+async def submit_byoc_webhook_job_result(
+    tenant_id: str,
+    body: ByocWebhookSubmitResultRequest,
+    ctx: TenantRuntimeContext = Depends(get_tenant_context),
+    _identity: IdentityContext = Depends(require_valid_identity),
+) -> ByocSubmitResultResponse:
+    adapter = _resolve_byoc_adapter(ctx)
+    payload = body.result or {}
+    try:
+        envelope = _to_byoc_result_envelope(payload, tenant_id)
+        outcome = adapter.submit_result_webhook(
+            tenant_id=tenant_id,
+            webhook_secret=body.webhook_secret,
+            webhook_request_id=body.webhook_request_id,
             result=envelope,
         )
     except ValueError as exc:
