@@ -46,3 +46,45 @@ def test_background_runtime_rejects_submission_when_tenant_quota_exceeded() -> N
 
     asyncio.run(scenario())
 
+
+def test_background_runtime_allows_new_submission_after_completion() -> None:
+    async def quick_node(_: dict) -> dict:
+        await asyncio.sleep(0.02)
+        return {"ok": True}
+
+    async def scenario() -> None:
+        scheduler = TaskScheduler(worker_pool=WorkerPool(max_concurrency=1), checkpoint_store=InMemoryCheckpointStore())
+        runtime = BackgroundRuntime(
+            scheduler=scheduler,
+            tenant_quota_manager=TenantQuotaManager(max_active_jobs_per_tenant=1, hard_enforcement=True),
+        )
+        graph = TaskGraph([TaskNode(node_id="n1", handler=quick_node)])
+
+        async def wait_terminal(job_id: str) -> None:
+            while runtime.get_job(job_id).status.value in {"pending", "running"}:
+                await asyncio.sleep(0.01)
+
+        first_job = runtime.submit(graph=graph, payload={"tenant_id": "tenant_q2"})
+        await wait_terminal(first_job)
+        second_job = runtime.submit(graph=graph, payload={"tenant_id": "tenant_q2"})
+        await wait_terminal(second_job)
+        assert runtime.get_job(second_job).status.value == "completed"
+
+    asyncio.run(scenario())
+
+
+def test_tenant_quota_manager_soft_enforcement_returns_reason() -> None:
+    manager = TenantQuotaManager(max_active_jobs_per_tenant=1, hard_enforcement=False)
+    decision = manager.check_submission(tenant_id="tenant_soft", active_jobs=1)
+    assert decision.allowed is True
+    assert decision.reason_code == "TENANT_QUOTA_SOFT_LIMIT"
+
+
+def test_tenant_quota_manager_limit_update_applies_on_next_check() -> None:
+    manager = TenantQuotaManager(max_active_jobs_per_tenant=2, hard_enforcement=True)
+    assert manager.check_submission(tenant_id="tenant_limit", active_jobs=1).allowed is True
+    manager.set_limit(1)
+    decision = manager.check_submission(tenant_id="tenant_limit", active_jobs=1)
+    assert decision.allowed is False
+    assert decision.reason_code == "TENANT_QUOTA_EXCEEDED"
+

@@ -257,3 +257,18 @@ class TenantRuntimeFactory:
             self._session_adapters.pop(sid, None)
             del self._session_tenant[sid]
         self._contexts.pop(tenant_id, None)
+
+    def evict_sessions_for_provider(self, provider_id: str) -> int:
+        """Remove cached session runtimes currently bound to provider_id."""
+        removed = 0
+        sessions_to_remove: list[str] = []
+        for sid, adapter in self._session_adapters.items():
+            adapter_provider = str(getattr(adapter, "_provider_id", "")).strip()
+            if adapter_provider == provider_id:
+                sessions_to_remove.append(sid)
+        for sid in sessions_to_remove:
+            self._session_runtimes.pop(sid, None)
+            self._session_adapters.pop(sid, None)
+            self._session_tenant.pop(sid, None)
+            removed += 1
+        return removed

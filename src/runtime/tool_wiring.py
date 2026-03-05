@@ -75,6 +75,7 @@ def _make_function_tool(
             tool_name=desc.name,
             arguments=kwargs,
             tenant_id=tenant_id,
+            identity_tenant_id=tenant_id,
             risk_tier=desc.risk_tier,
             is_state_changing=desc.is_state_changing,
         )

@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import json
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -34,8 +36,38 @@ class TraceSpan:
     error: str = ""
 
 
+class TraceExporter:
+    def export(self, span: TraceSpan) -> None:
+        raise NotImplementedError
+
+
+class FileTraceExporter(TraceExporter):
+    """JSONL exporter for completed runtime spans."""
+
+    def __init__(self, path: str | Path) -> None:
+        self._path = Path(path)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+
+    def export(self, span: TraceSpan) -> None:
+        payload = {
+            "span_id": span.span_id,
+            "correlation_id": span.correlation_id,
+            "name": span.name,
+            "parent_span_id": span.parent_span_id,
+            "status": span.status,
+            "started_at_utc": span.started_at_utc,
+            "finished_at_utc": span.finished_at_utc,
+            "attributes": span.attributes,
+            "error": span.error,
+        }
+        with self._path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+
+
 class RuntimeTracer:
-    def __init__(self) -> None:
+    def __init__(self, exporter: TraceExporter | None = None, *, fallback_to_memory: bool = True) -> None:
+        self._exporter = exporter
+        self._fallback_to_memory = fallback_to_memory
         self._spans: list[TraceSpan] = []
         self._active_by_id: dict[str, TraceSpan] = {}
 
@@ -72,6 +104,15 @@ class RuntimeTracer:
         span.status = status
         span.error = error
         span.finished_at_utc = datetime.now(timezone.utc).isoformat()
+        if self._exporter is not None:
+            try:
+                self._exporter.export(span)
+            except Exception as exc:
+                if self._fallback_to_memory:
+                    span.attributes["trace_export_status"] = "failed"
+                    span.attributes["trace_export_error"] = str(exc)
+                else:
+                    raise
         self._active_by_id.pop(span_id, None)
 
     def spans_for(self, correlation_id: str) -> list[TraceSpan]:
