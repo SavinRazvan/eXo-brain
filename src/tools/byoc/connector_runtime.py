@@ -80,6 +80,8 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         max_claim_attempts_before_dlq: int = 3,
         cost_limit_microunits_per_tenant: int = 1_000_000,
         enforce_cost_limit: bool = False,
+        enable_cost_window_policy: bool = False,
+        cost_window_seconds: int = 3600,
         cost_success_microunits: int = 100,
         cost_error_microunits: int = 40,
         cost_timeout_microunits: int = 60,
@@ -103,6 +105,8 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._max_claim_attempts_before_dlq = max(int(max_claim_attempts_before_dlq), 1)
         self._cost_limit_microunits_per_tenant = max(int(cost_limit_microunits_per_tenant), 0)
         self._enforce_cost_limit = bool(enforce_cost_limit)
+        self._enable_cost_window_policy = bool(enable_cost_window_policy)
+        self._cost_window_seconds = max(int(cost_window_seconds), 1)
         self._cost_success_microunits = max(int(cost_success_microunits), 0)
         self._cost_error_microunits = max(int(cost_error_microunits), 0)
         self._cost_timeout_microunits = max(int(cost_timeout_microunits), 0)
@@ -124,6 +128,8 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._last_cleanup_epoch = 0.0
         self._progress_events_by_call_id: dict[str, list[dict[str, str]]] = {}
         self._tenant_cost_microunits_total: dict[str, int] = {}
+        self._tenant_cost_window_started_epoch: dict[str, int] = {}
+        self._tenant_cost_window_microunits: dict[str, int] = {}
         self._tenant_submit_attempts_total: dict[str, int] = {}
         self._tenant_rejected_results_total: dict[str, int] = {}
         self._tenant_rejections_by_reason: dict[str, dict[str, int]] = {}
@@ -137,8 +143,15 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         started_clock = perf_counter()
         timeout_ms = max(int(descriptor.timeout_ms), 1)
         tenant_id = str(call.tenant_id or "default").strip() or "default"
-        if self._enforce_cost_limit and self._cost_limit_exceeded(tenant_id=tenant_id):
-            return self._cost_limit_result(call, timeout_ms=timeout_ms, tenant_id=tenant_id)
+        if self._enforce_cost_limit:
+            exceeded, reason_code = self._cost_limit_exceeded(tenant_id=tenant_id)
+            if exceeded:
+                return self._cost_limit_result(
+                    call,
+                    timeout_ms=timeout_ms,
+                    tenant_id=tenant_id,
+                    reason_code=reason_code,
+                )
         self._run_periodic_cleanup(tenant_id=tenant_id)
         idempotency_key = f"{tenant_id}:{call.call_id}:{call.run_id or 'run'}"
         job = ByocToolJobEnvelope(
@@ -390,6 +403,8 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 "cleanup_pruned_total": self._cleanup_pruned_total,
                 "queue_depth": self._job_store.queue_depth(),
                 "cost_limit_microunits_per_tenant": self._cost_limit_microunits_per_tenant,
+                "cost_window_policy_enabled": int(self._enable_cost_window_policy),
+                "cost_window_seconds": self._cost_window_seconds,
             }
         return metrics
 
@@ -402,6 +417,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         combined.update(queue_metrics)
         combined.update(result_metrics)
         combined.update(replay_metrics)
+        window_start, window_cost = self._window_state(tenant_id=tenant_id, now=time.time())
         with self._lock:
             tenant_cost = int(self._tenant_cost_microunits_total.get(tenant_id, 0))
             tenant_submit_attempts = int(self._tenant_submit_attempts_total.get(tenant_id, 0))
@@ -411,6 +427,14 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         combined["tenant_cost_limit_microunits"] = int(self._cost_limit_microunits_per_tenant)
         combined["tenant_cost_remaining_microunits"] = max(
             int(self._cost_limit_microunits_per_tenant) - tenant_cost,
+            0,
+        )
+        combined["tenant_cost_window_policy_enabled"] = int(self._enable_cost_window_policy)
+        combined["tenant_cost_window_seconds"] = int(self._cost_window_seconds)
+        combined["tenant_cost_window_started_epoch"] = int(window_start)
+        combined["tenant_cost_window_microunits"] = int(window_cost)
+        combined["tenant_cost_window_remaining_microunits"] = max(
+            int(self._cost_limit_microunits_per_tenant) - int(window_cost),
             0,
         )
         combined["tenant_submit_attempts_total"] = tenant_submit_attempts
@@ -539,10 +563,15 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
 
     def _record_tenant_cost(self, *, tenant_id: str, amount: int) -> None:
         normalized = str(tenant_id).strip() or "default"
+        now = time.time()
         with self._lock:
             self._tenant_cost_microunits_total[normalized] = int(
                 self._tenant_cost_microunits_total.get(normalized, 0)
             ) + max(int(amount), 0)
+            if self._enable_cost_window_policy:
+                started, current = self._window_state_unlocked(tenant_id=normalized, now=now)
+                self._tenant_cost_window_started_epoch[normalized] = int(started)
+                self._tenant_cost_window_microunits[normalized] = int(current) + max(int(amount), 0)
 
     def _increment_tenant_submit_attempt(self, *, tenant_id: str) -> None:
         normalized = str(tenant_id).strip() or "default"
@@ -557,23 +586,37 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             bucket = self._tenant_rejections_by_reason.setdefault(normalized, {})
             bucket[reason] = int(bucket.get(reason, 0)) + 1
 
-    def _cost_limit_exceeded(self, *, tenant_id: str) -> bool:
+    def _cost_limit_exceeded(self, *, tenant_id: str) -> tuple[bool, str]:
         if self._cost_limit_microunits_per_tenant <= 0:
-            return False
+            return (False, "")
         normalized = str(tenant_id).strip() or "default"
+        if self._enable_cost_window_policy:
+            _, window_cost = self._window_state(tenant_id=normalized, now=time.time())
+            return (
+                window_cost >= int(self._cost_limit_microunits_per_tenant),
+                "BYOC_COST_WINDOW_LIMIT_EXCEEDED",
+            )
         with self._lock:
             consumed = int(self._tenant_cost_microunits_total.get(normalized, 0))
-        return consumed >= int(self._cost_limit_microunits_per_tenant)
+        return (consumed >= int(self._cost_limit_microunits_per_tenant), "BYOC_COST_LIMIT_EXCEEDED")
 
-    def _cost_limit_result(self, call: ToolCallContext, *, timeout_ms: int, tenant_id: str) -> ToolResult:
-        self._increment_tenant_rejection(tenant_id=tenant_id, reason_code="BYOC_COST_LIMIT_EXCEEDED")
+    def _cost_limit_result(
+        self,
+        call: ToolCallContext,
+        *,
+        timeout_ms: int,
+        tenant_id: str,
+        reason_code: str,
+    ) -> ToolResult:
+        normalized_reason = str(reason_code).strip() or "BYOC_COST_LIMIT_EXCEEDED"
+        self._increment_tenant_rejection(tenant_id=tenant_id, reason_code=normalized_reason)
         return ToolResult(
             schema_version="1.0",
             call_id=call.call_id,
             tool_name=call.tool_name,
             status=ToolStatus.ERROR,
             error=NormalizedError(
-                code="BYOC_COST_LIMIT_EXCEEDED",
+                code=normalized_reason,
                 category="policy",
                 message="BYOC tenant cost limit exceeded.",
                 retryable=False,
@@ -585,6 +628,26 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             ),
             audit=ToolAudit(correlation_id=call.call_id),
         )
+
+    def _window_state(self, *, tenant_id: str, now: float) -> tuple[int, int]:
+        normalized = str(tenant_id).strip() or "default"
+        with self._lock:
+            return self._window_state_unlocked(tenant_id=normalized, now=now)
+
+    def _window_state_unlocked(self, *, tenant_id: str, now: float) -> tuple[int, int]:
+        start = int(self._tenant_cost_window_started_epoch.get(tenant_id, int(now)))
+        cost = int(self._tenant_cost_window_microunits.get(tenant_id, 0))
+        if start <= 0:
+            start = int(now)
+        if int(now) - start >= int(self._cost_window_seconds):
+            start = int(now)
+            cost = 0
+            self._tenant_cost_window_started_epoch[tenant_id] = start
+            self._tenant_cost_window_microunits[tenant_id] = cost
+        else:
+            self._tenant_cost_window_started_epoch.setdefault(tenant_id, start)
+            self._tenant_cost_window_microunits.setdefault(tenant_id, cost)
+        return (start, cost)
 
     def _timeout_result(
         self,

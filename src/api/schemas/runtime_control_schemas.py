@@ -156,6 +156,8 @@ class ByocGovernanceReasonCount(BaseModel):
 
 class ByocGovernanceCostMetrics(BaseModel):
     window: str = "lifetime"
+    window_seconds: int = 0
+    window_started_at_epoch: int = 0
     cost_microunits_total: int = 0
     cost_limit_microunits: int = 0
     cost_remaining_microunits: int = 0
