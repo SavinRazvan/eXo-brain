@@ -150,6 +150,8 @@ def _default_settings() -> AppSettings:
                 os.environ.get("EXO_BYOC_COST_LIMIT_MICROUNITS_PER_TENANT", "1000000")
             ),
             byoc_enforce_cost_limit=_env_bool("EXO_BYOC_ENFORCE_COST_LIMIT", default=False),
+            byoc_enable_cost_window_policy=_env_bool("EXO_BYOC_ENABLE_COST_WINDOW_POLICY", default=False),
+            byoc_cost_window_seconds=int(os.environ.get("EXO_BYOC_COST_WINDOW_SECONDS", "3600")),
             byoc_cost_success_microunits=int(os.environ.get("EXO_BYOC_COST_SUCCESS_MICROUNITS", "100")),
             byoc_cost_error_microunits=int(os.environ.get("EXO_BYOC_COST_ERROR_MICROUNITS", "40")),
             byoc_cost_timeout_microunits=int(os.environ.get("EXO_BYOC_COST_TIMEOUT_MICROUNITS", "60")),

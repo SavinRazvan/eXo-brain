@@ -466,9 +466,19 @@ async def get_byoc_governance_metrics(
     if callable(stats_method):
         control_stats = stats_method(tenant_id=tenant_id)
 
-    cost_total = int(control_stats.get("tenant_cost_microunits_total", 0))
+    window_policy_enabled = bool(int(control_stats.get("tenant_cost_window_policy_enabled", 0)))
+    window_seconds = int(control_stats.get("tenant_cost_window_seconds", 0))
+    window_started_epoch = int(control_stats.get("tenant_cost_window_started_epoch", 0))
+    lifetime_cost_total = int(control_stats.get("tenant_cost_microunits_total", 0))
+    window_cost_total = int(control_stats.get("tenant_cost_window_microunits", lifetime_cost_total))
+    cost_total = window_cost_total if window_policy_enabled else lifetime_cost_total
     cost_limit = int(control_stats.get("tenant_cost_limit_microunits", 0))
-    cost_remaining = int(control_stats.get("tenant_cost_remaining_microunits", max(cost_limit - cost_total, 0)))
+    cost_remaining = int(
+        control_stats.get(
+            "tenant_cost_window_remaining_microunits" if window_policy_enabled else "tenant_cost_remaining_microunits",
+            max(cost_limit - cost_total, 0),
+        )
+    )
     submit_attempts = int(control_stats.get("tenant_submit_attempts_total", 0))
     rejected_total = int(control_stats.get("tenant_rejected_results_total", 0))
     utilization_ratio = float(cost_total / cost_limit) if cost_limit > 0 else 0.0
@@ -487,6 +497,9 @@ async def get_byoc_governance_metrics(
         backend_id=adapter.backend_id,
         generated_at_utc=_utc_now(),
         cost=ByocGovernanceCostMetrics(
+            window="windowed" if window_policy_enabled else "lifetime",
+            window_seconds=window_seconds if window_policy_enabled else 0,
+            window_started_at_epoch=window_started_epoch if window_policy_enabled else 0,
             cost_microunits_total=cost_total,
             cost_limit_microunits=cost_limit,
             cost_remaining_microunits=max(cost_remaining, 0),

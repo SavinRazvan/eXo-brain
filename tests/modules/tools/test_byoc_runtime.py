@@ -673,3 +673,79 @@ def test_byoc_runtime_rejects_execute_when_cost_limit_exceeded() -> None:
     stats = runtime.control_stats_for_tenant(tenant_id="t1")
     assert stats["tenant_rejected_reason_BYOC_COST_LIMIT_EXCEEDED"] >= 1
 
+
+def test_byoc_runtime_windowed_cost_limit_resets_and_enforces_window_reason() -> None:
+    runtime = TenantByocConnectorRuntime(
+        worker_jwt_secret="test-secret",
+        enforce_cost_limit=True,
+        enable_cost_window_policy=True,
+        cost_window_seconds=1,
+        cost_limit_microunits_per_tenant=2,
+        cost_success_microunits=2,
+    )
+    call = _call()
+    descriptor = ToolDescriptor(name="echo_tool", handler=lambda value: value, timeout_ms=4000)
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-window")
+
+    first_holder: dict[str, object] = {}
+    first_thread = threading.Thread(target=lambda: first_holder.setdefault("result", runtime.execute(call, descriptor)))
+    first_thread.start()
+    first_claim = _wait_claim(runtime, token, "nonce-window-claim-001")
+    assert first_claim is not None
+    first_submit = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-window-submit-001",
+        result=ByocToolResultEnvelope(
+            job_id=first_claim["job_id"],
+            tenant_id="t1",
+            run_id=first_claim["run_id"],
+            call_id=first_claim["call_id"],
+            tool_name=first_claim["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 1},
+            idempotency_key=first_claim["idempotency_key"],
+            lease_token=first_claim["lease_token"],
+        ),
+    )
+    assert first_submit.accepted is True
+    first_thread.join(timeout=2.0)
+    assert first_holder["result"].status == ToolStatus.SUCCESS
+
+    blocked = runtime.execute(call, descriptor)
+    assert blocked.status == ToolStatus.ERROR
+    assert blocked.error.code == "BYOC_COST_WINDOW_LIMIT_EXCEEDED"
+
+    time.sleep(1.1)
+    second_call = _call()
+    second_call.call_id = "call_byoc_window_2"
+    second_call.run_id = "run_window_2"
+
+    second_holder: dict[str, object] = {}
+    second_thread = threading.Thread(
+        target=lambda: second_holder.setdefault("result", runtime.execute(second_call, descriptor))
+    )
+    second_thread.start()
+    second_claim = _wait_claim(runtime, token, "nonce-window-claim-002")
+    assert second_claim is not None
+    second_submit = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-window-submit-002",
+        result=ByocToolResultEnvelope(
+            job_id=second_claim["job_id"],
+            tenant_id="t1",
+            run_id=second_claim["run_id"],
+            call_id=second_claim["call_id"],
+            tool_name=second_claim["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 2},
+            idempotency_key=second_claim["idempotency_key"],
+            lease_token=second_claim["lease_token"],
+        ),
+    )
+    assert second_submit.accepted is True
+    second_thread.join(timeout=5.0)
+    assert not second_thread.is_alive()
+    assert second_holder["result"].status == ToolStatus.SUCCESS
+
