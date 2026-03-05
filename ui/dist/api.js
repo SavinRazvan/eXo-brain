@@ -87,3 +87,7 @@ export async function listProviders() {
   const data = await api("/providers");
   return data.providers || [];
 }
+
+export async function getRuntimeControlStats() {
+  return await api(`/tenants/${getTenantId()}/admin/runtime/control-stats`);
+}

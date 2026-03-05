@@ -42,6 +42,9 @@ def _byoc_client(
     anomaly_rejection_rate_threshold: float = 0.2,
     anomaly_min_submit_attempts: int = 5,
     anomaly_min_rejection_count: int = 3,
+    fair_admission_enabled: bool = False,
+    fair_admission_max_inflight_global: int = 8,
+    fair_admission_wait_timeout_ms: int = 1000,
 ) -> TestClient:
     settings = AppSettings(
         schema_version="1.0",
@@ -60,6 +63,9 @@ def _byoc_client(
             byoc_anomaly_rejection_rate_threshold=anomaly_rejection_rate_threshold,
             byoc_anomaly_min_submit_attempts=anomaly_min_submit_attempts,
             byoc_anomaly_min_rejection_count=anomaly_min_rejection_count,
+            byoc_fair_admission_enabled=fair_admission_enabled,
+            byoc_fair_admission_max_inflight_global=fair_admission_max_inflight_global,
+            byoc_fair_admission_wait_timeout_ms=fair_admission_wait_timeout_ms,
         ),
     )
     return TestClient(build_test_app(settings=settings))
@@ -343,6 +349,7 @@ def test_byoc_runtime_control_stats_include_health_metrics_and_cleanup_endpoint(
     assert "leased_jobs" in stats
     assert "pending_result_payloads" in stats
     assert "replay_keys_active" in stats
+    assert "fair_admission_timeout_total" in stats
 
     cleanup_resp = client.post(
         "/tenants/t1/admin/byoc/cleanup",
@@ -354,6 +361,68 @@ def test_byoc_runtime_control_stats_include_health_metrics_and_cleanup_endpoint(
     assert "job_records_pruned" in cleanup_stats
     assert "result_records_pruned" in cleanup_stats
     assert "replay_records_pruned" in cleanup_stats
+
+
+def test_byoc_runtime_control_stats_include_fairness_timeout_indicators_per_tenant() -> None:
+    client = _byoc_client(
+        fair_admission_enabled=True,
+        fair_admission_max_inflight_global=1,
+        fair_admission_wait_timeout_ms=40,
+    )
+    from src.schemas.tool_io import ToolCallContext
+    from src.tools.registry import ToolDescriptor
+
+    ctx_t1 = client.app.state.tenant_factory.get_or_create("t1")
+    ctx_t2 = client.app.state.tenant_factory.get_or_create("t2")
+    adapter_t1 = ctx_t1.tool_executor.execution_adapter()
+    adapter_t2 = ctx_t2.tool_executor.execution_adapter()
+    assert adapter_t1 is not None
+    assert adapter_t2 is not None
+
+    call_t1 = ToolCallContext(
+        schema_version="1.0",
+        call_id="fairness_t1_call",
+        session_id="sess_fair_t1",
+        run_id="run_fair_t1",
+        job_id="job_fair_t1",
+        task_id="task_fair_t1",
+        agent_id="agent_fair_t1",
+        provider_id="openai-test",
+        tool_name="echo_tool",
+        arguments={"x": 1},
+        tenant_id="t1",
+    )
+    call_t2 = ToolCallContext(
+        schema_version="1.0",
+        call_id="fairness_t2_call",
+        session_id="sess_fair_t2",
+        run_id="run_fair_t2",
+        job_id="job_fair_t2",
+        task_id="task_fair_t2",
+        agent_id="agent_fair_t2",
+        provider_id="openai-test",
+        tool_name="echo_tool",
+        arguments={"x": 2},
+        tenant_id="t2",
+    )
+    descriptor = ToolDescriptor(name="echo_tool", handler=lambda x: x, timeout_ms=400)
+    holder: dict[str, object] = {}
+    t1_thread = threading.Thread(target=lambda: holder.setdefault("t1", adapter_t1.execute(call_t1, descriptor)))
+    t1_thread.start()
+    timeout_result = adapter_t2.execute(call_t2, descriptor)
+    t1_thread.join(timeout=1.0)
+
+    assert timeout_result.status.value == "error"
+    assert timeout_result.error.code == "BYOC_FAIR_ADMISSION_TIMEOUT"
+
+    stats_resp = client.get("/tenants/t2/admin/runtime/control-stats", headers=_headers("t2"))
+    assert stats_resp.status_code == 200
+    stats = stats_resp.json()["control_stats"]
+    assert stats["fair_admission_enabled"] == 1
+    assert stats["fair_admission_wait_timeout_ms"] == 40
+    assert stats["fair_admission_timeout_total"] >= 1
+    assert stats["tenant_fair_admission_timeout_total"] >= 1
+    assert stats["tenant_rejected_reason_BYOC_FAIR_ADMISSION_TIMEOUT"] >= 1
 
 
 def test_byoc_webhook_submit_happy_path_and_auth_failure() -> None:
