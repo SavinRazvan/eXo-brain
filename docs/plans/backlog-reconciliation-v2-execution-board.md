@@ -38,6 +38,7 @@ Define the next approved execution queue after closure of:
 - P1-2 tenant budget window policy is completed.
 - P1-3 governance alert evidence bundle is completed.
 - P2-1 BYOC recovery chaos suite is completed.
+- P2-2 governance anomaly detectors are completed.
 
 ## Proposed Execution Order (Approval Required)
 
@@ -148,4 +149,4 @@ Define the next approved execution queue after closure of:
 
 ## Immediate Next Step
 
-Next implementation target: `p2-2-governance-anomaly-detectors`.
+Next implementation target: `p2-3-byoc-multi-tenant-budget-fairness`.

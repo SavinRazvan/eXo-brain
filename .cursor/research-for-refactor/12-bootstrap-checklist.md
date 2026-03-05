@@ -581,6 +581,7 @@ Canonical reference:
 - [x] P1-2 baseline completed: tenant budget window policy added with deterministic window reset semantics, window-specific over-budget reason code, and governance export window metadata.
 - [x] P1-3 baseline completed: RC signoff evidence now includes advisory governance alerts with thresholded utilization/rejection signals and normalized parser output (`governance_alerts`) for dashboard ingestion.
 - [x] P2-1 baseline completed: sqlite-backed BYOC recovery chaos suite covers lease-expiry storms, restart-race parallel completion, replay collision pressure, and bulk conflict-strategy determinism.
+- [x] P2-2 baseline completed: governance anomaly detector policy module added with deterministic threshold checks (utilization, rejection-rate, reason-dominance) and advisory findings included in governance metrics export.
 
 ---
 

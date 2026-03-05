@@ -28,6 +28,8 @@ from src.api.schemas.runtime_control_schemas import (
     ByocDlqListResponse,
     ByocDlqRecord,
     ByocDlqReplayResponse,
+    ByocGovernanceAnomaly,
+    ByocGovernanceAnomalyReport,
     ByocGovernanceCostMetrics,
     ByocGovernanceMetricsResponse,
     ByocGovernanceReasonCount,
@@ -47,6 +49,10 @@ from src.api.schemas.runtime_control_schemas import (
 )
 from src.core.run_control_registry import RunControlRegistry
 from src.identity.contracts import IdentityContext
+from src.policies.governance_anomaly_detector import (
+    GovernanceAnomalyThresholds,
+    detect_governance_anomalies,
+)
 from src.runtime.tenant_runtime import TenantRuntimeContext
 from src.tools.byoc.job_contracts import ByocToolResultEnvelope
 
@@ -457,6 +463,7 @@ async def replay_byoc_dead_letter_job(
 )
 async def get_byoc_governance_metrics(
     tenant_id: str,
+    request: Request,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
     _identity: IdentityContext = Depends(require_valid_identity),
 ) -> ByocGovernanceMetricsResponse:
@@ -491,6 +498,27 @@ async def get_byoc_governance_metrics(
         reason_code = key.removeprefix("tenant_rejected_reason_")
         reasons.append(ByocGovernanceReasonCount(reason_code=reason_code, count=int(value)))
     reasons.sort(key=lambda item: (-item.count, item.reason_code))
+    reason_counts = {item.reason_code: item.count for item in reasons}
+
+    settings = request.app.state.settings
+    anomaly_enabled = bool(settings.runtime.byoc_anomaly_detection_enabled)
+    anomaly_thresholds = GovernanceAnomalyThresholds(
+        cost_utilization_threshold=float(settings.runtime.byoc_anomaly_cost_utilization_threshold),
+        rejection_rate_threshold=float(settings.runtime.byoc_anomaly_rejection_rate_threshold),
+        reason_share_threshold=float(settings.runtime.byoc_anomaly_reason_share_threshold),
+        min_submit_attempts=int(settings.runtime.byoc_anomaly_min_submit_attempts),
+        min_rejection_count=int(settings.runtime.byoc_anomaly_min_rejection_count),
+    )
+    anomalies = []
+    if anomaly_enabled:
+        anomalies = detect_governance_anomalies(
+            cost_utilization_ratio=utilization_ratio,
+            rejection_rate=rejection_rate,
+            submit_attempts_total=submit_attempts,
+            rejected_results_total=rejected_total,
+            rejection_reason_counts=reason_counts,
+            thresholds=anomaly_thresholds,
+        )
 
     return ByocGovernanceMetricsResponse(
         tenant_id=tenant_id,
@@ -511,4 +539,21 @@ async def get_byoc_governance_metrics(
             rejection_rate=rejection_rate,
         ),
         rejection_reasons=reasons,
+        anomaly_report=ByocGovernanceAnomalyReport(
+            enabled=anomaly_enabled,
+            advisory_only=True,
+            min_submit_attempts=anomaly_thresholds.min_submit_attempts,
+            min_rejection_count=anomaly_thresholds.min_rejection_count,
+            anomalies=[
+                ByocGovernanceAnomaly(
+                    code=item.code,
+                    severity=item.severity,
+                    message=item.message,
+                    value=item.value,
+                    threshold=item.threshold,
+                    reason_code=item.reason_code,
+                )
+                for item in anomalies
+            ],
+        ),
     )
