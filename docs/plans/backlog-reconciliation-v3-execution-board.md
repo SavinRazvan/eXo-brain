@@ -40,6 +40,36 @@ Define the next approved queue after closure of backlog reconciliation v2:
 - Runtime and architecture fitness gates are passing in current `main`.
 - Next planning focus should shift from baseline primitives to operator-ready UX and reliability evidence for real UI validation runs.
 
+## Execution Progress
+
+- [x] `p0-1-ui-e2e-readiness-and-smoke-pack` completed:
+  - added one-command readiness target: `make ui-smoke`
+  - added deterministic local smoke runner: `scripts/ui/local_ui_readiness_smoke.py`
+  - added operator runbook doc: `docs/operations/local-ui-readiness-smoke.md`
+  - validated pass/fail remediation output for API boot, `/ui`, and Tool Manager -> Agent -> Playground first-turn flow
+- [x] `p0-2-release-evidence-to-runtime-bridge` completed:
+  - local smoke now exports runtime snapshots at `.local/ui-smoke-runtime-snapshots.json`
+  - RC signoff evidence now includes advisory `Runtime Snapshots` section
+  - normalized parser now exports `runtime_snapshots` payload in `.local/rc-signoff.json`
+- [x] `p1-1-tool-manager-guided-onboarding` completed:
+  - Tool Manager now includes a guided onboarding panel with step-by-step flow hints
+  - added diagnostics panel with reason-code extraction + remediation suggestions
+  - preserved existing backend API contracts; guidance is additive UI behavior
+- [x] `p1-2-runtime-fairness-observability-surface` completed:
+  - runtime control now exposes explicit fairness timeout indicators:
+    - `fair_admission_timeout_total`
+    - `tenant_fair_admission_timeout_total`
+  - Playground now includes a fairness diagnostics panel backed by runtime-control stats
+  - added deterministic API test coverage for fairness timeout counters under contention
+- [x] `p2-1-long-run-multi-tenant-soak-suite` completed:
+  - added opt-in non-blocking soak marker (`@pytest.mark.soak`) with `EXO_RUN_SOAK_TESTS=true` gate
+  - added multi-tenant BYOC soak scenario combining budget windows, anomaly detection, and fair-admission contention
+  - added deterministic starvation check and governance anomaly signal assertions
+- [x] `p2-2-byoc-failure-injection-playbook` completed:
+  - added operator playbook: `docs/operations/byoc-failure-injection-playbook.md`
+  - mapped injected failure classes to runtime-control signals, evidence artifacts, and remediation commands
+  - linked artifact-integrity dashboard and RC signoff checklist to playbook usage
+
 ## Proposed Execution Order (Approval Required)
 
 ### P0 (operator readiness first)
@@ -122,4 +152,4 @@ Define the next approved queue after closure of backlog reconciliation v2:
 
 ## Immediate Next Step
 
-Next implementation target (after approval): `p0-1-ui-e2e-readiness-and-smoke-pack`.
+V3 execution queue is closed. Next step: run full gates + UI validation handoff.

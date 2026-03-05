@@ -42,6 +42,9 @@ _GOV_FLOAT_RE = re.compile(
 _GOV_ALERT_COUNT_RE = re.compile(r"^- Alert Count: `(\d+)`$")
 _GOV_ALERTS_RE = re.compile(r"^- Alerts: `(.*)`$")
 _GOV_RESULT_RE = re.compile(r"^- Result: `(PASS|ALERT|UNAVAILABLE)`$")
+_RUNTIME_BOOL_RE = re.compile(r"^- (Enabled|Advisory Only|Available|Before Captured|After Captured): `(true|false)`$")
+_RUNTIME_PATH_RE = re.compile(r"^- Snapshot Path: `(.*)`$")
+_RUNTIME_TOTAL_RE = re.compile(r"^- (Before Runs Total|After Runs Total): `([^`]*)`$")
 
 
 def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
@@ -76,6 +79,16 @@ def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
         "alert_count": 0,
         "alerts": [],
         "result": "UNAVAILABLE",
+    }
+    runtime_snapshots: dict[str, Any] = {
+        "enabled": False,
+        "advisory_only": True,
+        "snapshot_path": "",
+        "available": False,
+        "before_captured": False,
+        "after_captured": False,
+        "before_runs_total": None,
+        "after_runs_total": None,
     }
 
     while idx < len(lines):
@@ -221,6 +234,37 @@ def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
                 cursor += 1
             idx = cursor
             continue
+        elif line == "## Runtime Snapshots":
+            cursor = idx + 1
+            while cursor < len(lines):
+                maybe = lines[cursor].strip()
+                if maybe.startswith("## "):
+                    break
+                bool_match = _RUNTIME_BOOL_RE.match(maybe)
+                if bool_match:
+                    key = (
+                        bool_match.group(1)
+                        .strip()
+                        .lower()
+                        .replace(" ", "_")
+                    )
+                    runtime_snapshots[key] = bool_match.group(2) == "true"
+                path_match = _RUNTIME_PATH_RE.match(maybe)
+                if path_match:
+                    runtime_snapshots["snapshot_path"] = path_match.group(1)
+                total_match = _RUNTIME_TOTAL_RE.match(maybe)
+                if total_match:
+                    key = (
+                        total_match.group(1)
+                        .strip()
+                        .lower()
+                        .replace(" ", "_")
+                    )
+                    value = total_match.group(2).strip()
+                    runtime_snapshots[key] = None if value == "n/a" else int(value)
+                cursor += 1
+            idx = cursor
+            continue
         elif line == "## Overall":
             idx += 1
             while idx < len(lines):
@@ -247,6 +291,7 @@ def _parse_markdown(content: str, source_path: str) -> dict[str, Any]:
         "gates": gates,
         "data_safety": data_safety,
         "governance_alerts": governance_alerts,
+        "runtime_snapshots": runtime_snapshots,
         "overall": {
             "result": overall_result,
             "passed": passed,
