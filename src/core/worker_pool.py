@@ -30,6 +30,17 @@ class WorkerPool:
     def max_concurrency(self) -> int:
         return self._max_concurrency
 
+    def scale_up_to(self, target_concurrency: int) -> bool:
+        if target_concurrency < 1:
+            raise ValueError("target_concurrency must be >= 1")
+        if target_concurrency <= self._max_concurrency:
+            return False
+        delta = target_concurrency - self._max_concurrency
+        for _ in range(delta):
+            self._semaphore.release()
+        self._max_concurrency = target_concurrency
+        return True
+
     async def run(self, fn: Callable[[], Awaitable[T]]) -> T:
         async with self._semaphore:
             return await fn()
