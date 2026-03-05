@@ -33,7 +33,8 @@ Define the next approved execution queue after closure of:
 
 - `docs/plans/p2-expansion-roadmap.md` is closed (no open P2 items).
 - `.local/alignment-audit.md` and `.local/alignment-todos.md` are closed snapshots for the completed P2 track.
-- One stale status statement remains in `docs/plans/tenant-tool-execution-architecture.md` claiming P2 expansion remains open.
+- P0 docs/data-safety sequence is completed (`p0-1`, `p0-2`, `p0-3`).
+- P1-1 governance metrics export contract is completed.
 
 ## Proposed Execution Order (Approval Required)
 
@@ -144,4 +145,4 @@ Define the next approved execution queue after closure of:
 
 ## Immediate Next Step
 
-If approved, start with `p0-1-doc-state-reconciliation` as a docs-only PR, then execute `p0-2` and `p0-3` in sequence.
+Next implementation target: `p1-2-tenant-budget-window-policy`.

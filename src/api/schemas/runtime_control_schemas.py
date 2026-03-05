@@ -147,3 +147,32 @@ class ByocDlqReplayResponse(BaseModel):
     backend_id: str
     job_id: str
     replayed: bool
+
+
+class ByocGovernanceReasonCount(BaseModel):
+    reason_code: str
+    count: int
+
+
+class ByocGovernanceCostMetrics(BaseModel):
+    window: str = "lifetime"
+    cost_microunits_total: int = 0
+    cost_limit_microunits: int = 0
+    cost_remaining_microunits: int = 0
+    utilization_ratio: float = 0.0
+
+
+class ByocGovernanceSubmissionMetrics(BaseModel):
+    window: str = "lifetime"
+    submit_attempts_total: int = 0
+    rejected_results_total: int = 0
+    rejection_rate: float = 0.0
+
+
+class ByocGovernanceMetricsResponse(BaseModel):
+    tenant_id: str
+    backend_id: str
+    generated_at_utc: str
+    cost: ByocGovernanceCostMetrics
+    submissions: ByocGovernanceSubmissionMetrics
+    rejection_reasons: list[ByocGovernanceReasonCount] = Field(default_factory=list)
