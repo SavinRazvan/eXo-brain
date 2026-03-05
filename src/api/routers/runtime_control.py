@@ -23,6 +23,9 @@ from src.api.schemas.runtime_control_schemas import (
     ByocCleanupResponse,
     ByocClaimJobRequest,
     ByocClaimJobResponse,
+    ByocDlqListResponse,
+    ByocDlqRecord,
+    ByocDlqReplayResponse,
     ByocSubmitResultRequest,
     ByocSubmitResultResponse,
     ByocWebhookSubmitResultRequest,
@@ -389,4 +392,50 @@ async def cleanup_byoc_runtime_retention(
         tenant_id=tenant_id,
         backend_id=adapter.backend_id,
         cleanup_stats=stats,
+    )
+
+
+@router.get(
+    "/{tenant_id}/admin/byoc/dlq",
+    response_model=ByocDlqListResponse,
+)
+async def list_byoc_dead_letter_jobs(
+    tenant_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    ctx: TenantRuntimeContext = Depends(get_tenant_context),
+    _identity: IdentityContext = Depends(require_valid_identity),
+) -> ByocDlqListResponse:
+    adapter = _resolve_byoc_adapter(ctx)
+    list_method = getattr(adapter, "list_dead_letter_jobs", None)
+    records: list[dict[str, str]] = []
+    if callable(list_method):
+        records = list_method(tenant_id=tenant_id, limit=limit)
+    return ByocDlqListResponse(
+        tenant_id=tenant_id,
+        backend_id=adapter.backend_id,
+        total=len(records),
+        records=[ByocDlqRecord.model_validate(item) for item in records],
+    )
+
+
+@router.post(
+    "/{tenant_id}/admin/byoc/dlq/{job_id}/replay",
+    response_model=ByocDlqReplayResponse,
+)
+async def replay_byoc_dead_letter_job(
+    tenant_id: str,
+    job_id: str,
+    ctx: TenantRuntimeContext = Depends(get_tenant_context),
+    _identity: IdentityContext = Depends(require_valid_identity),
+) -> ByocDlqReplayResponse:
+    adapter = _resolve_byoc_adapter(ctx)
+    replay_method = getattr(adapter, "replay_dead_letter_job", None)
+    replayed = False
+    if callable(replay_method):
+        replayed = bool(replay_method(tenant_id=tenant_id, job_id=job_id))
+    return ByocDlqReplayResponse(
+        tenant_id=tenant_id,
+        backend_id=adapter.backend_id,
+        job_id=job_id,
+        replayed=replayed,
     )

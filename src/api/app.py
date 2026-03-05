@@ -139,6 +139,9 @@ def _default_settings() -> AppSettings:
             byoc_max_completed_records=int(os.environ.get("EXO_BYOC_MAX_COMPLETED_RECORDS", "2000")),
             byoc_max_cancelled_records=int(os.environ.get("EXO_BYOC_MAX_CANCELLED_RECORDS", "2000")),
             byoc_max_result_records=int(os.environ.get("EXO_BYOC_MAX_RESULT_RECORDS", "2000")),
+            byoc_max_claim_attempts_before_dlq=int(
+                os.environ.get("EXO_BYOC_MAX_CLAIM_ATTEMPTS_BEFORE_DLQ", "3")
+            ),
         ),
         auth=AuthSettings(
             jwt_secret=jwt_secret,

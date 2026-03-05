@@ -60,6 +60,7 @@ class RuntimeSettings:
     byoc_max_completed_records: int = 2000
     byoc_max_cancelled_records: int = 2000
     byoc_max_result_records: int = 2000
+    byoc_max_claim_attempts_before_dlq: int = 3
 
 
 @dataclass(slots=True)

@@ -32,7 +32,11 @@ def _headers(tenant_id: str = "t1") -> dict[str, str]:
     return {"X-Identity": json.dumps(payload)}
 
 
-def _byoc_client() -> TestClient:
+def _byoc_client(
+    *,
+    max_claim_attempts_before_dlq: int = 3,
+    lease_ttl_seconds: int = 30,
+) -> TestClient:
     settings = AppSettings(
         schema_version="1.0",
         environment="test",
@@ -42,6 +46,8 @@ def _byoc_client() -> TestClient:
             require_provider_healthcheck_on_start=False,
             enable_byoc_tool_runtime=True,
             byoc_worker_jwt_secret="test-secret",
+            byoc_lease_ttl_seconds=lease_ttl_seconds,
+            byoc_max_claim_attempts_before_dlq=max_claim_attempts_before_dlq,
         ),
     )
     return TestClient(build_test_app(settings=settings))
@@ -420,5 +426,101 @@ def test_byoc_webhook_submit_happy_path_and_auth_failure() -> None:
     )
     assert good_resp.status_code == 200
     assert good_resp.json()["accepted"] is True
+    run_thread.join(timeout=2.0)
+
+
+def test_byoc_dlq_list_and_replay_api_flow() -> None:
+    client = _byoc_client(max_claim_attempts_before_dlq=1, lease_ttl_seconds=1)
+    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    adapter = ctx.tool_executor.execution_adapter()
+    assert adapter is not None
+    from src.schemas.tool_io import ToolCallContext
+    from src.tools.registry import ToolDescriptor
+    import time
+
+    call = ToolCallContext(
+        schema_version="1.0",
+        call_id="api_call_dlq_1",
+        session_id="sess_dlq_1",
+        run_id="run_dlq_1",
+        job_id="job_dlq_1",
+        task_id="task_dlq_1",
+        agent_id="agent_dlq_1",
+        provider_id="openai-test",
+        tool_name="echo_tool",
+        arguments={"x": 5},
+        tenant_id="t1",
+    )
+    descriptor = ToolDescriptor(name="echo_tool", handler=lambda x: x, timeout_ms=2500)
+    result_holder: dict[str, object] = {}
+
+    run_thread = threading.Thread(target=lambda: result_holder.setdefault("result", adapter.execute(call, descriptor)))
+    run_thread.start()
+
+    token_resp = client.post(
+        "/tenants/t1/admin/byoc/worker-token",
+        json={"worker_id": "worker-dlq-api"},
+        headers=_headers("t1"),
+    )
+    token = token_resp.json()["token"]
+    claim_resp = client.post(
+        "/tenants/t1/admin/byoc/jobs/claim",
+        json={"worker_token": token, "request_nonce": "api-claim-nonce-dlq-001"},
+        headers=_headers("t1"),
+    )
+    job = claim_resp.json()["job"]
+    assert job is not None
+    time.sleep(1.2)
+
+    _ = client.post(
+        "/tenants/t1/admin/byoc/jobs/claim",
+        json={"worker_token": token, "request_nonce": "api-claim-nonce-dlq-002"},
+        headers=_headers("t1"),
+    )
+
+    dlq_resp = client.get("/tenants/t1/admin/byoc/dlq?limit=10", headers=_headers("t1"))
+    assert dlq_resp.status_code == 200
+    records = dlq_resp.json()["records"]
+    assert len(records) == 1
+    assert records[0]["job_id"] == job["job_id"]
+    assert records[0]["dead_letter_reason_code"] == "BYOC_LEASE_RETRY_EXHAUSTED"
+
+    replay_resp = client.post(
+        f"/tenants/t1/admin/byoc/dlq/{job['job_id']}/replay",
+        headers=_headers("t1"),
+    )
+    assert replay_resp.status_code == 200
+    assert replay_resp.json()["replayed"] is True
+
+    replay_claim = client.post(
+        "/tenants/t1/admin/byoc/jobs/claim",
+        json={"worker_token": token, "request_nonce": "api-claim-nonce-dlq-003"},
+        headers=_headers("t1"),
+    )
+    replay_job = replay_claim.json()["job"]
+    assert replay_job is not None
+    assert replay_job["job_id"] == job["job_id"]
+
+    submit_resp = client.post(
+        "/tenants/t1/admin/byoc/jobs/submit",
+        json={
+            "worker_token": token,
+            "request_nonce": "api-submit-nonce-dlq-001",
+            "result": {
+                "job_id": replay_job["job_id"],
+                "tenant_id": "t1",
+                "run_id": replay_job["run_id"],
+                "call_id": replay_job["call_id"],
+                "tool_name": replay_job["tool_name"],
+                "status": "success",
+                "output": {"ok": True},
+                "idempotency_key": replay_job["idempotency_key"],
+                "lease_token": replay_job["lease_token"],
+            },
+        },
+        headers=_headers("t1"),
+    )
+    assert submit_resp.status_code == 200
+    assert submit_resp.json()["accepted"] is True
     run_thread.join(timeout=2.0)
 

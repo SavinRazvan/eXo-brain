@@ -522,3 +522,63 @@ def test_byoc_submit_rejects_signature_version_mismatch() -> None:
     assert outcome.reason_code == "BYOC_ARTIFACT_SIGNATURE_VERSION_MISMATCH"
     run_thread.join(timeout=1.0)
 
+
+def test_byoc_runtime_moves_expired_lease_to_dlq_and_replays() -> None:
+    runtime = TenantByocConnectorRuntime(
+        worker_jwt_secret="test-secret",
+        lease_ttl_seconds=1,
+        max_claim_attempts_before_dlq=1,
+    )
+    call = _call()
+    descriptor = _descriptor()
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-dlq")
+    result_holder: dict[str, object] = {}
+
+    def _execute() -> None:
+        result_holder["result"] = runtime.execute(call, descriptor)
+
+    thread = threading.Thread(target=_execute)
+    thread.start()
+    first_claim = _wait_claim(runtime, token, "nonce-dlq-claim-001")
+    assert first_claim is not None
+    time.sleep(1.2)
+
+    second_claim = runtime.claim_next_job(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-dlq-claim-002",
+    )
+    assert second_claim is None
+
+    dlq_records = runtime.list_dead_letter_jobs(tenant_id="t1", limit=10)
+    assert len(dlq_records) == 1
+    assert dlq_records[0]["job_id"] == first_claim["job_id"]
+    assert dlq_records[0]["dead_letter_reason_code"] == "BYOC_LEASE_RETRY_EXHAUSTED"
+
+    replayed = runtime.replay_dead_letter_job(tenant_id="t1", job_id=first_claim["job_id"])
+    assert replayed is True
+    replay_claim = _wait_claim(runtime, token, "nonce-dlq-claim-003")
+    assert replay_claim is not None
+    assert replay_claim["job_id"] == first_claim["job_id"]
+
+    outcome = runtime.submit_result(
+        tenant_id="t1",
+        worker_token=token,
+        request_nonce="nonce-dlq-submit-001",
+        result=ByocToolResultEnvelope(
+            job_id=replay_claim["job_id"],
+            tenant_id="t1",
+            run_id=replay_claim["run_id"],
+            call_id=replay_claim["call_id"],
+            tool_name=replay_claim["tool_name"],
+            status=ByocResultStatus.SUCCESS,
+            output={"value": 12},
+            idempotency_key=replay_claim["idempotency_key"],
+            lease_token=replay_claim["lease_token"],
+        ),
+    )
+    assert outcome.accepted is True
+    thread.join(timeout=2.0)
+    result = result_holder["result"]
+    assert result.status == ToolStatus.SUCCESS
+

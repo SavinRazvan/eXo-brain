@@ -47,8 +47,20 @@ class ByocJobQueueStore(ABC):
         """Return active leased job envelope when lease token is valid."""
 
     @abstractmethod
-    def requeue_expired_leases(self) -> int:
+    def requeue_expired_leases(self, *, max_claim_attempts_before_dlq: int | None = None) -> int:
         """Requeue expired leased jobs and return count."""
+
+    @abstractmethod
+    def dead_letter_count(self, *, tenant_id: str) -> int:
+        """Return number of dead-lettered jobs for one tenant."""
+
+    @abstractmethod
+    def list_dead_letter_jobs(self, *, tenant_id: str, limit: int = 100) -> list[dict[str, str]]:
+        """List dead-lettered jobs for one tenant."""
+
+    @abstractmethod
+    def replay_dead_letter_job(self, *, tenant_id: str, job_id: str) -> bool:
+        """Replay one dead-lettered job by placing it back in queued state."""
 
     @abstractmethod
     def cancel_pending_call(self, *, call_id: str) -> int:
@@ -78,15 +90,16 @@ class ByocJobQueueStore(ABC):
 @dataclass(slots=True)
 class _JobState:
     envelope: ByocToolJobEnvelope
-    status: str = "queued"  # queued | leased | completed | cancelled
+    status: str = "queued"  # queued | leased | completed | cancelled | dead_lettered
     leased_by_worker_id: str = ""
     lease_token: str = ""
     lease_expires_at_epoch: float = 0.0
     claim_attempt: int = 0
     completed_at_epoch: float = 0.0
     cancelled_at_epoch: float = 0.0
-    completed_at_epoch: float = 0.0
-    cancelled_at_epoch: float = 0.0
+    dead_lettered_at_epoch: float = 0.0
+    dead_letter_reason_code: str = ""
+    replay_count: int = 0
 
 
 class InMemoryByocJobQueueStore(ByocJobQueueStore):
@@ -156,9 +169,12 @@ class InMemoryByocJobQueueStore(ByocJobQueueStore):
                 return None
             return state.envelope
 
-    def requeue_expired_leases(self) -> int:
+    def requeue_expired_leases(self, *, max_claim_attempts_before_dlq: int | None = None) -> int:
         with self._lock:
-            return self._requeue_expired_leases_unlocked(time.time())
+            return self._requeue_expired_leases_unlocked(
+                time.time(),
+                max_claim_attempts_before_dlq=max_claim_attempts_before_dlq,
+            )
 
     def cancel_pending_call(self, *, call_id: str) -> int:
         normalized = str(call_id).strip()
@@ -175,7 +191,10 @@ class InMemoryByocJobQueueStore(ByocJobQueueStore):
                     affected += 1
                 elif state.status == "leased":
                     state.lease_expires_at_epoch = 0.0
-            self._requeue_expired_leases_unlocked(time.time())
+            self._requeue_expired_leases_unlocked(
+                time.time(),
+                max_claim_attempts_before_dlq=None,
+            )
         return affected
 
     def queue_depth(self) -> int:
@@ -186,10 +205,84 @@ class InMemoryByocJobQueueStore(ByocJobQueueStore):
                 if state.status == "queued"
             )
 
-    def _requeue_expired_leases_unlocked(self, now: float) -> int:
+    def dead_letter_count(self, *, tenant_id: str) -> int:
+        normalized = str(tenant_id).strip()
+        with self._lock:
+            return sum(
+                1
+                for state in self._states.values()
+                if state.envelope.tenant_id == normalized and state.status == "dead_lettered"
+            )
+
+    def list_dead_letter_jobs(self, *, tenant_id: str, limit: int = 100) -> list[dict[str, str]]:
+        normalized = str(tenant_id).strip()
+        bounded_limit = max(1, int(limit))
+        with self._lock:
+            rows: list[tuple[str, _JobState]] = [
+                (job_id, state)
+                for job_id, state in self._states.items()
+                if state.envelope.tenant_id == normalized and state.status == "dead_lettered"
+            ]
+            rows.sort(key=lambda item: item[1].dead_lettered_at_epoch, reverse=True)
+            out: list[dict[str, str]] = []
+            for job_id, state in rows[:bounded_limit]:
+                out.append(
+                    {
+                        "job_id": str(job_id),
+                        "call_id": str(state.envelope.call_id),
+                        "tool_name": str(state.envelope.tool_name),
+                        "idempotency_key": str(state.envelope.idempotency_key),
+                        "claim_attempt": str(state.claim_attempt),
+                        "dead_letter_reason_code": str(state.dead_letter_reason_code),
+                        "dead_lettered_at_epoch": str(int(state.dead_lettered_at_epoch)),
+                        "replay_count": str(state.replay_count),
+                    }
+                )
+            return out
+
+    def replay_dead_letter_job(self, *, tenant_id: str, job_id: str) -> bool:
+        normalized_tenant = str(tenant_id).strip()
+        normalized_job = str(job_id).strip()
+        if not normalized_tenant or not normalized_job:
+            return False
+        with self._lock:
+            state = self._states.get(normalized_job)
+            if state is None:
+                return False
+            if state.envelope.tenant_id != normalized_tenant or state.status != "dead_lettered":
+                return False
+            state.status = "queued"
+            state.leased_by_worker_id = ""
+            state.lease_token = ""
+            state.lease_expires_at_epoch = 0.0
+            state.dead_lettered_at_epoch = 0.0
+            state.dead_letter_reason_code = ""
+            state.replay_count += 1
+            self._tenant_queue.setdefault(normalized_tenant, deque()).append(normalized_job)
+            return True
+
+    def _requeue_expired_leases_unlocked(
+        self,
+        now: float,
+        *,
+        max_claim_attempts_before_dlq: int | None = None,
+    ) -> int:
         requeued = 0
         for job_id, state in self._states.items():
             if state.status == "leased" and state.lease_expires_at_epoch <= now:
+                should_dlq = (
+                    max_claim_attempts_before_dlq is not None
+                    and max_claim_attempts_before_dlq > 0
+                    and state.claim_attempt >= max_claim_attempts_before_dlq
+                )
+                if should_dlq:
+                    state.status = "dead_lettered"
+                    state.dead_lettered_at_epoch = now
+                    state.dead_letter_reason_code = "BYOC_LEASE_RETRY_EXHAUSTED"
+                    state.leased_by_worker_id = ""
+                    state.lease_token = ""
+                    state.lease_expires_at_epoch = 0.0
+                    continue
                 state.status = "queued"
                 state.leased_by_worker_id = ""
                 state.lease_token = ""
@@ -206,6 +299,7 @@ class InMemoryByocJobQueueStore(ByocJobQueueStore):
             leased = 0
             completed = 0
             cancelled = 0
+            dead_lettered = 0
             for state in self._states.values():
                 if state.envelope.tenant_id != normalized:
                     continue
@@ -217,11 +311,14 @@ class InMemoryByocJobQueueStore(ByocJobQueueStore):
                     completed += 1
                 elif state.status == "cancelled":
                     cancelled += 1
+                elif state.status == "dead_lettered":
+                    dead_lettered += 1
             return {
                 "queued_jobs": queued,
                 "leased_jobs": leased,
                 "completed_jobs": completed,
                 "cancelled_jobs": cancelled,
+                "dead_lettered_jobs": dead_lettered,
             }
 
     def cleanup_retention(

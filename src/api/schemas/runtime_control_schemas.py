@@ -122,3 +122,28 @@ class ByocCleanupResponse(BaseModel):
     tenant_id: str
     backend_id: str
     cleanup_stats: dict[str, int] = Field(default_factory=dict)
+
+
+class ByocDlqRecord(BaseModel):
+    job_id: str
+    call_id: str
+    tool_name: str
+    idempotency_key: str
+    claim_attempt: str
+    dead_letter_reason_code: str
+    dead_lettered_at_epoch: str
+    replay_count: str
+
+
+class ByocDlqListResponse(BaseModel):
+    tenant_id: str
+    backend_id: str
+    total: int
+    records: list[ByocDlqRecord] = Field(default_factory=list)
+
+
+class ByocDlqReplayResponse(BaseModel):
+    tenant_id: str
+    backend_id: str
+    job_id: str
+    replayed: bool
