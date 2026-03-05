@@ -31,6 +31,12 @@ def test_ui_index_is_served() -> None:
     assert "tool-bundle-handler" in resp.text
     assert "tool-bundle-yaml-file" in resp.text
     assert "tool-bundle-handler-file" in resp.text
+    assert "Guided Onboarding" in resp.text
+    assert "tools-guidance-current" in resp.text
+    assert "tools-diagnostics" in resp.text
+    assert "Fairness Diagnostics" in resp.text
+    assert "pg-fairness-refresh" in resp.text
+    assert "pg-fairness-stats" in resp.text
 
 
 def test_ui_js_bundle_is_served() -> None:
@@ -51,6 +57,14 @@ def test_ui_js_bundle_is_served() -> None:
     assert "integrity_status" in tools_js.text
     assert "tool-bundle-yaml-file" in tools_js.text
     assert "tool-bundle-handler-file" in tools_js.text
+    assert "TOOL_REASON_REMEDIATION" in tools_js.text
+    assert "renderToolDiagnostics" in tools_js.text
+
+    playground_js = client.get("/ui/screens/playground.js")
+    assert playground_js.status_code == 200
+    assert "javascript" in playground_js.headers.get("content-type", "")
+    assert "getRuntimeControlStats" in playground_js.text
+    assert "refreshFairnessDiagnostics" in playground_js.text
 
 
 def test_ui_css_is_served() -> None:

@@ -142,6 +142,8 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._tenant_submit_attempts_total: dict[str, int] = {}
         self._tenant_rejected_results_total: dict[str, int] = {}
         self._tenant_rejections_by_reason: dict[str, dict[str, int]] = {}
+        self._fair_admission_timeout_total = 0
+        self._tenant_fair_admission_timeout_total: dict[str, int] = {}
 
     @property
     def backend_id(self) -> str:
@@ -425,6 +427,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 "cost_window_seconds": self._cost_window_seconds,
                 "fair_admission_enabled": int(self._fair_admission_enabled),
                 "fair_admission_wait_timeout_ms": self._fair_admission_wait_timeout_ms,
+                "fair_admission_timeout_total": self._fair_admission_timeout_total,
             }
         if self._fair_admission_enabled:
             metrics.update(self._fair_admission_coordinator().stats())
@@ -461,6 +464,9 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         )
         combined["tenant_submit_attempts_total"] = tenant_submit_attempts
         combined["tenant_rejected_results_total"] = tenant_rejected_total
+        combined["tenant_fair_admission_timeout_total"] = int(
+            self._tenant_fair_admission_timeout_total.get(tenant_id, 0)
+        )
         for reason, count in reason_counts.items():
             combined[f"tenant_rejected_reason_{reason}"] = int(count)
         return combined
@@ -693,6 +699,11 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         timeout_ms: int,
         tenant_id: str,
     ) -> ToolResult:
+        with self._lock:
+            self._fair_admission_timeout_total += 1
+            self._tenant_fair_admission_timeout_total[tenant_id] = int(
+                self._tenant_fair_admission_timeout_total.get(tenant_id, 0)
+            ) + 1
         self._increment_tenant_rejection(tenant_id=tenant_id, reason_code="BYOC_FAIR_ADMISSION_TIMEOUT")
         return ToolResult(
             schema_version="1.0",
