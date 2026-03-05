@@ -579,6 +579,7 @@ Canonical reference:
 - [x] P0-3 baseline completed: RC signoff evidence now includes local data-safety metadata and normalized parser output (`data_safety`) with advisory-by-default and opt-in required mode.
 - [x] P1-1 baseline completed: BYOC governance metrics export contract added with tenant-scoped cost utilization, submission/rejection rates, and rejection reason rollup API response.
 - [x] P1-2 baseline completed: tenant budget window policy added with deterministic window reset semantics, window-specific over-budget reason code, and governance export window metadata.
+- [x] P1-3 baseline completed: RC signoff evidence now includes advisory governance alerts with thresholded utilization/rejection signals and normalized parser output (`governance_alerts`) for dashboard ingestion.
 
 ---
 
