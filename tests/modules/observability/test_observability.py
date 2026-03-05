@@ -15,9 +15,12 @@ Notes:
 
 from __future__ import annotations
 
-from src.observability.logging import LogLevel, StructuredLogger
+import json
+from pathlib import Path
+
+from src.observability.logging import FileLogSink, LogLevel, StructuredLogger
 from src.observability.metrics import RuntimeMetrics
-from src.observability.tracing import RuntimeTracer
+from src.observability.tracing import FileTraceExporter, RuntimeTracer
 from src.observability.timeline import RuntimeTimeline
 
 
@@ -84,3 +87,59 @@ def test_runtime_tracer_records_span_lifecycle() -> None:
     assert spans[0].attributes["node_count"] == 2
     assert spans[0].attributes["outcomes"] == 2
     assert spans[0].finished_at_utc != ""
+
+
+def test_structured_logger_exports_to_file_sink(tmp_path: Path) -> None:
+    sink = FileLogSink(tmp_path / "logs" / "runtime.jsonl")
+    logger = StructuredLogger(sink=sink)
+    logger.log(
+        level=LogLevel.INFO,
+        event="runtime.event",
+        message="export me",
+        correlation_id="corr_export",
+        context={"job_id": "job_2"},
+    )
+    exported = (tmp_path / "logs" / "runtime.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    assert len(exported) == 1
+    payload = json.loads(exported[0])
+    assert payload["event"] == "runtime.event"
+    assert payload["correlation_id"] == "corr_export"
+
+
+def test_logger_fallback_keeps_record_when_sink_fails() -> None:
+    class FailingSink:
+        def emit(self, record) -> None:  # pragma: no cover - called by logger
+            raise RuntimeError("sink down")
+
+    logger = StructuredLogger(sink=FailingSink(), fallback_to_memory=True)
+    logger.log(
+        level=LogLevel.WARNING,
+        event="runtime.warn",
+        message="fallback",
+        correlation_id="corr_fallback",
+    )
+    record = logger.records()[0]
+    assert record.context["log_export_status"] == "failed"
+
+
+def test_runtime_tracer_exports_spans_to_file(tmp_path: Path) -> None:
+    tracer = RuntimeTracer(exporter=FileTraceExporter(tmp_path / "traces" / "spans.jsonl"))
+    span_id = tracer.start_span(correlation_id="corr_trace", name="scheduler.execute")
+    tracer.finish_span(span_id=span_id, status="ok")
+    exported = (tmp_path / "traces" / "spans.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    assert len(exported) == 1
+    payload = json.loads(exported[0])
+    assert payload["correlation_id"] == "corr_trace"
+    assert payload["status"] == "ok"
+
+
+def test_runtime_tracer_fallback_keeps_span_when_exporter_fails() -> None:
+    class FailingExporter:
+        def export(self, span) -> None:  # pragma: no cover - called by tracer
+            raise RuntimeError("export down")
+
+    tracer = RuntimeTracer(exporter=FailingExporter(), fallback_to_memory=True)
+    span_id = tracer.start_span(correlation_id="corr_fallback", name="scheduler.execute")
+    tracer.finish_span(span_id=span_id, status="ok")
+    span = tracer.spans_for("corr_fallback")[0]
+    assert span.attributes["trace_export_status"] == "failed"
