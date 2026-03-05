@@ -79,6 +79,19 @@ class GovernanceAlertResult:
     output: str
 
 
+@dataclass(frozen=True)
+class RuntimeSnapshotsResult:
+    enabled: bool
+    advisory_only: bool
+    snapshot_path: str
+    available: bool
+    before_captured: bool
+    after_captured: bool
+    before_runs_total: int | None
+    after_runs_total: int | None
+    output: str
+
+
 GATES: tuple[GateCommand, ...] = (
     GateCommand(name="pytest", command=["python", "-m", "pytest", "-q"]),
     GateCommand(
@@ -92,6 +105,7 @@ GATES: tuple[GateCommand, ...] = (
 )
 
 DEFAULT_GOVERNANCE_METRICS_PATH = ".local/byoc-governance-metrics.json"
+DEFAULT_RUNTIME_SNAPSHOTS_PATH = ".local/ui-smoke-runtime-snapshots.json"
 
 DATA_SAFETY_COMMAND: tuple[str, ...] = (
     "python",
@@ -296,6 +310,60 @@ def _run_governance_alerts(
     )
 
 
+def _run_runtime_snapshots(snapshot_path: str) -> RuntimeSnapshotsResult:
+    path = Path(snapshot_path)
+    advisory_only = True
+    if not path.exists():
+        return RuntimeSnapshotsResult(
+            enabled=True,
+            advisory_only=advisory_only,
+            snapshot_path=str(path),
+            available=False,
+            before_captured=False,
+            after_captured=False,
+            before_runs_total=None,
+            after_runs_total=None,
+            output="Runtime snapshot file not found; section is advisory-only.",
+        )
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return RuntimeSnapshotsResult(
+            enabled=True,
+            advisory_only=advisory_only,
+            snapshot_path=str(path),
+            available=False,
+            before_captured=False,
+            after_captured=False,
+            before_runs_total=None,
+            after_runs_total=None,
+            output=f"Failed to parse runtime snapshots file: {exc}",
+        )
+    before = payload.get("before", {}) if isinstance(payload, dict) else {}
+    after = payload.get("after", {}) if isinstance(payload, dict) else {}
+    before_runs = before.get("runtime_runs", {}) if isinstance(before, dict) else {}
+    after_runs = after.get("runtime_runs", {}) if isinstance(after, dict) else {}
+    before_payload = before_runs.get("payload", {}) if isinstance(before_runs, dict) else {}
+    after_payload = after_runs.get("payload", {}) if isinstance(after_runs, dict) else {}
+    before_total_raw = before_payload.get("total")
+    after_total_raw = after_payload.get("total")
+    before_total = int(before_total_raw) if isinstance(before_total_raw, int) else None
+    after_total = int(after_total_raw) if isinstance(after_total_raw, int) else None
+    before_captured = isinstance(before, dict) and bool(before)
+    after_captured = isinstance(after, dict) and bool(after)
+    return RuntimeSnapshotsResult(
+        enabled=True,
+        advisory_only=advisory_only,
+        snapshot_path=str(path),
+        available=True,
+        before_captured=before_captured,
+        after_captured=after_captured,
+        before_runs_total=before_total,
+        after_runs_total=after_total,
+        output="Runtime snapshots loaded and linked as advisory evidence.",
+    )
+
+
 def _write_report(
     *,
     out_path: Path,
@@ -305,6 +373,7 @@ def _write_report(
     gate_results: list[GateResult],
     data_safety: DataSafetyResult,
     governance_alerts: GovernanceAlertResult,
+    runtime_snapshots: RuntimeSnapshotsResult,
     missing_links: list[str],
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -384,6 +453,33 @@ def _write_report(
     lines.append(governance_alerts.output or "(no output)")
     lines.append("```")
     lines.append("")
+    lines.append("## Runtime Snapshots")
+    lines.append(f"- Enabled: `{'true' if runtime_snapshots.enabled else 'false'}`")
+    lines.append(f"- Advisory Only: `{'true' if runtime_snapshots.advisory_only else 'false'}`")
+    lines.append(f"- Snapshot Path: `{runtime_snapshots.snapshot_path}`")
+    lines.append(f"- Available: `{'true' if runtime_snapshots.available else 'false'}`")
+    lines.append(f"- Before Captured: `{'true' if runtime_snapshots.before_captured else 'false'}`")
+    lines.append(f"- After Captured: `{'true' if runtime_snapshots.after_captured else 'false'}`")
+    lines.append(
+        "- Before Runs Total: "
+        + (
+            f"`{runtime_snapshots.before_runs_total}`"
+            if runtime_snapshots.before_runs_total is not None
+            else "`n/a`"
+        )
+    )
+    lines.append(
+        "- After Runs Total: "
+        + (
+            f"`{runtime_snapshots.after_runs_total}`"
+            if runtime_snapshots.after_runs_total is not None
+            else "`n/a`"
+        )
+    )
+    lines.append("```text")
+    lines.append(runtime_snapshots.output or "(no output)")
+    lines.append("```")
+    lines.append("")
     overall_pass = not missing_links and all(result.ok for result in gate_results)
     if data_safety.required and not data_safety.ok:
         overall_pass = False
@@ -410,6 +506,11 @@ def main() -> int:
         default=DEFAULT_GOVERNANCE_METRICS_PATH,
         help="Path to governance metrics JSON input used for advisory alert evaluation.",
     )
+    parser.add_argument(
+        "--runtime-snapshots-in",
+        default=DEFAULT_RUNTIME_SNAPSHOTS_PATH,
+        help="Path to local runtime snapshot JSON used for advisory evidence linkage.",
+    )
     args = parser.parse_args()
 
     started_at = datetime.now(UTC)
@@ -434,6 +535,7 @@ def main() -> int:
         cost_utilization_threshold=governance_cost_threshold,
         rejection_rate_threshold=governance_rejection_threshold,
     )
+    runtime_snapshots_result = _run_runtime_snapshots(str(args.runtime_snapshots_in))
 
     ended_at = datetime.now(UTC)
     out_path = Path(args.out)
@@ -445,6 +547,7 @@ def main() -> int:
         gate_results=gate_results,
         data_safety=data_safety_result,
         governance_alerts=governance_alerts_result,
+        runtime_snapshots=runtime_snapshots_result,
         missing_links=missing_links,
     )
 

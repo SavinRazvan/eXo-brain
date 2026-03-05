@@ -158,6 +158,19 @@ def test_parse_rc_signoff_writes_normalized_json(tmp_path: Path, monkeypatch) ->
                 "Governance metrics evaluated against configured advisory thresholds.",
                 "```",
                 "",
+                "## Runtime Snapshots",
+                "- Enabled: `true`",
+                "- Advisory Only: `true`",
+                "- Snapshot Path: `.local/ui-smoke-runtime-snapshots.json`",
+                "- Available: `true`",
+                "- Before Captured: `true`",
+                "- After Captured: `true`",
+                "- Before Runs Total: `0`",
+                "- After Runs Total: `1`",
+                "```text",
+                "Runtime snapshots loaded and linked as advisory evidence.",
+                "```",
+                "",
             ]
         ),
         encoding="utf-8",
@@ -196,6 +209,10 @@ def test_parse_rc_signoff_writes_normalized_json(tmp_path: Path, monkeypatch) ->
     assert payload["governance_alerts"]["alert_count"] == 1
     assert payload["governance_alerts"]["alerts"] == ["cost_utilization_threshold_exceeded"]
     assert payload["governance_alerts"]["result"] == "ALERT"
+    assert payload["runtime_snapshots"]["enabled"] is True
+    assert payload["runtime_snapshots"]["available"] is True
+    assert payload["runtime_snapshots"]["before_runs_total"] == 0
+    assert payload["runtime_snapshots"]["after_runs_total"] == 1
     assert payload["overall"]["missing_evidence_links"] == [
         "docs/operations/byoc-artifact-integrity-dashboard.md"
     ]
@@ -249,6 +266,8 @@ def test_parse_rc_signoff_backward_compatible_without_gate_metadata(tmp_path: Pa
     assert payload["data_safety"]["ok"] is None
     assert payload["governance_alerts"]["enabled"] is False
     assert payload["governance_alerts"]["alerts"] == []
+    assert payload["runtime_snapshots"]["enabled"] is False
+    assert payload["runtime_snapshots"]["available"] is False
 
 
 def test_rc_signoff_writes_data_safety_section(tmp_path: Path, monkeypatch) -> None:
@@ -287,10 +306,26 @@ def test_rc_signoff_writes_data_safety_section(tmp_path: Path, monkeypatch) -> N
             output="advisory alert",
         ),
     )
+    monkeypatch.setattr(
+        module,
+        "_run_runtime_snapshots",
+        lambda snapshot_path: module.RuntimeSnapshotsResult(
+            enabled=True,
+            advisory_only=True,
+            snapshot_path=snapshot_path,
+            available=True,
+            before_captured=True,
+            after_captured=True,
+            before_runs_total=0,
+            after_runs_total=1,
+            output="runtime snapshots linked",
+        ),
+    )
     monkeypatch.setattr(sys, "argv", ["rc_signoff.py", "--out", ".local/rc-signoff.md"])
     assert module.main() == 0
     content = (tmp_path / ".local" / "rc-signoff.md").read_text(encoding="utf-8")
     assert "## Local Data Safety" in content
     assert "## Governance Alerts" in content
+    assert "## Runtime Snapshots" in content
     assert "- Alert Count: `1`" in content
     assert "- Result: `PASS`" in content
