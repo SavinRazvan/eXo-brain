@@ -150,4 +150,4 @@ Define the next approved execution queue after closure of:
 
 ## Immediate Next Step
 
-Next implementation target: no open items in this board; start a fresh backlog reconciliation slice.
+Next implementation source: `docs/plans/backlog-reconciliation-v3-execution-board.md`.
