@@ -39,6 +39,8 @@ make rc-signoff-json
 ```
 
 This parses `.local/rc-signoff.md` into a normalized JSON summary at `.local/rc-signoff.json`.
+The normalized payload now includes per-gate execution metadata (`command`, `exit_code`, `duration_ms`)
+to support alerting and trend dashboards.
 
 ## CI Integration
 

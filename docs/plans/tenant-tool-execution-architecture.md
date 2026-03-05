@@ -25,10 +25,13 @@ Move from developer-only `module.path:function_name` registration to a SaaS-safe
     - runtime loading from persisted artifact paths
     - artifact integrity metadata (SHA-256 hash + HMAC signature/version)
     - activation/startup/runtime verification against tampering
-- Next implementation track (prepared):
+- Next implementation track (delivered):
   1. `N1` (P1) Tool Manager bundle upload UX + integrity visibility.
   2. `N2` (P1) BYOC artifact-integrity parity and worker-side verification contract.
   3. `N3` (P2) rollout/operations hardening for hosted external beta.
+  4. RC signoff evidence ingestion hardening:
+     - structured gate metadata in markdown evidence (`command`, `exit_code`, `duration_ms`)
+     - normalized JSON parser support with backward compatibility for legacy evidence
 - Companion trackers that should mirror this exact status:
   - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
   - `.cursor/research-for-refactor/06-mvp-build-sequence.md`

@@ -554,6 +554,8 @@ Canonical reference:
 
 ### Hosted external beta evidence links
 - `docs/operations/release-candidate-signoff-checklist.md`
+- `scripts/release/rc_signoff.py`
+- `scripts/release/parse_rc_signoff.py`
 - `src/config/settings.py`
 - `src/api/app.py`
 - `tests/modules/api/test_deployment_profile_defaults.py`

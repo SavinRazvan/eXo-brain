@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import os
 import subprocess
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -39,6 +40,15 @@ class ExecutionContext:
     pull_request_number: str
     run_id: str
     run_url: str
+
+
+@dataclass(frozen=True)
+class GateResult:
+    gate: GateCommand
+    ok: bool
+    exit_code: int
+    duration_ms: int
+    output: str
 
 
 GATES: tuple[GateCommand, ...] = (
@@ -63,15 +73,23 @@ REQUIRED_EVIDENCE_LINKS: tuple[str, ...] = (
 )
 
 
-def _run_gate(gate: GateCommand) -> tuple[bool, str]:
+def _run_gate(gate: GateCommand) -> GateResult:
+    started = time.perf_counter()
     completed = subprocess.run(
         gate.command,
         capture_output=True,
         text=True,
         check=False,
     )
+    duration_ms = int((time.perf_counter() - started) * 1000)
     output = (completed.stdout + "\n" + completed.stderr).strip()
-    return completed.returncode == 0, output
+    return GateResult(
+        gate=gate,
+        ok=completed.returncode == 0,
+        exit_code=completed.returncode,
+        duration_ms=duration_ms,
+        output=output,
+    )
 
 
 def _command_output(command: list[str]) -> str:
@@ -127,7 +145,7 @@ def _write_report(
     started_at: datetime,
     ended_at: datetime,
     context: ExecutionContext,
-    gate_results: list[tuple[GateCommand, bool, str]],
+    gate_results: list[GateResult],
     missing_links: list[str],
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -153,14 +171,18 @@ def _write_report(
         lines.append(f"- [{marker}] `{rel_path}`")
     lines.append("")
     lines.append("## Gate Results")
-    for gate, ok, output in gate_results:
-        status = "PASS" if ok else "FAIL"
-        lines.append(f"### {gate.name}: {status}")
+    for result in gate_results:
+        status = "PASS" if result.ok else "FAIL"
+        command_str = " ".join(result.gate.command)
+        lines.append(f"### {result.gate.name}: {status}")
+        lines.append(f"- Command: `{command_str}`")
+        lines.append(f"- Exit Code: `{result.exit_code}`")
+        lines.append(f"- Duration Ms: `{result.duration_ms}`")
         lines.append("```text")
-        lines.append(output or "(no output)")
+        lines.append(result.output or "(no output)")
         lines.append("```")
         lines.append("")
-    overall_pass = not missing_links and all(ok for _, ok, _ in gate_results)
+    overall_pass = not missing_links and all(result.ok for result in gate_results)
     lines.append("## Overall")
     lines.append(f"- Result: `{'PASS' if overall_pass else 'FAIL'}`")
     lines.append("")
@@ -179,13 +201,13 @@ def main() -> int:
     started_at = datetime.now(UTC)
     context = _execution_context()
     missing_links = _ensure_required_links()
-    gate_results: list[tuple[GateCommand, bool, str]] = []
+    gate_results: list[GateResult] = []
 
     if not missing_links:
         for gate in GATES:
-            ok, output = _run_gate(gate)
-            gate_results.append((gate, ok, output))
-            if not ok:
+            result = _run_gate(gate)
+            gate_results.append(result)
+            if not result.ok:
                 break
 
     ended_at = datetime.now(UTC)
@@ -206,7 +228,7 @@ def main() -> int:
         print(f"Evidence written to {out_path}")
         return 1
 
-    failed_gate = next((gate.name for gate, ok, _ in gate_results if not ok), "")
+    failed_gate = next((result.gate.name for result in gate_results if not result.ok), "")
     if failed_gate:
         print(f"RC signoff failed: gate '{failed_gate}' did not pass.")
         print(f"Evidence written to {out_path}")
