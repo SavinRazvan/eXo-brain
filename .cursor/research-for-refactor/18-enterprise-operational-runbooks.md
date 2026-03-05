@@ -292,6 +292,42 @@ Exit criteria:
 - no sustained integrity mismatch increase after rotation
 - drill evidence recorded in release/security evidence pack
 
+## 10) Local Runtime Data Backup/Restore Runbook
+
+Use when:
+- preparing risky local refactors or cleanup on `.exo_data/exo.db`
+- recovering from accidental local data removal/corruption
+- validating local recovery drill readiness before release-candidate signoff
+
+Pre-checks:
+1. Confirm local DB target path (`EXO_DB_PATH` or default `.exo_data/exo.db`).
+2. Ensure no long-running migration or write-heavy operation is in progress.
+3. Confirm backup output destination has enough free space.
+
+Execution:
+1. Create backup artifact:
+   - `make db-backup`
+   - writes backup metadata to `.local/db-backup-meta.json`
+2. Restore from latest backup (forced overwrite of target path):
+   - `make db-restore`
+   - writes restore metadata to `.local/db-restore-meta.json`
+3. Validate integrity and required schema:
+   - `make db-validate`
+   - writes validation metadata to `.local/db-validate-meta.json`
+
+Failure handling:
+1. If backup fails, stop all cleanup/reset tasks and resolve path/permission issue first.
+2. If restore fails, do not continue with runtime tests until a valid backup input is confirmed.
+3. If validation fails:
+   - inspect `missing_required_tables` and `integrity_check` fields in `.local/db-validate-meta.json`
+   - rerun restore from known-good backup
+   - if still failing, rebuild DB baseline and re-hydrate required test fixtures
+
+Exit criteria:
+- backup artifact exists and has non-empty hash metadata
+- restore command completes without error
+- validation returns `ok=true` and zero missing required tables
+
 ## Post-Incident Review (Mandatory)
 - timeline with key decisions and evidence links
 - root cause(s), contributing factors, and detection gaps
