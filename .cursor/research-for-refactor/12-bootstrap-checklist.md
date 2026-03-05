@@ -567,6 +567,9 @@ Canonical reference:
 - `.local/alignment-audit.md`
 - `.local/alignment-todos.md`
 
+### P2 expansion progress
+- [x] P2-1 baseline completed: autoscaling/backpressure policy scaffolding (`AgentScaler`) wired into background runtime submission path with deterministic threshold tests.
+
 ---
 
 ## Platform Extensions — Slice 1 (Auth Hardening — branch: feature/slice1-auth-hardening)
