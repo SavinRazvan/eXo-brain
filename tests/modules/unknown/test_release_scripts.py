@@ -30,6 +30,7 @@ def _load_module(module_name: str, path: Path):
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -125,6 +126,19 @@ def test_parse_rc_signoff_writes_normalized_json(tmp_path: Path, monkeypatch) ->
                 "failed",
                 "```",
                 "",
+                "## Local Data Safety",
+                "- Enabled: `true`",
+                "- Required: `false`",
+                "- Mode: `advisory`",
+                "- Command: `python scripts/release/local_data_safety.py validate --meta-out .local/db-validate-meta.json`",
+                "- Exit Code: `0`",
+                "- Duration Ms: `120`",
+                "- Result: `PASS`",
+                "- Meta Path: `.local/db-validate-meta.json`",
+                "```text",
+                "DB validation passed",
+                "```",
+                "",
                 "## Overall",
                 "- Result: `FAIL`",
                 "",
@@ -155,6 +169,11 @@ def test_parse_rc_signoff_writes_normalized_json(tmp_path: Path, monkeypatch) ->
     assert payload["gates"][0]["command"] == "python -m pytest -q"
     assert payload["gates"][0]["exit_code"] == 0
     assert payload["gates"][0]["duration_ms"] == 1200
+    assert payload["data_safety"]["enabled"] is True
+    assert payload["data_safety"]["required"] is False
+    assert payload["data_safety"]["mode"] == "advisory"
+    assert payload["data_safety"]["ok"] is True
+    assert payload["data_safety"]["meta_path"] == ".local/db-validate-meta.json"
     assert payload["overall"]["missing_evidence_links"] == [
         "docs/operations/byoc-artifact-integrity-dashboard.md"
     ]
@@ -204,3 +223,31 @@ def test_parse_rc_signoff_backward_compatible_without_gate_metadata(tmp_path: Pa
     assert payload["gates"][0]["command"] == ""
     assert payload["gates"][0]["exit_code"] is None
     assert payload["gates"][0]["duration_ms"] is None
+    assert payload["data_safety"]["enabled"] is False
+    assert payload["data_safety"]["ok"] is None
+
+
+def test_rc_signoff_writes_data_safety_section(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module("rc_signoff_script", SCRIPTS_DIR / "rc_signoff.py")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(module, "REQUIRED_EVIDENCE_LINKS", ())
+    monkeypatch.setattr(module, "GATES", (module.GateCommand(name="pytest", command=["python", "-c", "print('ok')"]),))
+    monkeypatch.setattr(
+        module,
+        "_run_data_safety",
+        lambda required: module.DataSafetyResult(
+            enabled=True,
+            required=required,
+            command=["python", "scripts/release/local_data_safety.py", "validate"],
+            ok=True,
+            exit_code=0,
+            duration_ms=7,
+            output="ok",
+            meta_path=".local/db-validate-meta.json",
+        ),
+    )
+    monkeypatch.setattr(sys, "argv", ["rc_signoff.py", "--out", ".local/rc-signoff.md"])
+    assert module.main() == 0
+    content = (tmp_path / ".local" / "rc-signoff.md").read_text(encoding="utf-8")
+    assert "## Local Data Safety" in content
+    assert "- Result: `PASS`" in content
