@@ -51,6 +51,18 @@ class GateResult:
     output: str
 
 
+@dataclass(frozen=True)
+class DataSafetyResult:
+    enabled: bool
+    required: bool
+    command: list[str]
+    ok: bool
+    exit_code: int
+    duration_ms: int
+    output: str
+    meta_path: str
+
+
 GATES: tuple[GateCommand, ...] = (
     GateCommand(name="pytest", command=["python", "-m", "pytest", "-q"]),
     GateCommand(
@@ -61,6 +73,14 @@ GATES: tuple[GateCommand, ...] = (
         name="scan_forbidden_imports",
         command=["python", "scripts/architecture/scan_forbidden_imports.py"],
     ),
+)
+
+DATA_SAFETY_COMMAND: tuple[str, ...] = (
+    "python",
+    "scripts/release/local_data_safety.py",
+    "validate",
+    "--meta-out",
+    ".local/db-validate-meta.json",
 )
 
 REQUIRED_EVIDENCE_LINKS: tuple[str, ...] = (
@@ -131,12 +151,37 @@ def _execution_context() -> ExecutionContext:
     )
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _ensure_required_links() -> list[str]:
     missing: list[str] = []
     for rel_path in REQUIRED_EVIDENCE_LINKS:
         if not Path(rel_path).exists():
             missing.append(rel_path)
     return missing
+
+
+def _run_data_safety(required: bool) -> DataSafetyResult:
+    command = list(DATA_SAFETY_COMMAND)
+    started = time.perf_counter()
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    duration_ms = int((time.perf_counter() - started) * 1000)
+    output = (completed.stdout + "\n" + completed.stderr).strip()
+    return DataSafetyResult(
+        enabled=True,
+        required=required,
+        command=command,
+        ok=completed.returncode == 0,
+        exit_code=int(completed.returncode),
+        duration_ms=duration_ms,
+        output=output,
+        meta_path=".local/db-validate-meta.json",
+    )
 
 
 def _write_report(
@@ -146,6 +191,7 @@ def _write_report(
     ended_at: datetime,
     context: ExecutionContext,
     gate_results: list[GateResult],
+    data_safety: DataSafetyResult,
     missing_links: list[str],
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -182,7 +228,22 @@ def _write_report(
         lines.append(result.output or "(no output)")
         lines.append("```")
         lines.append("")
+    lines.append("## Local Data Safety")
+    lines.append(f"- Enabled: `{'true' if data_safety.enabled else 'false'}`")
+    lines.append(f"- Required: `{'true' if data_safety.required else 'false'}`")
+    lines.append(f"- Mode: `{'required' if data_safety.required else 'advisory'}`")
+    lines.append(f"- Command: `{' '.join(data_safety.command)}`")
+    lines.append(f"- Exit Code: `{data_safety.exit_code}`")
+    lines.append(f"- Duration Ms: `{data_safety.duration_ms}`")
+    lines.append(f"- Result: `{'PASS' if data_safety.ok else 'FAIL'}`")
+    lines.append(f"- Meta Path: `{data_safety.meta_path}`")
+    lines.append("```text")
+    lines.append(data_safety.output or "(no output)")
+    lines.append("```")
+    lines.append("")
     overall_pass = not missing_links and all(result.ok for result in gate_results)
+    if data_safety.required and not data_safety.ok:
+        overall_pass = False
     lines.append("## Overall")
     lines.append(f"- Result: `{'PASS' if overall_pass else 'FAIL'}`")
     lines.append("")
@@ -196,11 +257,19 @@ def main() -> int:
         default=".local/rc-signoff.md",
         help="Path to the generated signoff evidence markdown file.",
     )
+    parser.add_argument(
+        "--require-data-safety",
+        action="store_true",
+        help="Fail signoff when local data safety validation fails.",
+    )
     args = parser.parse_args()
 
     started_at = datetime.now(UTC)
     context = _execution_context()
     missing_links = _ensure_required_links()
+    data_safety_required = bool(args.require_data_safety) or _env_bool(
+        "EXO_RC_SIGNOFF_REQUIRE_DATA_SAFETY", default=False
+    )
     gate_results: list[GateResult] = []
 
     if not missing_links:
@@ -209,6 +278,7 @@ def main() -> int:
             gate_results.append(result)
             if not result.ok:
                 break
+    data_safety_result = _run_data_safety(required=data_safety_required)
 
     ended_at = datetime.now(UTC)
     out_path = Path(args.out)
@@ -218,6 +288,7 @@ def main() -> int:
         ended_at=ended_at,
         context=context,
         gate_results=gate_results,
+        data_safety=data_safety_result,
         missing_links=missing_links,
     )
 
@@ -231,6 +302,10 @@ def main() -> int:
     failed_gate = next((result.gate.name for result in gate_results if not result.ok), "")
     if failed_gate:
         print(f"RC signoff failed: gate '{failed_gate}' did not pass.")
+        print(f"Evidence written to {out_path}")
+        return 1
+    if data_safety_required and not data_safety_result.ok:
+        print("RC signoff failed: required local data safety validation did not pass.")
         print(f"Evidence written to {out_path}")
         return 1
 
