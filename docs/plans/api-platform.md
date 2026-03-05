@@ -785,6 +785,12 @@ Changing adapters mid-session is not supported in v1 (create a new session). Thi
 
 These gaps were found during the pre-build review. They are out of scope for v1 but must not be lost. Each has a home slice or follow-on ticket when scope expands.
 
+Reconciliation note (2026-03-05):
+- Treat this section as historical discovery context.
+- Canonical open/closed state and execution order are maintained in:
+  - `docs/plans/tenant-tool-execution-architecture.md` (`Reconciled Open Backlog`)
+  - `.local/alignment-audit.md` and `.local/alignment-todos.md`
+
 ### Zero test coverage (confirmed during review)
 
 | Module | Gap | When to fix |

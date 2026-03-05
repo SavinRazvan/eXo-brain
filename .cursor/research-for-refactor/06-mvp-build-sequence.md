@@ -59,6 +59,8 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Tenant Tool Execution — N1/N2/N3 follow-through | Implemented | Completed Tool Manager bundle upload UX + integrity visibility (N1), BYOC artifact-integrity parity (N2), and rollout/ops hardening with profile defaults + dashboard/runbook baselines + evidence linkage (N3). |
 | RC signoff CI gate | Implemented | Added `.github/workflows/rc-signoff.yml` to run `make rc-signoff` and `make rc-signoff-json` on PRs to `main`, uploading both markdown and normalized JSON evidence artifacts. |
 | RC signoff evidence metadata hardening | Implemented | `scripts/release/rc_signoff.py` now emits per-gate command/exit-code/duration metadata; `scripts/release/parse_rc_signoff.py` parses these fields with backward compatibility for prior markdown evidence format. |
+| Backlog reconciliation freeze | Implemented | Added reconciled post-delivery hardening queue and evidence artifacts (`.local/alignment-audit.md`, `.local/alignment-todos.md`) and synced canonical status references. |
+| P2 expansion webhook baseline | Implemented (baseline) | Added BYOC webhook submit endpoint and replay-safe auth flow for worker push result ingestion; remaining P2 queue tracked in `docs/plans/p2-expansion-roadmap.md`. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
