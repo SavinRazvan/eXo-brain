@@ -16,6 +16,7 @@ Notes:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import time
@@ -63,6 +64,21 @@ class DataSafetyResult:
     meta_path: str
 
 
+@dataclass(frozen=True)
+class GovernanceAlertResult:
+    enabled: bool
+    advisory_only: bool
+    metrics_path: str
+    metrics_available: bool
+    cost_utilization_threshold: float
+    rejection_rate_threshold: float
+    cost_utilization_ratio: float | None
+    rejection_rate: float | None
+    alerts: list[str]
+    result: str
+    output: str
+
+
 GATES: tuple[GateCommand, ...] = (
     GateCommand(name="pytest", command=["python", "-m", "pytest", "-q"]),
     GateCommand(
@@ -74,6 +90,8 @@ GATES: tuple[GateCommand, ...] = (
         command=["python", "scripts/architecture/scan_forbidden_imports.py"],
     ),
 )
+
+DEFAULT_GOVERNANCE_METRICS_PATH = ".local/byoc-governance-metrics.json"
 
 DATA_SAFETY_COMMAND: tuple[str, ...] = (
     "python",
@@ -184,6 +202,100 @@ def _run_data_safety(required: bool) -> DataSafetyResult:
     )
 
 
+def _safe_float(raw: object) -> float | None:
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _run_governance_alerts(
+    *,
+    metrics_path: str,
+    cost_utilization_threshold: float,
+    rejection_rate_threshold: float,
+) -> GovernanceAlertResult:
+    path = Path(metrics_path)
+    advisory_only = True
+    if not path.exists():
+        return GovernanceAlertResult(
+            enabled=True,
+            advisory_only=advisory_only,
+            metrics_path=str(path),
+            metrics_available=False,
+            cost_utilization_threshold=cost_utilization_threshold,
+            rejection_rate_threshold=rejection_rate_threshold,
+            cost_utilization_ratio=None,
+            rejection_rate=None,
+            alerts=[],
+            result="UNAVAILABLE",
+            output="Governance metrics file not found; section is advisory-only.",
+        )
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return GovernanceAlertResult(
+            enabled=True,
+            advisory_only=advisory_only,
+            metrics_path=str(path),
+            metrics_available=False,
+            cost_utilization_threshold=cost_utilization_threshold,
+            rejection_rate_threshold=rejection_rate_threshold,
+            cost_utilization_ratio=None,
+            rejection_rate=None,
+            alerts=[],
+            result="UNAVAILABLE",
+            output=f"Failed to parse governance metrics: {exc}",
+        )
+
+    cost_ratio = _safe_float(payload.get("cost", {}).get("utilization_ratio"))
+    rejection_rate = _safe_float(payload.get("submissions", {}).get("rejection_rate"))
+    alerts: list[str] = []
+    if cost_ratio is not None and cost_ratio >= cost_utilization_threshold:
+        alerts.append("cost_utilization_threshold_exceeded")
+    if rejection_rate is not None and rejection_rate >= rejection_rate_threshold:
+        alerts.append("rejection_rate_threshold_exceeded")
+    missing_fields: list[str] = []
+    if cost_ratio is None:
+        missing_fields.append("cost.utilization_ratio")
+    if rejection_rate is None:
+        missing_fields.append("submissions.rejection_rate")
+
+    if missing_fields:
+        output = (
+            "Governance metrics parsed with missing fields: "
+            + ", ".join(missing_fields)
+            + ". Section remains advisory-only."
+        )
+        return GovernanceAlertResult(
+            enabled=True,
+            advisory_only=advisory_only,
+            metrics_path=str(path),
+            metrics_available=False,
+            cost_utilization_threshold=cost_utilization_threshold,
+            rejection_rate_threshold=rejection_rate_threshold,
+            cost_utilization_ratio=cost_ratio,
+            rejection_rate=rejection_rate,
+            alerts=alerts,
+            result="UNAVAILABLE",
+            output=output,
+        )
+    return GovernanceAlertResult(
+        enabled=True,
+        advisory_only=advisory_only,
+        metrics_path=str(path),
+        metrics_available=True,
+        cost_utilization_threshold=cost_utilization_threshold,
+        rejection_rate_threshold=rejection_rate_threshold,
+        cost_utilization_ratio=cost_ratio,
+        rejection_rate=rejection_rate,
+        alerts=alerts,
+        result="ALERT" if alerts else "PASS",
+        output="Governance metrics evaluated against configured advisory thresholds.",
+    )
+
+
 def _write_report(
     *,
     out_path: Path,
@@ -192,6 +304,7 @@ def _write_report(
     context: ExecutionContext,
     gate_results: list[GateResult],
     data_safety: DataSafetyResult,
+    governance_alerts: GovernanceAlertResult,
     missing_links: list[str],
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -241,6 +354,36 @@ def _write_report(
     lines.append(data_safety.output or "(no output)")
     lines.append("```")
     lines.append("")
+    lines.append("## Governance Alerts")
+    lines.append(f"- Enabled: `{'true' if governance_alerts.enabled else 'false'}`")
+    lines.append(f"- Advisory Only: `{'true' if governance_alerts.advisory_only else 'false'}`")
+    lines.append(f"- Metrics Path: `{governance_alerts.metrics_path}`")
+    lines.append(f"- Metrics Available: `{'true' if governance_alerts.metrics_available else 'false'}`")
+    lines.append(f"- Cost Utilization Threshold: `{governance_alerts.cost_utilization_threshold:.4f}`")
+    lines.append(f"- Rejection Rate Threshold: `{governance_alerts.rejection_rate_threshold:.4f}`")
+    lines.append(
+        "- Cost Utilization Ratio: "
+        + (
+            f"`{governance_alerts.cost_utilization_ratio:.4f}`"
+            if governance_alerts.cost_utilization_ratio is not None
+            else "`n/a`"
+        )
+    )
+    lines.append(
+        "- Rejection Rate: "
+        + (
+            f"`{governance_alerts.rejection_rate:.4f}`"
+            if governance_alerts.rejection_rate is not None
+            else "`n/a`"
+        )
+    )
+    lines.append(f"- Alert Count: `{len(governance_alerts.alerts)}`")
+    lines.append(f"- Alerts: `{', '.join(governance_alerts.alerts) if governance_alerts.alerts else 'none'}`")
+    lines.append(f"- Result: `{governance_alerts.result}`")
+    lines.append("```text")
+    lines.append(governance_alerts.output or "(no output)")
+    lines.append("```")
+    lines.append("")
     overall_pass = not missing_links and all(result.ok for result in gate_results)
     if data_safety.required and not data_safety.ok:
         overall_pass = False
@@ -262,6 +405,11 @@ def main() -> int:
         action="store_true",
         help="Fail signoff when local data safety validation fails.",
     )
+    parser.add_argument(
+        "--governance-metrics-in",
+        default=DEFAULT_GOVERNANCE_METRICS_PATH,
+        help="Path to governance metrics JSON input used for advisory alert evaluation.",
+    )
     args = parser.parse_args()
 
     started_at = datetime.now(UTC)
@@ -270,6 +418,8 @@ def main() -> int:
     data_safety_required = bool(args.require_data_safety) or _env_bool(
         "EXO_RC_SIGNOFF_REQUIRE_DATA_SAFETY", default=False
     )
+    governance_cost_threshold = float(os.getenv("EXO_GOV_ALERT_COST_UTIL_THRESHOLD", "0.90"))
+    governance_rejection_threshold = float(os.getenv("EXO_GOV_ALERT_REJECTION_RATE_THRESHOLD", "0.10"))
     gate_results: list[GateResult] = []
 
     if not missing_links:
@@ -279,6 +429,11 @@ def main() -> int:
             if not result.ok:
                 break
     data_safety_result = _run_data_safety(required=data_safety_required)
+    governance_alerts_result = _run_governance_alerts(
+        metrics_path=str(args.governance_metrics_in),
+        cost_utilization_threshold=governance_cost_threshold,
+        rejection_rate_threshold=governance_rejection_threshold,
+    )
 
     ended_at = datetime.now(UTC)
     out_path = Path(args.out)
@@ -289,6 +444,7 @@ def main() -> int:
         context=context,
         gate_results=gate_results,
         data_safety=data_safety_result,
+        governance_alerts=governance_alerts_result,
         missing_links=missing_links,
     )
 
