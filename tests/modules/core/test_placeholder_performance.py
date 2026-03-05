@@ -34,3 +34,15 @@ def test_worker_pool_runs_async_task() -> None:
         return await pool.run(work)
 
     assert asyncio.run(scenario()) == 7
+
+
+def test_worker_pool_scale_up_increases_concurrency_target() -> None:
+    pool = WorkerPool(max_concurrency=1)
+
+    scaled = pool.scale_up_to(3)
+    assert scaled is True
+    assert pool.max_concurrency == 3
+
+    not_scaled = pool.scale_up_to(2)
+    assert not_scaled is False
+    assert pool.max_concurrency == 3
