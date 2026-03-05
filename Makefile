@@ -10,7 +10,7 @@
 # Notes:
 #  - Keep targets thin wrappers around versioned scripts.
 
-.PHONY: ui-build ui-verify rc-signoff rc-signoff-json
+.PHONY: ui-build ui-verify rc-signoff rc-signoff-json db-backup db-restore db-validate
 
 ui-build:
 	./scripts/ui/build.sh
@@ -23,3 +23,12 @@ rc-signoff:
 
 rc-signoff-json:
 	python scripts/release/parse_rc_signoff.py --in .local/rc-signoff.md --out .local/rc-signoff.json
+
+db-backup:
+	python scripts/release/local_data_safety.py backup --meta-out .local/db-backup-meta.json
+
+db-restore:
+	python scripts/release/local_data_safety.py restore --force --meta-out .local/db-restore-meta.json
+
+db-validate:
+	python scripts/release/local_data_safety.py validate --meta-out .local/db-validate-meta.json
