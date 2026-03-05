@@ -62,6 +62,12 @@ class RuntimeSettings:
     byoc_max_result_records: int = 2000
     byoc_max_claim_attempts_before_dlq: int = 3
     byoc_result_conflict_strategy: str = "first_write_wins"
+    byoc_cost_limit_microunits_per_tenant: int = 1_000_000
+    byoc_enforce_cost_limit: bool = False
+    byoc_cost_success_microunits: int = 100
+    byoc_cost_error_microunits: int = 40
+    byoc_cost_timeout_microunits: int = 60
+    byoc_cost_cancelled_microunits: int = 20
 
 
 @dataclass(slots=True)

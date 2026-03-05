@@ -146,6 +146,14 @@ def _default_settings() -> AppSettings:
                 "EXO_BYOC_RESULT_CONFLICT_STRATEGY",
                 "first_write_wins",
             ),
+            byoc_cost_limit_microunits_per_tenant=int(
+                os.environ.get("EXO_BYOC_COST_LIMIT_MICROUNITS_PER_TENANT", "1000000")
+            ),
+            byoc_enforce_cost_limit=_env_bool("EXO_BYOC_ENFORCE_COST_LIMIT", default=False),
+            byoc_cost_success_microunits=int(os.environ.get("EXO_BYOC_COST_SUCCESS_MICROUNITS", "100")),
+            byoc_cost_error_microunits=int(os.environ.get("EXO_BYOC_COST_ERROR_MICROUNITS", "40")),
+            byoc_cost_timeout_microunits=int(os.environ.get("EXO_BYOC_COST_TIMEOUT_MICROUNITS", "60")),
+            byoc_cost_cancelled_microunits=int(os.environ.get("EXO_BYOC_COST_CANCELLED_MICROUNITS", "20")),
         ),
         auth=AuthSettings(
             jwt_secret=jwt_secret,

@@ -78,6 +78,12 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         max_cancelled_records: int = 2000,
         max_result_records: int = 2000,
         max_claim_attempts_before_dlq: int = 3,
+        cost_limit_microunits_per_tenant: int = 1_000_000,
+        enforce_cost_limit: bool = False,
+        cost_success_microunits: int = 100,
+        cost_error_microunits: int = 40,
+        cost_timeout_microunits: int = 60,
+        cost_cancelled_microunits: int = 20,
         job_store: ByocJobQueueStore | None = None,
         result_store: ByocResultStore | None = None,
         replay_guard: ReplayGuard | None = None,
@@ -95,6 +101,12 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._max_cancelled_records = max(int(max_cancelled_records), 0)
         self._max_result_records = max(int(max_result_records), 0)
         self._max_claim_attempts_before_dlq = max(int(max_claim_attempts_before_dlq), 1)
+        self._cost_limit_microunits_per_tenant = max(int(cost_limit_microunits_per_tenant), 0)
+        self._enforce_cost_limit = bool(enforce_cost_limit)
+        self._cost_success_microunits = max(int(cost_success_microunits), 0)
+        self._cost_error_microunits = max(int(cost_error_microunits), 0)
+        self._cost_timeout_microunits = max(int(cost_timeout_microunits), 0)
+        self._cost_cancelled_microunits = max(int(cost_cancelled_microunits), 0)
         self._job_store = job_store or InMemoryByocJobQueueStore()
         self._result_store = result_store or InMemoryByocResultStore()
         self._replay_guard = replay_guard or InMemoryReplayGuard()
@@ -111,6 +123,10 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._cleanup_pruned_total = 0
         self._last_cleanup_epoch = 0.0
         self._progress_events_by_call_id: dict[str, list[dict[str, str]]] = {}
+        self._tenant_cost_microunits_total: dict[str, int] = {}
+        self._tenant_submit_attempts_total: dict[str, int] = {}
+        self._tenant_rejected_results_total: dict[str, int] = {}
+        self._tenant_rejections_by_reason: dict[str, dict[str, int]] = {}
 
     @property
     def backend_id(self) -> str:
@@ -121,6 +137,8 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         started_clock = perf_counter()
         timeout_ms = max(int(descriptor.timeout_ms), 1)
         tenant_id = str(call.tenant_id or "default").strip() or "default"
+        if self._enforce_cost_limit and self._cost_limit_exceeded(tenant_id=tenant_id):
+            return self._cost_limit_result(call, timeout_ms=timeout_ms, tenant_id=tenant_id)
         self._run_periodic_cleanup(tenant_id=tenant_id)
         idempotency_key = f"{tenant_id}:{call.call_id}:{call.run_id or 'run'}"
         job = ByocToolJobEnvelope(
@@ -162,6 +180,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             remaining = deadline - perf_counter()
             if remaining <= 0:
                 timeout_result = self._timeout_result(call, started, started_clock, timeout_ms, tenant_id, job.job_id)
+                self._record_tenant_cost(tenant_id=tenant_id, amount=self._cost_timeout_microunits)
                 self._record_progress(
                     call_id=call.call_id,
                     tool_name=descriptor.name,
@@ -295,7 +314,9 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         tenant_id: str,
         result: ByocToolResultEnvelope,
     ) -> ByocResultIngestOutcome:
+        self._increment_tenant_submit_attempt(tenant_id=tenant_id)
         if result.tenant_id != tenant_id:
+            self._increment_tenant_rejection(tenant_id=tenant_id, reason_code="WORKER_RESULT_TENANT_MISMATCH")
             raise ValueError("WORKER_RESULT_TENANT_MISMATCH")
         existing_key = str(result.idempotency_key).strip()
         if existing_key and self._result_store.has_idempotency_key(existing_key):
@@ -308,6 +329,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             )
         leased_job = self._job_store.get_leased_job(job_id=result.job_id, lease_token=result.lease_token)
         if leased_job is None:
+            self._increment_tenant_rejection(tenant_id=tenant_id, reason_code="BYOC_LEASE_INVALID_OR_EXPIRED")
             return ByocResultIngestOutcome(
                 accepted=False,
                 duplicate=False,
@@ -318,6 +340,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             submitted_result=result,
         )
         if artifact_reason:
+            self._increment_tenant_rejection(tenant_id=tenant_id, reason_code=artifact_reason)
             return ByocResultIngestOutcome(
                 accepted=False,
                 duplicate=False,
@@ -325,6 +348,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             )
         lease_ok = self._job_store.complete_claim(job_id=result.job_id, lease_token=result.lease_token)
         if not lease_ok:
+            self._increment_tenant_rejection(tenant_id=tenant_id, reason_code="BYOC_LEASE_INVALID_OR_EXPIRED")
             return ByocResultIngestOutcome(
                 accepted=False,
                 duplicate=False,
@@ -338,6 +362,8 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         if outcome.accepted:
             with self._lock:
                 self._submitted_results_total += 1
+        elif not outcome.duplicate:
+            self._increment_tenant_rejection(tenant_id=tenant_id, reason_code=outcome.reason_code)
         return outcome
 
     def request_cancellation(self, call_id: str) -> bool:
@@ -363,6 +389,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 "cleanup_runs_total": self._cleanup_runs_total,
                 "cleanup_pruned_total": self._cleanup_pruned_total,
                 "queue_depth": self._job_store.queue_depth(),
+                "cost_limit_microunits_per_tenant": self._cost_limit_microunits_per_tenant,
             }
         return metrics
 
@@ -375,6 +402,21 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         combined.update(queue_metrics)
         combined.update(result_metrics)
         combined.update(replay_metrics)
+        with self._lock:
+            tenant_cost = int(self._tenant_cost_microunits_total.get(tenant_id, 0))
+            tenant_submit_attempts = int(self._tenant_submit_attempts_total.get(tenant_id, 0))
+            tenant_rejected_total = int(self._tenant_rejected_results_total.get(tenant_id, 0))
+            reason_counts = dict(self._tenant_rejections_by_reason.get(tenant_id, {}))
+        combined["tenant_cost_microunits_total"] = tenant_cost
+        combined["tenant_cost_limit_microunits"] = int(self._cost_limit_microunits_per_tenant)
+        combined["tenant_cost_remaining_microunits"] = max(
+            int(self._cost_limit_microunits_per_tenant) - tenant_cost,
+            0,
+        )
+        combined["tenant_submit_attempts_total"] = tenant_submit_attempts
+        combined["tenant_rejected_results_total"] = tenant_rejected_total
+        for reason, count in reason_counts.items():
+            combined[f"tenant_rejected_reason_{reason}"] = int(count)
         return combined
 
     def cleanup_retention(self, *, tenant_id: str, force: bool = False) -> dict[str, int]:
@@ -486,6 +528,64 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             return "cancelled"
         return "failed"
 
+    def _cost_for_status(self, status: ToolStatus) -> int:
+        if status == ToolStatus.SUCCESS:
+            return self._cost_success_microunits
+        if status == ToolStatus.TIMEOUT:
+            return self._cost_timeout_microunits
+        if status == ToolStatus.CANCELLED:
+            return self._cost_cancelled_microunits
+        return self._cost_error_microunits
+
+    def _record_tenant_cost(self, *, tenant_id: str, amount: int) -> None:
+        normalized = str(tenant_id).strip() or "default"
+        with self._lock:
+            self._tenant_cost_microunits_total[normalized] = int(
+                self._tenant_cost_microunits_total.get(normalized, 0)
+            ) + max(int(amount), 0)
+
+    def _increment_tenant_submit_attempt(self, *, tenant_id: str) -> None:
+        normalized = str(tenant_id).strip() or "default"
+        with self._lock:
+            self._tenant_submit_attempts_total[normalized] = int(self._tenant_submit_attempts_total.get(normalized, 0)) + 1
+
+    def _increment_tenant_rejection(self, *, tenant_id: str, reason_code: str) -> None:
+        normalized = str(tenant_id).strip() or "default"
+        reason = str(reason_code or "UNKNOWN").strip() or "UNKNOWN"
+        with self._lock:
+            self._tenant_rejected_results_total[normalized] = int(self._tenant_rejected_results_total.get(normalized, 0)) + 1
+            bucket = self._tenant_rejections_by_reason.setdefault(normalized, {})
+            bucket[reason] = int(bucket.get(reason, 0)) + 1
+
+    def _cost_limit_exceeded(self, *, tenant_id: str) -> bool:
+        if self._cost_limit_microunits_per_tenant <= 0:
+            return False
+        normalized = str(tenant_id).strip() or "default"
+        with self._lock:
+            consumed = int(self._tenant_cost_microunits_total.get(normalized, 0))
+        return consumed >= int(self._cost_limit_microunits_per_tenant)
+
+    def _cost_limit_result(self, call: ToolCallContext, *, timeout_ms: int, tenant_id: str) -> ToolResult:
+        self._increment_tenant_rejection(tenant_id=tenant_id, reason_code="BYOC_COST_LIMIT_EXCEEDED")
+        return ToolResult(
+            schema_version="1.0",
+            call_id=call.call_id,
+            tool_name=call.tool_name,
+            status=ToolStatus.ERROR,
+            error=NormalizedError(
+                code="BYOC_COST_LIMIT_EXCEEDED",
+                category="policy",
+                message="BYOC tenant cost limit exceeded.",
+                retryable=False,
+                details={"backend_id": self.backend_id, "tenant_id": tenant_id},
+            ),
+            execution=ExecutionMetadata(
+                mode_used=ToolExecutionMode.DETERMINISTIC,
+                timeout_ms=timeout_ms,
+            ),
+            audit=ToolAudit(correlation_id=call.call_id),
+        )
+
     def _timeout_result(
         self,
         call: ToolCallContext,
@@ -533,6 +633,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             ByocResultStatus.CANCELLED: ToolStatus.CANCELLED,
         }
         status = status_map.get(result.status, ToolStatus.ERROR)
+        self._record_tenant_cost(tenant_id=tenant_id, amount=self._cost_for_status(status))
         payload = {
             "value": result.output or {},
             "runtime": {

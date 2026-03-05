@@ -34,11 +34,29 @@ Define the minimum dashboard and alert set for N3 rollout hardening of BYOC arti
    - accepted submits
    - rejected submits (by reason code)
 
+6. **Tenant Cost Consumption**
+   - Group by `tenant_id`
+   - Include:
+     - `tenant_cost_microunits_total`
+     - `tenant_cost_limit_microunits`
+     - `tenant_cost_remaining_microunits`
+   - Goal: surface near-limit tenants before hard enforcement.
+
+7. **Tenant Rejection Breakdown (Governance)**
+   - Group by `tenant_id`
+   - Split by `tenant_rejected_reason_*`
+   - Must include:
+     - `BYOC_COST_LIMIT_EXCEEDED`
+     - `BYOC_LEASE_INVALID_OR_EXPIRED`
+     - integrity/signature mismatch codes
+
 ## Alert Thresholds (Initial)
 
 - P0 alert: any tenant with `BYOC_ARTIFACT_INTEGRITY_MISMATCH` > 5/min for 10 min.
 - P1 alert: any tenant with `BYOC_ARTIFACT_SIGNATURE_VERSION_MISMATCH` > 2/min for 15 min.
 - P1 alert: platform-wide integrity rejection rate > 2% of BYOC submit attempts over 15 min.
+- P1 alert: any tenant with `tenant_cost_remaining_microunits` < 10% of limit for 30 min.
+- P0 alert: sustained `BYOC_COST_LIMIT_EXCEEDED` rejections for a tenant (> 3/min for 10 min).
 
 ## Incident Correlation Fields
 
@@ -52,6 +70,8 @@ For all BYOC integrity alerts, include:
 - `artifact_bundle_hash_sha256`
 - `artifact_signature_version`
 - `reason_code`
+- `tenant_cost_microunits_total`
+- `tenant_cost_limit_microunits`
 
 ## Runbook Linkage
 
