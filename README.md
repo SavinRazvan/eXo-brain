@@ -41,6 +41,17 @@ uvicorn src.api.app:create_app --factory --reload --port 8000
 
 ---
 
+## Project status (how it's going)
+
+- **Purpose**: Build a provider-neutral AI orchestration platform where model providers are pluggable adapters and core orchestration remains deterministic, auditable, and tenant-isolated.
+- **Current state**: Core bootstrap, API slices, and P2 expansion roadmap work are marked complete in the project checklist.
+- **Progress tracking**:
+  - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
+  - `docs/plans/p2-expansion-roadmap.md`
+- **Operational health check**: run `python -m pytest -q`, `python scripts/architecture/validate_layers.py`, and `python scripts/architecture/scan_forbidden_imports.py`.
+
+---
+
 ## Architecture principles
 
 - Keep provider SDK code inside `src/runtime/*adapter*` modules only — never in core.

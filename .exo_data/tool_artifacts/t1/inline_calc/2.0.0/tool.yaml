@@ -1,0 +1,9 @@
+tool_name: inline_calc
+version: 2.0.0
+description: 
+entry_file: handler.py
+entrypoint: run
+risk_tier: low
+timeout_ms: 30000
+requirements:
+  []
