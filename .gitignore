@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .local/
+.exo_data/
 
 # secrets — never commit
 .env
