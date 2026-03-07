@@ -171,6 +171,18 @@ def test_parse_rc_signoff_writes_normalized_json(tmp_path: Path, monkeypatch) ->
                 "Runtime snapshots loaded and linked as advisory evidence.",
                 "```",
                 "",
+                "## UI E2E Automation",
+                "- Enabled: `true`",
+                "- Advisory Only: `true`",
+                "- Artifact Path: `.local/ui-e2e-smoke.json`",
+                "- Available: `true`",
+                "- Result: `PASS`",
+                "- Stages Passed Total: `3`",
+                "- Stages Failed Total: `0`",
+                "```text",
+                "UI E2E automation artifact loaded and linked as advisory evidence.",
+                "```",
+                "",
             ]
         ),
         encoding="utf-8",
@@ -213,6 +225,11 @@ def test_parse_rc_signoff_writes_normalized_json(tmp_path: Path, monkeypatch) ->
     assert payload["runtime_snapshots"]["available"] is True
     assert payload["runtime_snapshots"]["before_runs_total"] == 0
     assert payload["runtime_snapshots"]["after_runs_total"] == 1
+    assert payload["ui_e2e_automation"]["enabled"] is True
+    assert payload["ui_e2e_automation"]["available"] is True
+    assert payload["ui_e2e_automation"]["result"] == "PASS"
+    assert payload["ui_e2e_automation"]["stages_passed_total"] == 3
+    assert payload["ui_e2e_automation"]["stages_failed_total"] == 0
     assert payload["overall"]["missing_evidence_links"] == [
         "docs/operations/byoc-artifact-integrity-dashboard.md"
     ]
@@ -268,6 +285,9 @@ def test_parse_rc_signoff_backward_compatible_without_gate_metadata(tmp_path: Pa
     assert payload["governance_alerts"]["alerts"] == []
     assert payload["runtime_snapshots"]["enabled"] is False
     assert payload["runtime_snapshots"]["available"] is False
+    assert payload["ui_e2e_automation"]["enabled"] is False
+    assert payload["ui_e2e_automation"]["available"] is False
+    assert payload["ui_e2e_automation"]["result"] == "UNAVAILABLE"
 
 
 def test_rc_signoff_writes_data_safety_section(tmp_path: Path, monkeypatch) -> None:
@@ -321,11 +341,26 @@ def test_rc_signoff_writes_data_safety_section(tmp_path: Path, monkeypatch) -> N
             output="runtime snapshots linked",
         ),
     )
+    monkeypatch.setattr(
+        module,
+        "_run_ui_e2e_automation",
+        lambda artifact_path: module.UiE2EAutomationResult(
+            enabled=True,
+            advisory_only=True,
+            artifact_path=artifact_path,
+            available=True,
+            result="PASS",
+            stages_passed_total=3,
+            stages_failed_total=0,
+            output="ui e2e linked",
+        ),
+    )
     monkeypatch.setattr(sys, "argv", ["rc_signoff.py", "--out", ".local/rc-signoff.md"])
     assert module.main() == 0
     content = (tmp_path / ".local" / "rc-signoff.md").read_text(encoding="utf-8")
     assert "## Local Data Safety" in content
     assert "## Governance Alerts" in content
     assert "## Runtime Snapshots" in content
+    assert "## UI E2E Automation" in content
     assert "- Alert Count: `1`" in content
     assert "- Result: `PASS`" in content
