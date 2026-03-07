@@ -152,4 +152,5 @@ Define the next approved queue after closure of backlog reconciliation v2:
 
 ## Immediate Next Step
 
-V3 execution queue is closed. Next step: run full gates + UI validation handoff.
+V3 execution queue is closed and validation handoff is complete.
+Next implementation source: `docs/plans/backlog-reconciliation-v4-execution-board.md`.
