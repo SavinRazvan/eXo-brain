@@ -79,6 +79,9 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Backlog reconciliation v3 P1-2 runtime fairness observability surface | Implemented (baseline) | Added fairness timeout indicators in runtime-control stats and surfaced fairness diagnostics in Playground UI with deterministic API/UI coverage. |
 | Backlog reconciliation v3 P2-1 long-run multi-tenant soak suite | Implemented (baseline) | Added opt-in non-blocking soak suite (`EXO_RUN_SOAK_TESTS=true`) covering multi-tenant BYOC contention with fairness, budget-window governance, and anomaly signal assertions. |
 | Backlog reconciliation v3 P2-2 BYOC failure injection playbook | Implemented (baseline) | Added operations playbook mapping injected BYOC failure classes to runtime-control evidence signals and deterministic remediation commands for incident drills. |
+| Backlog reconciliation v4 P1-3 conflict observability | Implemented (baseline) | Added strategy/tool/version conflict counters in BYOC result stores and surfaced them via runtime-control/governance export with extended conflict edge-case tests. |
+| Backlog reconciliation v4 P2-1 fine-grained budget governance | Implemented (baseline) | Added optional BYOC budget partitions (`per_tool`/`per_provider`) with deterministic partition rejection semantics, partition counters in runtime-control metrics, partition reset coverage, and cross-tenant isolation tests; next target is v4 `p2-2-ui-e2e-automation-lane`. |
+| Backlog reconciliation v4 P2-2 UI E2E automation lane | Implemented (baseline) | Added repeatable UI E2E smoke lane wrapper + non-blocking CI workflow with artifact upload, and linked advisory UI E2E evidence into rc-signoff markdown/parser output for dashboard ingestion; next target is v4 queue-closure + UI validation handoff. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
