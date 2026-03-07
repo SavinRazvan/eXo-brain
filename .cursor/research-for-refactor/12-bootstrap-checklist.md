@@ -609,6 +609,43 @@ Canonical reference:
   - added `docs/operations/byoc-failure-injection-playbook.md`
   - mapped failure classes to runtime-control signals, evidence paths, and remediation commands
   - linked playbook into dashboard and RC signoff checklist operator flow
+- [x] V3 closure and validation handoff completed:
+  - full gate run + `make ui-smoke` + `make rc-signoff` + `make rc-signoff-json` passed on `main`
+  - next implementation planning source set to `docs/plans/backlog-reconciliation-v4-execution-board.md`
+
+### Backlog reconciliation v4 progress
+- [x] P0-1 baseline completed: governance-metrics evidence capture in smoke flow:
+  - `scripts/ui/local_ui_readiness_smoke.py` now exports `.local/byoc-governance-metrics.json`
+  - smoke process enables BYOC runtime path by default for governance export availability
+  - `make rc-signoff` now consumes smoke-exported metrics in advisory alerts when present
+- [x] P0-2 baseline completed: advisory soak CI lane:
+  - added `.github/workflows/byoc-soak-nonblocking.yml` (nightly + manual)
+  - runs `pytest -m soak` with `EXO_RUN_SOAK_TESTS=true` and uploads `.local/byoc-soak.log` + summary
+  - lane is non-blocking by design and used for triage evidence only
+- [x] P1-1 baseline completed: adaptive AgentScaler controls:
+  - added scaler cooldown/hysteresis controls in `src/core/agent_scaler.py`
+  - added decision diagnostics payload and runtime metadata/log surfacing in `src/core/background_runtime.py`
+  - added deterministic coverage for cooldown/hysteresis and runtime integration behavior
+- [x] P1-2 baseline completed: DLQ replay operations depth:
+  - added bounded bulk replay endpoint `POST /tenants/{tenant_id}/admin/byoc/dlq/replay`
+  - added deterministic replay summary fields (`attempted`, `replayed`, `failed`, per-job failure reasons)
+  - extended BYOC runtime control stats with `dlq_replay_failed_total`
+  - added API/runtime tests for bulk replay mixed-success behavior
+- [x] P1-3 baseline completed: conflict observability and policy coverage:
+  - added conflict counters by strategy/tool/version/reason in BYOC result-store adapters
+  - exposed conflict counters in runtime-control tenant stats and governance metrics API export
+  - added deterministic tests for conflict strategy edge combinations and conflict export payloads
+- [x] P2-1 baseline completed: fine-grained budget governance:
+  - added optional BYOC budget partition scope controls (`tenant`, `per_provider`, `per_tool`) with deterministic fallback to tenant-wide limits
+  - added deterministic partition-specific rejection codes (`BYOC_COST_WINDOW_PARTITION_LIMIT_EXCEEDED`, `BYOC_COST_PARTITION_LIMIT_EXCEEDED`)
+  - extended runtime-control tenant stats with partitioned budget counters/remaining fields
+  - added tests for partitioned reset behavior and cross-tenant partition-isolation enforcement
+- [x] P2-2 baseline completed: UI E2E automation lane:
+  - added `scripts/ui/ui_e2e_automation_lane.py` + `make ui-e2e-smoke` for deterministic Tool Manager + Playground smoke lane artifacts
+  - added advisory workflow `.github/workflows/ui-e2e-nonblocking.yml` for nightly/manual automation with artifact upload
+  - extended rc-signoff markdown + parser with `UI E2E Automation` advisory section/output fields
+  - added deterministic script/report parsing tests for lane artifact wiring
+- [ ] Next target: `v4-queue-closure-and-ui-validation-handoff`
 
 ---
 

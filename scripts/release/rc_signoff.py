@@ -92,6 +92,18 @@ class RuntimeSnapshotsResult:
     output: str
 
 
+@dataclass(frozen=True)
+class UiE2EAutomationResult:
+    enabled: bool
+    advisory_only: bool
+    artifact_path: str
+    available: bool
+    result: str
+    stages_passed_total: int | None
+    stages_failed_total: int | None
+    output: str
+
+
 GATES: tuple[GateCommand, ...] = (
     GateCommand(name="pytest", command=["python", "-m", "pytest", "-q"]),
     GateCommand(
@@ -106,6 +118,7 @@ GATES: tuple[GateCommand, ...] = (
 
 DEFAULT_GOVERNANCE_METRICS_PATH = ".local/byoc-governance-metrics.json"
 DEFAULT_RUNTIME_SNAPSHOTS_PATH = ".local/ui-smoke-runtime-snapshots.json"
+DEFAULT_UI_E2E_AUTOMATION_PATH = ".local/ui-e2e-smoke.json"
 
 DATA_SAFETY_COMMAND: tuple[str, ...] = (
     "python",
@@ -364,6 +377,49 @@ def _run_runtime_snapshots(snapshot_path: str) -> RuntimeSnapshotsResult:
     )
 
 
+def _run_ui_e2e_automation(artifact_path: str) -> UiE2EAutomationResult:
+    path = Path(artifact_path)
+    advisory_only = True
+    if not path.exists():
+        return UiE2EAutomationResult(
+            enabled=True,
+            advisory_only=advisory_only,
+            artifact_path=str(path),
+            available=False,
+            result="UNAVAILABLE",
+            stages_passed_total=None,
+            stages_failed_total=None,
+            output="UI E2E automation artifact not found; section is advisory-only.",
+        )
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return UiE2EAutomationResult(
+            enabled=True,
+            advisory_only=advisory_only,
+            artifact_path=str(path),
+            available=False,
+            result="UNAVAILABLE",
+            stages_passed_total=None,
+            stages_failed_total=None,
+            output=f"Failed to parse UI E2E automation artifact: {exc}",
+        )
+
+    result = str(payload.get("status", "")).strip().upper()
+    if result not in {"PASS", "FAIL"}:
+        result = "UNAVAILABLE"
+    return UiE2EAutomationResult(
+        enabled=True,
+        advisory_only=advisory_only,
+        artifact_path=str(path),
+        available=True,
+        result=result,
+        stages_passed_total=int(payload.get("stages_passed_total", 0)),
+        stages_failed_total=int(payload.get("stages_failed_total", 0)),
+        output="UI E2E automation artifact loaded and linked as advisory evidence.",
+    )
+
+
 def _write_report(
     *,
     out_path: Path,
@@ -374,6 +430,7 @@ def _write_report(
     data_safety: DataSafetyResult,
     governance_alerts: GovernanceAlertResult,
     runtime_snapshots: RuntimeSnapshotsResult,
+    ui_e2e_automation: UiE2EAutomationResult,
     missing_links: list[str],
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -480,6 +537,32 @@ def _write_report(
     lines.append(runtime_snapshots.output or "(no output)")
     lines.append("```")
     lines.append("")
+    lines.append("## UI E2E Automation")
+    lines.append(f"- Enabled: `{'true' if ui_e2e_automation.enabled else 'false'}`")
+    lines.append(f"- Advisory Only: `{'true' if ui_e2e_automation.advisory_only else 'false'}`")
+    lines.append(f"- Artifact Path: `{ui_e2e_automation.artifact_path}`")
+    lines.append(f"- Available: `{'true' if ui_e2e_automation.available else 'false'}`")
+    lines.append(f"- Result: `{ui_e2e_automation.result}`")
+    lines.append(
+        "- Stages Passed Total: "
+        + (
+            f"`{ui_e2e_automation.stages_passed_total}`"
+            if ui_e2e_automation.stages_passed_total is not None
+            else "`n/a`"
+        )
+    )
+    lines.append(
+        "- Stages Failed Total: "
+        + (
+            f"`{ui_e2e_automation.stages_failed_total}`"
+            if ui_e2e_automation.stages_failed_total is not None
+            else "`n/a`"
+        )
+    )
+    lines.append("```text")
+    lines.append(ui_e2e_automation.output or "(no output)")
+    lines.append("```")
+    lines.append("")
     overall_pass = not missing_links and all(result.ok for result in gate_results)
     if data_safety.required and not data_safety.ok:
         overall_pass = False
@@ -511,6 +594,11 @@ def main() -> int:
         default=DEFAULT_RUNTIME_SNAPSHOTS_PATH,
         help="Path to local runtime snapshot JSON used for advisory evidence linkage.",
     )
+    parser.add_argument(
+        "--ui-e2e-automation-in",
+        default=DEFAULT_UI_E2E_AUTOMATION_PATH,
+        help="Path to local UI E2E automation artifact JSON used for advisory evidence linkage.",
+    )
     args = parser.parse_args()
 
     started_at = datetime.now(UTC)
@@ -536,6 +624,7 @@ def main() -> int:
         rejection_rate_threshold=governance_rejection_threshold,
     )
     runtime_snapshots_result = _run_runtime_snapshots(str(args.runtime_snapshots_in))
+    ui_e2e_automation_result = _run_ui_e2e_automation(str(args.ui_e2e_automation_in))
 
     ended_at = datetime.now(UTC)
     out_path = Path(args.out)
@@ -548,6 +637,7 @@ def main() -> int:
         data_safety=data_safety_result,
         governance_alerts=governance_alerts_result,
         runtime_snapshots=runtime_snapshots_result,
+        ui_e2e_automation=ui_e2e_automation_result,
         missing_links=missing_links,
     )
 

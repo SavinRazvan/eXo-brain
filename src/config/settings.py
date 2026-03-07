@@ -70,6 +70,8 @@ class RuntimeSettings:
     byoc_cost_error_microunits: int = 40
     byoc_cost_timeout_microunits: int = 60
     byoc_cost_cancelled_microunits: int = 20
+    byoc_budget_partition_scope: str = "tenant"
+    byoc_budget_partition_limits_microunits: dict[str, int] = field(default_factory=dict)
     byoc_anomaly_detection_enabled: bool = True
     byoc_anomaly_cost_utilization_threshold: float = 0.9
     byoc_anomaly_rejection_rate_threshold: float = 0.2
