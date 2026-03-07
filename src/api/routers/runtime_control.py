@@ -26,10 +26,14 @@ from src.api.schemas.runtime_control_schemas import (
     ByocClaimJobRequest,
     ByocClaimJobResponse,
     ByocDlqListResponse,
+    ByocDlqReplayBulkRequest,
+    ByocDlqReplayBulkResponse,
+    ByocDlqReplayFailure,
     ByocDlqRecord,
     ByocDlqReplayResponse,
     ByocGovernanceAnomaly,
     ByocGovernanceAnomalyReport,
+    ByocGovernanceConflictCount,
     ByocGovernanceCostMetrics,
     ByocGovernanceMetricsResponse,
     ByocGovernanceReasonCount,
@@ -457,6 +461,77 @@ async def replay_byoc_dead_letter_job(
     )
 
 
+@router.post(
+    "/{tenant_id}/admin/byoc/dlq/replay",
+    response_model=ByocDlqReplayBulkResponse,
+)
+async def replay_byoc_dead_letter_jobs_bulk(
+    tenant_id: str,
+    body: ByocDlqReplayBulkRequest,
+    ctx: TenantRuntimeContext = Depends(get_tenant_context),
+    _identity: IdentityContext = Depends(require_valid_identity),
+) -> ByocDlqReplayBulkResponse:
+    adapter = _resolve_byoc_adapter(ctx)
+    list_method = getattr(adapter, "list_dead_letter_jobs", None)
+    replay_bulk_method = getattr(adapter, "replay_dead_letter_jobs", None)
+    replay_single_method = getattr(adapter, "replay_dead_letter_job", None)
+    bounded_limit = max(1, min(int(body.limit), 500))
+
+    requested_ids = [str(item).strip() for item in body.job_ids if str(item).strip()]
+    if requested_ids:
+        target_job_ids = list(dict.fromkeys(requested_ids))[:bounded_limit]
+    else:
+        records = list_method(tenant_id=tenant_id, limit=bounded_limit) if callable(list_method) else []
+        target_job_ids = [str(item.get("job_id", "")).strip() for item in records if str(item.get("job_id", "")).strip()]
+
+    attempted = len(target_job_ids)
+    replayed = 0
+    failures: list[ByocDlqReplayFailure] = []
+    if attempted == 0:
+        return ByocDlqReplayBulkResponse(
+            tenant_id=tenant_id,
+            backend_id=adapter.backend_id,
+            attempted=0,
+            replayed=0,
+            failed=0,
+            failures=[],
+        )
+
+    if callable(replay_bulk_method):
+        summary = replay_bulk_method(tenant_id=tenant_id, job_ids=target_job_ids, limit=bounded_limit)
+        attempted = int(summary.get("attempted", attempted))
+        replayed = int(summary.get("replayed", 0))
+        raw_failures = summary.get("failures", [])
+        if isinstance(raw_failures, list):
+            for item in raw_failures:
+                if not isinstance(item, dict):
+                    continue
+                job_id = str(item.get("job_id", "")).strip()
+                reason_code = str(item.get("reason_code", "")).strip() or "DLQ_REPLAY_REJECTED"
+                if job_id:
+                    failures.append(ByocDlqReplayFailure(job_id=job_id, reason_code=reason_code))
+    elif callable(replay_single_method):
+        for job_id in target_job_ids:
+            if replay_single_method(tenant_id=tenant_id, job_id=job_id):
+                replayed += 1
+            else:
+                failures.append(
+                    ByocDlqReplayFailure(
+                        job_id=job_id,
+                        reason_code="DLQ_REPLAY_NOT_FOUND_OR_NOT_DLQ",
+                    )
+                )
+
+    return ByocDlqReplayBulkResponse(
+        tenant_id=tenant_id,
+        backend_id=adapter.backend_id,
+        attempted=attempted,
+        replayed=replayed,
+        failed=max(attempted - replayed, 0),
+        failures=failures,
+    )
+
+
 @router.get(
     "/{tenant_id}/admin/byoc/governance-metrics",
     response_model=ByocGovernanceMetricsResponse,
@@ -499,6 +574,20 @@ async def get_byoc_governance_metrics(
         reasons.append(ByocGovernanceReasonCount(reason_code=reason_code, count=int(value)))
     reasons.sort(key=lambda item: (-item.count, item.reason_code))
     reason_counts = {item.reason_code: item.count for item in reasons}
+    conflict_counts: list[ByocGovernanceConflictCount] = []
+    conflict_method = getattr(adapter, "conflict_counts_for_tenant", None)
+    if callable(conflict_method):
+        raw_conflicts = conflict_method(tenant_id=tenant_id)
+        for record in raw_conflicts:
+            conflict_counts.append(
+                ByocGovernanceConflictCount(
+                    strategy=str(record.strategy),
+                    tool_name=str(record.tool_name),
+                    tool_version=str(record.tool_version),
+                    reason_code=str(record.reason_code),
+                    count=int(record.count),
+                )
+            )
 
     settings = request.app.state.settings
     anomaly_enabled = bool(settings.runtime.byoc_anomaly_detection_enabled)
@@ -539,6 +628,7 @@ async def get_byoc_governance_metrics(
             rejection_rate=rejection_rate,
         ),
         rejection_reasons=reasons,
+        conflict_counts=conflict_counts,
         anomaly_report=ByocGovernanceAnomalyReport(
             enabled=anomaly_enabled,
             advisory_only=True,

@@ -186,6 +186,23 @@ def _run_smoke_flow(*, base_url: str, tenant_id: str, timeout_s: float) -> Stage
         "X-Identity": identity,
     }
     snapshot_path = _repo_root() / ".local" / "ui-smoke-runtime-snapshots.json"
+    governance_metrics_path = _repo_root() / ".local" / "byoc-governance-metrics.json"
+
+    def _extract_governance_payload(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+        source = snapshot.get("byoc_governance_metrics", {})
+        if not isinstance(source, dict):
+            return None
+        if int(source.get("status_code", 0)) != 200:
+            return None
+        payload = source.get("payload")
+        if not isinstance(payload, dict):
+            return None
+        if "cost" in payload and "submissions" in payload:
+            return payload
+        metrics = payload.get("metrics")
+        if isinstance(metrics, dict) and "cost" in metrics and "submissions" in metrics:
+            return metrics
+        return payload
 
     def _capture_runtime_snapshot(label: str) -> dict[str, Any]:
         timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -475,13 +492,27 @@ def _run_smoke_flow(*, base_url: str, tenant_id: str, timeout_s: float) -> Stage
             + "\n",
             encoding="utf-8",
         )
+        governance_payload = _extract_governance_payload(after_snapshot) or _extract_governance_payload(
+            before_snapshot
+        )
+        if governance_payload is None:
+            governance_payload = {
+                "captured_by": "scripts/ui/local_ui_readiness_smoke.py",
+                "status": "unavailable",
+            }
+        governance_metrics_path.write_text(
+            json.dumps(governance_payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
         return StageResult(
             name="End-to-end smoke flow",
             ok=True,
             detail=(
                 f"Tenant={tenant_id}, Provider={provider_id}, Agent={agent_id}, "
-                f"Tool={tool_name}@{version}, Snapshot=.local/ui-smoke-runtime-snapshots.json"
+                "Tool="
+                f"{tool_name}@{version}, Snapshot=.local/ui-smoke-runtime-snapshots.json, "
+                "GovernanceMetrics=.local/byoc-governance-metrics.json"
             ),
         )
 
@@ -542,6 +573,8 @@ def main() -> int:
 
     env = dict(**os.environ)
     env.setdefault("EXO_ENV", "development")
+    # Enable BYOC runtime in smoke sessions so governance metrics export is available for rc-signoff linkage.
+    env.setdefault("EXO_ENABLE_BYOC_TOOL_RUNTIME", "true")
     server_cmd = [
         sys.executable,
         "-m",

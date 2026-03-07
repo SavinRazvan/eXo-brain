@@ -35,6 +35,7 @@ from src.tools.byoc.job_contracts import ByocResultStatus, ByocToolJobEnvelope, 
 from src.tools.byoc.integrity_verifier import verify_result_artifact_metadata
 from src.tools.byoc.job_store import ByocJobQueueStore, InMemoryByocJobQueueStore
 from src.tools.byoc.result_store import (
+    ByocConflictCountRecord,
     ByocResultIngestOutcome,
     ByocResultStore,
     InMemoryByocResultStore,
@@ -58,6 +59,19 @@ def _utc_now() -> str:
 
 def _normalized_nonce(value: str) -> str:
     return str(value).strip()
+
+
+def _metric_token(value: str) -> str:
+    token = str(value or "").strip().lower()
+    if not token:
+        return "unknown"
+    sanitized = []
+    for char in token:
+        if char.isalnum():
+            sanitized.append(char)
+        else:
+            sanitized.append("_")
+    return "".join(sanitized).strip("_") or "unknown"
 
 
 class TenantByocConnectorRuntime(ToolExecutionAdapter):
@@ -89,6 +103,8 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         cost_error_microunits: int = 40,
         cost_timeout_microunits: int = 60,
         cost_cancelled_microunits: int = 20,
+        budget_partition_scope: str = "tenant",
+        budget_partition_limits_microunits: dict[str, int] | None = None,
         fair_admission_enabled: bool = False,
         fair_admission_max_inflight_global: int = 8,
         fair_admission_wait_timeout_ms: int = 1000,
@@ -117,6 +133,10 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._cost_error_microunits = max(int(cost_error_microunits), 0)
         self._cost_timeout_microunits = max(int(cost_timeout_microunits), 0)
         self._cost_cancelled_microunits = max(int(cost_cancelled_microunits), 0)
+        self._budget_partition_scope = self._normalize_budget_partition_scope(budget_partition_scope)
+        self._budget_partition_limits_microunits = self._normalize_budget_partition_limits(
+            budget_partition_limits_microunits or {}
+        )
         self._fair_admission_enabled = bool(fair_admission_enabled)
         self._fair_admission_max_inflight_global = max(int(fair_admission_max_inflight_global), 1)
         self._fair_admission_wait_timeout_ms = max(int(fair_admission_wait_timeout_ms), 1)
@@ -132,6 +152,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._lease_requeue_total = 0
         self._dlq_moved_total = 0
         self._dlq_replayed_total = 0
+        self._dlq_replay_failed_total = 0
         self._cleanup_runs_total = 0
         self._cleanup_pruned_total = 0
         self._last_cleanup_epoch = 0.0
@@ -139,6 +160,9 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._tenant_cost_microunits_total: dict[str, int] = {}
         self._tenant_cost_window_started_epoch: dict[str, int] = {}
         self._tenant_cost_window_microunits: dict[str, int] = {}
+        self._tenant_partition_cost_microunits_total: dict[str, dict[str, int]] = {}
+        self._tenant_partition_cost_window_started_epoch: dict[str, dict[str, int]] = {}
+        self._tenant_partition_cost_window_microunits: dict[str, dict[str, int]] = {}
         self._tenant_submit_attempts_total: dict[str, int] = {}
         self._tenant_rejected_results_total: dict[str, int] = {}
         self._tenant_rejections_by_reason: dict[str, dict[str, int]] = {}
@@ -155,13 +179,18 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         timeout_ms = max(int(descriptor.timeout_ms), 1)
         tenant_id = str(call.tenant_id or "default").strip() or "default"
         if self._enforce_cost_limit:
-            exceeded, reason_code = self._cost_limit_exceeded(tenant_id=tenant_id)
+            exceeded, reason_code, rejection_details = self._cost_limit_exceeded(
+                tenant_id=tenant_id,
+                provider_id=call.provider_id,
+                tool_name=descriptor.name,
+            )
             if exceeded:
                 return self._cost_limit_result(
                     call,
                     timeout_ms=timeout_ms,
                     tenant_id=tenant_id,
                     reason_code=reason_code,
+                    details=rejection_details,
                 )
         fair_token: FairAdmissionToken | None = None
         if self._fair_admission_enabled:
@@ -210,7 +239,12 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 remaining = deadline - perf_counter()
                 if remaining <= 0:
                     timeout_result = self._timeout_result(call, started, started_clock, timeout_ms, tenant_id, job.job_id)
-                    self._record_tenant_cost(tenant_id=tenant_id, amount=self._cost_timeout_microunits)
+                    self._record_tenant_cost(
+                        tenant_id=tenant_id,
+                        provider_id=call.provider_id,
+                        tool_name=descriptor.name,
+                        amount=self._cost_timeout_microunits,
+                    )
                     self._record_progress(
                         call_id=call.call_id,
                         tool_name=descriptor.name,
@@ -419,12 +453,16 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 "lease_requeue_total": self._lease_requeue_total,
                 "dlq_moved_total": self._dlq_moved_total,
                 "dlq_replayed_total": self._dlq_replayed_total,
+                "dlq_replay_failed_total": self._dlq_replay_failed_total,
                 "cleanup_runs_total": self._cleanup_runs_total,
                 "cleanup_pruned_total": self._cleanup_pruned_total,
                 "queue_depth": self._job_store.queue_depth(),
                 "cost_limit_microunits_per_tenant": self._cost_limit_microunits_per_tenant,
                 "cost_window_policy_enabled": int(self._enable_cost_window_policy),
                 "cost_window_seconds": self._cost_window_seconds,
+                "budget_partition_scope_per_provider_enabled": int(self._budget_partition_scope == "per_provider"),
+                "budget_partition_scope_per_tool_enabled": int(self._budget_partition_scope == "per_tool"),
+                "budget_partition_limits_configured_total": len(self._budget_partition_limits_microunits),
                 "fair_admission_enabled": int(self._fair_admission_enabled),
                 "fair_admission_wait_timeout_ms": self._fair_admission_wait_timeout_ms,
                 "fair_admission_timeout_total": self._fair_admission_timeout_total,
@@ -462,14 +500,50 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             int(self._cost_limit_microunits_per_tenant) - int(window_cost),
             0,
         )
+        with self._lock:
+            partition_totals = dict(self._tenant_partition_cost_microunits_total.get(tenant_id, {}))
+            partition_windows = dict(self._tenant_partition_cost_window_microunits.get(tenant_id, {}))
+        combined["tenant_budget_partitions_tracked_total"] = len(partition_totals)
+        for partition_key, partition_total in partition_totals.items():
+            metric_key = _metric_token(partition_key)
+            combined[f"tenant_cost_partition_{metric_key}_microunits_total"] = int(partition_total)
+            partition_limit = int(self._partition_limit_for_key(partition_key))
+            combined[f"tenant_cost_partition_{metric_key}_limit_microunits"] = partition_limit
+            combined[f"tenant_cost_partition_{metric_key}_remaining_microunits"] = max(partition_limit - int(partition_total), 0)
+            if self._enable_cost_window_policy:
+                window_total = int(partition_windows.get(partition_key, 0))
+                combined[f"tenant_cost_partition_{metric_key}_window_microunits"] = window_total
+                combined[f"tenant_cost_partition_{metric_key}_window_remaining_microunits"] = max(
+                    partition_limit - window_total,
+                    0,
+                )
         combined["tenant_submit_attempts_total"] = tenant_submit_attempts
         combined["tenant_rejected_results_total"] = tenant_rejected_total
         combined["tenant_fair_admission_timeout_total"] = int(
             self._tenant_fair_admission_timeout_total.get(tenant_id, 0)
         )
+        conflict_counts = self._result_store.list_conflict_counts(tenant_id=tenant_id)
+        combined["tenant_conflict_total"] = sum(int(item.count) for item in conflict_counts)
+        for item in conflict_counts:
+            reason_key = _metric_token(item.reason_code)
+            strategy_key = _metric_token(item.strategy)
+            tool_key = _metric_token(item.tool_name)
+            version_key = _metric_token(item.tool_version)
+            combined[f"tenant_conflict_reason_{reason_key}"] = combined.get(
+                f"tenant_conflict_reason_{reason_key}",
+                0,
+            ) + int(item.count)
+            combined[f"tenant_conflict_strategy_{strategy_key}"] = combined.get(
+                f"tenant_conflict_strategy_{strategy_key}",
+                0,
+            ) + int(item.count)
+            combined[f"tenant_conflict_tool_{tool_key}_version_{version_key}_reason_{reason_key}"] = int(item.count)
         for reason, count in reason_counts.items():
             combined[f"tenant_rejected_reason_{reason}"] = int(count)
         return combined
+
+    def conflict_counts_for_tenant(self, *, tenant_id: str) -> list[ByocConflictCountRecord]:
+        return self._result_store.list_conflict_counts(tenant_id=tenant_id)
 
     def cleanup_retention(self, *, tenant_id: str, force: bool = False) -> dict[str, int]:
         return self._run_cleanup(tenant_id=tenant_id, force=force)
@@ -479,10 +553,48 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
 
     def replay_dead_letter_job(self, *, tenant_id: str, job_id: str) -> bool:
         replayed = self._job_store.replay_dead_letter_job(tenant_id=tenant_id, job_id=job_id)
-        if replayed:
-            with self._lock:
+        with self._lock:
+            if replayed:
                 self._dlq_replayed_total += 1
+            else:
+                self._dlq_replay_failed_total += 1
         return replayed
+
+    def replay_dead_letter_jobs(
+        self,
+        *,
+        tenant_id: str,
+        job_ids: list[str] | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        bounded_limit = max(1, min(int(limit), 500))
+        selected_ids = [str(item).strip() for item in (job_ids or []) if str(item).strip()]
+        if selected_ids:
+            target_job_ids = list(dict.fromkeys(selected_ids))[:bounded_limit]
+        else:
+            records = self._job_store.list_dead_letter_jobs(tenant_id=tenant_id, limit=bounded_limit)
+            target_job_ids = [str(item.get("job_id", "")).strip() for item in records if str(item.get("job_id", "")).strip()]
+
+        replayed = 0
+        failures: list[dict[str, str]] = []
+        for job_id in target_job_ids:
+            if self._job_store.replay_dead_letter_job(tenant_id=tenant_id, job_id=job_id):
+                replayed += 1
+            else:
+                failures.append(
+                    {
+                        "job_id": job_id,
+                        "reason_code": "DLQ_REPLAY_NOT_FOUND_OR_NOT_DLQ",
+                    }
+                )
+        with self._lock:
+            self._dlq_replayed_total += replayed
+            self._dlq_replay_failed_total += len(failures)
+        return {
+            "attempted": len(target_job_ids),
+            "replayed": replayed,
+            "failures": failures,
+        }
 
     def drain_progress_events(self, call_id: str) -> list[dict[str, str]]:
         normalized = str(call_id).strip()
@@ -589,17 +701,40 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             return self._cost_cancelled_microunits
         return self._cost_error_microunits
 
-    def _record_tenant_cost(self, *, tenant_id: str, amount: int) -> None:
+    def _record_tenant_cost(
+        self,
+        *,
+        tenant_id: str,
+        provider_id: str,
+        tool_name: str,
+        amount: int,
+    ) -> None:
         normalized = str(tenant_id).strip() or "default"
+        partition_key, _, _ = self._resolve_partition_limit(
+            tenant_id=normalized,
+            provider_id=provider_id,
+            tool_name=tool_name,
+        )
         now = time.time()
         with self._lock:
             self._tenant_cost_microunits_total[normalized] = int(
                 self._tenant_cost_microunits_total.get(normalized, 0)
             ) + max(int(amount), 0)
+            tenant_partition_totals = self._tenant_partition_cost_microunits_total.setdefault(normalized, {})
+            tenant_partition_totals[partition_key] = int(tenant_partition_totals.get(partition_key, 0)) + max(int(amount), 0)
             if self._enable_cost_window_policy:
                 started, current = self._window_state_unlocked(tenant_id=normalized, now=now)
                 self._tenant_cost_window_started_epoch[normalized] = int(started)
                 self._tenant_cost_window_microunits[normalized] = int(current) + max(int(amount), 0)
+                partition_started, partition_current = self._partition_window_state_unlocked(
+                    tenant_id=normalized,
+                    partition_key=partition_key,
+                    now=now,
+                )
+                tenant_partition_window_started = self._tenant_partition_cost_window_started_epoch.setdefault(normalized, {})
+                tenant_partition_windows = self._tenant_partition_cost_window_microunits.setdefault(normalized, {})
+                tenant_partition_window_started[partition_key] = int(partition_started)
+                tenant_partition_windows[partition_key] = int(partition_current) + max(int(amount), 0)
 
     def _increment_tenant_submit_attempt(self, *, tenant_id: str) -> None:
         normalized = str(tenant_id).strip() or "default"
@@ -614,19 +749,61 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             bucket = self._tenant_rejections_by_reason.setdefault(normalized, {})
             bucket[reason] = int(bucket.get(reason, 0)) + 1
 
-    def _cost_limit_exceeded(self, *, tenant_id: str) -> tuple[bool, str]:
-        if self._cost_limit_microunits_per_tenant <= 0:
-            return (False, "")
+    def _cost_limit_exceeded(
+        self,
+        *,
+        tenant_id: str,
+        provider_id: str,
+        tool_name: str,
+    ) -> tuple[bool, str, dict[str, str | int]]:
         normalized = str(tenant_id).strip() or "default"
-        if self._enable_cost_window_policy:
-            _, window_cost = self._window_state(tenant_id=normalized, now=time.time())
+        partition_key, limit, is_partitioned = self._resolve_partition_limit(
+            tenant_id=normalized,
+            provider_id=provider_id,
+            tool_name=tool_name,
+        )
+        if limit <= 0:
             return (
-                window_cost >= int(self._cost_limit_microunits_per_tenant),
-                "BYOC_COST_WINDOW_LIMIT_EXCEEDED",
+                False,
+                "",
+                {
+                    "tenant_id": normalized,
+                    "partition_key": partition_key,
+                    "partition_limit_microunits": int(limit),
+                    "partitioned_policy_applied": int(is_partitioned),
+                },
+            )
+        if self._enable_cost_window_policy:
+            _, window_cost = self._partition_window_state(
+                tenant_id=normalized,
+                partition_key=partition_key,
+                now=time.time(),
+            )
+            return (
+                window_cost >= int(limit),
+                "BYOC_COST_WINDOW_PARTITION_LIMIT_EXCEEDED" if is_partitioned else "BYOC_COST_WINDOW_LIMIT_EXCEEDED",
+                {
+                    "tenant_id": normalized,
+                    "partition_key": partition_key,
+                    "partition_consumed_microunits": int(window_cost),
+                    "partition_limit_microunits": int(limit),
+                    "partitioned_policy_applied": int(is_partitioned),
+                    "window_seconds": int(self._cost_window_seconds),
+                },
             )
         with self._lock:
-            consumed = int(self._tenant_cost_microunits_total.get(normalized, 0))
-        return (consumed >= int(self._cost_limit_microunits_per_tenant), "BYOC_COST_LIMIT_EXCEEDED")
+            consumed = int(self._tenant_partition_cost_microunits_total.get(normalized, {}).get(partition_key, 0))
+        return (
+            consumed >= int(limit),
+            "BYOC_COST_PARTITION_LIMIT_EXCEEDED" if is_partitioned else "BYOC_COST_LIMIT_EXCEEDED",
+            {
+                "tenant_id": normalized,
+                "partition_key": partition_key,
+                "partition_consumed_microunits": int(consumed),
+                "partition_limit_microunits": int(limit),
+                "partitioned_policy_applied": int(is_partitioned),
+            },
+        )
 
     def _cost_limit_result(
         self,
@@ -635,9 +812,12 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         timeout_ms: int,
         tenant_id: str,
         reason_code: str,
+        details: dict[str, str | int],
     ) -> ToolResult:
         normalized_reason = str(reason_code).strip() or "BYOC_COST_LIMIT_EXCEEDED"
         self._increment_tenant_rejection(tenant_id=tenant_id, reason_code=normalized_reason)
+        merged_details = {"backend_id": self.backend_id, "tenant_id": tenant_id}
+        merged_details.update(details)
         return ToolResult(
             schema_version="1.0",
             call_id=call.call_id,
@@ -648,7 +828,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
                 category="policy",
                 message="BYOC tenant cost limit exceeded.",
                 retryable=False,
-                details={"backend_id": self.backend_id, "tenant_id": tenant_id},
+                details=merged_details,
             ),
             execution=ExecutionMetadata(
                 mode_used=ToolExecutionMode.DETERMINISTIC,
@@ -656,6 +836,86 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             ),
             audit=ToolAudit(correlation_id=call.call_id),
         )
+
+    def _normalize_budget_partition_scope(self, scope: str) -> str:
+        normalized = str(scope or "").strip().lower()
+        if normalized in {"per_provider", "provider"}:
+            return "per_provider"
+        if normalized in {"per_tool", "tool"}:
+            return "per_tool"
+        return "tenant"
+
+    def _normalize_budget_partition_limits(self, raw_limits: dict[str, int]) -> dict[str, int]:
+        normalized: dict[str, int] = {}
+        for key, value in raw_limits.items():
+            token = str(key).strip().lower()
+            if not token:
+                continue
+            try:
+                normalized[token] = max(int(value), 0)
+            except (TypeError, ValueError):
+                continue
+        return normalized
+
+    def _resolve_partition_limit(
+        self,
+        *,
+        tenant_id: str,
+        provider_id: str,
+        tool_name: str,
+    ) -> tuple[str, int, bool]:
+        _ = tenant_id
+        partition_key = "tenant"
+        partition_limit = int(self._cost_limit_microunits_per_tenant)
+        is_partitioned = False
+        if self._budget_partition_scope == "per_provider":
+            provider = str(provider_id or "").strip().lower()
+            candidate = f"provider:{provider}" if provider else ""
+            if candidate and candidate in self._budget_partition_limits_microunits:
+                partition_key = candidate
+                partition_limit = int(self._budget_partition_limits_microunits[candidate])
+                is_partitioned = True
+        elif self._budget_partition_scope == "per_tool":
+            tool = str(tool_name or "").strip().lower()
+            candidate = f"tool:{tool}" if tool else ""
+            if candidate and candidate in self._budget_partition_limits_microunits:
+                partition_key = candidate
+                partition_limit = int(self._budget_partition_limits_microunits[candidate])
+                is_partitioned = True
+        return partition_key, max(partition_limit, 0), is_partitioned
+
+    def _partition_limit_for_key(self, partition_key: str) -> int:
+        normalized = str(partition_key or "").strip().lower()
+        if normalized and normalized in self._budget_partition_limits_microunits:
+            return int(self._budget_partition_limits_microunits[normalized])
+        return int(self._cost_limit_microunits_per_tenant)
+
+    def _partition_window_state(self, *, tenant_id: str, partition_key: str, now: float) -> tuple[int, int]:
+        normalized = str(tenant_id).strip() or "default"
+        normalized_partition = str(partition_key).strip().lower() or "tenant"
+        with self._lock:
+            return self._partition_window_state_unlocked(
+                tenant_id=normalized,
+                partition_key=normalized_partition,
+                now=now,
+            )
+
+    def _partition_window_state_unlocked(self, *, tenant_id: str, partition_key: str, now: float) -> tuple[int, int]:
+        tenant_started = self._tenant_partition_cost_window_started_epoch.setdefault(tenant_id, {})
+        tenant_windows = self._tenant_partition_cost_window_microunits.setdefault(tenant_id, {})
+        start = int(tenant_started.get(partition_key, int(now)))
+        cost = int(tenant_windows.get(partition_key, 0))
+        if start <= 0:
+            start = int(now)
+        if int(now) - start >= int(self._cost_window_seconds):
+            start = int(now)
+            cost = 0
+            tenant_started[partition_key] = start
+            tenant_windows[partition_key] = cost
+        else:
+            tenant_started.setdefault(partition_key, start)
+            tenant_windows.setdefault(partition_key, cost)
+        return (start, cost)
 
     def _window_state(self, *, tenant_id: str, now: float) -> tuple[int, int]:
         normalized = str(tenant_id).strip() or "default"
@@ -771,7 +1031,12 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             ByocResultStatus.CANCELLED: ToolStatus.CANCELLED,
         }
         status = status_map.get(result.status, ToolStatus.ERROR)
-        self._record_tenant_cost(tenant_id=tenant_id, amount=self._cost_for_status(status))
+        self._record_tenant_cost(
+            tenant_id=tenant_id,
+            provider_id=call.provider_id,
+            tool_name=call.tool_name,
+            amount=self._cost_for_status(status),
+        )
         payload = {
             "value": result.output or {},
             "runtime": {

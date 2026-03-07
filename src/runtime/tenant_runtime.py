@@ -156,6 +156,8 @@ class TenantRuntimeFactory:
                 cost_error_microunits=self._settings.runtime.byoc_cost_error_microunits,
                 cost_timeout_microunits=self._settings.runtime.byoc_cost_timeout_microunits,
                 cost_cancelled_microunits=self._settings.runtime.byoc_cost_cancelled_microunits,
+                budget_partition_scope=self._settings.runtime.byoc_budget_partition_scope,
+                budget_partition_limits_microunits=self._settings.runtime.byoc_budget_partition_limits_microunits,
                 fair_admission_enabled=self._settings.runtime.byoc_fair_admission_enabled,
                 fair_admission_max_inflight_global=self._settings.runtime.byoc_fair_admission_max_inflight_global,
                 fair_admission_wait_timeout_ms=self._settings.runtime.byoc_fair_admission_wait_timeout_ms,

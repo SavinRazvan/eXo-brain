@@ -750,6 +750,78 @@ def test_byoc_runtime_windowed_cost_limit_resets_and_enforces_window_reason() ->
     assert second_holder["result"].status == ToolStatus.SUCCESS
 
 
+def test_byoc_runtime_per_tool_partition_limit_enforced_and_window_resets() -> None:
+    runtime = TenantByocConnectorRuntime(
+        worker_jwt_secret="test-secret",
+        enforce_cost_limit=True,
+        enable_cost_window_policy=True,
+        cost_window_seconds=1,
+        cost_limit_microunits_per_tenant=100,
+        cost_success_microunits=2,
+        budget_partition_scope="per_tool",
+        budget_partition_limits_microunits={"tool:echo_tool": 2},
+    )
+    token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-partition-tool")
+
+    def _execute_success(call: ToolCallContext, descriptor: ToolDescriptor, submit_nonce: str) -> ToolStatus:
+        holder: dict[str, object] = {}
+        thread = threading.Thread(target=lambda: holder.setdefault("result", runtime.execute(call, descriptor)))
+        thread.start()
+        claim = _wait_claim(runtime, token, f"nonce-{submit_nonce}-claim")
+        assert claim is not None
+        outcome = runtime.submit_result(
+            tenant_id="t1",
+            worker_token=token,
+            request_nonce=f"nonce-{submit_nonce}-submit",
+            result=ByocToolResultEnvelope(
+                job_id=claim["job_id"],
+                tenant_id="t1",
+                run_id=claim["run_id"],
+                call_id=claim["call_id"],
+                tool_name=claim["tool_name"],
+                status=ByocResultStatus.SUCCESS,
+                output={"ok": True},
+                idempotency_key=claim["idempotency_key"],
+                lease_token=claim["lease_token"],
+            ),
+        )
+        assert outcome.accepted is True
+        thread.join(timeout=2.0)
+        assert not thread.is_alive()
+        return holder["result"].status
+
+    echo_descriptor = ToolDescriptor(name="echo_tool", handler=lambda value: value, timeout_ms=1500)
+    echo_call_1 = _call()
+    echo_call_1.call_id = "call_partition_tool_1"
+    echo_call_1.run_id = "run_partition_tool_1"
+    assert _execute_success(echo_call_1, echo_descriptor, "partition-tool-1") == ToolStatus.SUCCESS
+
+    echo_call_2 = _call()
+    echo_call_2.call_id = "call_partition_tool_2"
+    echo_call_2.run_id = "run_partition_tool_2"
+    blocked = runtime.execute(echo_call_2, echo_descriptor)
+    assert blocked.status == ToolStatus.ERROR
+    assert blocked.error.code == "BYOC_COST_WINDOW_PARTITION_LIMIT_EXCEEDED"
+
+    other_descriptor = ToolDescriptor(name="other_tool", handler=lambda value: value, timeout_ms=1500)
+    other_call = _call()
+    other_call.tool_name = "other_tool"
+    other_call.call_id = "call_partition_tool_3"
+    other_call.run_id = "run_partition_tool_3"
+    assert _execute_success(other_call, other_descriptor, "partition-tool-2") == ToolStatus.SUCCESS
+
+    time.sleep(1.1)
+    echo_call_3 = _call()
+    echo_call_3.call_id = "call_partition_tool_4"
+    echo_call_3.run_id = "run_partition_tool_4"
+    assert _execute_success(echo_call_3, echo_descriptor, "partition-tool-3") == ToolStatus.SUCCESS
+
+    stats = runtime.control_stats_for_tenant(tenant_id="t1")
+    assert stats["tenant_cost_partition_tool_echo_tool_microunits_total"] == 4
+    assert stats["tenant_cost_partition_tenant_microunits_total"] == 2
+    assert stats["tenant_cost_partition_tool_echo_tool_window_microunits"] == 2
+
+
 def test_byoc_runtime_fair_admission_timeout_under_cross_tenant_contention() -> None:
     runtime_t1 = TenantByocConnectorRuntime(
         worker_jwt_secret="test-secret",

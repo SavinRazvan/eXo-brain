@@ -1,0 +1,62 @@
+# File: byoc-soak-nonblocking.yml
+# Path: .github/workflows/byoc-soak-nonblocking.yml
+# Role: Runs non-blocking BYOC soak scenarios and publishes artifacts for triage.
+# Used By:
+#  - GitHub Actions scheduled and manual runs
+# Depends On:
+#  - tests/modules/api/test_byoc_soak_suite.py
+#  - pytest.ini
+# Notes:
+#  - This workflow is advisory-only and intentionally non-blocking for merge flow.
+
+name: byoc-soak-nonblocking
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: byoc-soak-nonblocking-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run BYOC soak marker suite (advisory)
+        id: soak
+        continue-on-error: true
+        env:
+          EXO_RUN_SOAK_TESTS: "true"
+        run: |
+          mkdir -p .local
+          python -m pytest -q -m soak | tee .local/byoc-soak.log
+
+      - name: Persist soak status summary
+        if: always()
+        run: |
+          mkdir -p .local
+          echo "soak_step_outcome=${{ steps.soak.outcome }}" > .local/byoc-soak-summary.txt
+          echo "soak_step_conclusion=${{ steps.soak.conclusion }}" >> .local/byoc-soak-summary.txt
+
+      - name: Upload soak artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: byoc-soak-nonblocking
+          path: |
+            .local/byoc-soak.log
+            .local/byoc-soak-summary.txt
+          if-no-files-found: warn

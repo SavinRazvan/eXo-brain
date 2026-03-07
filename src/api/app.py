@@ -99,6 +99,22 @@ def _default_settings() -> AppSettings:
                 }
         except json.JSONDecodeError:
             parsed_signing_key_map = {}
+    raw_budget_partition_limits = os.environ.get("EXO_BYOC_BUDGET_PARTITION_LIMITS_MICROUNITS_JSON", "").strip()
+    parsed_budget_partition_limits: dict[str, int] = {}
+    if raw_budget_partition_limits:
+        try:
+            loaded_limits = json.loads(raw_budget_partition_limits)
+            if isinstance(loaded_limits, dict):
+                for key, value in loaded_limits.items():
+                    normalized_key = str(key).strip().lower()
+                    if not normalized_key:
+                        continue
+                    try:
+                        parsed_budget_partition_limits[normalized_key] = max(int(value), 0)
+                    except (TypeError, ValueError):
+                        continue
+        except json.JSONDecodeError:
+            parsed_budget_partition_limits = {}
     return AppSettings(
         schema_version="1.0",
         environment=env,
@@ -156,6 +172,8 @@ def _default_settings() -> AppSettings:
             byoc_cost_error_microunits=int(os.environ.get("EXO_BYOC_COST_ERROR_MICROUNITS", "40")),
             byoc_cost_timeout_microunits=int(os.environ.get("EXO_BYOC_COST_TIMEOUT_MICROUNITS", "60")),
             byoc_cost_cancelled_microunits=int(os.environ.get("EXO_BYOC_COST_CANCELLED_MICROUNITS", "20")),
+            byoc_budget_partition_scope=os.environ.get("EXO_BYOC_BUDGET_PARTITION_SCOPE", "tenant"),
+            byoc_budget_partition_limits_microunits=parsed_budget_partition_limits,
             byoc_anomaly_detection_enabled=_env_bool("EXO_BYOC_ANOMALY_DETECTION_ENABLED", default=True),
             byoc_anomaly_cost_utilization_threshold=float(
                 os.environ.get("EXO_BYOC_ANOMALY_COST_UTILIZATION_THRESHOLD", "0.9")
