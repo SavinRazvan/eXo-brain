@@ -149,7 +149,37 @@ class ByocDlqReplayResponse(BaseModel):
     replayed: bool
 
 
+class ByocDlqReplayBulkRequest(BaseModel):
+    job_ids: list[str] = Field(
+        default_factory=list,
+        description="Optional explicit DLQ job ids to replay. When empty, replay uses the current DLQ list bounded by limit.",
+    )
+    limit: int = Field(default=50, ge=1, le=500, description="Maximum number of DLQ jobs to replay in one request.")
+
+
+class ByocDlqReplayFailure(BaseModel):
+    job_id: str
+    reason_code: str
+
+
+class ByocDlqReplayBulkResponse(BaseModel):
+    tenant_id: str
+    backend_id: str
+    attempted: int
+    replayed: int
+    failed: int
+    failures: list[ByocDlqReplayFailure] = Field(default_factory=list)
+
+
 class ByocGovernanceReasonCount(BaseModel):
+    reason_code: str
+    count: int
+
+
+class ByocGovernanceConflictCount(BaseModel):
+    strategy: str
+    tool_name: str
+    tool_version: str
     reason_code: str
     count: int
 
@@ -195,4 +225,5 @@ class ByocGovernanceMetricsResponse(BaseModel):
     cost: ByocGovernanceCostMetrics
     submissions: ByocGovernanceSubmissionMetrics
     rejection_reasons: list[ByocGovernanceReasonCount] = Field(default_factory=list)
+    conflict_counts: list[ByocGovernanceConflictCount] = Field(default_factory=list)
     anomaly_report: ByocGovernanceAnomalyReport = Field(default_factory=ByocGovernanceAnomalyReport)

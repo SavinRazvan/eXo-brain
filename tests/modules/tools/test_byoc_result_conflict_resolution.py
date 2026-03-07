@@ -47,6 +47,13 @@ def test_inmemory_result_store_first_write_wins_rejects_conflict() -> None:
     consumed = store.consume("job_a")
     assert consumed is not None
     assert consumed.output["value"] == 1
+    conflict_counts = store.list_conflict_counts(tenant_id="t1")
+    assert len(conflict_counts) == 1
+    assert conflict_counts[0].strategy == "first_write_wins"
+    assert conflict_counts[0].reason_code == "BYOC_RESULT_CONFLICT_REJECTED"
+    assert conflict_counts[0].tool_name == "echo_tool"
+    assert conflict_counts[0].tool_version == ""
+    assert conflict_counts[0].count == 1
 
 
 def test_inmemory_result_store_last_write_wins_replaces_conflict() -> None:
@@ -59,6 +66,11 @@ def test_inmemory_result_store_last_write_wins_replaces_conflict() -> None:
     consumed = store.consume("job_b")
     assert consumed is not None
     assert consumed.output["value"] == 9
+    conflict_counts = store.list_conflict_counts(tenant_id="t1")
+    assert len(conflict_counts) == 1
+    assert conflict_counts[0].strategy == "last_write_wins"
+    assert conflict_counts[0].reason_code == "BYOC_RESULT_CONFLICT_REPLACED"
+    assert conflict_counts[0].count == 1
 
 
 def test_inmemory_result_store_prefer_success_promotes_success_result() -> None:
@@ -74,6 +86,10 @@ def test_inmemory_result_store_prefer_success_promotes_success_result() -> None:
     consumed = store.consume("job_c")
     assert consumed is not None
     assert consumed.status == ByocResultStatus.SUCCESS
+    conflict_counts = store.list_conflict_counts(tenant_id="t1")
+    reasons = {item.reason_code: item.count for item in conflict_counts}
+    assert reasons["BYOC_RESULT_CONFLICT_REPLACED"] == 1
+    assert reasons["BYOC_RESULT_CONFLICT_REJECTED"] == 1
 
 
 def test_sqlite_result_store_applies_conflict_strategy_replace(tmp_path: Path) -> None:
@@ -90,3 +106,20 @@ def test_sqlite_result_store_applies_conflict_strategy_replace(tmp_path: Path) -
     consumed = store.consume("job_d")
     assert consumed is not None
     assert consumed.output["value"] == 9
+    conflict_counts = store.list_conflict_counts(tenant_id="t1")
+    assert len(conflict_counts) == 1
+    assert conflict_counts[0].strategy == "last_write_wins"
+    assert conflict_counts[0].reason_code == "BYOC_RESULT_CONFLICT_REPLACED"
+    assert conflict_counts[0].count == 1
+
+
+def test_inmemory_prefer_success_keeps_existing_success_when_new_success_arrives() -> None:
+    store = InMemoryByocResultStore(conflict_strategy=ByocResultConflictStrategy.PREFER_SUCCESS)
+    first = store.ingest(_result(job_id="job_e", idempotency_key="t1:e1", status=ByocResultStatus.SUCCESS, value=11))
+    second = store.ingest(_result(job_id="job_e", idempotency_key="t1:e2", status=ByocResultStatus.SUCCESS, value=22))
+    assert first.accepted is True
+    assert second.accepted is False
+    assert second.reason_code == "BYOC_RESULT_CONFLICT_REJECTED"
+    consumed = store.consume("job_e")
+    assert consumed is not None
+    assert consumed.output["value"] == 11

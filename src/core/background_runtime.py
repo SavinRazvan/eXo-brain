@@ -89,6 +89,7 @@ class BackgroundRuntime:
                     context={
                         "target_concurrency": scaler_decision.target_concurrency,
                         "reason_code": scaler_decision.reason_code,
+                        "diagnostics": scaler_decision.diagnostics,
                     },
                     level=LogLevel.INFO,
                 )
@@ -109,7 +110,18 @@ class BackgroundRuntime:
             raise ValueError(f"{quota_decision.reason_code}: {quota_decision.message}")
         job = BackgroundJob(
             job_id=resolved_job_id,
-            metadata={"payload": resolved_payload, "graph": graph, "tenant_id": tenant_id},
+            metadata={
+                "payload": resolved_payload,
+                "graph": graph,
+                "tenant_id": tenant_id,
+                "scaler_decision": {
+                    "target_concurrency": scaler_decision.target_concurrency,
+                    "scale_up": scaler_decision.scale_up,
+                    "backpressure": scaler_decision.backpressure,
+                    "reason_code": scaler_decision.reason_code,
+                    "diagnostics": scaler_decision.diagnostics,
+                },
+            },
         )
         self._jobs[resolved_job_id] = job
         self._emit(
@@ -303,6 +315,12 @@ class BackgroundRuntime:
                 scale_up=False,
                 backpressure=False,
                 reason_code="SCALER_NOT_CONFIGURED",
+                diagnostics={
+                    "effective_scale_up_threshold": 0,
+                    "active_threshold": 0,
+                    "cooldown_remaining": 0,
+                    "cooldown_applied": False,
+                },
             )
         return self._agent_scaler.evaluate(
             active_jobs=active_jobs,
