@@ -31,6 +31,15 @@ class ByocResultIngestOutcome:
     reason_code: str
 
 
+@dataclass(slots=True)
+class ByocConflictCountRecord:
+    strategy: str
+    tool_name: str
+    tool_version: str
+    reason_code: str
+    count: int
+
+
 class ByocResultConflictStrategy(str, Enum):
     FIRST_WRITE_WINS = "first_write_wins"
     LAST_WRITE_WINS = "last_write_wins"
@@ -82,6 +91,14 @@ class ByocResultStore(ABC):
         """Prune result payload/idempotency records for one tenant."""
         return {"result_payloads_pruned": 0, "idempotency_pruned": 0}
 
+    def conflict_strategy_name(self) -> str:
+        """Return configured conflict strategy name for observability."""
+        return "unknown"
+
+    def list_conflict_counts(self, *, tenant_id: str) -> list[ByocConflictCountRecord]:
+        """Return conflict counters scoped to one tenant."""
+        return []
+
 
 class ReplayGuard(ABC):
     @abstractmethod
@@ -109,6 +126,7 @@ class InMemoryByocResultStore(ByocResultStore):
         self._conflict_strategy = conflict_strategy
         self._seen_idempotency_keys: set[str] = set()
         self._results_by_job_id: dict[str, ByocToolResultEnvelope] = {}
+        self._conflict_counts: dict[tuple[str, str, str], int] = {}
 
     def ingest(self, result: ByocToolResultEnvelope) -> ByocResultIngestOutcome:
         key = str(result.idempotency_key).strip()
@@ -133,6 +151,12 @@ class InMemoryByocResultStore(ByocResultStore):
                     strategy=self._conflict_strategy,
                 )
                 if not should_replace:
+                    self._record_conflict(
+                        tenant_id=result.tenant_id,
+                        tool_name=result.tool_name,
+                        tool_version=result.tool_version,
+                        reason_code="BYOC_RESULT_CONFLICT_REJECTED",
+                    )
                     return ByocResultIngestOutcome(
                         accepted=False,
                         duplicate=False,
@@ -140,6 +164,12 @@ class InMemoryByocResultStore(ByocResultStore):
                     )
                 self._seen_idempotency_keys.add(key)
                 self._results_by_job_id[result.job_id] = result
+                self._record_conflict(
+                    tenant_id=result.tenant_id,
+                    tool_name=result.tool_name,
+                    tool_version=result.tool_version,
+                    reason_code="BYOC_RESULT_CONFLICT_REPLACED",
+                )
                 return ByocResultIngestOutcome(
                     accepted=True,
                     duplicate=False,
@@ -187,6 +217,48 @@ class InMemoryByocResultStore(ByocResultStore):
     ) -> dict[str, int]:
         # In-memory adapter is process-local and naturally bounded by runtime lifetime.
         return {"result_payloads_pruned": 0, "idempotency_pruned": 0}
+
+    def conflict_strategy_name(self) -> str:
+        return str(self._conflict_strategy.value)
+
+    def list_conflict_counts(self, *, tenant_id: str) -> list[ByocConflictCountRecord]:
+        normalized = str(tenant_id).strip()
+        if not normalized:
+            return []
+        out: list[ByocConflictCountRecord] = []
+        with self._lock:
+            for (tenant, reason_code, tool_key), count in sorted(self._conflict_counts.items()):
+                if tenant != normalized:
+                    continue
+                if "@" in tool_key:
+                    tool_name, tool_version = tool_key.rsplit("@", 1)
+                else:
+                    tool_name, tool_version = tool_key, ""
+                out.append(
+                    ByocConflictCountRecord(
+                        strategy=self._conflict_strategy.value,
+                        tool_name=tool_name,
+                        tool_version=tool_version,
+                        reason_code=reason_code,
+                        count=int(count),
+                    )
+                )
+        return out
+
+    def _record_conflict(
+        self,
+        *,
+        tenant_id: str,
+        tool_name: str,
+        tool_version: str,
+        reason_code: str,
+    ) -> None:
+        tenant = str(tenant_id).strip() or "default"
+        tool = str(tool_name).strip() or "unknown_tool"
+        version = str(tool_version).strip()
+        reason = str(reason_code).strip() or "BYOC_RESULT_CONFLICT_UNKNOWN"
+        key = (tenant, reason, f"{tool}@{version}")
+        self._conflict_counts[key] = int(self._conflict_counts.get(key, 0)) + 1
 
 
 class InMemoryReplayGuard(ReplayGuard):

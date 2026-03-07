@@ -24,6 +24,7 @@ import uuid
 from src.tools.byoc.job_contracts import ByocToolJobEnvelope, ByocToolResultEnvelope
 from src.tools.byoc.job_store import ByocJobQueueStore, JobLeaseClaim
 from src.tools.byoc.result_store import (
+    ByocConflictCountRecord,
     ByocResultConflictStrategy,
     ByocResultIngestOutcome,
     ByocResultStore,
@@ -633,11 +634,25 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
                         strategy=self._conflict_strategy,
                     )
                     if not should_replace:
+                        self._record_conflict(
+                            tenant_id=result.tenant_id,
+                            tool_name=result.tool_name,
+                            tool_version=result.tool_version,
+                            reason_code="BYOC_RESULT_CONFLICT_REJECTED",
+                            conn=conn,
+                        )
                         return ByocResultIngestOutcome(
                             accepted=False,
                             duplicate=False,
                             reason_code="BYOC_RESULT_CONFLICT_REJECTED",
                         )
+                    self._record_conflict(
+                        tenant_id=result.tenant_id,
+                        tool_name=result.tool_name,
+                        tool_version=result.tool_version,
+                        reason_code="BYOC_RESULT_CONFLICT_REPLACED",
+                        conn=conn,
+                    )
             try:
                 conn.execute(
                     """
@@ -798,6 +813,35 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
             conn.commit()
         return {"result_payloads_pruned": result_pruned, "idempotency_pruned": idempotency_pruned}
 
+    def conflict_strategy_name(self) -> str:
+        return str(self._conflict_strategy.value)
+
+    def list_conflict_counts(self, *, tenant_id: str) -> list[ByocConflictCountRecord]:
+        normalized = str(tenant_id).strip()
+        if not normalized:
+            return []
+        with self._lock:
+            conn = self._connect()
+            rows = conn.execute(
+                """
+                SELECT strategy, tool_name, tool_version, reason_code, count
+                FROM byoc_result_conflicts
+                WHERE tenant_id = ?
+                ORDER BY count DESC, reason_code ASC, tool_name ASC, tool_version ASC
+                """,
+                (normalized,),
+            ).fetchall()
+        return [
+            ByocConflictCountRecord(
+                strategy=str(row[0]),
+                tool_name=str(row[1]),
+                tool_version=str(row[2]),
+                reason_code=str(row[3]),
+                count=int(row[4]),
+            )
+            for row in rows
+        ]
+
     def _ensure_schema(self) -> None:
         with self._lock:
             conn = self._connect()
@@ -831,6 +875,22 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_byoc_result_idempotency_tenant ON byoc_result_idempotency (tenant_id)"
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS byoc_result_conflicts (
+                    tenant_id TEXT NOT NULL,
+                    strategy TEXT NOT NULL,
+                    tool_name TEXT NOT NULL,
+                    tool_version TEXT NOT NULL,
+                    reason_code TEXT NOT NULL,
+                    count INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (tenant_id, strategy, tool_name, tool_version, reason_code)
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_byoc_result_conflicts_tenant ON byoc_result_conflicts (tenant_id)"
+            )
             conn.commit()
 
     @staticmethod
@@ -854,6 +914,32 @@ class SQLiteByocResultStore(_SQLiteStoreMixin, ByocResultStore):
             artifact_bundle_signature_hmac_sha256=str(data.get("artifact_bundle_signature_hmac_sha256", "")),
             artifact_signature_version=str(data.get("artifact_signature_version", "")),
         )
+
+    def _record_conflict(
+        self,
+        *,
+        tenant_id: str,
+        tool_name: str,
+        tool_version: str,
+        reason_code: str,
+        conn: sqlite3.Connection | None = None,
+    ) -> None:
+        tenant = str(tenant_id).strip() or "default"
+        tool = str(tool_name).strip() or "unknown_tool"
+        version = str(tool_version).strip()
+        reason = str(reason_code).strip() or "BYOC_RESULT_CONFLICT_UNKNOWN"
+        target_conn = conn or self._connect()
+        target_conn.execute(
+            """
+            INSERT INTO byoc_result_conflicts (tenant_id, strategy, tool_name, tool_version, reason_code, count)
+            VALUES (?, ?, ?, ?, ?, 1)
+            ON CONFLICT(tenant_id, strategy, tool_name, tool_version, reason_code)
+            DO UPDATE SET count = byoc_result_conflicts.count + 1
+            """,
+            (tenant, self._conflict_strategy.value, tool, version, reason),
+        )
+        if conn is None:
+            target_conn.commit()
 
 
 class SQLiteReplayGuard(_SQLiteStoreMixin, ReplayGuard):

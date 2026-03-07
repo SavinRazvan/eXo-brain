@@ -208,10 +208,7 @@ Delivered evidence:
 
 ## Immediate Next Action
 
-Start implementation with:
-- full gate run + browser UI validation handoff (queue complete)
+V3 queue closure gates and browser UI validation handoff are complete.
 
-Then run:
-- full gates
-- local UI smoke run
-- handoff for your browser validation session.
+Next implementation source:
+- `docs/plans/backlog-reconciliation-v4-execution-board.md`

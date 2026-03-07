@@ -44,7 +44,9 @@ Move from developer-only `module.path:function_name` registration to a SaaS-safe
   - P2 baseline closure: BYOC webhook submit path for worker push results (`/tenants/{tenant_id}/admin/byoc/webhook/jobs/submit`).
 - Open implementation queue:
   - P2 expansion queue is closed in `docs/plans/p2-expansion-roadmap.md`.
-  - Next planning/implementation source: `docs/plans/backlog-reconciliation-v3-execution-board.md`.
+  - Backlog reconciliation v3 queue is closed after full gates + UI validation handoff.
+  - Backlog reconciliation v4 queue is active in `docs/plans/backlog-reconciliation-v4-execution-board.md`.
+  - Current active target: `v4-queue-closure-and-ui-validation-handoff` (after v4 `p0-1`/`p0-2`, `p1-1`, `p1-2`, `p1-3`, `p2-1`, and `p2-2` baseline completion).
 
 ## Architecture Slice Plan
 

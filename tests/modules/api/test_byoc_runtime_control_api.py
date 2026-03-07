@@ -45,6 +45,14 @@ def _byoc_client(
     fair_admission_enabled: bool = False,
     fair_admission_max_inflight_global: int = 8,
     fair_admission_wait_timeout_ms: int = 1000,
+    budget_partition_scope: str = "tenant",
+    budget_partition_limits_microunits: dict[str, int] | None = None,
+    enforce_cost_limit: bool = False,
+    cost_limit_microunits_per_tenant: int = 1_000_000,
+    cost_success_microunits: int = 100,
+    cost_error_microunits: int = 40,
+    cost_timeout_microunits: int = 60,
+    cost_cancelled_microunits: int = 20,
 ) -> TestClient:
     settings = AppSettings(
         schema_version="1.0",
@@ -66,6 +74,14 @@ def _byoc_client(
             byoc_fair_admission_enabled=fair_admission_enabled,
             byoc_fair_admission_max_inflight_global=fair_admission_max_inflight_global,
             byoc_fair_admission_wait_timeout_ms=fair_admission_wait_timeout_ms,
+            byoc_budget_partition_scope=budget_partition_scope,
+            byoc_budget_partition_limits_microunits=budget_partition_limits_microunits or {},
+            byoc_enforce_cost_limit=enforce_cost_limit,
+            byoc_cost_limit_microunits_per_tenant=cost_limit_microunits_per_tenant,
+            byoc_cost_success_microunits=cost_success_microunits,
+            byoc_cost_error_microunits=cost_error_microunits,
+            byoc_cost_timeout_microunits=cost_timeout_microunits,
+            byoc_cost_cancelled_microunits=cost_cancelled_microunits,
         ),
     )
     return TestClient(build_test_app(settings=settings))
@@ -606,6 +622,85 @@ def test_byoc_dlq_list_and_replay_api_flow() -> None:
     run_thread.join(timeout=2.0)
 
 
+def test_byoc_dlq_bulk_replay_returns_deterministic_summary() -> None:
+    client = _byoc_client(max_claim_attempts_before_dlq=1, lease_ttl_seconds=1)
+    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    adapter = ctx.tool_executor.execution_adapter()
+    assert adapter is not None
+    from src.schemas.tool_io import ToolCallContext
+    from src.tools.registry import ToolDescriptor
+    import time
+
+    descriptor = ToolDescriptor(name="echo_tool", handler=lambda x: x, timeout_ms=2500)
+    threads: list[threading.Thread] = []
+    for idx in range(2):
+        call = ToolCallContext(
+            schema_version="1.0",
+            call_id=f"api_call_dlq_bulk_{idx}",
+            session_id=f"sess_dlq_bulk_{idx}",
+            run_id=f"run_dlq_bulk_{idx}",
+            job_id=f"job_dlq_bulk_{idx}",
+            task_id=f"task_dlq_bulk_{idx}",
+            agent_id=f"agent_dlq_bulk_{idx}",
+            provider_id="openai-test",
+            tool_name="echo_tool",
+            arguments={"x": idx},
+            tenant_id="t1",
+        )
+        thread = threading.Thread(target=lambda c=call: adapter.execute(c, descriptor))
+        thread.start()
+        threads.append(thread)
+
+    token_resp = client.post(
+        "/tenants/t1/admin/byoc/worker-token",
+        json={"worker_id": "worker-dlq-bulk-api"},
+        headers=_headers("t1"),
+    )
+    token = token_resp.json()["token"]
+    for nonce_idx in range(2):
+        claim_resp = client.post(
+            "/tenants/t1/admin/byoc/jobs/claim",
+            json={"worker_token": token, "request_nonce": f"api-claim-nonce-dlq-bulk-{nonce_idx}"},
+            headers=_headers("t1"),
+        )
+        assert claim_resp.status_code == 200
+        assert claim_resp.json()["job"] is not None
+    time.sleep(1.2)
+    _ = client.post(
+        "/tenants/t1/admin/byoc/jobs/claim",
+        json={"worker_token": token, "request_nonce": "api-claim-nonce-dlq-bulk-refresh"},
+        headers=_headers("t1"),
+    )
+
+    dlq_resp = client.get("/tenants/t1/admin/byoc/dlq?limit=10", headers=_headers("t1"))
+    records = dlq_resp.json()["records"]
+    assert len(records) >= 2
+    first_job_id = records[0]["job_id"]
+    second_job_id = records[1]["job_id"]
+
+    replay_resp = client.post(
+        "/tenants/t1/admin/byoc/dlq/replay",
+        json={
+            "job_ids": [first_job_id, second_job_id, "missing-job-id"],
+            "limit": 10,
+        },
+        headers=_headers("t1"),
+    )
+    assert replay_resp.status_code == 200
+    payload = replay_resp.json()
+    assert payload["attempted"] == 3
+    assert payload["replayed"] == 2
+    assert payload["failed"] == 1
+    assert payload["failures"] == [
+        {
+            "job_id": "missing-job-id",
+            "reason_code": "DLQ_REPLAY_NOT_FOUND_OR_NOT_DLQ",
+        }
+    ]
+    for thread in threads:
+        thread.join(timeout=3.0)
+
+
 def test_byoc_governance_metrics_export_contract_includes_reason_rollup() -> None:
     client = _byoc_client()
     token_resp = client.post(
@@ -670,6 +765,109 @@ def test_byoc_governance_metrics_export_uses_windowed_cost_fields_when_enabled()
     assert payload["cost"]["window_started_at_epoch"] >= 0
 
 
+def test_byoc_provider_partition_cost_limit_is_tenant_isolated() -> None:
+    client = _byoc_client(
+        enable_cost_window_policy=True,
+        cost_window_seconds=120,
+        enforce_cost_limit=True,
+        cost_limit_microunits_per_tenant=100,
+        cost_success_microunits=2,
+        budget_partition_scope="per_provider",
+        budget_partition_limits_microunits={"provider:openai-test": 2},
+    )
+
+    from src.schemas.tool_io import ToolCallContext
+    from src.tools.registry import ToolDescriptor
+
+    descriptor = ToolDescriptor(name="echo_tool", handler=lambda x: x, timeout_ms=1500)
+
+    def _execute_success(tenant_id: str, call_suffix: str) -> None:
+        ctx = client.app.state.tenant_factory.get_or_create(tenant_id)
+        adapter = ctx.tool_executor.execution_adapter()
+        assert adapter is not None
+        call = ToolCallContext(
+            schema_version="1.0",
+            call_id=f"partition_call_{tenant_id}_{call_suffix}",
+            session_id=f"partition_sess_{tenant_id}",
+            run_id=f"partition_run_{tenant_id}_{call_suffix}",
+            job_id=f"partition_job_{tenant_id}_{call_suffix}",
+            task_id=f"partition_task_{tenant_id}_{call_suffix}",
+            agent_id="partition_agent",
+            provider_id="openai-test",
+            tool_name="echo_tool",
+            arguments={"x": 1},
+            tenant_id=tenant_id,
+        )
+        result_holder: dict[str, object] = {}
+        thread = threading.Thread(target=lambda: result_holder.setdefault("result", adapter.execute(call, descriptor)))
+        thread.start()
+        token_resp = client.post(
+            f"/tenants/{tenant_id}/admin/byoc/worker-token",
+            json={"worker_id": f"worker-{tenant_id}"},
+            headers=_headers(tenant_id),
+        )
+        token = token_resp.json()["token"]
+        claim_resp = client.post(
+            f"/tenants/{tenant_id}/admin/byoc/jobs/claim",
+            json={"worker_token": token, "request_nonce": f"partition-claim-{tenant_id}-{call_suffix}"},
+            headers=_headers(tenant_id),
+        )
+        job = claim_resp.json()["job"]
+        assert job is not None
+        submit_resp = client.post(
+            f"/tenants/{tenant_id}/admin/byoc/jobs/submit",
+            json={
+                "worker_token": token,
+                "request_nonce": f"partition-submit-{tenant_id}-{call_suffix}",
+                "result": {
+                    "job_id": job["job_id"],
+                    "tenant_id": tenant_id,
+                    "run_id": job["run_id"],
+                    "call_id": job["call_id"],
+                    "tool_name": job["tool_name"],
+                    "status": "success",
+                    "output": {"ok": True},
+                    "idempotency_key": job["idempotency_key"],
+                    "lease_token": job["lease_token"],
+                },
+            },
+            headers=_headers(tenant_id),
+        )
+        assert submit_resp.status_code == 200
+        assert submit_resp.json()["accepted"] is True
+        thread.join(timeout=2.0)
+        assert result_holder["result"].status.value == "success"
+
+    _execute_success("t1", "1")
+
+    t1_ctx = client.app.state.tenant_factory.get_or_create("t1")
+    t1_adapter = t1_ctx.tool_executor.execution_adapter()
+    assert t1_adapter is not None
+    blocked_call = ToolCallContext(
+        schema_version="1.0",
+        call_id="partition_call_t1_blocked",
+        session_id="partition_sess_t1",
+        run_id="partition_run_t1_blocked",
+        job_id="partition_job_t1_blocked",
+        task_id="partition_task_t1_blocked",
+        agent_id="partition_agent",
+        provider_id="openai-test",
+        tool_name="echo_tool",
+        arguments={"x": 2},
+        tenant_id="t1",
+    )
+    blocked = t1_adapter.execute(blocked_call, descriptor)
+    assert blocked.status.value == "error"
+    assert blocked.error.code == "BYOC_COST_WINDOW_PARTITION_LIMIT_EXCEEDED"
+
+    _execute_success("t2", "1")
+
+    t1_stats = client.get("/tenants/t1/admin/runtime/control-stats", headers=_headers("t1")).json()["control_stats"]
+    t2_stats = client.get("/tenants/t2/admin/runtime/control-stats", headers=_headers("t2")).json()["control_stats"]
+    assert t1_stats["tenant_rejected_reason_BYOC_COST_WINDOW_PARTITION_LIMIT_EXCEEDED"] >= 1
+    assert t2_stats.get("tenant_rejected_reason_BYOC_COST_WINDOW_PARTITION_LIMIT_EXCEEDED", 0) == 0
+
+
 def test_byoc_governance_metrics_export_includes_anomaly_findings_when_threshold_exceeded() -> None:
     client = _byoc_client(
         anomaly_rejection_rate_threshold=0.5,
@@ -708,4 +906,54 @@ def test_byoc_governance_metrics_export_includes_anomaly_findings_when_threshold
     payload = metrics_resp.json()
     codes = {item["code"] for item in payload["anomaly_report"]["anomalies"]}
     assert "BYOC_REJECTION_RATE_SPIKE" in codes
+
+
+def test_byoc_governance_metrics_export_includes_conflict_counts() -> None:
+    client = _byoc_client()
+    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    adapter = ctx.tool_executor.execution_adapter()
+    assert adapter is not None
+
+    from src.tools.byoc.job_contracts import ByocResultStatus, ByocToolResultEnvelope
+    from src.tools.byoc.result_store import InMemoryByocResultStore
+
+    store = getattr(adapter, "_result_store", None)
+    assert isinstance(store, InMemoryByocResultStore)
+    first = ByocToolResultEnvelope(
+        job_id="conflict-job-1",
+        tenant_id="t1",
+        run_id="run_conflict_1",
+        call_id="call_conflict_1",
+        tool_name="echo_tool",
+        status=ByocResultStatus.ERROR,
+        output={"value": 1},
+        idempotency_key="t1:conflict:1",
+        lease_token="lease-1",
+        tool_version="v1",
+    )
+    second = ByocToolResultEnvelope(
+        job_id="conflict-job-1",
+        tenant_id="t1",
+        run_id="run_conflict_1",
+        call_id="call_conflict_1",
+        tool_name="echo_tool",
+        status=ByocResultStatus.SUCCESS,
+        output={"value": 2},
+        idempotency_key="t1:conflict:2",
+        lease_token="lease-1",
+        tool_version="v1",
+    )
+    _ = store.ingest(first)
+    _ = store.ingest(second)
+
+    metrics_resp = client.get("/tenants/t1/admin/byoc/governance-metrics", headers=_headers("t1"))
+    assert metrics_resp.status_code == 200
+    payload = metrics_resp.json()
+    assert "conflict_counts" in payload
+    assert payload["conflict_counts"] != []
+    first_conflict = payload["conflict_counts"][0]
+    assert first_conflict["strategy"] == "first_write_wins"
+    assert first_conflict["tool_name"] == "echo_tool"
+    assert first_conflict["tool_version"] in {"", "v1"}
+    assert first_conflict["reason_code"] == "BYOC_RESULT_CONFLICT_REJECTED"
 
