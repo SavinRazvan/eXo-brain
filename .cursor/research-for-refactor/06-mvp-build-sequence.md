@@ -1,5 +1,10 @@
 # MVP Build Sequence (2 Weeks)
 
+> Canonical status block (Option C):
+> - Active delivery path is API-first with no required backend-served UI mount.
+> - Enterprise target is control-plane + pluggable adapter plane + hosted/BYOC data-plane.
+> - Historical UI entries below are archival and superseded by Option C scope.
+
 ## Goal
 Build a working MVP for a modular, dynamic, multi-layer background agent system using OpenAI Agents SDK orchestration with deterministic local tool execution.
 
@@ -41,7 +46,7 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | API Platform — Slice 3 (adapter playground API) | Implemented | Session lifecycle, SSE turn streaming, WebSocket multi-turn with `asyncio.Task` cancellation, provider health/capabilities endpoints. |
 | API Platform — Slice 4 (tenant policy & quota management) | Implemented | `GET/PUT /policy` (live overlay, no restart needed) + `GET/PUT /quota` (per-tenant job limit). `TenantQuotaManager.set_limit()` added. |
 | CI hardening | Implemented | Added `fastapi`, `uvicorn[standard]`, `sse-starlette`, `websockets` to `requirements.txt`; fixed all three CI test jobs to install `requirements.txt` instead of minimal `pytest` only. 253 tests pass. |
-| Platform Extensions — Slice 3 (Web UI dashboard) | Implemented | Added `/ui` static mount, modular TS source (`ui/src`), screen/components split, and build scripts generating and verifying synchronized `ui/dist` artifacts. |
+| Platform Extensions — Slice 3 (Web UI dashboard) | Retired (deferred) | Backend `/ui` static mount removed for API-first Option C scope; UI artifacts are not required for current enterprise runbook execution. |
 | Tenant Tool Execution — Slice 2 hardening (runtime controls + transport propagation) | Implemented | Added process-isolation baseline, cancellation/control hooks, admin runtime-control APIs, canonical run-control registry, and SSE/WS cancellation forwarding with regression coverage. |
 | Tenant Tool Execution — Slice 4.1 BYOC lease/replay hardening | Implemented | Added BYOC job queue lease contracts, lease timeout requeue behavior, JWT `jti` + request nonce replay protection, and integration coverage for retry + duplicate callback races. |
 | Tenant Tool Execution — Slice 4.2 BYOC SQLite durability | Implemented | Added SQLite-backed BYOC queue/result/replay stores and restart-recovery tests validating cross-instance claim/submit completion. |

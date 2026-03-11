@@ -7,6 +7,35 @@
 
 ---
 
+## Slice 0 Reconciliation Baseline (Option C)
+
+This section is the canonical cleanup baseline for Option C execution.
+
+- UI/dashboard work is deferred from the active implementation path.
+- API-first operation is canonical for platform integration.
+- Adapter packaging + dynamic registration are primary integration paths.
+- Enterprise shape is control-plane + pluggable adapter plane + hosted/BYOC tool plane.
+
+### Ownership map (clean baseline)
+
+- **Control plane**: `src/api`, `src/core`, `src/policies`, `src/tenancy`, `src/observability`
+- **Adapter plane**: `src/runtime` (provider adapters + adapter factory)
+- **Data plane**: `src/tools/sandbox`, `src/tools/byoc`, `src/tools/execution_adapter.py`
+
+### Deprecation map (completed in this baseline)
+
+- Removed `.cursor/PORTABLE_PACK.md` (portability artifact, not a runtime/project contract).
+- Removed `.cursor/agents/*` profile files (not referenced by active workflow contracts).
+- Removed lingering references to `.cursor/PORTABLE_PACK.md` from active audit sources.
+
+### Migration note
+
+If historical sections below mention UI/dashboard slices, treat them as historical context.
+Option C workstreams should follow API-first scope unless explicitly re-enabled by plan update.
+The active contract freeze matrix is tracked in `docs/plans/option-c-contract-freeze.md`.
+
+---
+
 ## What we are building
 
 Four independent extensions that complete the platform from a working backend into a
@@ -297,7 +326,10 @@ class ProviderRegisterRequest(BaseModel):
 
 ---
 
-## Slice 3 — Web UI Dashboard ✅ Merged
+## Slice 3 — Web UI Dashboard (Historical, deferred from active Option C scope)
+
+> This section is retained for historical traceability only. Active Option C execution
+> is API-first and does not require backend-served `/ui` artifacts.
 
 ### Goal
 

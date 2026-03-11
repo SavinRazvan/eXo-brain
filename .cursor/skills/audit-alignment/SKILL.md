@@ -13,7 +13,6 @@ Detect drift between roadmap, research, implementation, and governance artifacts
 
 - `docs/roadmap/*`
 - `.cursor/research-for-refactor/*`
-- `.cursor/PORTABLE_PACK.md`
 - `src/*`
 - `tests/modules/*`
 - `AGENTS.md`

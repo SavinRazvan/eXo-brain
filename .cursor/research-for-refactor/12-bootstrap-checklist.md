@@ -1,5 +1,10 @@
 # Bootstrap Checklist (Day 0 to First Vertical Slice)
 
+> Canonical status block (Option C):
+> - Active path is API-first; UI/dashboard delivery is deferred.
+> - Control-plane + adapter-plane + hosted/BYOC data-plane is the enterprise baseline.
+> - Any historical UI references below are archival context and not required for current execution.
+
 ## Goal
 Provide a concrete startup checklist for creating the new repository and reaching a first working vertical slice fast, while preserving modular, dynamic, scalable architecture constraints.
 
@@ -11,7 +16,7 @@ Provide a concrete startup checklist for creating the new repository and reachin
 
 ## Day 0: Repository Initialization
 - [x] Create new repository with Python project scaffolding (`src/`, `tests/`, `pyproject.toml`, `README.md`).
-- [x] Add `.cursor/` portable pack into new repo root.
+- [x] Establish `.cursor/rules` + `.cursor/skills` governance baseline in repo root.
 - [x] Create package structure:
   - [x] `src/integration`
   - [x] `src/core`

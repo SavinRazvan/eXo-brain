@@ -15,6 +15,21 @@ Move from developer-only `module.path:function_name` registration to a SaaS-safe
 - Existing deterministic execution contract remains intact (`model intent -> deterministic runtime executes side effects`).
 - Streaming remains first-class for both SSE and WebSocket with tool-progress and cancellation propagation.
 
+## Option C Reconciliation Baseline (Mar 2026)
+
+This section supersedes conflicting historical wording in this document.
+
+- Active delivery path is API-first (no required UI/dashboard dependency).
+- Enterprise deployment target is:
+  - control-plane services for policy/orchestration/API
+  - pluggable adapter plane for provider packages
+  - data-plane workers for hosted sandbox and BYOC execution
+- Performance-first rules are locked as implementation gates:
+  - SLO budgets (p50/p95 latency, error/timeout rate, queue wait)
+  - tenant fairness + bounded admission
+  - autoscaling signals from real runtime metrics
+  - staged load tests for 1/10/100 tenant profiles before rollout
+
 ## Canonical Current State (single source)
 
 - Completed implementation baseline:
