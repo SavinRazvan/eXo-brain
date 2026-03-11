@@ -23,3 +23,7 @@ reliability:
 governance:
   require_evidence_bundle: true
   require_release_notes: true
+
+option_c:
+  slo_thresholds_file: configs/release/option_c_slo_thresholds.json
+  enforce_blocking: true

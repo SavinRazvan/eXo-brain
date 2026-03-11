@@ -24,6 +24,15 @@ REQUIRED_GATES: list[list[str]] = [
     ["python", "-m", "pytest", "-q"],
     ["python", "scripts/architecture/validate_layers.py"],
     ["python", "scripts/architecture/scan_forbidden_imports.py"],
+    [
+        "python",
+        "scripts/perf/option_c_load_profiles.py",
+        "--enforce",
+        "--thresholds-json",
+        "configs/release/option_c_slo_thresholds.json",
+        "--json-out",
+        "artifacts/evidence/option_c_load_profiles.json",
+    ],
 ]
 
 

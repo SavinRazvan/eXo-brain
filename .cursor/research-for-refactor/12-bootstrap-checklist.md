@@ -654,6 +654,15 @@ Canonical reference:
   - backlog reconciliation v4 queue closed after P0/P1/P2 baseline delivery
   - historical UI validation lane entries retained only as archival history
   - canonical active delivery path remains Option C API-first (no required backend-served UI mount)
+- [x] Option C next-phase Slice 1 completed: adapter packaging baseline.
+  - added package skeletons under `packages/` for core contracts, adapter SDK, and OpenAI provider package
+  - added package import/conformance tests under `tests/packages/`
+- [x] Option C next-phase Slice 2/3 completed: shared control-state patterns and non-blocking BYOC mode wiring.
+  - added SQLite run-control registry and SQLite rate limiter backends
+  - added sqlite fairness backend option and BYOC non-blocking submit mode
+- [x] Option C next-phase Slice 4 completed: blocking SLO release gate path.
+  - `scripts/perf/option_c_load_profiles.py` now supports threshold enforcement + JSON evidence output
+  - release gates now include blocking Option C load profile enforcement
 
 ---
 
