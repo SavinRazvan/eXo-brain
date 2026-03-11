@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -50,11 +51,13 @@ def main() -> int:
     results: list[dict[str, object]] = []
     failed = False
     for gate in REQUIRED_GATES:
+        command = " ".join(gate)
+        print(f"[gate] running: {command}")
         code, output = _run(gate)
         status = "pass" if code == 0 else "fail"
         results.append(
             {
-                "command": " ".join(gate),
+                "command": command,
                 "exit_code": code,
                 "status": status,
                 "output": output,
@@ -62,6 +65,11 @@ def main() -> int:
         )
         if code != 0:
             failed = True
+            print(f"[gate] FAILED: {command} (exit={code})", file=sys.stderr)
+            if output:
+                print(output, file=sys.stderr)
+        else:
+            print(f"[gate] passed: {command}")
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -75,6 +83,8 @@ def main() -> int:
     }
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     print(f"Wrote gate evidence to {out_path}")
+    if failed:
+        print("One or more release gates failed. See logs above and evidence JSON.", file=sys.stderr)
     return 1 if failed else 0
 
 
