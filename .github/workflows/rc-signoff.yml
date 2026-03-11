@@ -38,7 +38,7 @@ jobs:
   rc_signoff:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-python@v6
         with:
@@ -58,7 +58,7 @@ jobs:
 
       - name: Upload RC signoff evidence artifact
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: rc-signoff-evidence
           path: |

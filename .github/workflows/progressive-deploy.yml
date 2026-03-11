@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.release_ref }}
 
@@ -64,7 +64,7 @@ jobs:
 
       - name: Upload deploy evidence
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: progressive-deploy-evidence-${{ inputs.environment }}-${{ github.run_id }}
           path: artifacts/evidence
