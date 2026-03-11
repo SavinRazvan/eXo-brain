@@ -1,6 +1,12 @@
 # Research For Refactor
 
-This folder contains architecture research and planning artifacts for building a new repository focused on a dynamic multi-layer agent system with OpenAI Agents SDK.
+> Status: Historical/supporting research archive.
+> Canonical runtime/docs status is tracked in:
+> - `docs/plans/tenant-tool-execution-architecture.md`
+> - `docs/plans/docs-authority-map.md`
+> - `.cursor/rules/*.mdc` and `.agents/skills/PR_WORKFLOW.md` for execution workflow authority.
+
+This folder contains architecture research and planning artifacts used during initial repository buildout and subsequent refactor phases.
 
 ## What Is Included
 - `01-flexiai-reusable-assets.md`: what to reuse from current `flexiai` codebase.

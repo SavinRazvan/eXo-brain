@@ -16,6 +16,9 @@ Notes:
 
 # Backlog Reconciliation V2 Execution Board
 
+> Status: Archived historical plan.
+> Canonical replacement: `docs/plans/tenant-tool-execution-architecture.md`
+
 Date: 2026-03-05  
 Actor: Savin I. Razvan  
 Agent/s: gpt-5.3-codex

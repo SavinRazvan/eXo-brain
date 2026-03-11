@@ -43,6 +43,16 @@ uvicorn src.api.app:create_app --factory --reload --port 8000
 
 ---
 
+## Documentation map
+
+- Primary docs index: `docs/README.md`
+- Plans index: `docs/plans/README.md`
+- Operations index: `docs/operations/README.md`
+- Module docs index: `docs/modules/README.md`
+- Docs authority and precedence: `docs/plans/docs-authority-map.md`
+
+---
+
 ## Notebook Validation Suite
 
 | Notebook | Purpose | API key |
@@ -319,8 +329,15 @@ flowchart TD
 ## PR workflow
 
 - Use PR-first delivery and branch-per-slice.
+- Verify publication/linkage after push:
+  - `python scripts/pr/verify_publish.py --branch \"$(git branch --show-current)\"`
+  - `gh pr view --json number,url,headRefName,state,mergeStateStatus`
+- Follow maintainer phases in order: `/review-pr -> /prepare-pr -> /merge-pr`.
 - Produce and keep `.local/review.md`, `.local/prep.md`, `.local/merge.md`.
 - Merge only after tests and architecture checks pass:
   - `python -m pytest -q`
   - `python scripts/architecture/validate_layers.py`
   - `python scripts/architecture/scan_forbidden_imports.py`
+- Finalize workflow after merge:
+  - `git checkout main && git pull --ff-only origin main`
+  - delete local/remote feature branch after merge verification
