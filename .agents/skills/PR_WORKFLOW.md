@@ -60,6 +60,21 @@ If PR scope changes architecture/runtime status, update:
 
 - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
 - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
+- `docs/plans/docs-inventory-master.md` (if doc lifecycle status changes)
+
+## Documentation Maintenance Checklist
+
+For architecture-impacting or workflow-impacting PRs, run documentation checks during `/prepare-pr`:
+
+1. Validate canonical docs are updated (`README.md`, docs indexes, module docs when relevant).
+2. Verify no contradictions with:
+   - `.cursor/rules/*.mdc`
+   - this PR workflow file
+   - `docs/plans/docs-authority-map.md`
+3. If a document is superseded, mark it archived and add replacement in `docs/plans/docs-archive-index.md`.
+4. Optionally run:
+   - `python scripts/docs/check_docs_metadata.py`
+5. Record documentation updates in `.local/prep.md`.
 
 ## Required PR Artifacts
 

@@ -123,7 +123,7 @@ The signoff runner verifies these files exist before running gates:
 - [ ] Confirm required PR artifacts exist:
   - `.local/review.md`
   - `.local/prep.md`
-  - `.local/merge.md`
+  - `.local/merge.md` (post-merge finalization artifact; required to close full PR workflow, not pre-merge RC gate)
 
 ## Notes
 

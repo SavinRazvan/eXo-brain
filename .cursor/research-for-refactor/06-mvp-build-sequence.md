@@ -4,6 +4,7 @@
 > - Active delivery path is API-first with no required backend-served UI mount.
 > - Enterprise target is control-plane + pluggable adapter plane + hosted/BYOC data-plane.
 > - Historical UI entries below are archival and superseded by Option C scope.
+> - This file is retained for traceability and supporting context; canonical current-state status lives in `docs/plans/tenant-tool-execution-architecture.md`.
 
 ## Goal
 Build a working MVP for a modular, dynamic, multi-layer background agent system using OpenAI Agents SDK orchestration with deterministic local tool execution.

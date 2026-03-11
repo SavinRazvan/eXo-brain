@@ -1,5 +1,8 @@
 # P2 Expansion Roadmap
 
+> Status: Archived historical roadmap.
+> Canonical replacement: `docs/plans/tenant-tool-execution-architecture.md`
+
 ## Purpose
 
 Track execution of post-P1 expansion items in dependency order while keeping deterministic controls and tenant isolation intact.

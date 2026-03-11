@@ -4,6 +4,7 @@
 > - Active path is API-first; UI/dashboard delivery is deferred.
 > - Control-plane + adapter-plane + hosted/BYOC data-plane is the enterprise baseline.
 > - Any historical UI references below are archival context and not required for current execution.
+> - This file is retained for traceability and supporting context; it is not the primary current-state source.
 
 ## Goal
 Provide a concrete startup checklist for creating the new repository and reaching a first working vertical slice fast, while preserving modular, dynamic, scalable architecture constraints.
