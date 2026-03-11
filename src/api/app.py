@@ -337,11 +337,6 @@ def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
 
     app.include_router(admin_keys_router)
 
-    # Slice 3 — Web UI Dashboard static files
-    from src.api.routers.ui import mount_ui
-
-    mount_ui(app)
-
     settings = _default_settings()
     provider_registry = _default_provider_registry(settings)
     return bootstrap(app, provider_registry=provider_registry, settings=settings, persistence_backend="sqlite")

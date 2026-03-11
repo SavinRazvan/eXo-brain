@@ -850,6 +850,42 @@ def test_websocket_turn_returns_error_when_rate_limited(monkeypatch: pytest.Monk
         second = ws.receive_json()
         assert second.get("event") == "error"
         assert second.get("code") == "TENANT_TURN_RATE_LIMIT_EXCEEDED"
+        assert int(second.get("retry_after_seconds", 0)) > 0
+
+
+def test_sse_turn_returns_429_with_retry_hint_when_rate_limited() -> None:
+    app = build_test_app(
+        settings=AppSettings(
+            schema_version="1.0",
+            environment="test",
+            runtime=RuntimeSettings(
+                default_provider_id="openai-test",
+                allowed_provider_ids=["openai-test"],
+                require_provider_healthcheck_on_start=False,
+            ),
+            limits=LimitsSettings(max_turn_requests_per_minute_per_tenant=1),
+        )
+    )
+    client = TestClient(app)
+    tid = "sse-rate-limit-tenant"
+    _register_agent(client, tid)
+    session_id = _create_session(client, tid)
+
+    first = client.post(
+        f"/tenants/{tid}/sessions/{session_id}/turns",
+        json={"input": "first", "correlation_id": "run_sse_rate_1"},
+        headers=_headers(tid),
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        f"/tenants/{tid}/sessions/{session_id}/turns",
+        json={"input": "second", "correlation_id": "run_sse_rate_2"},
+        headers=_headers(tid),
+    )
+    assert second.status_code == 429
+    assert "TENANT_TURN_RATE_LIMIT_EXCEEDED" in second.text
+    assert "retry_after_seconds=" in second.text
 
 
 # ---------------------------------------------------------------------------

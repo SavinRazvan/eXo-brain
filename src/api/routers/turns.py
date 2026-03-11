@@ -248,18 +248,25 @@ async def submit_turn_sse(
     turn_rate_limiter = getattr(request.app.state, "turn_rate_limiter", None)
     audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
     if turn_rate_limiter is not None:
-        allowed, _ = turn_rate_limiter.allow(tenant_id)
+        allowed, retry_after_seconds = turn_rate_limiter.allow(tenant_id)
         if not allowed:
             if audit_pipeline is not None:
                 await audit_pipeline.emit(
                     event_type="turn_rejected_rate_limit",
                     correlation_id=correlation_id,
                     tenant_id=tenant_id,
-                    payload={"runtime_id": "sse", "session_id": session_id},
+                    payload={
+                        "runtime_id": "sse",
+                        "session_id": session_id,
+                        "retry_after_seconds": retry_after_seconds,
+                    },
                 )
             raise HTTPException(
                 status_code=429,
-                detail="TENANT_TURN_RATE_LIMIT_EXCEEDED: too many turn requests in the current window",
+                detail=(
+                    "TENANT_TURN_RATE_LIMIT_EXCEEDED: too many turn requests in the current window "
+                    f"(retry_after_seconds={retry_after_seconds})"
+                ),
             )
     max_active_runs = max(int(request.app.state.settings.limits.max_active_runs_per_tenant), 0)
     if max_active_runs > 0 and run_registry.count_active_runs(tenant_id=tenant_id) >= max_active_runs:
@@ -522,7 +529,7 @@ async def websocket_turn(
                 run_id = str(msg.get("run_id", "") or f"run_{uuid.uuid4().hex[:8]}")
                 correlation_id = run_id
                 if turn_rate_limiter is not None:
-                    allowed, _ = turn_rate_limiter.allow(tenant_id)
+                    allowed, retry_after_seconds = turn_rate_limiter.allow(tenant_id)
                     if not allowed:
                         pipeline = getattr(websocket.app.state, "tool_audit_pipeline", None)
                         if pipeline is not None:
@@ -530,13 +537,18 @@ async def websocket_turn(
                                 event_type="turn_rejected_rate_limit",
                                 correlation_id=correlation_id,
                                 tenant_id=tenant_id,
-                                payload={"runtime_id": "websocket", "session_id": session_id},
+                                payload={
+                                    "runtime_id": "websocket",
+                                    "session_id": session_id,
+                                    "retry_after_seconds": retry_after_seconds,
+                                },
                             )
                         await websocket.send_json(
                             {
                                 "event": "error",
                                 "code": "TENANT_TURN_RATE_LIMIT_EXCEEDED",
                                 "message": "Too many turn requests in the current window.",
+                                "retry_after_seconds": retry_after_seconds,
                             }
                         )
                         continue
