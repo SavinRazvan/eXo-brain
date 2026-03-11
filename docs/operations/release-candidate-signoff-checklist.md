@@ -53,7 +53,7 @@ RC evidence now also includes a `Governance Alerts` section with:
 - advisory-only behavior when governance metrics input is unavailable or incomplete
 
 RC evidence also includes a `Runtime Snapshots` section with:
-- advisory linkage to local UI smoke runtime snapshots (`before`/`after`)
+- advisory linkage to historical local UI smoke runtime snapshots (`before`/`after`)
 - default input path `.local/ui-smoke-runtime-snapshots.json`
 - normalized parser output under `runtime_snapshots` in `.local/rc-signoff.json`
 
@@ -61,6 +61,10 @@ RC evidence now also includes a `UI E2E Automation` section with:
 - advisory linkage to the normalized UI automation lane artifact
 - default input path `.local/ui-e2e-smoke.json`
 - normalized parser output under `ui_e2e_automation` in `.local/rc-signoff.json`
+
+For Option C API-first operation, both `Runtime Snapshots` and `UI E2E Automation` are
+archival/advisory inputs only and are not required execution gates unless a dedicated UI
+track is explicitly re-enabled.
 
 Default governance metrics input path:
 
@@ -93,12 +97,6 @@ EXO_RC_SIGNOFF_REQUIRE_DATA_SAFETY=true make rc-signoff
   - runs `pytest -m soak` with `EXO_RUN_SOAK_TESTS=true`
   - uploads `.local/byoc-soak.log` and `.local/byoc-soak-summary.txt` for triage
   - non-blocking by design (does not gate PR merges)
-- Advisory UI E2E lane: `.github/workflows/ui-e2e-nonblocking.yml`
-  - Trigger: nightly schedule + manual dispatch
-  - runs `make ui-e2e-smoke`
-  - uploads `.local/ui-e2e-smoke.json`, `.local/ui-e2e-smoke.log`, and linked smoke artifacts
-  - non-blocking by design (does not gate PR merges)
-
 To hard-block merges, set `rc-signoff / rc_signoff` as a required status check in branch protection for `main`.
 
 ## Required Evidence-Link Documents
@@ -114,8 +112,6 @@ The signoff runner verifies these files exist before running gates:
 
 ## Operator Checklist
 
-- [ ] Run `make ui-smoke` (local API/UI + first-turn readiness smoke).
-- [ ] Run `make ui-e2e-smoke` (repeatable Tool Manager + Playground automation summary).
 - [ ] Run `make rc-signoff`.
 - [ ] Confirm `.local/rc-signoff.md` exists and `Overall` is `PASS`.
 - [ ] Confirm `Local Data Safety` section is present and reviewed.
