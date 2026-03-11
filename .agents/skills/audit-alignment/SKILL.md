@@ -16,7 +16,7 @@ Provide advisory findings that reconcile roadmap, research, code/tests, and work
 2. Use `docs/roadmap/alignment-audit-schema.md` for finding format and severity.
 3. Compare:
    - roadmap docs
-   - research docs + portable pack
+   - research docs
    - implementation (`src`) + tests (`tests/modules`)
    - rules/skills/agents and `.local` artifact expectations
 4. Write outputs:
