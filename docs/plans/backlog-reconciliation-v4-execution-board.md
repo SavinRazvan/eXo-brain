@@ -95,7 +95,11 @@ Define the next approved queue after closure of:
   - added deterministic coverage for lane artifact generation and parser/report integration:
     - `tests/modules/unknown/test_ui_e2e_automation_lane.py`
     - `tests/modules/unknown/test_release_scripts.py`
-- [ ] Next target: `v4-queue-closure-and-ui-validation-handoff`
+- [x] `v4-queue-closure-and-ui-validation-handoff` completed:
+  - V4 queue is formally closed after P0/P1/P2 baseline delivery.
+  - Historical UI validation lane references are archived and treated as non-canonical for current delivery.
+  - Canonical active track remains Option C API-first execution (control-plane + adapter-plane + hosted/BYOC data-plane).
+  - Ongoing delivery gates continue under Option C runbook docs (`docs/plans/option-c-performance-gates.md`, `docs/plans/tenant-tool-execution-architecture.md`).
 
 ## Proposed Execution Order (Approval Required)
 
@@ -187,8 +191,7 @@ Define the next approved queue after closure of:
 - `python -m pytest -q`
 - `python scripts/architecture/validate_layers.py`
 - `python scripts/architecture/scan_forbidden_imports.py`
-- `make ui-build`
-- `make ui-verify`
+- Optional legacy UI gates (`make ui-build`, `make ui-verify`) apply only when a UI track is explicitly re-opened.
 - companion tracker synchronization:
   - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
   - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
