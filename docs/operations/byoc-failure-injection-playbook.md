@@ -31,7 +31,9 @@ Use this playbook during local rehearsals and CI investigation to keep triage de
 Run baseline readiness first:
 
 ```bash
-make ui-smoke
+python -m pytest -q
+python scripts/architecture/validate_layers.py
+python scripts/architecture/scan_forbidden_imports.py
 ```
 
 Recommended evidence bootstrap:
@@ -76,11 +78,11 @@ make rc-signoff && make rc-signoff-json
    - Ensure artifacts exist:
      - `.local/rc-signoff.md`
      - `.local/rc-signoff.json`
-     - `.local/ui-smoke-runtime-snapshots.json`
+     - `.local/ui-smoke-runtime-snapshots.json` (historical/advisory only if present)
 4. **Apply remediation**
    - Use the matrix remediation for that failure class.
 5. **Verify recovery**
-   - Re-run affected test and `make ui-smoke`.
+   - Re-run affected test and core gates (`pytest` + architecture checks).
 
 ## Soak + Failure Combined Drill
 

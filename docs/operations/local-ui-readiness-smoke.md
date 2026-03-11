@@ -1,7 +1,7 @@
 <!--
 File: local-ui-readiness-smoke.md
 Path: docs/operations/local-ui-readiness-smoke.md
-Role: Operator guide for deterministic local UI readiness and first-turn smoke validation.
+Role: Historical operator guide for the retired local UI readiness smoke lane.
 Used By:
  - Maintainers preparing local browser validation sessions
 Depends On:
@@ -11,15 +11,17 @@ Notes:
  - Keeps checks additive; does not change normal app startup behavior.
 -->
 
-# Local UI Readiness And Smoke
+# Local UI Readiness And Smoke (Historical)
 
-Use this before manual browser validation sessions to verify local prerequisites and an end-to-end baseline path.
+> Status: Retired for active Option C delivery.
+> This document is kept only as historical reference for older UI-focused runs.
+> Current canonical release gating is API-first (`make rc-signoff` + architecture/test gates).
+
+Use this only when a separate UI validation track is explicitly re-enabled.
 
 ## One-Command Run
 
-```bash
-make ui-smoke
-```
+`make ui-smoke` is not part of the active baseline and may not be available.
 
 This command runs:
 
@@ -49,9 +51,7 @@ On failures, the script prints a short remediation hint for the failed stage.
 
 ## Useful Options
 
-```bash
-python scripts/ui/local_ui_readiness_smoke.py --help
-```
+Historical command references in this section may be unavailable in the current API-first branch state.
 
 Common flags:
 
@@ -63,13 +63,10 @@ Common flags:
 
 ## UI E2E Automation Lane
 
-For repeatable Tool Manager + Playground automation evidence, run:
+For historical repeatable Tool Manager + Playground automation evidence, the former
+`make ui-e2e-smoke` lane is archival and not part of active execution requirements.
 
-```bash
-make ui-e2e-smoke
-```
-
-This wraps `make ui-smoke` behavior and writes deterministic advisory artifacts:
+This previously wrapped `make ui-smoke` behavior and wrote deterministic advisory artifacts:
 
 - `.local/ui-e2e-smoke.json` (normalized lane summary)
 - `.local/ui-e2e-smoke.log` (lane output log)
