@@ -30,7 +30,11 @@ from src.schemas.tool_io import (
     ToolResult,
     ToolStatus,
 )
-from src.policies.byoc_fairness import ByocFairAdmissionCoordinator, FairAdmissionToken
+from src.policies.byoc_fairness import (
+    ByocFairAdmissionCoordinator,
+    FairAdmissionToken,
+    SQLiteByocFairAdmissionCoordinator,
+)
 from src.tools.byoc.job_contracts import ByocResultStatus, ByocToolJobEnvelope, ByocToolResultEnvelope
 from src.tools.byoc.integrity_verifier import verify_result_artifact_metadata
 from src.tools.byoc.job_store import ByocJobQueueStore, InMemoryByocJobQueueStore
@@ -108,6 +112,9 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         fair_admission_enabled: bool = False,
         fair_admission_max_inflight_global: int = 8,
         fair_admission_wait_timeout_ms: int = 1000,
+        fair_admission_backend: str = "memory",
+        fair_admission_sqlite_db_path: str = ".exo_data/exo_control_state.db",
+        non_blocking_execute: bool = False,
         job_store: ByocJobQueueStore | None = None,
         result_store: ByocResultStore | None = None,
         replay_guard: ReplayGuard | None = None,
@@ -140,6 +147,9 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._fair_admission_enabled = bool(fair_admission_enabled)
         self._fair_admission_max_inflight_global = max(int(fair_admission_max_inflight_global), 1)
         self._fair_admission_wait_timeout_ms = max(int(fair_admission_wait_timeout_ms), 1)
+        self._fair_admission_backend = str(fair_admission_backend or "memory").strip().lower()
+        self._fair_admission_sqlite_db_path = str(fair_admission_sqlite_db_path)
+        self._non_blocking_execute = bool(non_blocking_execute)
         self._job_store = job_store or InMemoryByocJobQueueStore()
         self._result_store = result_store or InMemoryByocResultStore()
         self._replay_guard = replay_guard or InMemoryReplayGuard()
@@ -168,6 +178,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         self._tenant_rejections_by_reason: dict[str, dict[str, int]] = {}
         self._fair_admission_timeout_total = 0
         self._tenant_fair_admission_timeout_total: dict[str, int] = {}
+        self._sqlite_fair_admission: SQLiteByocFairAdmissionCoordinator | None = None
 
     @property
     def backend_id(self) -> str:
@@ -229,6 +240,16 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             )
             with self._lock:
                 self._enqueued_jobs_total += 1
+
+            if self._non_blocking_execute:
+                return self._queued_result(
+                    call=call,
+                    started=started,
+                    started_clock=started_clock,
+                    timeout_ms=timeout_ms,
+                    tenant_id=tenant_id,
+                    job_id=job.job_id,
+                )
 
             deadline = perf_counter() + (timeout_ms / 1000.0)
             while True:
@@ -938,6 +959,14 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         return (start, cost)
 
     def _fair_admission_coordinator(self) -> ByocFairAdmissionCoordinator:
+        if self._fair_admission_backend == "sqlite":
+            if self._sqlite_fair_admission is None:
+                self._sqlite_fair_admission = SQLiteByocFairAdmissionCoordinator(
+                    db_path=self._fair_admission_sqlite_db_path,
+                    max_inflight_global=self._fair_admission_max_inflight_global,
+                    lease_seconds=max(self._lease_ttl_seconds, 1),
+                )
+            return self._sqlite_fair_admission
         key = int(self._fair_admission_max_inflight_global)
         with self._coordinator_lock:
             coordinator = self._fair_admission_by_key.get(key)
@@ -979,6 +1008,42 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             ),
             execution=ExecutionMetadata(
                 mode_used=ToolExecutionMode.DETERMINISTIC,
+                timeout_ms=timeout_ms,
+            ),
+            audit=ToolAudit(correlation_id=call.call_id),
+        )
+
+    def _queued_result(
+        self,
+        *,
+        call: ToolCallContext,
+        started: str,
+        started_clock: float,
+        timeout_ms: int,
+        tenant_id: str,
+        job_id: str,
+    ) -> ToolResult:
+        return ToolResult(
+            schema_version="1.0",
+            call_id=call.call_id,
+            tool_name=call.tool_name,
+            status=ToolStatus.SUCCESS,
+            result={
+                "value": {
+                    "queued": True,
+                    "job_id": job_id,
+                },
+                "runtime": {
+                    "backend_id": self.backend_id,
+                    "tenant_id": tenant_id,
+                    "mode": "non_blocking_submit",
+                },
+            },
+            execution=ExecutionMetadata(
+                mode_used=ToolExecutionMode.DETERMINISTIC,
+                started_at_utc=started,
+                finished_at_utc=_utc_now(),
+                duration_ms=int((perf_counter() - started_clock) * 1000),
                 timeout_ms=timeout_ms,
             ),
             audit=ToolAudit(correlation_id=call.call_id),

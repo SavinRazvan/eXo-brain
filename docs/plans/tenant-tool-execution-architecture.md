@@ -60,8 +60,11 @@ This section supersedes conflicting historical wording in this document.
 - Open implementation queue:
   - P2 expansion queue is closed in `docs/plans/p2-expansion-roadmap.md`.
   - Backlog reconciliation v3 queue is closed after full gates + UI validation handoff.
-  - Backlog reconciliation v4 queue is active in `docs/plans/backlog-reconciliation-v4-execution-board.md`.
-  - Current active target: `v4-queue-closure-and-ui-validation-handoff` (after v4 `p0-1`/`p0-2`, `p1-1`, `p1-2`, `p1-3`, `p2-1`, and `p2-2` baseline completion).
+  - Backlog reconciliation v4 queue is closed in `docs/plans/backlog-reconciliation-v4-execution-board.md`.
+  - Current active implementation track is Option C next-phase:
+    - adapter packaging execution (`packages/exo-brain-core-contracts`, `packages/exo-brain-adapter-sdk`, `packages/exo-adapter-openai`)
+    - shared control-state backend patterns (`SQLiteRunControlRegistry`, `SQLiteTenantRateLimiter`, sqlite fairness backend)
+    - blocking SLO gate enforcement for release promotion (`scripts/perf/option_c_load_profiles.py --enforce`)
 
 ## Architecture Slice Plan
 

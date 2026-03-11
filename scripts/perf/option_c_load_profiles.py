@@ -15,6 +15,7 @@ Notes:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,6 +40,22 @@ class ProfileResult:
     rejected_concurrency: int
     p95_wait_ms: float
     starvation_tenants: int
+
+    @property
+    def rejection_ratio(self) -> float:
+        if self.total_requests <= 0:
+            return 0.0
+        rejected = self.rejected_rate + self.rejected_concurrency
+        return float(rejected) / float(self.total_requests)
+
+
+def _load_thresholds(path: str) -> dict[str, float]:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    return {
+        "max_p95_wait_ms": float(payload.get("max_p95_wait_ms", 300.0)),
+        "max_rejection_ratio": float(payload.get("max_rejection_ratio", 0.05)),
+        "max_starvation_tenants": float(payload.get("max_starvation_tenants", 0)),
+    }
 
 
 def _simulate_profile(
@@ -131,6 +148,13 @@ def main() -> int:
     parser.add_argument("--requests-per-tenant", type=int, default=120)
     parser.add_argument("--max-rpm", type=int, default=120)
     parser.add_argument("--max-inflight", type=int, default=8)
+    parser.add_argument("--json-out", default="", help="Optional path for structured profile output.")
+    parser.add_argument("--enforce", action="store_true", help="Fail when any profile breaches thresholds.")
+    parser.add_argument(
+        "--thresholds-json",
+        default="configs/release/option_c_slo_thresholds.json",
+        help="JSON file with max_p95_wait_ms, max_rejection_ratio, max_starvation_tenants.",
+    )
     args = parser.parse_args()
 
     profiles = [
@@ -156,6 +180,40 @@ def main() -> int:
             f"{row.rejected_concurrency},{row.p95_wait_ms},{row.starvation_tenants}"
         )
 
+    structured = [
+        {
+            "profile": row.profile,
+            "total_requests": row.total_requests,
+            "allowed": row.allowed,
+            "rejected_rate": row.rejected_rate,
+            "rejected_concurrency": row.rejected_concurrency,
+            "p95_wait_ms": row.p95_wait_ms,
+            "starvation_tenants": row.starvation_tenants,
+            "rejection_ratio": round(row.rejection_ratio, 6),
+        }
+        for row in results
+    ]
+    if args.json_out:
+        out_path = Path(args.json_out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps({"profiles": structured}, indent=2), encoding="utf-8")
+
+    if not args.enforce:
+        return 0
+
+    thresholds = _load_thresholds(args.thresholds_json)
+    failed: list[str] = []
+    for row in results:
+        if row.p95_wait_ms > thresholds["max_p95_wait_ms"]:
+            failed.append(f"{row.profile}:p95_wait_ms")
+        if row.rejection_ratio > thresholds["max_rejection_ratio"]:
+            failed.append(f"{row.profile}:rejection_ratio")
+        if row.starvation_tenants > int(thresholds["max_starvation_tenants"]):
+            failed.append(f"{row.profile}:starvation_tenants")
+    if failed:
+        print(f"SLO_ENFORCEMENT_FAILED: {', '.join(failed)}")
+        return 1
+    print("SLO_ENFORCEMENT_PASSED")
     return 0
 
 

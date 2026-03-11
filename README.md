@@ -6,9 +6,11 @@ Provider-neutral AI orchestration platform with deterministic tool execution, mu
 
 - **API Platform** — FastAPI application with tenant-scoped tool/agent registration, SSE and WebSocket streaming, and live policy/quota management.
 - **Provider-neutral runtime contracts** — `RuntimeAdapter` ABC with pluggable backends (OpenAI Agents SDK, custom adapters).
+- **Adapter packaging baseline** — package skeletons for `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, and `exo-adapter-openai` under `packages/`.
 - **Deterministic-first tool execution** — every state-changing or high-impact tool call is routed through `DeterministicToolExecutor` and `PolicyMiddleware`.
 - **Policy middleware** — auditable `before_tool_call` / `after_tool_call` decisions (`allow`, `deny`, `escalate`) with per-tenant overlay support.
 - **Multi-tenant isolation** — `TenantRuntimeFactory` gives each tenant its own `ToolRegistry`, `AgentRegistry`, `PolicyMiddleware`, and session store.
+- **Shared control-state mode** — optional SQLite-backed run control and rate limiter backends for multi-process admission consistency.
 - **MCP integration** — trust-tier and per-server health controls for MCP tool calls.
 - **Background runtime** — task graph (DAG), scheduler, bounded worker pool, checkpoint/resume.
 

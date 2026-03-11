@@ -1,0 +1,5 @@
+{
+  "max_p95_wait_ms": 300.0,
+  "max_rejection_ratio": 0.05,
+  "max_starvation_tenants": 0
+}

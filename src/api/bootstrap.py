@@ -31,14 +31,14 @@ from fastapi import FastAPI
 
 from src.config.provider_registry import ProviderRegistry
 from src.config.settings import AppSettings
-from src.core.run_control_registry import RunControlRegistry
+from src.core.run_control_registry import RunControlRegistry, SQLiteRunControlRegistry
 from src.observability.logging import StructuredLogger
 from src.observability.tool_audit import ToolAuditPipeline
 from src.persistence.audit_store import InMemoryAuditStore
 from src.persistence.contracts import AgentStore, ApiKeyStore, ProviderStore, ToolStore, ToolVersionStore
 from src.runtime.tenant_runtime import TenantRuntimeFactory
 from src.tenancy.policy_overlay import TenantPolicyOverlayStore
-from src.tenancy.rate_limiter import TenantRateLimiter
+from src.tenancy.rate_limiter import SQLiteTenantRateLimiter, TenantRateLimiter
 from src.tools.artifact_store import FileSystemToolArtifactStore
 
 
@@ -97,20 +97,37 @@ def bootstrap(
     app.state.provider_store = provider_store
     app.state.tool_version_store = tool_version_store
     app.state.session_store = session_store
-    app.state.run_control_registry = RunControlRegistry()
+    if str(settings.runtime.control_state_backend).strip().lower() == "sqlite":
+        control_db_path = Path(settings.runtime.control_state_sqlite_db_path)
+        control_db_path.parent.mkdir(parents=True, exist_ok=True)
+        app.state.run_control_registry = SQLiteRunControlRegistry(str(control_db_path))
+        app.state.turn_rate_limiter = SQLiteTenantRateLimiter(
+            db_path=str(control_db_path),
+            max_requests=settings.limits.max_turn_requests_per_minute_per_tenant,
+            window_seconds=60,
+            limiter_id="turn_requests",
+        )
+        app.state.tool_upload_rate_limiter = SQLiteTenantRateLimiter(
+            db_path=str(control_db_path),
+            max_requests=settings.limits.max_tool_uploads_per_minute_per_tenant,
+            window_seconds=60,
+            limiter_id="tool_uploads",
+        )
+    else:
+        app.state.run_control_registry = RunControlRegistry()
+        app.state.turn_rate_limiter = TenantRateLimiter(
+            max_requests=settings.limits.max_turn_requests_per_minute_per_tenant,
+            window_seconds=60,
+        )
+        app.state.tool_upload_rate_limiter = TenantRateLimiter(
+            max_requests=settings.limits.max_tool_uploads_per_minute_per_tenant,
+            window_seconds=60,
+        )
     app.state.structured_logger = StructuredLogger()
     app.state.audit_store = InMemoryAuditStore()
     app.state.tool_audit_pipeline = ToolAuditPipeline(
         logger=app.state.structured_logger,
         audit_store=app.state.audit_store,
-    )
-    app.state.turn_rate_limiter = TenantRateLimiter(
-        max_requests=settings.limits.max_turn_requests_per_minute_per_tenant,
-        window_seconds=60,
-    )
-    app.state.tool_upload_rate_limiter = TenantRateLimiter(
-        max_requests=settings.limits.max_tool_uploads_per_minute_per_tenant,
-        window_seconds=60,
     )
     app.state.tool_artifact_store = FileSystemToolArtifactStore(settings.limits.tool_artifact_directory)
 

@@ -81,6 +81,10 @@ class RuntimeSettings:
     byoc_fair_admission_enabled: bool = False
     byoc_fair_admission_max_inflight_global: int = 8
     byoc_fair_admission_wait_timeout_ms: int = 1000
+    byoc_fair_admission_backend: str = "memory"
+    byoc_non_blocking_execute: bool = False
+    control_state_backend: str = "memory"
+    control_state_sqlite_db_path: str = ".exo_data/exo_control_state.db"
 
 
 @dataclass(slots=True)
