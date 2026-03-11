@@ -43,6 +43,24 @@ uvicorn src.api.app:create_app --factory --reload --port 8000
 
 ---
 
+## Notebook Validation Suite
+
+| Notebook | Purpose | API key |
+|---|---|---|
+| `notebooks/01_idea_validation.ipynb` | Canonical deterministic tool-call proof (Notebook 3 style, single interaction flow) | Required for live model cell |
+| `notebooks/10_core_orchestrator_checks.ipynb` | Orchestrator and deterministic tool-intent path checks | Not required |
+| `notebooks/11_policy_middleware_checks.ipynb` | `before_tool_call` / `after_tool_call` policy behavior checks | Not required |
+| `notebooks/12_runtime_adapter_checks.ipynb` | Runtime adapter session/capability/turn event checks | Not required (stub path) |
+| `notebooks/13_tenant_and_limits_checks.ipynb` | Tenant quota and rate-limiter primitive checks | Not required |
+
+Build notebooks from source:
+
+```bash
+python notebooks/build_validation_notebooks.py
+```
+
+---
+
 ## Architecture principles
 
 - Keep provider SDK code inside `src/runtime/*adapter*` modules only — never in core.
