@@ -8,7 +8,6 @@
 - Sources:
   - `docs/roadmap/*`
   - `.cursor/research-for-refactor/*`
-  - `.cursor/PORTABLE_PACK.md`
   - `src/*`
   - `tests/modules/*`
   - `.agents/*`, `.cursor/rules/*`, `.cursor/skills/*`, `.local/*`

@@ -12,7 +12,9 @@ __pycache__/
 .venv/
 venv/
 env/
-ui/node_modules/
+
+# local runtime artifacts
+.exo_data/
 
 # coverage reports
 .coverage/
