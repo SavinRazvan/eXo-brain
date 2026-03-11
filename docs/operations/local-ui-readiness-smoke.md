@@ -16,6 +16,7 @@ Notes:
 > Status: Retired for active Option C delivery.
 > This document is kept only as historical reference for older UI-focused runs.
 > Current canonical release gating is API-first (`make rc-signoff` + architecture/test gates).
+> Canonical replacement: `docs/operations/release-candidate-signoff-checklist.md`
 
 Use this only when a separate UI validation track is explicitly re-enabled.
 

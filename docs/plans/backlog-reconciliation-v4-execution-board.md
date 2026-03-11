@@ -17,6 +17,9 @@ Notes:
 
 # Backlog Reconciliation V4 Execution Board
 
+> Status: Archived historical plan.
+> Canonical replacement: `docs/plans/tenant-tool-execution-architecture.md`
+
 Date: 2026-03-05  
 Actor: Savin I. Razvan  
 Agent/s: gpt-5.3-codex
@@ -184,7 +187,7 @@ Define the next approved queue after closure of:
      - automation reproduces key local UI validation path and emits pass/fail artifacts
      - no dependency on external secrets for default local execution
    - Rollback/Fallback:
-     - keep manual `make ui-smoke` path as canonical fallback
+    - historical fallback referenced `make ui-smoke`; current API-first canonical release gate is `make rc-signoff`
 
 ## Global Acceptance Gates (for every slice)
 
