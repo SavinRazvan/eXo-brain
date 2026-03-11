@@ -27,8 +27,9 @@ Optional per-skill folders:
 
 ## Current Project State
 
-- Active skills currently live in `.cursor/skills/`.
-- You can mirror/migrate them here over time for cross-tool compatibility.
+- Core implementation skills live in `.cursor/skills/`.
+- Maintainer PR workflow skills are actively maintained in `.agents/skills/`.
+- Mirror/migrate additional skills here over time for cross-tool compatibility.
 
 ## Maintainer Workflow Skills
 
