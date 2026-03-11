@@ -650,7 +650,10 @@ Canonical reference:
   - added advisory workflow `.github/workflows/ui-e2e-nonblocking.yml` for nightly/manual automation with artifact upload
   - extended rc-signoff markdown + parser with `UI E2E Automation` advisory section/output fields
   - added deterministic script/report parsing tests for lane artifact wiring
-- [ ] Next target: `v4-queue-closure-and-ui-validation-handoff`
+- [x] `v4-queue-closure-and-ui-validation-handoff` completed:
+  - backlog reconciliation v4 queue closed after P0/P1/P2 baseline delivery
+  - historical UI validation lane entries retained only as archival history
+  - canonical active delivery path remains Option C API-first (no required backend-served UI mount)
 
 ---
 
