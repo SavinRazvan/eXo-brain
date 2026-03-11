@@ -4,6 +4,7 @@
 > Created: Mar 2026
 > Scope: Four deferred items from the API Platform build
 > Prerequisite: API Platform fully merged (PRs #27–#30, 253 tests passing)
+> Follow-up: Option C next-phase implementation (adapter packaging, shared control-state backends, blocking SLO gates) is tracked in active execution trackers.
 
 ---
 

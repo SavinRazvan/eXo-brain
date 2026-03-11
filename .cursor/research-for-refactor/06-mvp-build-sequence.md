@@ -87,6 +87,9 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Backlog reconciliation v4 P1-3 conflict observability | Implemented (baseline) | Added strategy/tool/version conflict counters in BYOC result stores and surfaced them via runtime-control/governance export with extended conflict edge-case tests. |
 | Backlog reconciliation v4 P2-1 fine-grained budget governance | Implemented (baseline) | Added optional BYOC budget partitions (`per_tool`/`per_provider`) with deterministic partition rejection semantics, partition counters in runtime-control metrics, partition reset coverage, and cross-tenant isolation tests; next target is v4 `p2-2-ui-e2e-automation-lane`. |
 | Backlog reconciliation v4 P2-2 UI E2E automation lane | Implemented (baseline) | Added repeatable UI E2E smoke lane wrapper + non-blocking CI workflow with artifact upload, and linked advisory UI E2E evidence into rc-signoff markdown/parser output for dashboard ingestion; next target is v4 queue-closure + UI validation handoff. |
+| Option C next-phase Slice 1 (adapter packaging baseline) | Implemented | Added package skeletons under `packages/` for `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, and `exo-adapter-openai`, plus package import/conformance tests. |
+| Option C next-phase Slice 2/3 (shared control-state + non-blocking BYOC mode) | Implemented | Added SQLite-backed run control/rate limiter backends, sqlite fairness coordinator option, and BYOC non-blocking submit mode wiring via runtime settings. |
+| Option C next-phase Slice 4 (blocking SLO release gate) | Implemented | Added threshold-enforced Option C load profile gate with JSON evidence output and wired it into `scripts/release/verify_gates.py` for release-candidate blocking checks. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
