@@ -11,6 +11,9 @@
 
 name: release-candidate
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 on:
   workflow_run:
     workflows: ["architecture-fitness"]
@@ -59,6 +62,7 @@ jobs:
           echo "- run: ${{ github.run_id }}" >> artifacts/evidence/release_notes.md
 
       - name: Upload release evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: release-candidate-evidence

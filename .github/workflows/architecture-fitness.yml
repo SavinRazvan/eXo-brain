@@ -12,6 +12,9 @@
 
 name: architecture-fitness
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 on:
   pull_request:
     branches: [main]
