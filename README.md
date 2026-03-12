@@ -6,13 +6,20 @@ Provider-neutral AI orchestration platform with deterministic tool execution, mu
 
 - **API Platform** — FastAPI application with tenant-scoped tool/agent registration, SSE and WebSocket streaming, and live policy/quota management.
 - **Provider-neutral runtime contracts** — `RuntimeAdapter` ABC with pluggable backends (OpenAI Agents SDK, custom adapters).
-- **Adapter packaging baseline** — package skeletons for `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, and `exo-adapter-openai` under `packages/`.
+- **Adapter packaging** — provider-neutral package split with `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, and `exo-adapter-openai` under `packages/`.
 - **Deterministic-first tool execution** — every state-changing or high-impact tool call is routed through `DeterministicToolExecutor` and `PolicyMiddleware`.
 - **Policy middleware** — auditable `before_tool_call` / `after_tool_call` decisions (`allow`, `deny`, `escalate`) with per-tenant overlay support.
 - **Multi-tenant isolation** — `TenantRuntimeFactory` gives each tenant its own `ToolRegistry`, `AgentRegistry`, `PolicyMiddleware`, and session store.
 - **Shared control-state mode** — optional SQLite-backed run control and rate limiter backends for multi-process admission consistency.
 - **MCP integration** — trust-tier and per-server health controls for MCP tool calls.
 - **Background runtime** — task graph (DAG), scheduler, bounded worker pool, checkpoint/resume.
+- **Runtime control and audit APIs** — admin runtime-control, BYOC control endpoints, and signed audit export/verify flows.
+
+## Current reality (Mar 2026)
+
+- API-first Option C is the active delivery path (no required UI/dashboard mount).
+- Canonical current-state tracker: `docs/plans/tenant-tool-execution-architecture.md`.
+- Documentation authority and lifecycle: `docs/plans/docs-authority-map.md` and `docs/plans/docs-inventory-master.md`.
 
 ---
 
@@ -303,12 +310,19 @@ flowchart TD
 
 ---
 
-## API endpoints (v1)
+## API endpoints (v1, current)
 
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Platform health check |
 | `POST` | `/tenants/{id}/tools` | Register a tool (`handler_ref`, `description`, `parameters_schema`, risk tier) |
+| `POST` | `/tenants/{id}/tools/import-schema` | Normalize/prefill OpenAI-style tool JSON |
+| `POST` | `/tenants/{id}/tools/upload` | Upload tool package/version with validation and optional activation |
+| `GET` | `/tenants/{id}/tools/validate/{tool_name}` | Retrieve tool validation state (active or explicit version) |
+| `GET` | `/tenants/{id}/tools/versions/{tool_name}` | List persisted versions for a tenant tool |
+| `POST` | `/tenants/{id}/tools/versions/{tool_name}/{version}/deactivate` | Deactivate active tool version |
+| `POST` | `/tenants/{id}/tools/versions/{tool_name}/rollback` | Roll back active version |
+| `DELETE` | `/tenants/{id}/tools/versions/{tool_name}/{version}` | Revoke a tool package version |
 | `GET/DELETE` | `/tenants/{id}/tools[/{name}]` | List / get / delete tools |
 | `POST` | `/tenants/{id}/agents` | Register agent (`instructions`, `capability_tags`, model metadata) |
 | `GET/DELETE` | `/tenants/{id}/agents[/{agent_id}]` | List / get / delete agents |
@@ -318,11 +332,16 @@ flowchart TD
 | `GET` | `/tenants/{id}/sessions/{session_id}` | Get session state |
 | `POST` | `/tenants/{id}/sessions/{session_id}/turns` | Submit a turn — returns `text/event-stream` (SSE) |
 | `WS` | `/tenants/{id}/sessions/{session_id}/ws` | WebSocket — persistent multi-turn with cancellation |
+| `POST` | `/providers` | Dynamically register a provider adapter |
+| `DELETE` | `/providers/{id}` | Unregister provider (with optional graceful drain controls) |
 | `GET` | `/providers` | List all registered providers |
 | `GET` | `/providers/{id}/health` | Provider health check |
 | `GET` | `/providers/{id}/capabilities` | Provider capability map |
 | `GET/PUT` | `/tenants/{id}/policy` | Read / apply tenant policy overlay |
 | `GET/PUT` | `/tenants/{id}/quota` | Read / update tenant job quota |
+| `GET/POST/DELETE` | `/tenants/{id}/admin/runtime/*` | Runtime control stats, cancellations, run controls, BYOC worker/job operations |
+| `GET/POST` | `/tenants/{id}/admin/audit/*` | Audit events/report/cleanup/export/verify |
+| `POST/GET/DELETE` | `/admin/keys*` | API key management (create/list/revoke) |
 
 ---
 
@@ -338,6 +357,9 @@ flowchart TD
   - `python -m pytest -q`
   - `python scripts/architecture/validate_layers.py`
   - `python scripts/architecture/scan_forbidden_imports.py`
+- Keep docs synchronized on architecture/workflow changes:
+  - `docs/operations/documentation-maintenance-checklist.md`
+  - `python scripts/docs/check_docs_metadata.py` (optional docs lint)
 - Finalize workflow after merge:
   - `git checkout main && git pull --ff-only origin main`
   - delete local/remote feature branch after merge verification

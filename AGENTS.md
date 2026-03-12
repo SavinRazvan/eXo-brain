@@ -4,6 +4,7 @@
 
 `eXo-brain` is a provider-neutral AI orchestration platform for single-agent and multi-agent workflows.
 The core principle is **AI as a commodity**: model providers are pluggable adapters, not orchestration owners.
+Current delivery posture is API-first Option C (control plane + adapter plane + data plane), with UI/dashboard tracks deferred unless explicitly re-enabled.
 
 ## Architecture Guardrails
 
@@ -21,6 +22,8 @@ The core principle is **AI as a commodity**: model providers are pluggable adapt
 - Keep checklist/docs synchronized with implementation status:
   - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
   - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
+  - `docs/plans/tenant-tool-execution-architecture.md`
+  - `docs/plans/docs-inventory-master.md` (when doc lifecycle status changes)
 
 ## Quality and Safety Gates
 
@@ -30,6 +33,9 @@ The core principle is **AI as a commodity**: model providers are pluggable adapt
 - Keep architecture fitness checks passing:
   - `scripts/architecture/validate_layers.py`
   - `scripts/architecture/scan_forbidden_imports.py`
+- Keep release-candidate signoff artifacts healthy:
+  - `make rc-signoff`
+  - `make rc-signoff-json`
 
 ## Commit Message Policy
 
@@ -47,6 +53,7 @@ The core principle is **AI as a commodity**: model providers are pluggable adapt
 - Before merge, require:
   - tests and architecture checks passing
   - checklist/research status updates for implemented scope
+  - docs maintenance review for architecture/workflow changes (`docs/operations/documentation-maintenance-checklist.md`)
 - After merge, require workflow finalization:
   - sync local `main` with `origin/main`
   - clean local feature branch
