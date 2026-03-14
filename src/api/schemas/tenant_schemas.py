@@ -48,7 +48,14 @@ class PolicyOverlayRequest(BaseModel):
       ingress_classifier_model_version: telemetry model-version label (for deterministic classifier profile).
       ingress_classifier_signals: list of classifier signal phrases (max 64).
       ingress_classifier_review_channel: escalation channel used when classifier enforce mode triggers.
-      signed_gate_plugin_ref: signed enterprise plugin reference (Enterprise only).
+      signed_gate_plugin_ref: signed enterprise plugin reference from trusted registry
+        (for example `plugin://trusted/signed-v1` or `plugin://trusted/signed-v2`).
+        Plugin lifecycle is guarded as follows:
+        - load is allowed immediately for next turn,
+        - unload/reload is blocked while active runs exist for the tenant,
+        - plugin payload stays declarative-only under sandbox policy checks.
+      Note: plugin version/signer/signature metadata is normalized server-side from the
+        signed plugin registry and should not be client-authored.
     """
 
     deny_tools: list[str] = Field(default_factory=list)

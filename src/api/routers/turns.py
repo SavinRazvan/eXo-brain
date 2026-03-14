@@ -188,6 +188,19 @@ async def _evaluate_ingress_turn(
                     **decision.to_payload(),
                 },
             )
+        if decision.signed_plugin_ref:
+            await audit_pipeline.emit(
+                event_type="turn_ingress_signed_plugin_telemetry",
+                correlation_id=correlation_id,
+                tenant_id=tenant_id,
+                payload={
+                    "session_id": session_id,
+                    "transport": transport,
+                    "input_chars": len(user_input),
+                    **policy_metadata,
+                    **decision.to_payload(),
+                },
+            )
         if observation.budget_exceeded or observation.timed_out:
             await audit_pipeline.emit(
                 event_type="turn_ingress_budget_alert",
@@ -467,6 +480,15 @@ async def submit_turn_sse(
                     "ingress_custom_rule_count": 0,
                     "ingress_custom_rule_ids": [],
                     "ingress_profile_compatibility_mode": "strict",
+                    "ingress_classifier_mode": "off",
+                    "ingress_classifier_threshold": 0.0,
+                    "ingress_classifier_model_version": "",
+                    "ingress_classifier_signal_count": 0,
+                    "signed_gate_plugin_ref": "",
+                    "signed_gate_plugin_version": "",
+                    "signed_gate_plugin_signer": "",
+                    "signed_gate_plugin_sandbox_mode": "",
+                    "signed_gate_plugin_rule_count": 0,
                     **ingress_decision.to_payload(),
                 },
             )
@@ -806,6 +828,15 @@ async def websocket_turn(
                                 "ingress_custom_rule_count": 0,
                                 "ingress_custom_rule_ids": [],
                                 "ingress_profile_compatibility_mode": "strict",
+                                "ingress_classifier_mode": "off",
+                                "ingress_classifier_threshold": 0.0,
+                                "ingress_classifier_model_version": "",
+                                "ingress_classifier_signal_count": 0,
+                                "signed_gate_plugin_ref": "",
+                                "signed_gate_plugin_version": "",
+                                "signed_gate_plugin_signer": "",
+                                "signed_gate_plugin_sandbox_mode": "",
+                                "signed_gate_plugin_rule_count": 0,
                                 **ingress_decision.to_payload(),
                             },
                         )

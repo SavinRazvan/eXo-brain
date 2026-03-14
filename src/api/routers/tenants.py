@@ -41,6 +41,7 @@ from src.api.schemas.tenant_schemas import (
 )
 from src.identity.contracts import IdentityContext
 from src.policies.ingress_profiles import resolve_ingress_profile_settings
+from src.policies.ingress_signed_plugins import classify_signed_plugin_lifecycle_transition
 from src.runtime.tenant_runtime import TenantRuntimeContext
 from src.schemas.tool_io import PolicyAction
 from src.tenancy.policy_overlay import TenantPolicyOverlayStore
@@ -58,6 +59,13 @@ def _policy_entitlement_http_exception(decision: EntitlementDecision) -> HTTPExc
 def _policy_validation_http_exception(message: str) -> HTTPException:
     return HTTPException(
         status_code=422,
+        detail=message,
+    )
+
+
+def _policy_conflict_http_exception(message: str) -> HTTPException:
+    return HTTPException(
+        status_code=409,
         detail=message,
     )
 
@@ -101,6 +109,7 @@ async def set_policy(
     The overlay is merged into the payload dict stored by TenantPolicyOverlayStore
     and consulted by DeterministicFirstPolicyMiddleware on every tool call.
     """
+    previous_overlay = dict(store.get_overlay(tenant_id))
     overlay: dict = {
         "deny_tools": body.deny_tools,
         "escalate_risk_tiers": body.escalate_risk_tiers,
@@ -111,6 +120,7 @@ async def set_policy(
         ingress_resolution = resolve_ingress_profile_settings(overlay)
     except ValueError as exc:
         raise _policy_validation_http_exception(str(exc)) from exc
+    normalized_ingress_patch = ingress_resolution.to_overlay_patch()
     feature = required_feature_for_governance_overlay(overlay)
     entitlement_decision = evaluate_feature_entitlement(identity=identity, feature=feature)
     correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
@@ -125,7 +135,22 @@ async def set_policy(
     if entitlement_decision.decision != PolicyAction.ALLOW:
         raise _policy_entitlement_http_exception(entitlement_decision)
 
-    overlay.update(ingress_resolution.to_overlay_patch())
+    previous_plugin_ref = str(previous_overlay.get("signed_gate_plugin_ref", "")).strip()
+    next_plugin_ref = str(normalized_ingress_patch.get("signed_gate_plugin_ref", "")).strip()
+    run_registry = getattr(request.app.state, "run_control_registry", None)
+    active_run_count = 0
+    if run_registry is not None:
+        active_run_count = int(run_registry.count_active_runs(tenant_id=tenant_id))
+    try:
+        lifecycle = classify_signed_plugin_lifecycle_transition(
+            previous_plugin_ref=previous_plugin_ref,
+            new_plugin_ref=next_plugin_ref,
+            active_run_count=active_run_count,
+        )
+    except ValueError as exc:
+        raise _policy_conflict_http_exception(str(exc)) from exc
+
+    overlay.update(normalized_ingress_patch)
     store.set_overlay(tenant_id, overlay)
     audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
     if audit_pipeline is not None:
@@ -139,6 +164,21 @@ async def set_policy(
                 **ingress_resolution.to_audit_payload(),
             },
         )
+        if lifecycle.action != "none":
+            await audit_pipeline.emit(
+                event_type="tenant_policy_signed_gate_plugin_lifecycle",
+                correlation_id=correlation_id,
+                tenant_id=tenant_id,
+                payload={
+                    "surface": "tenant_policy_overlay",
+                    "route": "PUT /tenants/{tenant_id}/policy",
+                    "action": lifecycle.action,
+                    "previous_signed_gate_plugin_ref": lifecycle.previous_plugin_ref,
+                    "new_signed_gate_plugin_ref": lifecycle.new_plugin_ref,
+                    "active_run_count": active_run_count,
+                    **ingress_resolution.to_audit_payload(),
+                },
+            )
     return PolicyOverlayResponse(tenant_id=tenant_id, overlay=overlay)
 
 

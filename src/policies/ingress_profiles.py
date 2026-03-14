@@ -19,6 +19,10 @@ from dataclasses import dataclass, field
 import re
 from typing import Any, Mapping
 
+from src.policies.ingress_signed_plugins import (
+    SignedIngressPlugin,
+    resolve_optional_signed_ingress_plugin,
+)
 
 _BASELINE_PROMPT_INJECTION_PHRASES: tuple[str, ...] = (
     "ignore previous instructions",
@@ -132,6 +136,7 @@ class IngressProfileResolution:
     max_input_chars: int
     prompt_injection_phrases: tuple[str, ...]
     classifier: IngressClassifierSettings
+    signed_plugin: SignedIngressPlugin | None = None
     custom_rules: tuple[IngressCustomRule, ...] = field(default_factory=tuple)
     compatibility_mode: str = "strict"
 
@@ -146,6 +151,15 @@ class IngressProfileResolution:
             "ingress_classifier_model_version": self.classifier.model_version,
             "ingress_classifier_signals": list(self.classifier.signals),
             "ingress_classifier_review_channel": self.classifier.review_channel,
+            "signed_gate_plugin_ref": self.signed_plugin.manifest.plugin_ref if self.signed_plugin else "",
+            "signed_gate_plugin_version": self.signed_plugin.manifest.version if self.signed_plugin else "",
+            "signed_gate_plugin_signer": self.signed_plugin.manifest.signer if self.signed_plugin else "",
+            "signed_gate_plugin_signature_sha256": (
+                self.signed_plugin.manifest.signature_sha256 if self.signed_plugin else ""
+            ),
+            "signed_gate_plugin_sandbox_mode": (
+                self.signed_plugin.manifest.sandbox_mode if self.signed_plugin else ""
+            ),
             "ingress_profile_compatibility_mode": self.compatibility_mode,
         }
 
@@ -161,6 +175,19 @@ class IngressProfileResolution:
             "ingress_classifier_model_version": self.classifier.model_version,
             "ingress_classifier_signal_count": len(self.classifier.signals),
             "ingress_classifier_review_channel": self.classifier.review_channel,
+            "signed_gate_plugin_ref": self.signed_plugin.manifest.plugin_ref if self.signed_plugin else "",
+            "signed_gate_plugin_version": self.signed_plugin.manifest.version if self.signed_plugin else "",
+            "signed_gate_plugin_signer": self.signed_plugin.manifest.signer if self.signed_plugin else "",
+            "signed_gate_plugin_signature_sha256": (
+                self.signed_plugin.manifest.signature_sha256 if self.signed_plugin else ""
+            ),
+            "signed_gate_plugin_sandbox_mode": (
+                self.signed_plugin.manifest.sandbox_mode if self.signed_plugin else ""
+            ),
+            "signed_gate_plugin_rule_count": len(self.signed_plugin.rules) if self.signed_plugin else 0,
+            "signed_gate_plugin_rule_ids": (
+                [rule.rule_id for rule in self.signed_plugin.rules] if self.signed_plugin else []
+            ),
             "ingress_profile_compatibility_mode": self.compatibility_mode,
         }
 
@@ -180,12 +207,14 @@ def resolve_ingress_profile_settings(overlay: Mapping[str, Any]) -> IngressProfi
         baseline_phrases,
     )
     classifier = _resolve_classifier_settings(overlay)
+    signed_plugin = _resolve_signed_plugin(overlay.get("signed_gate_plugin_ref"))
     custom_rules = _resolve_custom_rules(overlay.get("ingress_custom_rules"))
     return IngressProfileResolution(
         profile_name=profile_name,
         max_input_chars=max_input_chars,
         prompt_injection_phrases=prompt_injection_phrases,
         classifier=classifier,
+        signed_plugin=signed_plugin,
         custom_rules=custom_rules,
     )
 
@@ -339,6 +368,10 @@ def _resolve_custom_rules(raw_rules: Any) -> tuple[IngressCustomRule, ...]:
             )
         )
     return tuple(rules)
+
+
+def _resolve_signed_plugin(raw_plugin_ref: Any) -> SignedIngressPlugin | None:
+    return resolve_optional_signed_ingress_plugin(raw_plugin_ref, core_major_version=1)
 
 
 def _resolve_classifier_settings(overlay: Mapping[str, Any]) -> IngressClassifierSettings:
