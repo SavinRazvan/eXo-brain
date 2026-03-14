@@ -27,7 +27,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.1.0`
+- Version: `1.2.0`
 - Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `Cross-document mapping from strategy decisions to code, API, tests, and release evidence anchors.`
@@ -56,7 +56,7 @@ If a strategic decision has no active code/test anchor, it is considered at risk
 | Quota/fairness governance | Bounded admission and fairness controls | `src/tenancy/quotas.py`, `src/tenancy/rate_limiter.py`, `src/policies/byoc_fairness.py`, `src/core/run_control_registry.py` | runtime admin control endpoints in `src/api/routers/runtime_control.py` | `tests/modules/core/test_tenant_quota_enforcement.py`, `tests/modules/policies/test_byoc_fairness.py` | `scripts/release/verify_gates.py`, Option C threshold config |
 | Audit integrity | Auditable, verifiable evidence for runtime actions | `src/audit/*`, `src/persistence/*audit*` | `src/api/routers/audit.py` | `tests/modules/audit/test_audit_chain_integrity.py`, `tests/modules/audit/test_evidence_bundle_generation.py`, `tests/modules/api/test_audit_api.py` | RC signoff artifacts + audit export/verify checks |
 | API-first interface | Platform works without required UI | `src/api/app.py`, `src/api/routers/*` | REST/SSE/WS endpoints in API routers | `tests/modules/api/test_slice1_transport.py`, `tests/modules/api/test_slice3_playground.py`, `tests/modules/api/test_ui_static.py` | API release signoff and architecture checks |
-| Adapter packaging split | Core contracts + adapter SDK + provider adapters | `packages/exo-brain-core-contracts/*`, `packages/exo-brain-adapter-sdk/*`, `packages/exo-adapter-openai/*` | provider registration in `src/api/routers/providers.py` | `tests/packages/test_core_contracts_imports.py`, `tests/packages/test_openai_adapter_conformance.py` | Package conformance tests in CI |
+| Adapter packaging split | Core contracts + adapter SDK + provider adapters | `packages/exo-brain-core-contracts/*`, `packages/exo-brain-adapter-sdk/*`, `packages/exo-adapter-openai/*`, `src/runtime/adapter_factory.py` | provider registration in `src/api/routers/providers.py` + startup hydration in `src/api/startup.py` | `tests/packages/test_core_contracts_imports.py`, `tests/packages/test_openai_adapter_conformance.py`, `tests/modules/runtime/test_adapter_factory.py` | `scripts/architecture/scan_forbidden_imports.py` (adapter-package monorepo-import guard) + package conformance tests in CI |
 | Provider registration and portability | Provider adapters registered by contract/capability | `src/config/provider_registry.py`, runtime adapter modules | `src/api/routers/providers.py` | `tests/modules/config/test_provider_registry.py`, `tests/modules/api/test_slice_provider_registration.py` | Architecture checks + provider API tests |
 | Agent routing and fallback | Fallback and handoff are configurable and governed | `src/agents/registry.py`, `src/agents/contracts.py` | `src/api/routers/agents.py` (`routes` and `fallback`) | `tests/modules/agents/test_agent_registry.py`, `tests/modules/agents/test_orchestrator_agent_handoff.py`, `tests/modules/api/test_slice2_tools_agents.py` | CI integration suites |
 | Runtime observability | Runtime behavior must be observable and diagnosable | `src/observability/logging.py`, `src/observability/metrics.py`, `src/observability/tracing.py`, `src/observability/timeline.py` | runtime stats endpoints in `src/api/routers/runtime_control.py` | `tests/modules/observability/test_observability.py`, `tests/modules/observability/test_release_guardrails.py`, `tests/modules/core/test_scheduler_observability.py` | RC signoff evidence + observability test suites |
@@ -75,7 +75,7 @@ If a strategic decision has no active code/test anchor, it is considered at risk
 
 | Gap | Why it matters | Current status |
 |---|---|---|
-| Full external adapter portability | Enables independent adapter distribution and partner ecosystem | In progress; `exo-adapter-openai` still requires extraction completion from monorepo internals |
+| Full external adapter portability | Enables independent adapter distribution and partner ecosystem | OpenAI portability baseline completed in-repo (self-contained package runtime/tool wiring, canonical class refs, compatibility aliases, guardrails + smoke tests); next gap is external clean-project install/publish certification automation |
 | Explicit entitlement hard-gating layer | Needed for clean monetization boundary by tier | Matrix now documented; enforcement middleware/policy integration remains Planned |
 | Ingress governance plane with predefined + custom gates | Needed for pre-model safety, customer-governed protocols, and monetizable safety depth | Planned; contracts/product shape aligned, implementation and tests pending |
 | Governance performance SLO and failure-mode controls | Needed so safety depth does not degrade customer UX and reliability posture | Planned; latency budgets/fail-safe policies need explicit control + evidence hooks |

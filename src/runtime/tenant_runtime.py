@@ -201,6 +201,47 @@ class TenantRuntimeFactory:
     # Session runtime
     # ------------------------------------------------------------------
 
+    def _instantiate_session_adapter(
+        self,
+        tenant_context: TenantRuntimeContext,
+        provider_id: str,
+    ) -> "RuntimeAdapter":
+        """Resolve and instantiate a fresh adapter for a session.
+
+        Preferred path: use provider_record.adapter_class via adapter_factory.
+        Compatibility path: if adapter_class is legacy/non-dotted, instantiate from
+        the currently registered adapter type.
+        """
+        from src.runtime.adapter_factory import load_adapter
+
+        provider = self._provider_registry.get(provider_id)
+        adapter_class_ref = str(provider.adapter_class).strip()
+        init_kwargs = {
+            "tool_registry": tenant_context.tool_registry,
+            "tool_executor": tenant_context.tool_executor,
+        }
+
+        try:
+            return load_adapter(adapter_class_ref, provider_id=provider_id, **init_kwargs)
+        except TypeError:
+            # Not every adapter constructor accepts tool wiring kwargs.
+            return load_adapter(adapter_class_ref, provider_id=provider_id)
+        except (ImportError, ValueError):
+            # Compatibility fallback for legacy persisted records that may not be loadable
+            # through adapter_factory in the current environment.
+            pass
+
+        registered_adapter = self._provider_registry.get_adapter(provider_id)
+        adapter_cls = type(registered_adapter)
+
+        try:
+            return adapter_cls(provider_id=provider_id, **init_kwargs)
+        except TypeError:
+            try:
+                return adapter_cls(provider_id=provider_id)
+            except TypeError:
+                return adapter_cls()
+
     def create_session_runtime(
         self,
         tenant_context: TenantRuntimeContext,
@@ -214,13 +255,9 @@ class TenantRuntimeFactory:
         Raises KeyError if agent_id or provider_id is not registered.
         """
         spec = tenant_context.agent_registry.get(agent_id)
-
-        from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
-
-        adapter = OpenAIAgentsRuntimeAdapter(
+        adapter = self._instantiate_session_adapter(
+            tenant_context=tenant_context,
             provider_id=provider_id,
-            tool_registry=tenant_context.tool_registry,
-            tool_executor=tenant_context.tool_executor,
         )
 
         import asyncio

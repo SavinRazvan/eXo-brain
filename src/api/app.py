@@ -35,6 +35,7 @@ from src.config.provider_registry import (
     ProviderRegistry,
 )
 from src.config.settings import AppSettings, AuthSettings, DeploymentProfile, LimitsSettings, RuntimeSettings
+from src.runtime.adapter_factory import OPENAI_ADAPTER_CANONICAL_CLASS_REF
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 
 
@@ -261,7 +262,7 @@ def _default_provider_registry(settings: AppSettings) -> ProviderRegistry:
     record = ProviderRecord(
         provider_id=provider_id,
         display_name=f"{provider_id} (default)",
-        adapter_class="OpenAIAgentsRuntimeAdapter",
+        adapter_class=OPENAI_ADAPTER_CANONICAL_CLASS_REF,
         enabled=True,
         profile=ProviderProfile.MANAGED_VENDOR,
         priority=1,

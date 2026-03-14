@@ -9,6 +9,7 @@ Depends On:
  - pathlib
 Notes:
  - Provider SDK imports are allowed only inside runtime adapter modules.
+ - Adapter packages under packages/exo-adapter-*/src must not import monorepo src.* modules.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
+PACKAGES = ROOT / "packages"
 
 # Provider SDK imports — allowed only in src/runtime/*adapter* files.
 PROVIDER_SDK_PREFIXES = (
@@ -56,6 +58,14 @@ def _is_api_file(rel_path: str) -> bool:
     return rel_path.startswith("src/api/")
 
 
+def _is_adapter_package_file(rel_path: str) -> bool:
+    return rel_path.startswith("packages/exo-adapter-") and "/src/" in rel_path
+
+
+def _is_forbidden_monorepo_import_for_adapter_package(module: str) -> bool:
+    return module == "src" or module.startswith("src.")
+
+
 def main() -> int:
     violations: list[str] = []
     for py_file in SRC.rglob("*.py"):
@@ -71,6 +81,17 @@ def main() -> int:
                 violations.append(
                     f"{rel}: forbidden transport import '{module}' outside api/adapter boundary"
                 )
+
+    if PACKAGES.exists():
+        for py_file in PACKAGES.rglob("*.py"):
+            rel = py_file.relative_to(ROOT).as_posix()
+            if not _is_adapter_package_file(rel):
+                continue
+            for module in _imports_for_file(py_file):
+                if _is_forbidden_monorepo_import_for_adapter_package(module):
+                    violations.append(
+                        f"{rel}: forbidden monorepo import '{module}' inside adapter package boundary"
+                    )
 
     if violations:
         print("Forbidden import scan failed:")
