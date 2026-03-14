@@ -82,6 +82,33 @@ def evaluate_feature_entitlement(
     )
 
 
+async def emit_entitlement_decision_event(
+    *,
+    audit_pipeline: Any,
+    correlation_id: str,
+    tenant_id: str,
+    surface: str,
+    route: str,
+    decision: EntitlementDecision,
+    extra_payload: Mapping[str, Any] | None = None,
+) -> None:
+    if audit_pipeline is None:
+        return
+    payload: dict[str, Any] = {
+        "surface": surface,
+        "route": route,
+        **decision.to_payload(),
+    }
+    if extra_payload:
+        payload.update(dict(extra_payload))
+    await audit_pipeline.emit(
+        event_type="entitlement_decision",
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        payload=payload,
+    )
+
+
 def required_feature_for_governance_overlay(overlay: Mapping[str, Any]) -> EntitledFeature:
     signed_plugin_ref = str(overlay.get("signed_gate_plugin_ref", "")).strip()
     if signed_plugin_ref:

@@ -13,6 +13,7 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -34,12 +35,12 @@ from src.compliance.evidence_bundle import sign_bundle_payload
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 
 
-def _x_identity(tenant_id: str = "t1") -> dict:
+def _x_identity(tenant_id: str = "t1", roles: list[str] | None = None) -> dict:
     return {
         "X-Identity": json.dumps(
             {
                 "subject": "audit@test.com",
-                "roles": ["admin"],
+                "roles": roles or ["admin"],
                 "tenant_id": tenant_id,
                 "token_validation_state": "valid",
             }
@@ -192,7 +193,7 @@ def test_audit_export_file_and_verify_endpoint(tmp_path: Path) -> None:
         export_resp = client.post(
             "/tenants/t1/admin/audit/export-file",
             json={"limit": 50, "filename_prefix": "tenant_audit"},
-            headers=_x_identity(),
+            headers=_x_identity(roles=["admin", "entitlement_enterprise"]),
         )
         assert export_resp.status_code == 200, export_resp.text
         exported = export_resp.json()
@@ -205,7 +206,7 @@ def test_audit_export_file_and_verify_endpoint(tmp_path: Path) -> None:
         verify_ok = client.post(
             "/tenants/t1/admin/audit/verify",
             json={"file_path": str(file_path)},
-            headers=_x_identity(),
+            headers=_x_identity(roles=["admin", "entitlement_enterprise"]),
         )
         assert verify_ok.status_code == 200, verify_ok.text
         verified = verify_ok.json()
@@ -220,12 +221,66 @@ def test_audit_export_file_and_verify_endpoint(tmp_path: Path) -> None:
         verify_fail = client.post(
             "/tenants/t1/admin/audit/verify",
             json={"bundle": tampered},
-            headers=_x_identity(),
+            headers=_x_identity(roles=["admin", "entitlement_enterprise"]),
         )
         assert verify_fail.status_code == 200, verify_fail.text
         failed = verify_fail.json()
         assert failed["verified"] is False
         assert failed["signature_valid"] is False or failed["chain_valid"] is False
+
+
+def test_audit_signed_export_requires_enterprise_entitlement(tmp_path: Path) -> None:
+    export_dir = tmp_path / "audit_exports_entitlement"
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        limits=LimitsSettings(
+            audit_export_directory=str(export_dir),
+            audit_bundle_signing_secret="slice-6-3-test-secret",
+            max_audit_export_records=100,
+        ),
+    )
+    app = _build_sqlite_test_app(tmp_path / "exo_audit_entitlement.db", settings_override=settings)
+    with TestClient(app) as client:
+        upload = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert upload.status_code == 201, upload.text
+
+        denied = client.post(
+            "/tenants/t1/admin/audit/export-file",
+            json={"limit": 50, "filename_prefix": "tenant_audit"},
+            headers=_x_identity(roles=["admin", "entitlement_pro"]),
+        )
+        assert denied.status_code == 403
+        assert "ENTITLEMENT_TIER_REQUIRED" in denied.text
+
+        records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=20))
+        entitlement = [record for record in records if record.event_type == "entitlement_decision"]
+        assert entitlement
+        latest = entitlement[-1]
+        assert latest.payload.get("surface") == "audit_signed_export_verify"
+        assert latest.payload.get("feature") == "governance.audit.signed_export_verify"
+        assert latest.payload.get("decision") == "deny"
+        assert latest.payload.get("required_tier") == "enterprise"
+        assert latest.payload.get("current_tier") == "pro"
 
 
 def test_audit_verify_supports_key_rotation_and_legacy_signature_version(tmp_path: Path) -> None:
@@ -276,7 +331,7 @@ def test_audit_verify_supports_key_rotation_and_legacy_signature_version(tmp_pat
         verify_current = client.post(
             "/tenants/t1/admin/audit/verify",
             json={"bundle": bundle},
-            headers=_x_identity(),
+            headers=_x_identity(roles=["admin", "entitlement_enterprise"]),
         )
         assert verify_current.status_code == 200, verify_current.text
         verify_current_payload = verify_current.json()
@@ -293,7 +348,7 @@ def test_audit_verify_supports_key_rotation_and_legacy_signature_version(tmp_pat
         verify_legacy = client.post(
             "/tenants/t1/admin/audit/verify",
             json={"bundle": legacy_bundle},
-            headers=_x_identity(),
+            headers=_x_identity(roles=["admin", "entitlement_enterprise"]),
         )
         assert verify_legacy.status_code == 200, verify_legacy.text
         verify_legacy_payload = verify_legacy.json()
