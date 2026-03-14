@@ -18,6 +18,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
+from src.policies.ingress_profiles import (
+    IngressCustomRule,
+    resolve_ingress_profile_settings,
+)
+
 from src.schemas.tool_io import PolicyAction
 
 
@@ -136,9 +141,52 @@ class PromptInjectionHeuristicGate(IngressGate):
         )
 
 
+@dataclass(slots=True)
+class CustomIngressRulesGate(IngressGate):
+    custom_rules: tuple[IngressCustomRule, ...] = ()
+    gate_id: str = "ingress-custom-rules"
+    gate_version: str = "1.0.0"
+
+    def evaluate(self, context: IngressTurnContext) -> IngressDecision | None:
+        normalized_input = str(context.user_input)
+        for rule in self.custom_rules:
+            if not rule.matches(normalized_input):
+                continue
+            if rule.action == "deny":
+                return IngressDecision(
+                    schema_version="1.0",
+                    decision=PolicyAction.DENY,
+                    reason_code=rule.reason_code,
+                    message=rule.message,
+                    gate_id=self.gate_id,
+                    gate_version=self.gate_version,
+                )
+            return IngressDecision(
+                schema_version="1.0",
+                decision=PolicyAction.ESCALATE,
+                reason_code=rule.reason_code,
+                message=rule.message,
+                gate_id=self.gate_id,
+                gate_version=self.gate_version,
+                review_required=True,
+                review_channel=rule.review_channel,
+            )
+        return None
+
+
 class IngressGateChain:
-    def __init__(self, gates: Iterable[IngressGate] | None = None) -> None:
+    def __init__(
+        self,
+        gates: Iterable[IngressGate] | None = None,
+        *,
+        profile_name: str = "baseline",
+        custom_rule_ids: tuple[str, ...] = (),
+        compatibility_mode: str = "strict",
+    ) -> None:
         self._gates: tuple[IngressGate, ...] = tuple(gates or ())
+        self.profile_name = profile_name
+        self.custom_rule_ids = custom_rule_ids
+        self.compatibility_mode = compatibility_mode
 
     def evaluate(self, context: IngressTurnContext) -> IngressDecision:
         for gate in self._gates:
@@ -156,44 +204,30 @@ class IngressGateChain:
             gate_version="1.0.0",
         )
 
+    def policy_metadata(self) -> dict[str, Any]:
+        return {
+            "ingress_profile": self.profile_name,
+            "ingress_custom_rule_count": len(self.custom_rule_ids),
+            "ingress_custom_rule_ids": list(self.custom_rule_ids),
+            "ingress_profile_compatibility_mode": self.compatibility_mode,
+        }
+
 
 def build_default_ingress_gate_chain() -> IngressGateChain:
-    return IngressGateChain(
-        gates=(
-            EmptyInputGate(),
-            MaxInputCharsGate(),
-            PromptInjectionHeuristicGate(),
-        )
-    )
+    return build_ingress_gate_chain_from_overlay({})
 
 
 def build_ingress_gate_chain_from_overlay(overlay: Mapping[str, Any]) -> IngressGateChain:
-    max_chars = _overlay_max_input_chars(overlay)
-    phrases = _overlay_prompt_injection_phrases(overlay)
+    resolution = resolve_ingress_profile_settings(overlay)
+    custom_rule_ids = tuple(rule.rule_id for rule in resolution.custom_rules)
     return IngressGateChain(
         gates=(
             EmptyInputGate(),
-            MaxInputCharsGate(max_chars=max_chars),
-            PromptInjectionHeuristicGate(escalation_phrases=phrases),
-        )
+            MaxInputCharsGate(max_chars=resolution.max_input_chars),
+            PromptInjectionHeuristicGate(escalation_phrases=resolution.prompt_injection_phrases),
+            CustomIngressRulesGate(custom_rules=resolution.custom_rules),
+        ),
+        profile_name=resolution.profile_name,
+        custom_rule_ids=custom_rule_ids,
+        compatibility_mode=resolution.compatibility_mode,
     )
-
-
-def _overlay_max_input_chars(overlay: Mapping[str, Any]) -> int:
-    raw_value = overlay.get("ingress_max_input_chars", 8000)
-    if isinstance(raw_value, int) and raw_value > 0:
-        return raw_value
-    return 8000
-
-
-def _overlay_prompt_injection_phrases(overlay: Mapping[str, Any]) -> tuple[str, ...]:
-    raw_phrases = overlay.get("ingress_prompt_injection_phrases")
-    if isinstance(raw_phrases, list):
-        normalized = tuple(
-            str(phrase).strip().lower()
-            for phrase in raw_phrases
-            if str(phrase).strip()
-        )
-        if normalized:
-            return normalized
-    return PromptInjectionHeuristicGate().escalation_phrases
