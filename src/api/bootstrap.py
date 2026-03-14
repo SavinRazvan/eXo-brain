@@ -36,6 +36,7 @@ from src.observability.logging import StructuredLogger
 from src.observability.tool_audit import ToolAuditPipeline
 from src.persistence.audit_store import InMemoryAuditStore
 from src.persistence.contracts import AgentStore, ApiKeyStore, ProviderStore, ToolStore, ToolVersionStore
+from src.policies.ingress_gates import build_default_ingress_gate_chain
 from src.runtime.tenant_runtime import TenantRuntimeFactory
 from src.tenancy.policy_overlay import TenantPolicyOverlayStore
 from src.tenancy.rate_limiter import SQLiteTenantRateLimiter, TenantRateLimiter
@@ -129,6 +130,7 @@ def bootstrap(
         logger=app.state.structured_logger,
         audit_store=app.state.audit_store,
     )
+    app.state.ingress_gate_chain = build_default_ingress_gate_chain()
     app.state.tool_artifact_store = FileSystemToolArtifactStore(settings.limits.tool_artifact_directory)
 
     if persistence_backend == "sqlite":
