@@ -18,12 +18,19 @@ Notes:
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.api.dependencies import (
     get_policy_overlay_store,
     get_tenant_context,
     require_valid_identity,
+)
+from src.api.middleware.entitlements import (
+    EntitlementDecision,
+    evaluate_feature_entitlement,
+    required_feature_for_governance_overlay,
 )
 from src.api.schemas.tenant_schemas import (
     PolicyOverlayRequest,
@@ -33,9 +40,17 @@ from src.api.schemas.tenant_schemas import (
 )
 from src.identity.contracts import IdentityContext
 from src.runtime.tenant_runtime import TenantRuntimeContext
+from src.schemas.tool_io import PolicyAction
 from src.tenancy.policy_overlay import TenantPolicyOverlayStore
 
 router = APIRouter(tags=["tenants"])
+
+
+def _policy_entitlement_http_exception(decision: EntitlementDecision) -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail=f"{decision.reason_code}: {decision.message}",
+    )
 
 
 # ─── Policy overlay ───────────────────────────────────────────────────────────
@@ -67,8 +82,9 @@ async def get_policy(
 async def set_policy(
     tenant_id: str,
     body: PolicyOverlayRequest,
+    request: Request,
     store: TenantPolicyOverlayStore = Depends(get_policy_overlay_store),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    identity: IdentityContext = Depends(require_valid_identity),
 ) -> PolicyOverlayResponse:
     """Apply a policy overlay for the tenant.
 
@@ -76,6 +92,24 @@ async def set_policy(
     The overlay is merged into the payload dict stored by TenantPolicyOverlayStore
     and consulted by DeterministicFirstPolicyMiddleware on every tool call.
     """
+    feature = required_feature_for_governance_overlay(body.extra)
+    entitlement_decision = evaluate_feature_entitlement(identity=identity, feature=feature)
+    correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
+    audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    if audit_pipeline is not None:
+        await audit_pipeline.emit(
+            event_type="entitlement_decision",
+            correlation_id=correlation_id,
+            tenant_id=tenant_id,
+            payload={
+                "surface": "tenant_policy_overlay",
+                "route": "PUT /tenants/{tenant_id}/policy",
+                **entitlement_decision.to_payload(),
+            },
+        )
+    if entitlement_decision.decision != PolicyAction.ALLOW:
+        raise _policy_entitlement_http_exception(entitlement_decision)
+
     overlay: dict = {
         "deny_tools": body.deny_tools,
         "escalate_risk_tiers": body.escalate_risk_tiers,

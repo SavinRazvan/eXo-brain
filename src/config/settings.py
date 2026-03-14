@@ -99,6 +99,9 @@ class PolicySettings:
     allow_provider_native_for_read_only_low_risk: bool = True
     block_on_capability_unknown: bool = True
     escalation_channel: str = "security-review"
+    ingress_latency_budget_ms: int = 75
+    ingress_timeout_ms: int = 150
+    ingress_timeout_fail_mode: str = "fail_closed"
 
 
 @dataclass(slots=True)

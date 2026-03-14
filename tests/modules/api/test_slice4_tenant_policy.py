@@ -16,6 +16,7 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
@@ -120,6 +121,72 @@ def test_set_policy_with_extra_fields() -> None:
     overlay = resp.json()["overlay"]
     assert overlay.get("custom_flag") is True
     assert overlay.get("max_retries") == 3
+
+
+def test_set_policy_requires_pro_entitlement_for_ingress_profile() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {"ingress_profile": "strict"},
+    }
+    resp = client.put("/tenants/t1/policy", json=payload, headers=_headers("t1", roles=["admin"]))
+    assert resp.status_code == 403
+    assert "ENTITLEMENT_TIER_REQUIRED" in resp.text
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=20))
+    entitlement = [record for record in records if record.event_type == "entitlement_decision"]
+    assert entitlement
+    latest = entitlement[-1]
+    assert latest.payload.get("surface") == "tenant_policy_overlay"
+    assert latest.payload.get("decision") == "deny"
+    assert latest.payload.get("required_tier") == "pro"
+    assert latest.payload.get("current_tier") == "foundation"
+
+
+def test_set_policy_allows_pro_entitlement_for_ingress_profile() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {"ingress_profile": "strict"},
+    }
+    resp = client.put("/tenants/t1/policy", json=payload, headers=_headers("t1", roles=["entitlement_pro"]))
+    assert resp.status_code == 200
+    assert resp.json()["overlay"].get("ingress_profile") == "strict"
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=20))
+    entitlement = [record for record in records if record.event_type == "entitlement_decision"]
+    assert entitlement
+    latest = entitlement[-1]
+    assert latest.payload.get("decision") == "allow"
+    assert latest.payload.get("required_tier") == "pro"
+    assert latest.payload.get("current_tier") == "pro"
+
+
+def test_set_policy_requires_enterprise_entitlement_for_signed_gate_plugin() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {"signed_gate_plugin_ref": "plugin://trusted/signed-v1"},
+    }
+    resp = client.put("/tenants/t1/policy", json=payload, headers=_headers("t1", roles=["entitlement_pro"]))
+    assert resp.status_code == 403
+    assert "ENTITLEMENT_TIER_REQUIRED" in resp.text
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=20))
+    entitlement = [record for record in records if record.event_type == "entitlement_decision"]
+    assert entitlement
+    latest = entitlement[-1]
+    assert latest.payload.get("required_tier") == "enterprise"
+    assert latest.payload.get("current_tier") == "pro"
 
 
 # ─── Quota management ─────────────────────────────────────────────────────────

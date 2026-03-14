@@ -25,10 +25,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api.bootstrap import build_test_app
-from src.config.settings import AppSettings, LimitsSettings, RuntimeSettings
+from src.config.settings import AppSettings, LimitsSettings, PolicySettings, RuntimeSettings
+from src.observability.ingress_budget import IngressBudgetObservation
+from src.policies.ingress_gates import IngressDecision
 from src.schemas.events import RuntimeEvent
 from src.schemas.events import RuntimeEventType
-from src.schemas.tool_io import ToolCallContext
+from src.schemas.tool_io import PolicyAction, ToolCallContext
 
 
 # ---------------------------------------------------------------------------
@@ -36,9 +38,13 @@ from src.schemas.tool_io import ToolCallContext
 # ---------------------------------------------------------------------------
 
 
-def _headers(tenant_id: str = "t1") -> dict:
-    payload = {"subject": "user@test.com", "roles": ["user"], "tenant_id": tenant_id,
-               "token_validation_state": "valid"}
+def _headers(tenant_id: str = "t1", roles: list[str] | None = None) -> dict:
+    payload = {
+        "subject": "user@test.com",
+        "roles": roles or ["user"],
+        "tenant_id": tenant_id,
+        "token_validation_state": "valid",
+    }
     return {"X-Identity": json.dumps(payload)}
 
 
@@ -261,6 +267,166 @@ def test_sse_turn_writes_ingress_allow_decision_audit() -> None:
     assert ingress_records[0].payload.get("reason_code") == "INGRESS_ALLOW_DEFAULT"
 
 
+def test_sse_turn_returns_403_when_ingress_overlay_requires_pro_entitlement() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    tid = "sse-ingress-entitlement-tenant"
+    _register_agent(client, tid)
+    session_id = _create_session(client, tid)
+    app.state.policy_overlay_store.set_overlay(tid, {"ingress_profile": "strict"})
+    correlation_id = "run_sse_ingress_entitlement_1"
+
+    resp = client.post(
+        f"/tenants/{tid}/sessions/{session_id}/turns",
+        json={"input": "hello with strict profile", "correlation_id": correlation_id},
+        headers=_headers(tid, roles=["user"]),
+    )
+    assert resp.status_code == 403
+    assert "ENTITLEMENT_TIER_REQUIRED" in resp.text
+
+    records = asyncio.run(
+        app.state.audit_store.query_audit_events(correlation_id=correlation_id, tenant_id=tid)
+    )
+    entitlement_records = [record for record in records if record.event_type == "entitlement_decision"]
+    assert len(entitlement_records) == 1
+    assert entitlement_records[0].payload.get("decision") == "deny"
+    assert entitlement_records[0].payload.get("required_tier") == "pro"
+
+
+def test_sse_turn_timeout_fail_closed_returns_403_and_emits_budget_alert(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        policy=PolicySettings(
+            ingress_latency_budget_ms=5,
+            ingress_timeout_ms=5,
+            ingress_timeout_fail_mode="fail_closed",
+        ),
+    )
+    app = build_test_app(settings=settings)
+    client = TestClient(app)
+    tid = "sse-ingress-budget-closed-tenant"
+    _register_agent(client, tid)
+    session_id = _create_session(client, tid)
+    correlation_id = "run_sse_ingress_budget_closed_1"
+
+    async def _fake_evaluate_with_budget(**kwargs):
+        config = kwargs["config"]
+        assert config.normalized_fail_mode() == "fail_closed"
+        return (
+            IngressDecision(
+                schema_version="1.0",
+                decision=PolicyAction.DENY,
+                reason_code="INGRESS_GATE_TIMEOUT_FAIL_CLOSED",
+                message="Timed out in fail-closed mode.",
+                gate_id="ingress-budget-controller",
+                gate_version="1.0.0",
+            ),
+            IngressBudgetObservation(
+                latency_ms=9.0,
+                budget_ms=5,
+                timeout_ms=5,
+                timeout_fail_mode="fail_closed",
+                timed_out=True,
+                budget_exceeded=True,
+                reason_code="INGRESS_GATE_TIMEOUT_FAIL_CLOSED",
+                decision="deny",
+            ),
+        )
+
+    from src.api.routers import turns as turns_router_module
+
+    monkeypatch.setattr(turns_router_module, "evaluate_with_budget", _fake_evaluate_with_budget)
+
+    resp = client.post(
+        f"/tenants/{tid}/sessions/{session_id}/turns",
+        json={"input": "hello", "correlation_id": correlation_id},
+        headers=_headers(tid),
+    )
+    assert resp.status_code == 403
+    assert "INGRESS_GATE_TIMEOUT_FAIL_CLOSED" in resp.text
+
+    records = asyncio.run(app.state.audit_store.query_audit_events(correlation_id=correlation_id, tenant_id=tid))
+    decision_records = [record for record in records if record.event_type == "turn_ingress_decision"]
+    alert_records = [record for record in records if record.event_type == "turn_ingress_budget_alert"]
+    assert len(decision_records) == 1
+    assert len(alert_records) == 1
+    assert decision_records[0].payload.get("timed_out") is True
+    assert decision_records[0].payload.get("budget_exceeded") is True
+
+
+def test_sse_turn_timeout_fail_open_allows_and_emits_budget_alert(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        policy=PolicySettings(
+            ingress_latency_budget_ms=5,
+            ingress_timeout_ms=5,
+            ingress_timeout_fail_mode="fail_open",
+        ),
+    )
+    app = build_test_app(settings=settings)
+    client = TestClient(app)
+    tid = "sse-ingress-budget-open-tenant"
+    _register_agent(client, tid)
+    session_id = _create_session(client, tid)
+    correlation_id = "run_sse_ingress_budget_open_1"
+
+    async def _fake_evaluate_with_budget(**kwargs):
+        config = kwargs["config"]
+        assert config.normalized_fail_mode() == "fail_open"
+        return (
+            IngressDecision(
+                schema_version="1.0",
+                decision=PolicyAction.ALLOW,
+                reason_code="INGRESS_GATE_TIMEOUT_FAIL_OPEN",
+                message="Timed out in fail-open mode.",
+                gate_id="ingress-budget-controller",
+                gate_version="1.0.0",
+            ),
+            IngressBudgetObservation(
+                latency_ms=9.0,
+                budget_ms=5,
+                timeout_ms=5,
+                timeout_fail_mode="fail_open",
+                timed_out=True,
+                budget_exceeded=True,
+                reason_code="INGRESS_GATE_TIMEOUT_FAIL_OPEN",
+                decision="allow",
+            ),
+        )
+
+    from src.api.routers import turns as turns_router_module
+
+    monkeypatch.setattr(turns_router_module, "evaluate_with_budget", _fake_evaluate_with_budget)
+
+    resp = client.post(
+        f"/tenants/{tid}/sessions/{session_id}/turns",
+        json={"input": "hello", "correlation_id": correlation_id},
+        headers=_headers(tid),
+    )
+    assert resp.status_code == 200
+    assert "run_complete" in resp.text
+
+    records = asyncio.run(app.state.audit_store.query_audit_events(correlation_id=correlation_id, tenant_id=tid))
+    decision_records = [record for record in records if record.event_type == "turn_ingress_decision"]
+    alert_records = [record for record in records if record.event_type == "turn_ingress_budget_alert"]
+    assert len(decision_records) == 1
+    assert len(alert_records) == 1
+    assert decision_records[0].payload.get("reason_code") == "INGRESS_GATE_TIMEOUT_FAIL_OPEN"
+    assert decision_records[0].payload.get("decision") == "allow"
+
+
 def test_sse_turn_output_delta_before_run_complete() -> None:
     """output_delta events must come before run_complete in the stream."""
     app = build_test_app()
@@ -475,6 +641,36 @@ def test_websocket_turn_returns_error_when_ingress_gate_escalates() -> None:
     assert len(ingress_records) == 1
     assert ingress_records[0].payload.get("decision") == "escalate"
     assert ingress_records[0].payload.get("reason_code") == "INGRESS_PROMPT_INJECTION_SUSPECTED"
+
+
+def test_websocket_turn_returns_error_when_ingress_overlay_requires_enterprise_entitlement() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    tid = "ws-ingress-entitlement-tenant"
+    _register_agent(client, tid)
+    session_id = _create_session(client, tid)
+    app.state.policy_overlay_store.set_overlay(tid, {"signed_gate_plugin_ref": "plugin://trusted/signed-v1"})
+    run_id = "run_ws_ingress_entitlement_1"
+
+    with client.websocket_connect(
+        f"/tenants/{tid}/sessions/{session_id}/ws",
+        headers=_headers(tid, roles=["entitlement_pro"]),
+    ) as ws:
+        ws.send_json({"type": "turn", "input": "hello enterprise gate", "run_id": run_id})
+        msg = ws.receive_json()
+        assert msg.get("event") == "error"
+        assert msg.get("code") == "ENTITLEMENT_TIER_REQUIRED"
+        assert msg.get("required_tier") == "enterprise"
+        assert msg.get("current_tier") == "pro"
+
+    run_record = app.state.run_control_registry.get_run(tenant_id=tid, run_id=run_id)
+    assert run_record is None
+
+    records = asyncio.run(app.state.audit_store.query_audit_events(correlation_id=run_id, tenant_id=tid))
+    entitlement_records = [record for record in records if record.event_type == "entitlement_decision"]
+    assert len(entitlement_records) == 1
+    assert entitlement_records[0].payload.get("decision") == "deny"
+    assert entitlement_records[0].payload.get("required_tier") == "enterprise"
 
 
 def test_websocket_turn_emits_tool_progress_state_transitions(monkeypatch: pytest.MonkeyPatch) -> None:
