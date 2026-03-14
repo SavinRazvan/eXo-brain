@@ -90,7 +90,7 @@ Now enforceable in strategy package:
 - cross-document traceability anchors.
 
 Still planned (not yet fully implemented in product controls):
-- deeper governance ingress classifier/plugin/policy-pack controls (baseline gate chain + profile/custom-rule compatibility controls + entitlement hard-gating are implemented),
+- deeper governance ingress plugin/policy-pack controls and advanced external classifier-routing depth (baseline gate chain + profile/custom-rule/classifier shadow-enforce controls + entitlement hard-gating are implemented),
 - deeper governance performance profile-specific controls (baseline latency budget + timeout fail-safe is implemented),
 - deployment certification path for private/self-hosted support,
 - expanded compliance artifact catalog and profile-specific runbooks.

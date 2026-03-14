@@ -29,6 +29,10 @@ def test_resolve_ingress_profile_settings_returns_baseline_defaults() -> None:
     assert resolved.profile_name == "baseline"
     assert resolved.max_input_chars == 8000
     assert len(resolved.prompt_injection_phrases) >= 4
+    assert resolved.classifier.mode == "off"
+    assert resolved.classifier.threshold == 0.65
+    assert resolved.classifier.model_version == "heuristic-ingress-v1"
+    assert len(resolved.classifier.signals) >= 4
     assert resolved.custom_rules == ()
 
 
@@ -98,3 +102,35 @@ def test_resolve_ingress_profile_settings_rejects_invalid_custom_rule_action() -
                 ]
             }
         )
+
+
+def test_resolve_ingress_profile_settings_accepts_classifier_shadow_config() -> None:
+    resolved = resolve_ingress_profile_settings(
+        {
+            "ingress_classifier_mode": "shadow",
+            "ingress_classifier_threshold": 0.4,
+            "ingress_classifier_model_version": "mini-classifier-v2",
+            "ingress_classifier_signals": ["bypass safety", "reveal secrets"],
+            "ingress_classifier_review_channel": "classifier-review",
+        }
+    )
+    assert resolved.classifier.mode == "shadow"
+    assert resolved.classifier.threshold == 0.4
+    assert resolved.classifier.model_version == "mini-classifier-v2"
+    assert resolved.classifier.signals == ("bypass safety", "reveal secrets")
+    assert resolved.classifier.review_channel == "classifier-review"
+
+
+def test_resolve_ingress_profile_settings_rejects_invalid_classifier_mode() -> None:
+    with pytest.raises(ValueError, match="INGRESS_CLASSIFIER_MODE_INVALID"):
+        resolve_ingress_profile_settings({"ingress_classifier_mode": "strictest"})
+
+
+def test_resolve_ingress_profile_settings_rejects_invalid_classifier_threshold() -> None:
+    with pytest.raises(ValueError, match="INGRESS_CLASSIFIER_THRESHOLD_INVALID"):
+        resolve_ingress_profile_settings({"ingress_classifier_mode": "enforce", "ingress_classifier_threshold": 1.2})
+
+
+def test_resolve_ingress_profile_settings_rejects_empty_classifier_signals() -> None:
+    with pytest.raises(ValueError, match="INGRESS_CLASSIFIER_SIGNALS_INVALID"):
+        resolve_ingress_profile_settings({"ingress_classifier_mode": "shadow", "ingress_classifier_signals": []})
