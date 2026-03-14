@@ -39,7 +39,7 @@ from src.config.provider_registry import (
 )
 from src.identity.contracts import IdentityContext
 from src.persistence.contracts import PersistedProviderRecord, ProviderStore
-from src.runtime.adapter_factory import load_adapter
+from src.runtime.adapter_factory import canonicalize_adapter_class_ref, load_adapter
 from src.runtime.capability_map import HealthState
 
 router = APIRouter(tags=["providers"])
@@ -90,8 +90,9 @@ async def register_provider(
             status_code=409,
             detail=f"Provider '{body.provider_id}' is already registered.",
         )
+    canonical_ref = canonicalize_adapter_class_ref(body.adapter_class_ref)
     try:
-        adapter = load_adapter(body.adapter_class_ref, provider_id=body.provider_id)
+        adapter = load_adapter(canonical_ref, provider_id=body.provider_id)
     except (ValueError, ImportError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     health = await adapter.healthcheck()
@@ -111,7 +112,7 @@ async def register_provider(
     record = ProviderRecord(
         provider_id=body.provider_id,
         display_name=body.display_name,
-        adapter_class=body.adapter_class_ref,
+        adapter_class=canonical_ref,
         enabled=True,
         profile=profile,
         priority=100,
@@ -123,7 +124,7 @@ async def register_provider(
     persisted = PersistedProviderRecord(
         provider_id=body.provider_id,
         display_name=body.display_name,
-        adapter_class=body.adapter_class_ref,
+        adapter_class=canonical_ref,
         enabled=True,
         profile=profile.value,
         priority=100,

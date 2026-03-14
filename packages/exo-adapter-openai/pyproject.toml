@@ -7,7 +7,7 @@ name = "exo-adapter-openai"
 version = "0.1.0"
 description = "OpenAI runtime adapter package for eXo-brain."
 requires-python = ">=3.11"
-dependencies = ["openai>=1.0.0", "openai-agents>=0.0.0"]
+dependencies = ["exo-brain-core-contracts", "openai>=1.0.0", "openai-agents>=0.0.0"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
