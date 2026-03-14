@@ -31,14 +31,23 @@ from sse_starlette.sse import EventSourceResponse
 
 from src.api.dependencies import get_tenant_context, require_tenant_scope_identity
 from src.api.middleware.auth import extract_identity, is_identity_usable
+from src.api.middleware.entitlements import (
+    EntitlementDecision,
+    evaluate_feature_entitlement,
+    required_feature_for_governance_overlay,
+)
 from src.api.schemas.turn_schemas import TurnSubmitRequest
 from src.core.session_context import SessionContext
 from src.identity.contracts import IdentityContext
+from src.observability.ingress_budget import (
+    IngressBudgetConfig,
+    budget_config_from_policy_settings,
+    evaluate_with_budget,
+)
 from src.policies.ingress_gates import (
     IngressDecision,
-    IngressGateChain,
     IngressTurnContext,
-    build_default_ingress_gate_chain,
+    build_ingress_gate_chain_from_overlay,
 )
 from src.runtime.tenant_runtime import TenantRuntimeContext
 from src.schemas.events import RuntimeEvent, RuntimeEventType
@@ -55,12 +64,34 @@ def _get_run_registry(request: Request):
     return request.app.state.run_control_registry
 
 
-def _get_ingress_gate_chain(app) -> IngressGateChain:
-    chain = getattr(app.state, "ingress_gate_chain", None)
-    if chain is None:
-        chain = build_default_ingress_gate_chain()
-        app.state.ingress_gate_chain = chain
-    return chain
+def _get_tenant_policy_overlay(app, tenant_id: str) -> dict[str, Any]:
+    store = getattr(app.state, "policy_overlay_store", None)
+    if store is None:
+        return {}
+    return dict(store.get_overlay(tenant_id))
+
+
+def _build_ingress_gate_chain(overlay: dict[str, Any]):
+    return build_ingress_gate_chain_from_overlay(overlay)
+
+
+def _entitlement_error_event(decision: EntitlementDecision, correlation_id: str) -> dict[str, Any]:
+    return {
+        "event": "error",
+        "code": decision.reason_code,
+        "message": decision.message,
+        "correlation_id": correlation_id,
+        "feature": decision.feature.value,
+        "required_tier": decision.required_tier.value,
+        "current_tier": decision.current_tier.value,
+    }
+
+
+def _entitlement_http_exception(decision: EntitlementDecision) -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail=f"{decision.reason_code}: {decision.message}",
+    )
 
 
 def _ingress_error_event(decision: IngressDecision, correlation_id: str) -> dict[str, Any]:
@@ -83,27 +114,36 @@ def _ingress_http_exception(decision: IngressDecision) -> HTTPException:
 
 async def _evaluate_ingress_turn(
     *,
-    gate_chain: IngressGateChain,
+    gate_chain,
+    budget_config: IngressBudgetConfig,
     tenant_id: str,
     session_id: str,
     correlation_id: str,
     transport: str,
     user_input: str,
     identity: IdentityContext,
+    budget_recorder,
     audit_pipeline,
 ) -> IngressDecision:
-    decision = gate_chain.evaluate(
-        IngressTurnContext(
-            tenant_id=tenant_id,
-            session_id=session_id,
-            correlation_id=correlation_id,
-            transport=transport,
-            user_input=user_input,
-            identity_subject=identity.subject,
-            identity_roles=list(identity.roles),
-            identity_tenant_id=identity.tenant_id,
+    async def _evaluate_gate_chain() -> IngressDecision:
+        return gate_chain.evaluate(
+            IngressTurnContext(
+                tenant_id=tenant_id,
+                session_id=session_id,
+                correlation_id=correlation_id,
+                transport=transport,
+                user_input=user_input,
+                identity_subject=identity.subject,
+                identity_roles=list(identity.roles),
+                identity_tenant_id=identity.tenant_id,
+            )
         )
+    decision, observation = await evaluate_with_budget(
+        evaluate=_evaluate_gate_chain,
+        config=budget_config,
     )
+    if budget_recorder is not None:
+        budget_recorder.observe(tenant_id=tenant_id, observation=observation)
     if audit_pipeline is not None:
         await audit_pipeline.emit(
             event_type="turn_ingress_decision",
@@ -113,6 +153,47 @@ async def _evaluate_ingress_turn(
                 "session_id": session_id,
                 "transport": transport,
                 "input_chars": len(user_input),
+                **observation.to_payload(),
+                **decision.to_payload(),
+            },
+        )
+        if observation.budget_exceeded or observation.timed_out:
+            await audit_pipeline.emit(
+                event_type="turn_ingress_budget_alert",
+                correlation_id=correlation_id,
+                tenant_id=tenant_id,
+                payload={
+                    "session_id": session_id,
+                    "transport": transport,
+                    "input_chars": len(user_input),
+                    **observation.to_payload(),
+                    **decision.to_payload(),
+                },
+            )
+    return decision
+
+
+async def _evaluate_governance_entitlement(
+    *,
+    tenant_id: str,
+    session_id: str,
+    correlation_id: str,
+    transport: str,
+    identity: IdentityContext,
+    overlay: dict[str, Any],
+    audit_pipeline,
+) -> EntitlementDecision:
+    feature = required_feature_for_governance_overlay(overlay)
+    decision = evaluate_feature_entitlement(identity=identity, feature=feature)
+    if audit_pipeline is not None:
+        await audit_pipeline.emit(
+            event_type="entitlement_decision",
+            correlation_id=correlation_id,
+            tenant_id=tenant_id,
+            payload={
+                "session_id": session_id,
+                "transport": transport,
+                "surface": "turn_ingress",
                 **decision.to_payload(),
             },
         )
@@ -323,15 +404,31 @@ async def submit_turn_sse(
     run_registry = _get_run_registry(request)
     turn_rate_limiter = getattr(request.app.state, "turn_rate_limiter", None)
     audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
-    ingress_gate_chain = _get_ingress_gate_chain(request.app)
+    budget_recorder = getattr(request.app.state, "ingress_budget_recorder", None)
+    budget_config = budget_config_from_policy_settings(request.app.state.settings.policy)
+    policy_overlay = _get_tenant_policy_overlay(request.app, tenant_id)
+    entitlement_decision = await _evaluate_governance_entitlement(
+        tenant_id=tenant_id,
+        session_id=session_id,
+        correlation_id=correlation_id,
+        transport="sse",
+        identity=identity,
+        overlay=policy_overlay,
+        audit_pipeline=audit_pipeline,
+    )
+    if entitlement_decision.decision != PolicyAction.ALLOW:
+        raise _entitlement_http_exception(entitlement_decision)
+    ingress_gate_chain = _build_ingress_gate_chain(policy_overlay)
     ingress_decision = await _evaluate_ingress_turn(
         gate_chain=ingress_gate_chain,
+        budget_config=budget_config,
         tenant_id=tenant_id,
         session_id=session_id,
         correlation_id=correlation_id,
         transport="sse",
         user_input=body.input,
         identity=identity,
+        budget_recorder=budget_recorder,
         audit_pipeline=audit_pipeline,
     )
     if ingress_decision.decision != PolicyAction.ALLOW:
@@ -525,7 +622,8 @@ async def websocket_turn(
     run_registry = websocket.app.state.run_control_registry
     turn_rate_limiter = getattr(websocket.app.state, "turn_rate_limiter", None)
     audit_pipeline = getattr(websocket.app.state, "tool_audit_pipeline", None)
-    ingress_gate_chain = _get_ingress_gate_chain(websocket.app)
+    budget_recorder = getattr(websocket.app.state, "ingress_budget_recorder", None)
+    budget_config = budget_config_from_policy_settings(websocket.app.state.settings.policy)
 
     async def run_turn_task(
         run_id: str,
@@ -626,14 +724,30 @@ async def websocket_turn(
                     continue
                 run_id = str(msg.get("run_id", "") or f"run_{uuid.uuid4().hex[:8]}")
                 correlation_id = run_id
+                policy_overlay = _get_tenant_policy_overlay(websocket.app, tenant_id)
+                entitlement_decision = await _evaluate_governance_entitlement(
+                    tenant_id=tenant_id,
+                    session_id=session_id,
+                    correlation_id=correlation_id,
+                    transport="websocket",
+                    identity=identity,
+                    overlay=policy_overlay,
+                    audit_pipeline=audit_pipeline,
+                )
+                if entitlement_decision.decision != PolicyAction.ALLOW:
+                    await websocket.send_json(_entitlement_error_event(entitlement_decision, correlation_id))
+                    continue
+                ingress_gate_chain = _build_ingress_gate_chain(policy_overlay)
                 ingress_decision = await _evaluate_ingress_turn(
                     gate_chain=ingress_gate_chain,
+                    budget_config=budget_config,
                     tenant_id=tenant_id,
                     session_id=session_id,
                     correlation_id=correlation_id,
                     transport="websocket",
                     user_input=user_input,
                     identity=identity,
+                    budget_recorder=budget_recorder,
                     audit_pipeline=audit_pipeline,
                 )
                 if ingress_decision.decision != PolicyAction.ALLOW:

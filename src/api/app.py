@@ -34,7 +34,14 @@ from src.config.provider_registry import (
     ProviderRecord,
     ProviderRegistry,
 )
-from src.config.settings import AppSettings, AuthSettings, DeploymentProfile, LimitsSettings, RuntimeSettings
+from src.config.settings import (
+    AppSettings,
+    AuthSettings,
+    DeploymentProfile,
+    LimitsSettings,
+    PolicySettings,
+    RuntimeSettings,
+)
 from src.runtime.adapter_factory import OPENAI_ADAPTER_CANONICAL_CLASS_REF
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 
@@ -209,6 +216,11 @@ def _default_settings() -> AppSettings:
                 for item in os.environ.get("EXO_CROSS_TENANT_ADMIN_ROLES", "super_admin").split(",")
                 if item.strip()
             ],
+        ),
+        policy=PolicySettings(
+            ingress_latency_budget_ms=int(os.environ.get("EXO_INGRESS_LATENCY_BUDGET_MS", "75")),
+            ingress_timeout_ms=int(os.environ.get("EXO_INGRESS_TIMEOUT_MS", "150")),
+            ingress_timeout_fail_mode=os.environ.get("EXO_INGRESS_TIMEOUT_FAIL_MODE", "fail_closed"),
         ),
         limits=LimitsSettings(
             max_parallel_jobs=int(os.environ.get("EXO_MAX_PARALLEL_JOBS", "20")),

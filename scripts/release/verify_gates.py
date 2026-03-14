@@ -34,6 +34,15 @@ REQUIRED_GATES: list[list[str]] = [
         "--json-out",
         "artifacts/evidence/option_c_load_profiles.json",
     ],
+    [
+        "python",
+        "scripts/perf/ingress_budget_report.py",
+        "--enforce",
+        "--thresholds-json",
+        "configs/release/ingress_budget_thresholds.json",
+        "--json-out",
+        "artifacts/evidence/ingress_budget_report.json",
+    ],
 ]
 
 

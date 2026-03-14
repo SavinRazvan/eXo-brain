@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Iterable
+from typing import Any, Iterable, Mapping
 
 from src.schemas.tool_io import PolicyAction
 
@@ -165,3 +165,35 @@ def build_default_ingress_gate_chain() -> IngressGateChain:
             PromptInjectionHeuristicGate(),
         )
     )
+
+
+def build_ingress_gate_chain_from_overlay(overlay: Mapping[str, Any]) -> IngressGateChain:
+    max_chars = _overlay_max_input_chars(overlay)
+    phrases = _overlay_prompt_injection_phrases(overlay)
+    return IngressGateChain(
+        gates=(
+            EmptyInputGate(),
+            MaxInputCharsGate(max_chars=max_chars),
+            PromptInjectionHeuristicGate(escalation_phrases=phrases),
+        )
+    )
+
+
+def _overlay_max_input_chars(overlay: Mapping[str, Any]) -> int:
+    raw_value = overlay.get("ingress_max_input_chars", 8000)
+    if isinstance(raw_value, int) and raw_value > 0:
+        return raw_value
+    return 8000
+
+
+def _overlay_prompt_injection_phrases(overlay: Mapping[str, Any]) -> tuple[str, ...]:
+    raw_phrases = overlay.get("ingress_prompt_injection_phrases")
+    if isinstance(raw_phrases, list):
+        normalized = tuple(
+            str(phrase).strip().lower()
+            for phrase in raw_phrases
+            if str(phrase).strip()
+        )
+        if normalized:
+            return normalized
+    return PromptInjectionHeuristicGate().escalation_phrases

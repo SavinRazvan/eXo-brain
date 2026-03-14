@@ -22,7 +22,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.1.0`
+- Version: `1.3.0`
 - Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `Feature-to-tier packaging, enforcement surfaces, and evidence requirements for commercial operations.`
@@ -59,8 +59,9 @@ Rules:
 
 Current status:
 - Tier intent is defined.
-- Full entitlement enforcement middleware is `Planned`.
-- Full ingress governance layer (pre-model gate chain + tiered customization controls) is `Planned`.
+- Baseline entitlement middleware for governance ingress and tenant policy overlay surfaces is `Enforceable`.
+- Baseline ingress performance budget and timeout fail-safe controls are `Enforceable`.
+- Full ingress governance customization depth and broader premium surface coverage remain `Planned`.
 
 ---
 
@@ -70,7 +71,7 @@ Current status:
 |---|---|---|---|---|---|---|---|
 | Provider-neutral adapter registration and selection | Foundation | `POST/GET/DELETE /providers*`, `src/config/provider_registry.py` | Enforceable | `tests/modules/api/test_slice_provider_registration.py`, `tests/modules/config/test_provider_registry.py` | provider health/capability endpoints evidence | Must remain contract/capability-based, not provider-name hardcoded in core | Baseline adoption capability |
 | Deterministic policy-governed tool path | Foundation | `src/tools/executor.py`, `src/policies/middleware.py`, mode selection in `src/runtime/mode_selector.py` | Enforceable | `tests/modules/policies/test_policy_risk_gates.py`, `tests/modules/policies/test_deterministic_tool_replay.py`, `tests/modules/core/test_orchestrator_turn.py` | runtime events + policy outcomes in audit chain | Risky/state-changing calls cannot bypass policy + deterministic executor | Core trust baseline |
-| Ingress safety gate baseline profiles (predefined) | Foundation | Planned ingress gate chain before orchestration (`src/api/routers/turns.py`, `src/integration/host_adapter.py`, `src/core/orchestrator.py`) | Planned | Planned: ingress gate contract + API turn tests | Planned: gate decision audit events linked by correlation_id | Turns must not bypass baseline ingress safety path | Baseline trust guard for prompt/protocol safety |
+| Ingress safety gate baseline profiles (predefined) | Foundation | Ingress gate chain before orchestration (`src/api/routers/turns.py`, `src/integration/host_adapter.py`, `src/core/orchestrator.py`) | Enforceable (baseline) | `tests/modules/policies/test_ingress_gate_chain.py`, `tests/modules/api/test_slice3_playground.py`, `tests/modules/core/test_host_adapter_input_flow.py` | `turn_ingress_decision` audit events linked by correlation_id | Turns must not bypass baseline ingress safety path | Baseline trust guard for prompt/protocol safety |
 | Tenant policy overlay controls | Foundation | `GET/PUT /{tenant_id}/policy`, `src/tenancy/policy_overlay.py` | Enforceable | `tests/modules/api/test_slice4_tenant_policy.py` | policy change and outcome visibility via runtime/audit APIs | Overlay must not bypass core policy middleware | Baseline governance configurability |
 | Tenant quota controls | Foundation | `GET/PUT /{tenant_id}/quota`, `src/tenancy/quotas.py` | Enforceable | `tests/modules/core/test_tenant_quota_enforcement.py`, `tests/modules/api/test_slice4_tenant_policy.py` | runtime control stats and run outcomes | Quota checks remain tenant-scoped | `active_jobs` live tracking is post-v1 improvement |
 | Core audit events/report access | Foundation | `GET /admin/audit/events`, `GET /admin/audit/report` | Enforceable | `tests/modules/api/test_audit_api.py` | audit report payloads | Audit collection cannot be disabled on risky paths | Baseline observability for operations |
@@ -84,8 +85,8 @@ Current status:
 | Signed custom gate plugins (sandboxed, compatibility-checked) | Enterprise | Planned plugin package lifecycle + sandboxed gate runner | Planned | Planned: plugin compatibility, sandbox policy, and non-bypass tests | Planned: plugin load/evaluate/unload decision evidence | No unsigned or unsandboxed gate plugin may execute in production path | Requires plugin signing, lifecycle policy, and strict runtime limits |
 | Advanced fairness/admission controls | Enterprise | `src/policies/byoc_fairness.py`, runtime settings in `src/config/settings.py` | Enforceable (feature-flagged) | `tests/modules/policies/test_byoc_fairness.py`, `tests/modules/tools/test_byoc_non_blocking_execute.py` | runtime stats and governance metrics | Fairness cannot weaken tenant isolation or policy controls | Enterprise scale governance |
 | Enterprise release signoff evidence bundle | Enterprise | `scripts/release/verify_gates.py`, `make rc-signoff*` | Enforceable | `tests/modules/unknown/test_release_scripts.py` | RC signoff artifacts | Release cannot skip P0 gates | Enterprise operational assurance |
-| Entitlement middleware and hard API gating by tier | Cross-tier | Planned entitlement layer (API middleware / policy gate integration) | Planned | Planned: entitlement integration tests | Planned: entitlement decision audit records | No premium feature should rely on hidden/implicit gating | Primary monetization operability gap |
-| Gate performance budget and fail-safe policy controls | Cross-tier | Planned gate chain latency/timeouts/circuit-breaker controls | Planned | Planned: p95 latency budget tests + fail-open/fail-closed behavior tests | Planned: gate timeout and fallback reason-code evidence | Performance controls must not allow unsafe silent bypass | Required to preserve UX + trust guarantees at scale |
+| Entitlement middleware and hard API gating by tier | Cross-tier | `src/api/middleware/entitlements.py`, `src/policies/entitlements.py`, gating in `src/api/routers/turns.py` + `src/api/routers/tenants.py` | Enforceable (governance baseline) | `tests/modules/policies/test_entitlements.py`, `tests/modules/api/test_slice3_playground.py`, `tests/modules/api/test_slice4_tenant_policy.py` | `entitlement_decision` audit records on turn-ingress and tenant-policy surfaces | No premium feature should rely on hidden/implicit gating | Baseline delivered; extend to remaining premium surfaces |
+| Gate performance budget and fail-safe policy controls | Cross-tier | `src/observability/ingress_budget.py`, ingress budget enforcement in `src/api/routers/turns.py`, release gate in `scripts/perf/ingress_budget_report.py` + `scripts/release/verify_gates.py` | Enforceable (baseline) | `tests/modules/observability/test_ingress_budget.py`, `tests/modules/api/test_slice3_playground.py`, `tests/modules/unknown/test_release_scripts.py` | `turn_ingress_decision`/`turn_ingress_budget_alert` audit events + `artifacts/evidence/ingress_budget_report.json` | Performance controls must not allow unsafe silent bypass | Baseline delivered; extend to full profile-specific SLOs |
 
 ---
 
@@ -93,11 +94,10 @@ Current status:
 
 Priority sequence:
 
-1. Implement ingress gate chain baseline with predefined profiles and audit evidence.
-2. Implement explicit entitlement middleware/gates for API, ingress policy, and runtime policy surfaces.
-3. Add entitlement and gate-decision logging to audit stream.
-4. Add gate performance budget controls and failure-mode evidence to release checks.
-5. Add tier-aware API contract documentation for customer onboarding.
+1. Extend entitlement middleware/gates from ingress + tenant policy baseline to all planned premium governance surfaces.
+2. Add deeper tier-aware ingress profile/custom-rule APIs with schema validation and compatibility controls.
+3. Add deeper profile-specific governance SLO targets and per-profile reporting.
+4. Add tier-aware API contract documentation for customer onboarding.
 
 ---
 
