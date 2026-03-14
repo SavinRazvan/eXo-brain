@@ -76,6 +76,17 @@ def _build_ingress_gate_chain(overlay: dict[str, Any]):
     return build_ingress_gate_chain_from_overlay(overlay)
 
 
+def _ingress_config_invalid_decision(message: str) -> IngressDecision:
+    return IngressDecision(
+        schema_version="1.0",
+        decision=PolicyAction.DENY,
+        reason_code="INGRESS_PROFILE_CONFIG_INVALID",
+        message=message,
+        gate_id="ingress-profile-config",
+        gate_version="1.0.0",
+    )
+
+
 def _entitlement_error_event(decision: EntitlementDecision, correlation_id: str) -> dict[str, Any]:
     return {
         "event": "error",
@@ -126,6 +137,11 @@ async def _evaluate_ingress_turn(
     budget_recorder,
     audit_pipeline,
 ) -> IngressDecision:
+    policy_metadata_fn = getattr(gate_chain, "policy_metadata", None)
+    policy_metadata: dict[str, Any] = {}
+    if callable(policy_metadata_fn):
+        policy_metadata = dict(policy_metadata_fn())
+
     async def _evaluate_gate_chain() -> IngressDecision:
         return gate_chain.evaluate(
             IngressTurnContext(
@@ -154,6 +170,7 @@ async def _evaluate_ingress_turn(
                 "session_id": session_id,
                 "transport": transport,
                 "input_chars": len(user_input),
+                **policy_metadata,
                 **observation.to_payload(),
                 **decision.to_payload(),
             },
@@ -167,6 +184,7 @@ async def _evaluate_ingress_turn(
                     "session_id": session_id,
                     "transport": transport,
                     "input_chars": len(user_input),
+                    **policy_metadata,
                     **observation.to_payload(),
                     **decision.to_payload(),
                 },
@@ -419,7 +437,27 @@ async def submit_turn_sse(
     )
     if entitlement_decision.decision != PolicyAction.ALLOW:
         raise _entitlement_http_exception(entitlement_decision)
-    ingress_gate_chain = _build_ingress_gate_chain(policy_overlay)
+    try:
+        ingress_gate_chain = _build_ingress_gate_chain(policy_overlay)
+    except ValueError as exc:
+        ingress_decision = _ingress_config_invalid_decision(str(exc))
+        if audit_pipeline is not None:
+            await audit_pipeline.emit(
+                event_type="turn_ingress_decision",
+                correlation_id=correlation_id,
+                tenant_id=tenant_id,
+                payload={
+                    "session_id": session_id,
+                    "transport": "sse",
+                    "input_chars": len(body.input),
+                    "ingress_profile": "invalid",
+                    "ingress_custom_rule_count": 0,
+                    "ingress_custom_rule_ids": [],
+                    "ingress_profile_compatibility_mode": "strict",
+                    **ingress_decision.to_payload(),
+                },
+            )
+        raise _ingress_http_exception(ingress_decision) from exc
     ingress_decision = await _evaluate_ingress_turn(
         gate_chain=ingress_gate_chain,
         budget_config=budget_config,
@@ -738,7 +776,28 @@ async def websocket_turn(
                 if entitlement_decision.decision != PolicyAction.ALLOW:
                     await websocket.send_json(_entitlement_error_event(entitlement_decision, correlation_id))
                     continue
-                ingress_gate_chain = _build_ingress_gate_chain(policy_overlay)
+                try:
+                    ingress_gate_chain = _build_ingress_gate_chain(policy_overlay)
+                except ValueError as exc:
+                    ingress_decision = _ingress_config_invalid_decision(str(exc))
+                    if audit_pipeline is not None:
+                        await audit_pipeline.emit(
+                            event_type="turn_ingress_decision",
+                            correlation_id=correlation_id,
+                            tenant_id=tenant_id,
+                            payload={
+                                "session_id": session_id,
+                                "transport": "websocket",
+                                "input_chars": len(user_input),
+                                "ingress_profile": "invalid",
+                                "ingress_custom_rule_count": 0,
+                                "ingress_custom_rule_ids": [],
+                                "ingress_profile_compatibility_mode": "strict",
+                                **ingress_decision.to_payload(),
+                            },
+                        )
+                    await websocket.send_json(_ingress_error_event(ingress_decision, correlation_id))
+                    continue
                 ingress_decision = await _evaluate_ingress_turn(
                     gate_chain=ingress_gate_chain,
                     budget_config=budget_config,

@@ -40,6 +40,7 @@ from src.api.schemas.tenant_schemas import (
     QuotaUpdateRequest,
 )
 from src.identity.contracts import IdentityContext
+from src.policies.ingress_profiles import resolve_ingress_profile_settings
 from src.runtime.tenant_runtime import TenantRuntimeContext
 from src.schemas.tool_io import PolicyAction
 from src.tenancy.policy_overlay import TenantPolicyOverlayStore
@@ -51,6 +52,13 @@ def _policy_entitlement_http_exception(decision: EntitlementDecision) -> HTTPExc
     return HTTPException(
         status_code=403,
         detail=f"{decision.reason_code}: {decision.message}",
+    )
+
+
+def _policy_validation_http_exception(message: str) -> HTTPException:
+    return HTTPException(
+        status_code=422,
+        detail=message,
     )
 
 
@@ -93,7 +101,17 @@ async def set_policy(
     The overlay is merged into the payload dict stored by TenantPolicyOverlayStore
     and consulted by DeterministicFirstPolicyMiddleware on every tool call.
     """
-    feature = required_feature_for_governance_overlay(body.extra)
+    overlay: dict = {
+        "deny_tools": body.deny_tools,
+        "escalate_risk_tiers": body.escalate_risk_tiers,
+        "escalate_state_changing": body.escalate_state_changing,
+        **body.extra,
+    }
+    try:
+        ingress_resolution = resolve_ingress_profile_settings(overlay)
+    except ValueError as exc:
+        raise _policy_validation_http_exception(str(exc)) from exc
+    feature = required_feature_for_governance_overlay(overlay)
     entitlement_decision = evaluate_feature_entitlement(identity=identity, feature=feature)
     correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
     await emit_entitlement_decision_event(
@@ -107,13 +125,20 @@ async def set_policy(
     if entitlement_decision.decision != PolicyAction.ALLOW:
         raise _policy_entitlement_http_exception(entitlement_decision)
 
-    overlay: dict = {
-        "deny_tools": body.deny_tools,
-        "escalate_risk_tiers": body.escalate_risk_tiers,
-        "escalate_state_changing": body.escalate_state_changing,
-        **body.extra,
-    }
+    overlay.update(ingress_resolution.to_overlay_patch())
     store.set_overlay(tenant_id, overlay)
+    audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    if audit_pipeline is not None:
+        await audit_pipeline.emit(
+            event_type="tenant_policy_ingress_profile_configured",
+            correlation_id=correlation_id,
+            tenant_id=tenant_id,
+            payload={
+                "surface": "tenant_policy_overlay",
+                "route": "PUT /tenants/{tenant_id}/policy",
+                **ingress_resolution.to_audit_payload(),
+            },
+        )
     return PolicyOverlayResponse(tenant_id=tenant_id, overlay=overlay)
 
 
