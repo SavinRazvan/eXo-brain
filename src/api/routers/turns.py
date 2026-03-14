@@ -34,8 +34,15 @@ from src.api.middleware.auth import extract_identity, is_identity_usable
 from src.api.schemas.turn_schemas import TurnSubmitRequest
 from src.core.session_context import SessionContext
 from src.identity.contracts import IdentityContext
+from src.policies.ingress_gates import (
+    IngressDecision,
+    IngressGateChain,
+    IngressTurnContext,
+    build_default_ingress_gate_chain,
+)
 from src.runtime.tenant_runtime import TenantRuntimeContext
 from src.schemas.events import RuntimeEvent, RuntimeEventType
+from src.schemas.tool_io import PolicyAction
 
 router = APIRouter(tags=["turns"])
 
@@ -46,6 +53,70 @@ def _get_factory(request: Request):
 
 def _get_run_registry(request: Request):
     return request.app.state.run_control_registry
+
+
+def _get_ingress_gate_chain(app) -> IngressGateChain:
+    chain = getattr(app.state, "ingress_gate_chain", None)
+    if chain is None:
+        chain = build_default_ingress_gate_chain()
+        app.state.ingress_gate_chain = chain
+    return chain
+
+
+def _ingress_error_event(decision: IngressDecision, correlation_id: str) -> dict[str, Any]:
+    return {
+        "event": "error",
+        "code": decision.reason_code,
+        "message": decision.message,
+        "correlation_id": correlation_id,
+        "review_required": decision.review_required,
+        "review_channel": decision.review_channel,
+    }
+
+
+def _ingress_http_exception(decision: IngressDecision) -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail=f"{decision.reason_code}: {decision.message}",
+    )
+
+
+async def _evaluate_ingress_turn(
+    *,
+    gate_chain: IngressGateChain,
+    tenant_id: str,
+    session_id: str,
+    correlation_id: str,
+    transport: str,
+    user_input: str,
+    identity: IdentityContext,
+    audit_pipeline,
+) -> IngressDecision:
+    decision = gate_chain.evaluate(
+        IngressTurnContext(
+            tenant_id=tenant_id,
+            session_id=session_id,
+            correlation_id=correlation_id,
+            transport=transport,
+            user_input=user_input,
+            identity_subject=identity.subject,
+            identity_roles=list(identity.roles),
+            identity_tenant_id=identity.tenant_id,
+        )
+    )
+    if audit_pipeline is not None:
+        await audit_pipeline.emit(
+            event_type="turn_ingress_decision",
+            correlation_id=correlation_id,
+            tenant_id=tenant_id,
+            payload={
+                "session_id": session_id,
+                "transport": transport,
+                "input_chars": len(user_input),
+                **decision.to_payload(),
+            },
+        )
+    return decision
 
 
 def _websocket_cross_tenant_admin_allowed(websocket: WebSocket, identity: IdentityContext) -> bool:
@@ -178,6 +249,7 @@ async def _stream_turn(
     session_id: str,
     user_input: str,
     correlation_id: str,
+    ingress_decision: IngressDecision | None,
     factory,
     ctx: TenantRuntimeContext,
     identity: IdentityContext,
@@ -191,6 +263,9 @@ async def _stream_turn(
         return
 
     run_id = f"run_{uuid.uuid4().hex[:8]}"
+    session_metadata: dict[str, Any] = {}
+    if ingress_decision is not None:
+        session_metadata["ingress_decision"] = ingress_decision.to_payload()
     session_ctx = SessionContext(
         session_id=session_id,
         run_id=run_id,
@@ -200,6 +275,7 @@ async def _stream_turn(
         provider_id="api",
         correlation_id=correlation_id or run_id,
         identity=identity,
+        metadata=session_metadata,
     )
 
     try:
@@ -247,6 +323,19 @@ async def submit_turn_sse(
     run_registry = _get_run_registry(request)
     turn_rate_limiter = getattr(request.app.state, "turn_rate_limiter", None)
     audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    ingress_gate_chain = _get_ingress_gate_chain(request.app)
+    ingress_decision = await _evaluate_ingress_turn(
+        gate_chain=ingress_gate_chain,
+        tenant_id=tenant_id,
+        session_id=session_id,
+        correlation_id=correlation_id,
+        transport="sse",
+        user_input=body.input,
+        identity=identity,
+        audit_pipeline=audit_pipeline,
+    )
+    if ingress_decision.decision != PolicyAction.ALLOW:
+        raise _ingress_http_exception(ingress_decision)
     if turn_rate_limiter is not None:
         allowed, retry_after_seconds = turn_rate_limiter.allow(tenant_id)
         if not allowed:
@@ -302,6 +391,7 @@ async def submit_turn_sse(
                 session_id=session_id,
                 user_input=body.input,
                 correlation_id=correlation_id,
+                ingress_decision=ingress_decision,
                 factory=factory,
                 ctx=ctx,
                 identity=identity,
@@ -434,8 +524,15 @@ async def websocket_turn(
     execution_adapter = ctx.tool_executor.execution_adapter()
     run_registry = websocket.app.state.run_control_registry
     turn_rate_limiter = getattr(websocket.app.state, "turn_rate_limiter", None)
+    audit_pipeline = getattr(websocket.app.state, "tool_audit_pipeline", None)
+    ingress_gate_chain = _get_ingress_gate_chain(websocket.app)
 
-    async def run_turn_task(run_id: str, user_input: str, correlation_id: str) -> None:
+    async def run_turn_task(
+        run_id: str,
+        user_input: str,
+        correlation_id: str,
+        ingress_decision: IngressDecision,
+    ) -> None:
         terminal_event_seen = False
         terminal_status = ""
         terminal_event = ""
@@ -447,6 +544,7 @@ async def websocket_turn(
                 session_id=session_id,
                 user_input=user_input,
                 correlation_id=correlation_id,
+                ingress_decision=ingress_decision,
                 factory=factory,
                 ctx=ctx,
                 identity=identity,
@@ -528,12 +626,24 @@ async def websocket_turn(
                     continue
                 run_id = str(msg.get("run_id", "") or f"run_{uuid.uuid4().hex[:8]}")
                 correlation_id = run_id
+                ingress_decision = await _evaluate_ingress_turn(
+                    gate_chain=ingress_gate_chain,
+                    tenant_id=tenant_id,
+                    session_id=session_id,
+                    correlation_id=correlation_id,
+                    transport="websocket",
+                    user_input=user_input,
+                    identity=identity,
+                    audit_pipeline=audit_pipeline,
+                )
+                if ingress_decision.decision != PolicyAction.ALLOW:
+                    await websocket.send_json(_ingress_error_event(ingress_decision, correlation_id))
+                    continue
                 if turn_rate_limiter is not None:
                     allowed, retry_after_seconds = turn_rate_limiter.allow(tenant_id)
                     if not allowed:
-                        pipeline = getattr(websocket.app.state, "tool_audit_pipeline", None)
-                        if pipeline is not None:
-                            await pipeline.emit(
+                        if audit_pipeline is not None:
+                            await audit_pipeline.emit(
                                 event_type="turn_rejected_rate_limit",
                                 correlation_id=correlation_id,
                                 tenant_id=tenant_id,
@@ -554,9 +664,8 @@ async def websocket_turn(
                         continue
                 max_active_runs = max(int(websocket.app.state.settings.limits.max_active_runs_per_tenant), 0)
                 if max_active_runs > 0 and run_registry.count_active_runs(tenant_id=tenant_id) >= max_active_runs:
-                    pipeline = getattr(websocket.app.state, "tool_audit_pipeline", None)
-                    if pipeline is not None:
-                        await pipeline.emit(
+                    if audit_pipeline is not None:
+                        await audit_pipeline.emit(
                             event_type="turn_rejected_concurrency_limit",
                             correlation_id=correlation_id,
                             tenant_id=tenant_id,
@@ -577,7 +686,14 @@ async def websocket_turn(
                     correlation_id=correlation_id,
                     transport="websocket",
                 )
-                task = asyncio.create_task(run_turn_task(run_id, user_input, correlation_id))
+                task = asyncio.create_task(
+                    run_turn_task(
+                        run_id=run_id,
+                        user_input=user_input,
+                        correlation_id=correlation_id,
+                        ingress_decision=ingress_decision,
+                    )
+                )
                 active_tasks[run_id] = task
 
             elif msg_type == "cancel":
