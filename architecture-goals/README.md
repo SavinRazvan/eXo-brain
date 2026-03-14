@@ -91,6 +91,8 @@ Now enforceable in strategy package:
 
 Still planned (not yet fully implemented in product controls):
 - hard entitlement middleware with tier-aware API/policy gating,
+- governance ingress plane for pre-model allow/deny/escalate decisions (predefined + custom gate profiles),
+- governance performance controls (latency budgets, fail-safe policy modes, and evidence hooks),
 - deployment certification path for private/self-hosted support,
 - expanded compliance artifact catalog and profile-specific runbooks.
 
