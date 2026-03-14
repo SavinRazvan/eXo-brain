@@ -9,6 +9,7 @@ Provider-neutral AI orchestration platform with deterministic tool execution, mu
 - **Adapter packaging** — provider-neutral package split with `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, and `exo-adapter-openai` under `packages/`.
 - **Deterministic-first tool execution** — every state-changing or high-impact tool call is routed through `DeterministicToolExecutor` and `PolicyMiddleware`.
 - **Policy middleware** — auditable `before_tool_call` / `after_tool_call` decisions (`allow`, `deny`, `escalate`) with per-tenant overlay support.
+- **Governance ingress direction (next slices)** — pre-model safety gate chain with predefined/custom profiles, explicit reason codes, and performance budgets.
 - **Multi-tenant isolation** — `TenantRuntimeFactory` gives each tenant its own `ToolRegistry`, `AgentRegistry`, `PolicyMiddleware`, and session store.
 - **Shared control-state mode** — optional SQLite-backed run control and rate limiter backends for multi-process admission consistency.
 - **MCP integration** — trust-tier and per-server health controls for MCP tool calls.
@@ -18,6 +19,8 @@ Provider-neutral AI orchestration platform with deterministic tool execution, mu
 ## Current reality (Mar 2026)
 
 - API-first Option C is the active delivery path (no required UI/dashboard mount).
+- Tool-level deterministic policy enforcement is implemented.
+- Turn-level governance ingress (pre-model gate chain) is documented and planned as the next architecture slice.
 - Canonical current-state tracker: `docs/plans/tenant-tool-execution-architecture.md`.
 - Documentation authority and lifecycle: `docs/plans/docs-authority-map.md` and `docs/plans/docs-inventory-master.md`.
 
@@ -75,6 +78,23 @@ uvicorn src.api.app:create_app --factory --reload --port 8000
 
 ---
 
+## Beginner quick map (2-minute view)
+
+If you are new to this project, read the system in this order:
+
+1. **You call the API** (`REST`, `SSE`, or `WebSocket`).
+2. **Tenant context is resolved** (identity, tenant scope, policy/quota state).
+3. **Governance checks run**:
+   - today: tool-level policy gates are enforced,
+   - planned next: turn-level ingress gate chain before orchestration.
+4. **Orchestrator runs provider-neutral logic** and delegates model transport to adapters.
+5. **Tool calls are policy-gated** and deterministic for risky/state-changing operations.
+6. **Events and audit evidence are emitted** with correlation IDs for traceability.
+
+For acronym help, see `docs/operations/abbreviations-notepad.md`.
+
+---
+
 ## Documentation map
 
 - Primary docs index: `docs/README.md`
@@ -82,6 +102,7 @@ uvicorn src.api.app:create_app --factory --reload --port 8000
 - Operations index: `docs/operations/README.md`
 - Module docs index: `docs/modules/README.md`
 - Docs authority and precedence: `docs/plans/docs-authority-map.md`
+- Abbreviations notepad: `docs/operations/abbreviations-notepad.md`
 
 ---
 
@@ -138,6 +159,13 @@ flowchart TB
         HA["OrchestratorHostAdapter\nsubmit_turn()"]
     end
 
+    subgraph governance_ingress [Governance Ingress Plane]
+        IG["IngressGateChain\nallow · deny · escalate\n(planned)"]
+        EP["EntitlementResolver\ntier checks for governance depth\n(planned)"]
+        GB["GateBudgetController\nlatency budget + fail-safe mode\n(planned)"]
+        GP["GateProfiles\npredefined + custom rules\n(planned)"]
+    end
+
     subgraph core [Core Orchestration]
         ORCH["Orchestrator\nrun_turn()"]
         SC["SessionContext"]
@@ -192,6 +220,7 @@ flowchart TB
         TRACE["RuntimeTracer"]
         METRICS["RuntimeMetrics"]
         TL["RuntimeTimeline"]
+        TAP["ToolAuditPipeline"]
     end
 
     subgraph identity_access [Identity + Access]
@@ -214,6 +243,9 @@ flowchart TB
     BOOT --> TRF
     FAPI --> ROUTERS
     ROUTERS --> TRC
+    ROUTERS --> IG
+    IG --> EP --> GB --> GP
+    GP --> HA
     TRC --> TR & AR & MW & QM & SS
     TRF --> TRC
     TRF --> HA
@@ -230,6 +262,7 @@ flowchart TB
     MTA --> MR & CB & DLQ & MW
     PRR --> RA
     SET --> PRR
+    IG --> TAP
 ```
 
 ---
@@ -239,10 +272,12 @@ flowchart TB
 ```mermaid
 flowchart TD
     A["Client: POST /tenants/{id}/sessions/{id}/turns\n{input: 'What is 5 + 7?'}"] --> B["FastAPI Router\nresolve identity · get tenant context"]
-    B --> C["TenantRuntimeFactory\nget_session_runtime(session_id)"]
+    B --> B1["Ingress safety gate chain (planned)\npredefined/custom profile + entitlement + budget"]
+    B1 -->|deny/escalate| B2["Return policy decision event/error\nwith reason code and correlation_id"]
+    B1 -->|allow| C["TenantRuntimeFactory\nget_session_runtime(session_id)"]
     C --> D["OrchestratorHostAdapter.submit_turn()"]
     D --> E["Orchestrator.run_turn(session_id, user_input)"]
-    E --> F["OpenAIAgentsRuntimeAdapter.run_turn()\nbuild_agent_tools() — late binding from ToolRegistry"]
+    E --> F["RuntimeAdapter.run_turn()\nprovider transport isolated in adapter"]
     F --> G["Agent + Runner.run_streamed()\nOpenAI Agents SDK"]
     G --> H{SDK event?}
     H -->|text delta| I["RuntimeEvent.OUTPUT_DELTA\n→ SSE: output_delta"]
@@ -266,12 +301,15 @@ flowchart TD
     B -->|unknown| C["Close 4404 — session not found"]
     B -->|ok| D["Hold OrchestratorHostAdapter for connection lifetime"]
     D --> E{Client message?}
-    E -->|turn message| F["Create asyncio.Task\nstore run_id → task"]
-    F --> G["submit_turn → stream events back over WS\noutput_delta · tool_call · tool_result · run_complete"]
-    G --> E
-    E -->|cancel message| H["task.cancel()\nemit run_cancelled event"]
+    E -->|turn message| F["Ingress safety gate decision per turn\n(planned baseline)"]
+    F -->|allow| G["Create asyncio.Task\nstore run_id → task"]
+    F -->|deny/escalate| H["Return policy event/error with reason code"]
+    G --> I["submit_turn → stream events back over WS\noutput_delta · tool_call · tool_result · run_complete"]
+    I --> E
     H --> E
-    E -->|disconnect| I["Auto-cancel any in-flight task"]
+    E -->|cancel message| J["task.cancel()\nemit run_cancelled event"]
+    J --> E
+    E -->|disconnect| K["Auto-cancel any in-flight task"]
 ```
 
 ---
@@ -316,6 +354,28 @@ flowchart TD
     I -->|yes| J["Use tool-requested mode"]
     I -->|no| K["PROVIDER_NATIVE (fast path)"]
 ```
+
+---
+
+### Governance ingress decision tree (target)
+
+```mermaid
+flowchart TD
+    A["Turn request arrives"] --> B["Resolve tenant + identity + profile"]
+    B --> C["Run predefined/custom ingress gates (ordered chain)"]
+    C --> D{Any gate decision?}
+    D -->|"deny"| E["Block turn\nemit reason_code + audit evidence"]
+    D -->|"escalate"| F["Escalate turn\nemit review_required + reason_code"]
+    D -->|"allow"| G["Continue to orchestration/runtime flow"]
+    C --> H["Track latency budget and fail-safe mode"]
+    H -->|"budget exceeded"| I["Apply configured fail-safe action\nallow or deny or escalate"]
+```
+
+---
+
+## Abbreviations notepad (quick reference)
+
+Use `docs/operations/abbreviations-notepad.md` for a beginner-friendly glossary of all common abbreviations used in this repository.
 
 ---
 
