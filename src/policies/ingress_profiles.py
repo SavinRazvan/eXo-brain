@@ -57,6 +57,36 @@ _PROFILE_ALIASES: dict[str, str] = {
     "default": "baseline",
 }
 
+_CLASSIFIER_MODE_ALIASES: dict[str, str] = {
+    "disabled": "off",
+    "none": "off",
+    "monitor": "shadow",
+}
+
+_DEFAULT_CLASSIFIER_SIGNALS: tuple[str, ...] = (
+    "ignore previous instructions",
+    "reveal system prompt",
+    "developer instructions",
+    "jailbreak",
+    "bypass safety",
+    "disable moderation",
+    "exfiltrate data",
+    "reveal secrets",
+)
+
+
+@dataclass(slots=True, frozen=True)
+class IngressClassifierSettings:
+    mode: str
+    threshold: float
+    model_version: str
+    signals: tuple[str, ...]
+    review_channel: str = "security-review"
+
+    @property
+    def enabled(self) -> bool:
+        return self.mode in {"shadow", "enforce"}
+
 
 @dataclass(slots=True, frozen=True)
 class IngressCustomRule:
@@ -101,6 +131,7 @@ class IngressProfileResolution:
     profile_name: str
     max_input_chars: int
     prompt_injection_phrases: tuple[str, ...]
+    classifier: IngressClassifierSettings
     custom_rules: tuple[IngressCustomRule, ...] = field(default_factory=tuple)
     compatibility_mode: str = "strict"
 
@@ -110,6 +141,11 @@ class IngressProfileResolution:
             "ingress_max_input_chars": self.max_input_chars,
             "ingress_prompt_injection_phrases": list(self.prompt_injection_phrases),
             "ingress_custom_rules": [rule.to_overlay_payload() for rule in self.custom_rules],
+            "ingress_classifier_mode": self.classifier.mode,
+            "ingress_classifier_threshold": self.classifier.threshold,
+            "ingress_classifier_model_version": self.classifier.model_version,
+            "ingress_classifier_signals": list(self.classifier.signals),
+            "ingress_classifier_review_channel": self.classifier.review_channel,
             "ingress_profile_compatibility_mode": self.compatibility_mode,
         }
 
@@ -120,6 +156,11 @@ class IngressProfileResolution:
             "ingress_prompt_injection_phrase_count": len(self.prompt_injection_phrases),
             "ingress_custom_rule_count": len(self.custom_rules),
             "ingress_custom_rule_ids": [rule.rule_id for rule in self.custom_rules],
+            "ingress_classifier_mode": self.classifier.mode,
+            "ingress_classifier_threshold": self.classifier.threshold,
+            "ingress_classifier_model_version": self.classifier.model_version,
+            "ingress_classifier_signal_count": len(self.classifier.signals),
+            "ingress_classifier_review_channel": self.classifier.review_channel,
             "ingress_profile_compatibility_mode": self.compatibility_mode,
         }
 
@@ -138,11 +179,13 @@ def resolve_ingress_profile_settings(overlay: Mapping[str, Any]) -> IngressProfi
         overlay.get("ingress_prompt_injection_phrases"),
         baseline_phrases,
     )
+    classifier = _resolve_classifier_settings(overlay)
     custom_rules = _resolve_custom_rules(overlay.get("ingress_custom_rules"))
     return IngressProfileResolution(
         profile_name=profile_name,
         max_input_chars=max_input_chars,
         prompt_injection_phrases=prompt_injection_phrases,
+        classifier=classifier,
         custom_rules=custom_rules,
     )
 
@@ -296,6 +339,77 @@ def _resolve_custom_rules(raw_rules: Any) -> tuple[IngressCustomRule, ...]:
             )
         )
     return tuple(rules)
+
+
+def _resolve_classifier_settings(overlay: Mapping[str, Any]) -> IngressClassifierSettings:
+    raw_mode = str(overlay.get("ingress_classifier_mode", "off")).strip().lower()
+    mode = _CLASSIFIER_MODE_ALIASES.get(raw_mode, raw_mode)
+    if mode not in {"off", "shadow", "enforce"}:
+        raise ValueError(
+            "INGRESS_CLASSIFIER_MODE_INVALID: ingress_classifier_mode must be one of "
+            "['off', 'shadow', 'enforce']."
+        )
+    raw_threshold = overlay.get("ingress_classifier_threshold", 0.65)
+    if not isinstance(raw_threshold, (int, float)):
+        raise ValueError(
+            "INGRESS_CLASSIFIER_THRESHOLD_INVALID: ingress_classifier_threshold must be a number in [0,1]."
+        )
+    threshold = float(raw_threshold)
+    if threshold < 0.0 or threshold > 1.0:
+        raise ValueError(
+            "INGRESS_CLASSIFIER_THRESHOLD_INVALID: ingress_classifier_threshold must be in [0,1]."
+        )
+    raw_model_version = str(overlay.get("ingress_classifier_model_version", "heuristic-ingress-v1")).strip()
+    model_version = raw_model_version or "heuristic-ingress-v1"
+    if len(model_version) > 80:
+        raise ValueError(
+            "INGRESS_CLASSIFIER_MODEL_VERSION_INVALID: ingress_classifier_model_version must be <=80 chars."
+        )
+    review_channel = str(overlay.get("ingress_classifier_review_channel", "security-review")).strip()
+    if not review_channel:
+        review_channel = "security-review"
+    if len(review_channel) > 80:
+        raise ValueError(
+            "INGRESS_CLASSIFIER_REVIEW_CHANNEL_INVALID: ingress_classifier_review_channel must be <=80 chars."
+        )
+    signals = _resolve_classifier_signals(overlay.get("ingress_classifier_signals"))
+    return IngressClassifierSettings(
+        mode=mode,
+        threshold=threshold,
+        model_version=model_version,
+        signals=signals,
+        review_channel=review_channel,
+    )
+
+
+def _resolve_classifier_signals(raw_signals: Any) -> tuple[str, ...]:
+    if raw_signals is None:
+        return _DEFAULT_CLASSIFIER_SIGNALS
+    if not isinstance(raw_signals, list):
+        raise ValueError("INGRESS_CLASSIFIER_SIGNALS_INVALID: ingress_classifier_signals must be a list.")
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for signal in raw_signals:
+        signal_value = str(signal).strip().lower()
+        if not signal_value:
+            continue
+        if len(signal_value) > 160:
+            raise ValueError(
+                "INGRESS_CLASSIFIER_SIGNALS_INVALID: signal entries must be <=160 characters."
+            )
+        if signal_value in seen:
+            continue
+        seen.add(signal_value)
+        normalized.append(signal_value)
+    if not normalized:
+        raise ValueError(
+            "INGRESS_CLASSIFIER_SIGNALS_INVALID: ingress_classifier_signals cannot be empty."
+        )
+    if len(normalized) > 64:
+        raise ValueError(
+            "INGRESS_CLASSIFIER_SIGNALS_INVALID: ingress_classifier_signals supports at most 64 entries."
+        )
+    return tuple(normalized)
 
 
 def _validate_regex_patterns(rule_id: str, patterns: list[str]) -> None:

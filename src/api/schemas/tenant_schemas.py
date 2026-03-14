@@ -43,6 +43,11 @@ class PolicyOverlayRequest(BaseModel):
           "case_sensitive": false,
           "review_channel": "security-review"
         }
+      ingress_classifier_mode: "off" | "shadow" | "enforce" (Pro+).
+      ingress_classifier_threshold: float in [0,1] controlling risk trigger threshold.
+      ingress_classifier_model_version: telemetry model-version label (for deterministic classifier profile).
+      ingress_classifier_signals: list of classifier signal phrases (max 64).
+      ingress_classifier_review_channel: escalation channel used when classifier enforce mode triggers.
       signed_gate_plugin_ref: signed enterprise plugin reference (Enterprise only).
     """
 

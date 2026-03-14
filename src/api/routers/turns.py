@@ -175,6 +175,19 @@ async def _evaluate_ingress_turn(
                 **decision.to_payload(),
             },
         )
+        if decision.classifier_mode:
+            await audit_pipeline.emit(
+                event_type="turn_ingress_classifier_telemetry",
+                correlation_id=correlation_id,
+                tenant_id=tenant_id,
+                payload={
+                    "session_id": session_id,
+                    "transport": transport,
+                    "input_chars": len(user_input),
+                    **policy_metadata,
+                    **decision.to_payload(),
+                },
+            )
         if observation.budget_exceeded or observation.timed_out:
             await audit_pipeline.emit(
                 event_type="turn_ingress_budget_alert",
