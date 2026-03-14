@@ -58,6 +58,7 @@ def _build_sqlite_provider_app(db_path: Path, *, enable_graceful_drain: bool = F
         ProviderRegistry,
     )
     from src.config.settings import AppSettings, RuntimeSettings
+    from src.runtime.adapter_factory import OPENAI_ADAPTER_CANONICAL_CLASS_REF
     from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 
     settings = AppSettings(
@@ -74,7 +75,7 @@ def _build_sqlite_provider_app(db_path: Path, *, enable_graceful_drain: bool = F
     record = ProviderRecord(
         provider_id="openai-test",
         display_name="Test OpenAI",
-        adapter_class="src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
+        adapter_class=OPENAI_ADAPTER_CANONICAL_CLASS_REF,
         enabled=True,
         profile=ProviderProfile.MANAGED_VENDOR,
         priority=1,
@@ -105,6 +106,10 @@ def _build_sqlite_provider_app(db_path: Path, *, enable_graceful_drain: bool = F
 
 def test_post_providers_creates_dynamic_provider(tmp_path: Path) -> None:
     """POST /providers with valid adapter_class_ref returns 201 and provider is listed."""
+    import asyncio
+
+    from src.runtime.adapter_factory import OPENAI_ADAPTER_CANONICAL_CLASS_REF
+
     app = _build_sqlite_provider_app(tmp_path / "exo.db")
     with TestClient(app) as client:
         resp = client.post(
@@ -112,7 +117,7 @@ def test_post_providers_creates_dynamic_provider(tmp_path: Path) -> None:
             json={
                 "provider_id": "dynamic-openai",
                 "display_name": "Dynamic OpenAI",
-                "adapter_class_ref": "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
+                "adapter_class_ref": OPENAI_ADAPTER_CANONICAL_CLASS_REF,
                 "api_key_env_var": "OPENAI_API_KEY",
                 "base_url": "https://api.openai.com",
                 "model": "gpt-4o-mini",
@@ -133,6 +138,31 @@ def test_post_providers_creates_dynamic_provider(tmp_path: Path) -> None:
     ids = [p["provider_id"] for p in providers]
     assert "openai-test" in ids
     assert "dynamic-openai" in ids
+    stored = asyncio.run(app.state.provider_store.get_provider("dynamic-openai"))
+    assert stored is not None
+    assert stored.adapter_class == OPENAI_ADAPTER_CANONICAL_CLASS_REF
+
+
+def test_post_providers_legacy_alias_is_canonicalized(tmp_path: Path) -> None:
+    import asyncio
+
+    from src.runtime.adapter_factory import OPENAI_ADAPTER_CANONICAL_CLASS_REF
+
+    app = _build_sqlite_provider_app(tmp_path / "exo.db")
+    with TestClient(app) as client:
+        resp = client.post(
+            "/providers",
+            json={
+                "provider_id": "legacy-alias-provider",
+                "display_name": "Legacy Alias",
+                "adapter_class_ref": "OpenAIAgentsRuntimeAdapter",
+            },
+            headers=_x_identity(),
+        )
+    assert resp.status_code == 201, resp.text
+    stored = asyncio.run(app.state.provider_store.get_provider("legacy-alias-provider"))
+    assert stored is not None
+    assert stored.adapter_class == OPENAI_ADAPTER_CANONICAL_CLASS_REF
 
 
 def test_post_providers_duplicate_returns_409(tmp_path: Path) -> None:

@@ -34,7 +34,7 @@ from src.config.provider_registry import (
     ProviderRecord,
 )
 from src.persistence.contracts import PersistedAgentRecord, PersistedProviderRecord, PersistedToolRecord
-from src.runtime.adapter_factory import load_adapter
+from src.runtime.adapter_factory import canonicalize_adapter_class_ref, load_adapter
 from src.schemas.tool_io import RiskTier
 from src.tools.registry import ToolDescriptor
 from src.tools.version_projection import descriptor_from_tool_version
@@ -95,8 +95,9 @@ def _provider_record_to_runtime(record: PersistedProviderRecord) -> tuple[Provid
 
     Returns None if the adapter cannot be loaded (e.g. missing module).
     """
+    canonical_ref = canonicalize_adapter_class_ref(record.adapter_class)
     try:
-        adapter = load_adapter(record.adapter_class, provider_id=record.provider_id)
+        adapter = load_adapter(canonical_ref, provider_id=record.provider_id)
     except (ValueError, ImportError) as exc:
         logger.warning("Cannot load adapter for provider %r: %s", record.provider_id, exc)
         return None
@@ -111,7 +112,7 @@ def _provider_record_to_runtime(record: PersistedProviderRecord) -> tuple[Provid
     rec = ProviderRecord(
         provider_id=record.provider_id,
         display_name=record.display_name,
-        adapter_class=record.adapter_class,
+        adapter_class=canonical_ref,
         enabled=record.enabled,
         profile=profile,
         priority=record.priority,

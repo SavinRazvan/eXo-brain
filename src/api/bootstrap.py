@@ -162,6 +162,7 @@ def build_test_app(
         ProviderRecord,
     )
     from src.config.settings import RuntimeSettings
+    from src.runtime.adapter_factory import OPENAI_ADAPTER_CANONICAL_CLASS_REF
     from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 
     if settings is None:
@@ -180,7 +181,7 @@ def build_test_app(
         record = ProviderRecord(
             provider_id="openai-test",
             display_name="Test OpenAI",
-            adapter_class="OpenAIAgentsRuntimeAdapter",
+            adapter_class=OPENAI_ADAPTER_CANONICAL_CLASS_REF,
             enabled=True,
             profile=ProviderProfile.MANAGED_VENDOR,
             priority=1,
