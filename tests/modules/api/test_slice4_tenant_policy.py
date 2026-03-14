@@ -258,6 +258,80 @@ def test_set_policy_accepts_custom_ingress_rules_for_pro_and_emits_profile_audit
     assert latest.payload.get("ingress_max_input_chars") == 3200
 
 
+def test_set_policy_requires_pro_entitlement_for_classifier_shadow_mode() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {
+            "ingress_classifier_mode": "shadow",
+            "ingress_classifier_threshold": 0.4,
+        },
+    }
+    resp = client.put("/tenants/t1/policy", json=payload, headers=_headers("t1", roles=["admin"]))
+    assert resp.status_code == 403
+    assert "ENTITLEMENT_TIER_REQUIRED" in resp.text
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=20))
+    entitlement = [record for record in records if record.event_type == "entitlement_decision"]
+    assert entitlement
+    latest = entitlement[-1]
+    assert latest.payload.get("feature") == "governance.ingress.classifier"
+    assert latest.payload.get("required_tier") == "pro"
+    assert latest.payload.get("current_tier") == "foundation"
+
+
+def test_set_policy_accepts_classifier_shadow_for_pro_and_emits_profile_audit() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {
+            "ingress_classifier_mode": "shadow",
+            "ingress_classifier_threshold": 0.4,
+            "ingress_classifier_model_version": "mini-shadow-v1",
+            "ingress_classifier_signals": ["bypass safety", "reveal secrets"],
+        },
+    }
+    resp = client.put("/tenants/t1/policy", json=payload, headers=_headers("t1", roles=["entitlement_pro"]))
+    assert resp.status_code == 200
+    overlay = resp.json()["overlay"]
+    assert overlay.get("ingress_classifier_mode") == "shadow"
+    assert overlay.get("ingress_classifier_threshold") == 0.4
+    assert overlay.get("ingress_classifier_model_version") == "mini-shadow-v1"
+    assert overlay.get("ingress_classifier_signals") == ["bypass safety", "reveal secrets"]
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=30))
+    profile_events = [
+        record for record in records if record.event_type == "tenant_policy_ingress_profile_configured"
+    ]
+    assert profile_events
+    latest = profile_events[-1]
+    assert latest.payload.get("ingress_classifier_mode") == "shadow"
+    assert latest.payload.get("ingress_classifier_model_version") == "mini-shadow-v1"
+    assert latest.payload.get("ingress_classifier_signal_count") == 2
+
+
+def test_set_policy_rejects_invalid_classifier_mode() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {
+            "ingress_classifier_mode": "monitor-only-extended",
+        },
+    }
+    resp = client.put("/tenants/t1/policy", json=payload, headers=_headers("t1", roles=["entitlement_pro"]))
+    assert resp.status_code == 422
+    assert "INGRESS_CLASSIFIER_MODE_INVALID" in resp.text
+
+
 # ─── Quota management ─────────────────────────────────────────────────────────
 
 
