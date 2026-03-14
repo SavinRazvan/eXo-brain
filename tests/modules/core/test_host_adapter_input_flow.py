@@ -61,3 +61,46 @@ def test_host_adapter_receives_input_and_streams_events() -> None:
         assert RuntimeEventType.RUN_COMPLETE in event_types
 
     asyncio.run(scenario())
+
+
+def test_host_adapter_preserves_ingress_decision_metadata_in_orchestrator_context() -> None:
+    class CapturingOrchestrator:
+        def __init__(self) -> None:
+            self.context: dict | None = None
+
+        async def run_turn(self, session_id: str, user_input: str, context: dict):
+            _ = (session_id, user_input)
+            self.context = dict(context)
+            if False:  # pragma: no cover
+                yield None
+
+    async def scenario() -> None:
+        orchestrator = CapturingOrchestrator()
+        host = OrchestratorHostAdapter(orchestrator=orchestrator)  # type: ignore[arg-type]
+        session = SessionContext(
+            session_id="sess_ingress_ctx",
+            run_id="run_ingress_ctx",
+            job_id="job_ingress_ctx",
+            task_id="task_ingress_ctx",
+            agent_id="agent_ingress_ctx",
+            provider_id="openai",
+            correlation_id="corr_ingress_ctx",
+            metadata={
+                "ingress_decision": {
+                    "decision": "allow",
+                    "reason_code": "INGRESS_ALLOW_DEFAULT",
+                }
+            },
+        )
+
+        events = []
+        async for event in host.submit_turn(session=session, user_input="hello with ingress metadata"):
+            events.append(event)
+
+        assert events == []
+        assert orchestrator.context is not None
+        session_metadata = dict(orchestrator.context.get("session_metadata", {}))
+        assert session_metadata["ingress_decision"]["decision"] == "allow"
+        assert session_metadata["ingress_decision"]["reason_code"] == "INGRESS_ALLOW_DEFAULT"
+
+    asyncio.run(scenario())
