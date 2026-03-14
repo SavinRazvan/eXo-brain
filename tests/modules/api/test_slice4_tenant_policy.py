@@ -189,6 +189,95 @@ def test_set_policy_requires_enterprise_entitlement_for_signed_gate_plugin() -> 
     assert latest.payload.get("current_tier") == "pro"
 
 
+def test_set_policy_accepts_enterprise_signed_gate_plugin_and_emits_lifecycle_audit() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {"signed_gate_plugin_ref": "plugin://trusted/signed-v1"},
+    }
+    resp = client.put(
+        "/tenants/t1/policy",
+        json=payload,
+        headers=_headers("t1", roles=["entitlement_enterprise"]),
+    )
+    assert resp.status_code == 200
+    overlay = resp.json()["overlay"]
+    assert overlay.get("signed_gate_plugin_ref") == "plugin://trusted/signed-v1"
+    assert overlay.get("signed_gate_plugin_version") == "1.0.0"
+    assert overlay.get("signed_gate_plugin_signer") == "exo-security"
+    assert overlay.get("signed_gate_plugin_sandbox_mode") == "declarative_rules_only"
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=30))
+    lifecycle_events = [
+        record for record in records if record.event_type == "tenant_policy_signed_gate_plugin_lifecycle"
+    ]
+    assert lifecycle_events
+    latest = lifecycle_events[-1]
+    assert latest.payload.get("action") == "load"
+    assert latest.payload.get("new_signed_gate_plugin_ref") == "plugin://trusted/signed-v1"
+    assert latest.payload.get("signed_gate_plugin_rule_count") >= 1
+
+
+def test_set_policy_rejects_unknown_signed_gate_plugin_reference() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {"signed_gate_plugin_ref": "plugin://trusted/unknown"},
+    }
+    resp = client.put(
+        "/tenants/t1/policy",
+        json=payload,
+        headers=_headers("t1", roles=["entitlement_enterprise"]),
+    )
+    assert resp.status_code == 422
+    assert "INGRESS_SIGNED_PLUGIN_UNKNOWN" in resp.text
+
+
+def test_set_policy_blocks_signed_plugin_reload_when_active_runs_exist() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    initial_payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {"signed_gate_plugin_ref": "plugin://trusted/signed-v1"},
+    }
+    initial = client.put(
+        "/tenants/t1/policy",
+        json=initial_payload,
+        headers=_headers("t1", roles=["entitlement_enterprise"]),
+    )
+    assert initial.status_code == 200
+
+    app.state.run_control_registry.start_run(
+        tenant_id="t1",
+        session_id="sess_policy_gate",
+        run_id="run_policy_gate_1",
+        correlation_id="run_policy_gate_1",
+        transport="sse",
+    )
+
+    reload_payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {"signed_gate_plugin_ref": "plugin://trusted/signed-v2"},
+    }
+    resp = client.put(
+        "/tenants/t1/policy",
+        json=reload_payload,
+        headers=_headers("t1", roles=["entitlement_enterprise"]),
+    )
+    assert resp.status_code == 409
+    assert "INGRESS_SIGNED_PLUGIN_LIFECYCLE_BLOCKED_ACTIVE_RUNS" in resp.text
+
+
 def test_set_policy_rejects_invalid_ingress_profile_name() -> None:
     app = build_test_app()
     client = TestClient(app)

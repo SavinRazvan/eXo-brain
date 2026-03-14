@@ -23,6 +23,7 @@ from src.policies.ingress_profiles import (
     IngressCustomRule,
     resolve_ingress_profile_settings,
 )
+from src.policies.ingress_signed_plugins import SignedIngressPlugin
 
 from src.schemas.tool_io import PolicyAction
 
@@ -56,6 +57,13 @@ class IngressDecision:
     classifier_signal_count: int = 0
     classifier_signals_matched: tuple[str, ...] = field(default_factory=tuple)
     classifier_shadow_triggered: bool = False
+    signed_plugin_ref: str = ""
+    signed_plugin_version: str = ""
+    signed_plugin_signer: str = ""
+    signed_plugin_rule_id: str = ""
+    signed_plugin_rule_action: str = ""
+    signed_plugin_sandbox_mode: str = ""
+    signed_plugin_matched: bool = False
 
     def to_payload(self) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -78,6 +86,18 @@ class IngressDecision:
                     "classifier_signal_count": self.classifier_signal_count,
                     "classifier_signals_matched": list(self.classifier_signals_matched),
                     "classifier_shadow_triggered": self.classifier_shadow_triggered,
+                }
+            )
+        if self.signed_plugin_ref:
+            payload.update(
+                {
+                    "signed_plugin_ref": self.signed_plugin_ref,
+                    "signed_plugin_version": self.signed_plugin_version,
+                    "signed_plugin_signer": self.signed_plugin_signer,
+                    "signed_plugin_rule_id": self.signed_plugin_rule_id,
+                    "signed_plugin_rule_action": self.signed_plugin_rule_action,
+                    "signed_plugin_sandbox_mode": self.signed_plugin_sandbox_mode,
+                    "signed_plugin_matched": self.signed_plugin_matched,
                 }
             )
         return payload
@@ -268,6 +288,68 @@ class CustomIngressRulesGate(IngressGate):
         return None
 
 
+@dataclass(slots=True)
+class SignedPluginIngressGate(IngressGate):
+    plugin: SignedIngressPlugin | None = None
+    gate_id: str = "ingress-signed-plugin"
+    gate_version: str = "1.0.0"
+
+    def evaluate(self, context: IngressTurnContext) -> IngressDecision | None:
+        if self.plugin is None:
+            return None
+        normalized_input = str(context.user_input)
+        manifest = self.plugin.manifest
+        for rule in self.plugin.rules:
+            if not rule.matches(normalized_input):
+                continue
+            if rule.action == "deny":
+                return IngressDecision(
+                    schema_version="1.0",
+                    decision=PolicyAction.DENY,
+                    reason_code=rule.reason_code,
+                    message=rule.message,
+                    gate_id=self.gate_id,
+                    gate_version=self.gate_version,
+                    signed_plugin_ref=manifest.plugin_ref,
+                    signed_plugin_version=manifest.version,
+                    signed_plugin_signer=manifest.signer,
+                    signed_plugin_rule_id=rule.rule_id,
+                    signed_plugin_rule_action=rule.action,
+                    signed_plugin_sandbox_mode=manifest.sandbox_mode,
+                    signed_plugin_matched=True,
+                )
+            return IngressDecision(
+                schema_version="1.0",
+                decision=PolicyAction.ESCALATE,
+                reason_code=rule.reason_code,
+                message=rule.message,
+                gate_id=self.gate_id,
+                gate_version=self.gate_version,
+                review_required=True,
+                review_channel=rule.review_channel,
+                signed_plugin_ref=manifest.plugin_ref,
+                signed_plugin_version=manifest.version,
+                signed_plugin_signer=manifest.signer,
+                signed_plugin_rule_id=rule.rule_id,
+                signed_plugin_rule_action=rule.action,
+                signed_plugin_sandbox_mode=manifest.sandbox_mode,
+                signed_plugin_matched=True,
+            )
+        return IngressDecision(
+            schema_version="1.0",
+            decision=PolicyAction.ALLOW,
+            reason_code="INGRESS_SIGNED_PLUGIN_ALLOW_NO_MATCH",
+            message="Signed ingress plugin evaluated input with no matching rule.",
+            gate_id=self.gate_id,
+            gate_version=self.gate_version,
+            signed_plugin_ref=manifest.plugin_ref,
+            signed_plugin_version=manifest.version,
+            signed_plugin_signer=manifest.signer,
+            signed_plugin_sandbox_mode=manifest.sandbox_mode,
+            signed_plugin_matched=False,
+        )
+
+
 class IngressGateChain:
     def __init__(
         self,
@@ -280,6 +362,11 @@ class IngressGateChain:
         classifier_threshold: float = 0.0,
         classifier_model_version: str = "",
         classifier_signal_count: int = 0,
+        signed_plugin_ref: str = "",
+        signed_plugin_version: str = "",
+        signed_plugin_signer: str = "",
+        signed_plugin_sandbox_mode: str = "",
+        signed_plugin_rule_count: int = 0,
     ) -> None:
         self._gates: tuple[IngressGate, ...] = tuple(gates or ())
         self.profile_name = profile_name
@@ -289,21 +376,26 @@ class IngressGateChain:
         self.classifier_threshold = classifier_threshold
         self.classifier_model_version = classifier_model_version
         self.classifier_signal_count = classifier_signal_count
+        self.signed_plugin_ref = signed_plugin_ref
+        self.signed_plugin_version = signed_plugin_version
+        self.signed_plugin_signer = signed_plugin_signer
+        self.signed_plugin_sandbox_mode = signed_plugin_sandbox_mode
+        self.signed_plugin_rule_count = signed_plugin_rule_count
 
     def evaluate(self, context: IngressTurnContext) -> IngressDecision:
-        classifier_telemetry: dict[str, Any] = {}
+        allow_telemetry: dict[str, Any] = {}
         for gate in self._gates:
             decision = gate.evaluate(context)
             if decision is None:
                 continue
-            telemetry = self._extract_classifier_telemetry(decision)
+            telemetry = self._extract_allow_telemetry(decision)
             if decision.decision == PolicyAction.ALLOW:
                 if telemetry:
-                    classifier_telemetry = telemetry
+                    allow_telemetry = self._merge_allow_telemetry(allow_telemetry, telemetry)
                 continue
             if decision.decision in {PolicyAction.DENY, PolicyAction.ESCALATE}:
-                if not telemetry and classifier_telemetry:
-                    return self._apply_classifier_telemetry(decision, classifier_telemetry)
+                if allow_telemetry:
+                    return self._apply_allow_telemetry(decision, allow_telemetry)
                 return decision
         decision = IngressDecision(
             schema_version="1.0",
@@ -313,30 +405,104 @@ class IngressGateChain:
             gate_id="ingress-gate-chain",
             gate_version="1.0.0",
         )
-        if classifier_telemetry:
-            return self._apply_classifier_telemetry(decision, classifier_telemetry)
+        if allow_telemetry:
+            return self._apply_allow_telemetry(decision, allow_telemetry)
         return decision
 
     @staticmethod
-    def _extract_classifier_telemetry(decision: IngressDecision) -> dict[str, Any]:
-        if not decision.classifier_mode:
-            return {}
-        return {
-            "classifier_mode": decision.classifier_mode,
-            "classifier_model_version": decision.classifier_model_version,
-            "classifier_score": decision.classifier_score,
-            "classifier_threshold": decision.classifier_threshold,
-            "classifier_signal_count": decision.classifier_signal_count,
-            "classifier_signals_matched": decision.classifier_signals_matched,
-            "classifier_shadow_triggered": decision.classifier_shadow_triggered,
-        }
+    def _extract_allow_telemetry(decision: IngressDecision) -> dict[str, Any]:
+        telemetry: dict[str, Any] = {}
+        if decision.classifier_mode:
+            telemetry.update(
+                {
+                    "classifier_mode": decision.classifier_mode,
+                    "classifier_model_version": decision.classifier_model_version,
+                    "classifier_score": decision.classifier_score,
+                    "classifier_threshold": decision.classifier_threshold,
+                    "classifier_signal_count": decision.classifier_signal_count,
+                    "classifier_signals_matched": decision.classifier_signals_matched,
+                    "classifier_shadow_triggered": decision.classifier_shadow_triggered,
+                }
+            )
+        if decision.signed_plugin_ref:
+            telemetry.update(
+                {
+                    "signed_plugin_ref": decision.signed_plugin_ref,
+                    "signed_plugin_version": decision.signed_plugin_version,
+                    "signed_plugin_signer": decision.signed_plugin_signer,
+                    "signed_plugin_rule_id": decision.signed_plugin_rule_id,
+                    "signed_plugin_rule_action": decision.signed_plugin_rule_action,
+                    "signed_plugin_sandbox_mode": decision.signed_plugin_sandbox_mode,
+                    "signed_plugin_matched": decision.signed_plugin_matched,
+                }
+            )
+        return telemetry
 
     @staticmethod
-    def _apply_classifier_telemetry(
+    def _merge_allow_telemetry(
+        existing: Mapping[str, Any],
+        incoming: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        merged = dict(existing)
+        if incoming.get("classifier_mode"):
+            merged.update(
+                {
+                    "classifier_mode": incoming.get("classifier_mode", ""),
+                    "classifier_model_version": incoming.get("classifier_model_version", ""),
+                    "classifier_score": incoming.get("classifier_score", 0.0),
+                    "classifier_threshold": incoming.get("classifier_threshold", 0.0),
+                    "classifier_signal_count": incoming.get("classifier_signal_count", 0),
+                    "classifier_signals_matched": incoming.get("classifier_signals_matched", ()),
+                    "classifier_shadow_triggered": incoming.get("classifier_shadow_triggered", False),
+                }
+            )
+        if incoming.get("signed_plugin_ref"):
+            merged.update(
+                {
+                    "signed_plugin_ref": incoming.get("signed_plugin_ref", ""),
+                    "signed_plugin_version": incoming.get("signed_plugin_version", ""),
+                    "signed_plugin_signer": incoming.get("signed_plugin_signer", ""),
+                    "signed_plugin_rule_id": incoming.get("signed_plugin_rule_id", ""),
+                    "signed_plugin_rule_action": incoming.get("signed_plugin_rule_action", ""),
+                    "signed_plugin_sandbox_mode": incoming.get("signed_plugin_sandbox_mode", ""),
+                    "signed_plugin_matched": incoming.get("signed_plugin_matched", False),
+                }
+            )
+        return merged
+
+    @staticmethod
+    def _apply_allow_telemetry(
         decision: IngressDecision,
         telemetry: Mapping[str, Any],
     ) -> IngressDecision:
-        return replace(decision, **dict(telemetry))
+        updates: dict[str, Any] = {}
+        if not decision.classifier_mode and telemetry.get("classifier_mode"):
+            updates.update(
+                {
+                    "classifier_mode": telemetry.get("classifier_mode", ""),
+                    "classifier_model_version": telemetry.get("classifier_model_version", ""),
+                    "classifier_score": telemetry.get("classifier_score", 0.0),
+                    "classifier_threshold": telemetry.get("classifier_threshold", 0.0),
+                    "classifier_signal_count": telemetry.get("classifier_signal_count", 0),
+                    "classifier_signals_matched": telemetry.get("classifier_signals_matched", ()),
+                    "classifier_shadow_triggered": telemetry.get("classifier_shadow_triggered", False),
+                }
+            )
+        if not decision.signed_plugin_ref and telemetry.get("signed_plugin_ref"):
+            updates.update(
+                {
+                    "signed_plugin_ref": telemetry.get("signed_plugin_ref", ""),
+                    "signed_plugin_version": telemetry.get("signed_plugin_version", ""),
+                    "signed_plugin_signer": telemetry.get("signed_plugin_signer", ""),
+                    "signed_plugin_rule_id": telemetry.get("signed_plugin_rule_id", ""),
+                    "signed_plugin_rule_action": telemetry.get("signed_plugin_rule_action", ""),
+                    "signed_plugin_sandbox_mode": telemetry.get("signed_plugin_sandbox_mode", ""),
+                    "signed_plugin_matched": telemetry.get("signed_plugin_matched", False),
+                }
+            )
+        if not updates:
+            return decision
+        return replace(decision, **updates)
 
     def policy_metadata(self) -> dict[str, Any]:
         return {
@@ -348,6 +514,11 @@ class IngressGateChain:
             "ingress_classifier_threshold": self.classifier_threshold,
             "ingress_classifier_model_version": self.classifier_model_version,
             "ingress_classifier_signal_count": self.classifier_signal_count,
+            "signed_gate_plugin_ref": self.signed_plugin_ref,
+            "signed_gate_plugin_version": self.signed_plugin_version,
+            "signed_gate_plugin_signer": self.signed_plugin_signer,
+            "signed_gate_plugin_sandbox_mode": self.signed_plugin_sandbox_mode,
+            "signed_gate_plugin_rule_count": self.signed_plugin_rule_count,
         }
 
 
@@ -358,6 +529,7 @@ def build_default_ingress_gate_chain() -> IngressGateChain:
 def build_ingress_gate_chain_from_overlay(overlay: Mapping[str, Any]) -> IngressGateChain:
     resolution = resolve_ingress_profile_settings(overlay)
     custom_rule_ids = tuple(rule.rule_id for rule in resolution.custom_rules)
+    signed_plugin = resolution.signed_plugin
     return IngressGateChain(
         gates=(
             EmptyInputGate(),
@@ -365,6 +537,7 @@ def build_ingress_gate_chain_from_overlay(overlay: Mapping[str, Any]) -> Ingress
             IngressClassifierHeuristicGate(classifier=resolution.classifier),
             PromptInjectionHeuristicGate(escalation_phrases=resolution.prompt_injection_phrases),
             CustomIngressRulesGate(custom_rules=resolution.custom_rules),
+            SignedPluginIngressGate(plugin=signed_plugin),
         ),
         profile_name=resolution.profile_name,
         custom_rule_ids=custom_rule_ids,
@@ -373,4 +546,9 @@ def build_ingress_gate_chain_from_overlay(overlay: Mapping[str, Any]) -> Ingress
         classifier_threshold=resolution.classifier.threshold,
         classifier_model_version=resolution.classifier.model_version,
         classifier_signal_count=len(resolution.classifier.signals),
+        signed_plugin_ref=signed_plugin.manifest.plugin_ref if signed_plugin else "",
+        signed_plugin_version=signed_plugin.manifest.version if signed_plugin else "",
+        signed_plugin_signer=signed_plugin.manifest.signer if signed_plugin else "",
+        signed_plugin_sandbox_mode=signed_plugin.manifest.sandbox_mode if signed_plugin else "",
+        signed_plugin_rule_count=len(signed_plugin.rules) if signed_plugin else 0,
     )

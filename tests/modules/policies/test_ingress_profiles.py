@@ -33,6 +33,7 @@ def test_resolve_ingress_profile_settings_returns_baseline_defaults() -> None:
     assert resolved.classifier.threshold == 0.65
     assert resolved.classifier.model_version == "heuristic-ingress-v1"
     assert len(resolved.classifier.signals) >= 4
+    assert resolved.signed_plugin is None
     assert resolved.custom_rules == ()
 
 
@@ -134,3 +135,20 @@ def test_resolve_ingress_profile_settings_rejects_invalid_classifier_threshold()
 def test_resolve_ingress_profile_settings_rejects_empty_classifier_signals() -> None:
     with pytest.raises(ValueError, match="INGRESS_CLASSIFIER_SIGNALS_INVALID"):
         resolve_ingress_profile_settings({"ingress_classifier_mode": "shadow", "ingress_classifier_signals": []})
+
+
+def test_resolve_ingress_profile_settings_accepts_signed_plugin_reference() -> None:
+    resolved = resolve_ingress_profile_settings(
+        {
+            "signed_gate_plugin_ref": "plugin://trusted/signed-v1",
+        }
+    )
+    assert resolved.signed_plugin is not None
+    assert resolved.signed_plugin.manifest.plugin_ref == "plugin://trusted/signed-v1"
+    assert resolved.signed_plugin.manifest.sandbox_mode == "declarative_rules_only"
+    assert len(resolved.signed_plugin.rules) >= 1
+
+
+def test_resolve_ingress_profile_settings_rejects_unknown_signed_plugin_reference() -> None:
+    with pytest.raises(ValueError, match="INGRESS_SIGNED_PLUGIN_UNKNOWN"):
+        resolve_ingress_profile_settings({"signed_gate_plugin_ref": "plugin://trusted/does-not-exist"})
