@@ -26,8 +26,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
-- Last Reviewed: `2026-03-12`
+- Version: `1.1.0`
+- Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `Tier strategy, entitlement boundaries, and value-capture model for governance-first monetization.`
 
@@ -62,6 +62,7 @@ Adapters are adoption drivers; governance and reliability are durable revenue dr
 
 - deterministic side-effect safety,
 - policy/risk gate frameworks,
+- turn-ingress safety gate chains (predefined and custom),
 - audit export/verification workflows,
 - fairness/admission and runtime controls,
 - SLO-governed operations.
@@ -83,6 +84,7 @@ Includes:
 - provider-neutral orchestration baseline,
 - basic adapter registration and selection,
 - baseline deterministic policy path,
+- baseline ingress safety profiles and protocol checks,
 - standard observability and core API surface.
 
 ## Pro
@@ -91,7 +93,9 @@ Target users:
 - production teams with governance and reliability requirements.
 
 Adds:
-- advanced policy templates and risk profiles,
+- advanced policy templates, risk profiles, and gate packs,
+- tenant custom declarative gate rules and protocol policies,
+- low-cost specialized classifier gates and shadow-mode evaluation,
 - richer fallback and route controls,
 - expanded runtime diagnostics and administrative controls,
 - stronger tenant-level governance automation.
@@ -103,6 +107,7 @@ Target users:
 
 Adds:
 - signed and verifiable audit evidence workflows,
+- signed/custom governance plugin packs with strict sandbox controls,
 - advanced tenancy/fairness and admission controls,
 - release-gated compliance evidence bundles,
 - premium operational assurance and support capabilities.
@@ -125,6 +130,9 @@ Use these rules to avoid confusion:
 Entitlements should be enforced at API/config boundaries, not hidden in adapter internals.
 
 Recommended entitlement categories:
+- ingress safety profile depth,
+- custom gate/policy capability depth,
+- specialized model gate usage and shadow-mode controls,
 - policy profile depth,
 - audit export/sign/verify workflows,
 - runtime control depth,
@@ -147,12 +155,15 @@ Implementation principle:
 ## Governance usage metrics
 
 - percentage of tenants with active policy overlays,
+- percentage of turns evaluated by ingress gate chain,
+- deny/escalate rate by gate profile and tenant segment,
 - deterministic execution coverage on side-effect calls,
 - audit export/verify workflow usage.
 
 ## Reliability metrics
 
 - p95 turn latency under policy load,
+- p95 ingress gate latency and timeout rate,
 - queue wait budget adherence,
 - timeout/error/retry amplification trends.
 
@@ -202,6 +213,9 @@ Secondary anchors:
 4. **Risk: Governance overhead slows adoption**
    - Mitigation: provide progressive profiles (baseline -> strict) with safe defaults.
 
+5. **Risk: Safety gate latency harms user experience**
+   - Mitigation: enforce per-gate latency budgets, tiered gate ladders (rules first), and explicit fail-safe modes.
+
 ---
 
 ## 10) Alignment with Core and Adapter Strategy
@@ -218,10 +232,11 @@ Premium value should reinforce, not compromise, platform invariants.
 ## 11) Execution Plan (Business + Engineering)
 
 1. Define entitlement matrix for Foundation/Pro/Enterprise.
-2. Bind entitlement checks to explicit API/config control points.
-3. Add entitlement observability in audit and runtime admin endpoints.
-4. Publish feature boundary documentation and onboarding playbooks.
-5. Review quarterly against adoption, governance usage, and retention metrics.
+2. Define governance ingress product model (profiles, custom rules, optional plugin packs, performance SLOs).
+3. Bind entitlement checks to explicit API/config control points.
+4. Add entitlement + gate-decision observability in audit and runtime admin endpoints.
+5. Publish feature boundary documentation and onboarding playbooks.
+6. Review quarterly against adoption, governance usage, and retention metrics.
 
 ---
 

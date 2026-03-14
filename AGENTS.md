@@ -6,6 +6,17 @@
 The core principle is **AI as a commodity**: model providers are pluggable adapters, not orchestration owners.
 Current delivery posture is API-first Option C (control plane + adapter plane + data plane), with UI/dashboard tracks deferred unless explicitly re-enabled.
 
+## Beginner Orientation
+
+If you are new to the repository, read in this order:
+1. `README.md` (architecture map + request/turn workflows)
+2. `architecture-goals/NEXT_DIRECTIONS.md` (current priority tiers)
+3. `architecture-goals/GOAL.md` (product boundary and non-negotiables)
+4. `architecture-goals/ENTITLEMENT_MATRIX.md` (what is Foundation vs Pro vs Enterprise)
+
+Abbreviation notepad:
+- `docs/operations/abbreviations-notepad.md`
+
 ## Canonical Rules (Always Applied)
 
 - `.cursor/rules/provider-neutral-adapter-wall.mdc` — Architecture and layer boundaries
@@ -21,6 +32,7 @@ Current delivery posture is API-first Option C (control plane + adapter plane + 
 
 - Keep provider SDK code inside `src/runtime/*adapter*` only.
 - Keep core orchestration provider-neutral (`src/core/` must not branch on provider name).
+- Keep turn-ingress governance decisions server-side and non-bypassable (allow/deny/escalate with reason codes).
 - Route risky or state-changing tool calls through deterministic execution and policy gates.
 - Keep strict layer boundaries: `integration -> core -> runtime/tools/policies/persistence/observability`.
 - Use typed schemas/contracts for inter-module inputs/outputs.
@@ -89,4 +101,4 @@ Current delivery posture is API-first Option C (control plane + adapter plane + 
 
 ## Next Directions
 
-Architecture-aligned implementation priorities are in `architecture-goals/NEXT_DIRECTIONS.md` (Tier 1: adapter portability; Tier 2: entitlement/monetization; Tier 3: customer API guide and deployment certification). Use it when starting a slice or deciding what to work on next.
+Architecture-aligned implementation priorities are in `architecture-goals/NEXT_DIRECTIONS.md` (Tier 1: adapter portability; Tier 2: entitlement/monetization + governance ingress safety controls; Tier 3: customer API guide and deployment certification). Use it when starting a slice or deciding what to work on next.

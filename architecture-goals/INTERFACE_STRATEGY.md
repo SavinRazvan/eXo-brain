@@ -22,8 +22,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
-- Last Reviewed: `2026-03-12`
+- Version: `1.1.0`
+- Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `API-first interface posture, UI roadmap constraints, and interface-level governance rules.`
 
@@ -64,6 +64,7 @@ Implication:
 Responsibilities:
 - provider management,
 - tenant policy and quota control,
+- tenant ingress safety profile and gate/policy control,
 - tool and agent lifecycle,
 - turn execution and streaming,
 - runtime control operations,
@@ -88,6 +89,7 @@ Constraint:
 3. API envelopes and contracts are versioned and documented.
 4. Streaming semantics (SSE/WS) must be deterministic and observable.
 5. Any UI capability must map to an existing or planned API endpoint.
+6. Turn execution must pass through server-side ingress safety decisions before orchestration/runtime execution.
 
 ---
 
@@ -133,6 +135,7 @@ No interface (CLI/UI/SDK) may bypass these controls.
 ## 8) Streaming Interaction Model
 
 SSE and WS should both communicate:
+- ingress safety decision and reason-code outcomes when relevant,
 - output deltas,
 - tool call and progress lifecycle,
 - tool result envelopes,
@@ -143,7 +146,22 @@ Design goal:
 
 ---
 
-## 9) Customer Integration Patterns
+## 9) Governance Ingress API Model
+
+Governance ingress should be exposed as API-first controls:
+- predefined gate/policy profiles (safe/balanced/strict),
+- tenant custom declarative gate rules and protocol constraints,
+- optional specialized classifier gates (tier-dependent),
+- explicit fail-safe and latency budget controls per profile.
+
+Decision contract requirements:
+- `allow|deny|escalate` outcomes with stable reason codes,
+- correlation-linked decision evidence in audit stream,
+- no hidden bypass path from transport to orchestration.
+
+---
+
+## 10) Customer Integration Patterns
 
 Primary pattern:
 1. Customer backend integrates with eXo-brain APIs.
@@ -155,10 +173,11 @@ Secondary pattern:
 
 ---
 
-## 10) Interface and Monetization Alignment
+## 11) Interface and Monetization Alignment
 
 Interface strategy should support monetization by exposing premium governance features via API:
 - advanced policy and risk configuration,
+- advanced ingress gate configuration and custom policy packs,
 - audit export/verification workflows,
 - runtime/fairness governance controls,
 - enterprise reliability and compliance operations.
@@ -168,31 +187,35 @@ Rule:
 
 ---
 
-## 11) Operational Quality Gates for Interfaces
+## 12) Operational Quality Gates for Interfaces
 
 Before shipping interface changes:
 - contract and schema validation updates,
 - SSE/WS behavior verification,
 - authz and tenant boundary tests,
+- ingress gate latency budget and failure-mode verification,
 - documentation and runbook updates,
 - release-candidate signoff evidence updates.
 
 ---
 
-## 12) Open Questions
+## 13) Open Questions
 
 1. Should future UI be separate deployable product or optional module?
 2. Which workflows require guided UX first (Tool Manager, Audit, Runtime Control)?
 3. What minimum API stability guarantees are needed for customer platform integrations?
 4. Which interface analytics are required for monetization conversion optimization?
+5. Which ingress-gate controls should remain Foundation baseline vs Pro/Enterprise depth?
+6. What p95 ingress-latency budget is acceptable per deployment profile?
 
 ---
 
-## 13) Decision Checklist
+## 14) Decision Checklist
 
 - Does this preserve API-first canonical operation?
 - Does it avoid UI becoming a trust boundary?
 - Are safety and governance controls server-enforced?
+- Are ingress safety decisions observable and non-bypassable across SSE/WS/HTTP?
 - Is the contract clear enough for customer platform integration?
 - Does it improve observability and governance usability?
 

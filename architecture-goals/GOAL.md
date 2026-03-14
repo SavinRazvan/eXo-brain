@@ -25,7 +25,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
+- Version: `1.1.0`
 - Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `Product north-star, strategic boundaries, and long-term direction for provider-neutral orchestration.`
@@ -79,8 +79,9 @@ In simple terms:
 - Model tool intent is separated from side-effect execution.
 
 ### C. Lack of policy control
-- Customers can define per-tenant overlays (deny/escalate/allow behavior).
-- Risk gates and governance controls can be changed without redeploying core logic.
+- Customers can choose predefined governance profiles and per-tenant overlays (deny/escalate/allow behavior).
+- Customers can add bounded custom policy/gate rules without redeploying core logic.
+- High-flexibility customization (plugin-style custom gates) must remain sandboxed, signed, and policy-governed.
 
 ### D. Missing traceability and compliance evidence
 - Tool calls, outcomes, and policy decisions are auditable.
@@ -118,6 +119,7 @@ UI scope note:
 
 Core must remain provider-neutral and own:
 - orchestration,
+- ingress safety gating before model/runtime execution,
 - policy gates,
 - deterministic tool execution,
 - tenant governance,
@@ -174,7 +176,9 @@ Recommended package naming:
 Customers should be able to configure through API:
 - provider registration and selection,
 - agent routing and fallback behavior,
-- policy overlays (deny/escalate rules),
+- predefined policy/gate profiles and policy overlays (deny/escalate rules),
+- custom declarative gate rules and protocol checks (tier-dependent),
+- optional specialized low-cost classifier gates for ingress safety (tier-dependent),
 - risk tiers and execution mode constraints,
 - quotas, rate limits, and fairness limits,
 - runtime controls and cancellation,
@@ -189,7 +193,7 @@ This gives customers control while preserving core invariants.
 Monetization should focus on governance and operational value, not raw model access.
 
 ### Revenue pillars
-- Governance controls (policy packs, risk templates, approval flows).
+- Governance controls (policy packs, gate templates, risk templates, approval flows).
 - Compliance and audit artifacts (signed export, verification workflows).
 - Reliability and scale controls (fairness, SLO gates, non-blocking orchestration).
 - Enterprise operations (multi-tenant controls, runtime admin APIs, BYOC hardening).
@@ -222,6 +226,7 @@ Monetization should focus on governance and operational value, not raw model acc
 ### Runtime safety
 - Keep deterministic path mandatory for risky/state-changing operations.
 - Keep policy `before_tool_call` and `after_tool_call` around every side-effect path.
+- Keep turn-ingress gate evaluation bounded by explicit latency budgets and fail-safe behavior.
 - Keep adapter failures isolated and recoverable (fallbacks, retries, cancellation controls).
 
 ### Release safety
@@ -290,6 +295,7 @@ Canonical source: `architecture-goals/NEXT_DIRECTIONS.md`.
 Summary:
 1. Finalize external package boundaries for adapter portability.
 2. Define adapter certification matrix for the five target providers.
-3. Publish a customer-facing API integration guide focused on policy/audit operations.
-4. Add monetization-oriented feature flags and entitlement hooks around governance surfaces.
-5. Keep this file synchronized with `README.md`, `AGENTS.md`, canonical architecture docs, `architecture-goals/ADAPTER_STRATEGY.md`, and `architecture-goals/NEXT_DIRECTIONS.md`.
+3. Introduce a governance ingress plane for pre-model allow/deny/escalate decisions.
+4. Publish a customer-facing API integration guide focused on policy/audit/governance operations.
+5. Add monetization-oriented feature flags and entitlement hooks around governance surfaces.
+6. Keep this file synchronized with `README.md`, `AGENTS.md`, canonical architecture docs, `architecture-goals/ADAPTER_STRATEGY.md`, and `architecture-goals/NEXT_DIRECTIONS.md`.
