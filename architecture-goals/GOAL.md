@@ -4,6 +4,7 @@ Path: architecture-goals/GOAL.md
 Role: Product, architecture, and monetization north-star for eXo-brain.
 Used By:
  - architecture-goals/ADAPTER_STRATEGY.md
+ - architecture-goals/NEXT_DIRECTIONS.md
  - README.md
  - AGENTS.md
  - docs/plans/tenant-tool-execution-architecture.md
@@ -25,7 +26,7 @@ Notes:
 - Status: `active`
 - Owner: `Savin I. Razvan`
 - Version: `1.0.0`
-- Last Reviewed: `2026-03-12`
+- Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `Product north-star, strategic boundaries, and long-term direction for provider-neutral orchestration.`
 
@@ -49,6 +50,7 @@ Companion strategy docs:
 - `architecture-goals/DEPLOYMENT_MODELS.md`
 - `architecture-goals/INTERFACE_STRATEGY.md`
 - `architecture-goals/TRACEABILITY_MATRIX.md`
+- `architecture-goals/NEXT_DIRECTIONS.md`
 
 ---
 
@@ -283,8 +285,11 @@ If any answer is "no", stop and redesign before merging.
 
 ## 14) Practical next alignment steps
 
+Canonical source: `architecture-goals/NEXT_DIRECTIONS.md`.
+
+Summary:
 1. Finalize external package boundaries for adapter portability.
 2. Define adapter certification matrix for the five target providers.
 3. Publish a customer-facing API integration guide focused on policy/audit operations.
 4. Add monetization-oriented feature flags and entitlement hooks around governance surfaces.
-5. Keep this file synchronized with `README.md`, `AGENTS.md`, canonical architecture docs, and `architecture-goals/ADAPTER_STRATEGY.md`.
+5. Keep this file synchronized with `README.md`, `AGENTS.md`, canonical architecture docs, `architecture-goals/ADAPTER_STRATEGY.md`, and `architecture-goals/NEXT_DIRECTIONS.md`.

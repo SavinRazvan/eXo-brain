@@ -12,6 +12,7 @@ Used By:
  - architecture-goals/DEPLOYMENT_MODELS.md
  - architecture-goals/INTERFACE_STRATEGY.md
  - architecture-goals/TRACEABILITY_MATRIX.md
+ - architecture-goals/NEXT_DIRECTIONS.md
 Depends On:
  - AGENTS.md
  - docs/plans/tenant-tool-execution-architecture.md
@@ -26,7 +27,7 @@ Notes:
 - Status: `active`
 - Owner: `Savin I. Razvan`
 - Version: `1.0.0`
-- Last Reviewed: `2026-03-12`
+- Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `Folder-level indexing, reading order, and strategy document governance for architecture-goals.`
 
@@ -56,6 +57,8 @@ These documents are intended to prevent direction drift while implementation evo
    API-first experience strategy and UI roadmap constraints.
 9. `architecture-goals/TRACEABILITY_MATRIX.md`  
    Decision-to-code and decision-to-test mapping for drift detection.
+10. `architecture-goals/NEXT_DIRECTIONS.md`  
+    Architecture-aligned priorities and next implementation slices.
 
 ## Update Policy
 
@@ -91,7 +94,4 @@ Still planned (not yet fully implemented in product controls):
 - deployment certification path for private/self-hosted support,
 - expanded compliance artifact catalog and profile-specific runbooks.
 
-Next implementation slice entrypoints:
-- entitlement enforcement layer (API/config/policy gate integration),
-- tier-aware audit evidence for entitlement decisions,
-- deployment certification and support-boundary automation.
+For architecture-aligned next directions and slice priorities, see `architecture-goals/NEXT_DIRECTIONS.md`.
