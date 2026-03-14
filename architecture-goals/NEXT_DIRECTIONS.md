@@ -24,7 +24,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
+- Version: `1.1.0`
 - Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `Prioritized implementation directions derived from architecture-goals strategy docs.`
@@ -45,6 +45,8 @@ This document consolidates next-step guidance from:
 | **Finalize external package boundaries** | Adapters must be standalone; no monorepo-only imports. Core contracts + adapter SDK must be externalizable. | GOAL §11, TRACEABILITY §3 (full external adapter portability gap) |
 | **Complete `exo-adapter-openai` extraction** | Enables independent adapter distribution and partner ecosystem. First adapter sets the pattern. | TRACEABILITY §3, ADAPTER_STRATEGY §4 |
 | **Define adapter certification matrix** | Five target providers (OpenAI, Gemini, Anthropic, xAI, Meta) need explicit conformance criteria. | GOAL §14.2, ADAPTER_STRATEGY §3 |
+| **Add northbound OpenAI-compatible gateway surface** | External apps need drop-in `/v1` compatibility while keeping internal orchestration contracts provider-neutral. | INTERFACE_STRATEGY §2, TRACEABILITY §3 (customer API surface parity gap) |
+| **Split OpenAI execution modes by contract (`chat` vs `agents`)** | Improves reliability and testability by separating provider execution concerns from orchestration concerns. | GOAL §6, GOAL §11, ADAPTER_STRATEGY §2 |
 
 ---
 
@@ -62,7 +64,7 @@ This document consolidates next-step guidance from:
 
 | Direction | Why | References |
 |-----------|-----|------------|
-| **Customer-facing API integration guide** | Focus on policy/audit operations so customers can configure governance via API. | GOAL §14.3 |
+| **Customer-facing API integration guide (chat/agents/workflow modes)** | Customers need explicit integration paths for OpenAI-compatible chat APIs, Agents SDK-style execution, and orchestration workflows. | GOAL §14.3, INTERFACE_STRATEGY §2 |
 | **Deployment certification and support-boundary automation** | Private/self-hosted support claims require explicit support and responsibility boundaries. | README §next slice, TRACEABILITY §3 (deployment model gap), DEPLOYMENT_MODELS |
 
 ---

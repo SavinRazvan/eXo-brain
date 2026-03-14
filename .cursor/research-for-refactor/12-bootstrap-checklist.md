@@ -732,3 +732,25 @@ Canonical reference:
 - [x] `tests/modules/persistence/test_tool_agent_stores.py` (16 tests — save, list, upsert, delete, tenant isolation, field roundtrip)
 - [x] `tests/modules/api/test_persistence_roundtrip.py` (7 tests — tool/agent survive restart, delete persisted, tenant isolation, memory backend unaffected)
 - [x] Full test suite: **276 passed, 0 failed** (+23 new tests)
+
+---
+
+## Option C Next-Phase — Slice 5 (planned)
+
+### Gateway surface + interaction-mode split
+- [ ] Add northbound OpenAI-compatible gateway endpoints (chat/completions-compatible request + streaming response envelopes).
+- [ ] Add explicit interaction mode contract for external/API routing: `chat`, `agents`, `workflow`.
+- [ ] Keep workflow ownership in `src/core/*`; do not move orchestration graph/state logic into runtime adapters.
+- [ ] Split OpenAI runtime paths by contract:
+  - [ ] chat-completions execution adapter path
+  - [ ] agents-sdk execution adapter path
+- [ ] Keep deterministic policy/tool governance behavior unchanged across all interaction modes.
+
+### Tests and gates
+- [ ] Add integration tests for OpenAI-compatible gateway request/response compatibility.
+- [ ] Add parity tests for `chat` and `agents` mode envelopes.
+- [ ] Add failure-path tests confirming deterministic fallback and policy enforcement for risky/state-changing tool calls.
+- [ ] Run required gates:
+  - [ ] `python -m pytest -q`
+  - [ ] `python scripts/architecture/validate_layers.py`
+  - [ ] `python scripts/architecture/scan_forbidden_imports.py`

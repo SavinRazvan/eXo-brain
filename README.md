@@ -23,6 +23,31 @@ Provider-neutral AI orchestration platform with deterministic tool execution, mu
 
 ---
 
+## Adapter vs gateway boundary
+
+This repository uses a strict separation between internal provider execution and external client API surfaces.
+
+- **Southbound (provider-facing)**: runtime adapters in `src/runtime/*` implement `RuntimeAdapter` and isolate provider SDK/protocol details.
+- **Northbound (client-facing)**: API routes in `src/api/*` define what external apps call.
+- A provider can be OpenAI-compatible at the adapter layer without automatically exposing public OpenAI-compatible gateway endpoints.
+
+Current northbound API is tenant/session/turn oriented (`/tenants/{tenant_id}/sessions/...`).  
+OpenAI-compatible northbound gateway parity (`/v1/...`) is tracked as a planned Option C next-phase slice.
+
+See:
+- `docs/runtime_contracts.md` for runtime boundary contracts and mode ownership.
+- `docs/plans/tenant-tool-execution-architecture.md` for canonical implementation status and queued slices.
+
+### Interaction mode ownership
+
+| Mode | Primary owner | Notes |
+|---|---|---|
+| `chat` | API gateway + runtime adapter | OpenAI-compatible chat/completions style request and streaming response path |
+| `agents` | Runtime adapter | Agents SDK-style execution path behind provider-neutral runtime contract |
+| `workflow` | Core orchestration (`src/core/*`) | Multi-step orchestration state/graph stays in core, not provider adapters |
+
+---
+
 ## Quick start
 
 ```bash
