@@ -31,6 +31,8 @@ from src.config.provider_registry import (
     ProviderRegistry,
 )
 from src.config.settings import AppSettings, RuntimeSettings
+from src.runtime.adapter_factory import OPENAI_ADAPTER_CANONICAL_CLASS_REF
+from src.runtime.custom_runtime import CustomRuntimeAdapter
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 from src.runtime.tenant_runtime import TenantRuntimeContext, TenantRuntimeFactory
 from src.runtime.tool_wiring import build_agent_tools
@@ -62,7 +64,7 @@ def _make_provider_registry(provider_id: str = "openai-test") -> ProviderRegistr
     record = ProviderRecord(
         provider_id=provider_id,
         display_name="Test OpenAI",
-        adapter_class="OpenAIAgentsRuntimeAdapter",
+        adapter_class=OPENAI_ADAPTER_CANONICAL_CLASS_REF,
         enabled=True,
         profile=ProviderProfile.MANAGED_VENDOR,
         priority=1,
@@ -287,6 +289,77 @@ def test_create_session_runtime_stores_and_retrieves_host_adapter() -> None:
     host = factory.create_session_runtime(ctx, agent_id="agent-1", provider_id="openai-test", session_id="sess-001")
     retrieved = factory.get_session_runtime("sess-001")
     assert retrieved is host
+
+
+def test_create_session_runtime_prefers_record_adapter_class_ref() -> None:
+    provider_id = "provider-loader"
+    settings = _make_settings(provider_id)
+    record = ProviderRecord(
+        provider_id=provider_id,
+        display_name="Loader Provider",
+        adapter_class=OPENAI_ADAPTER_CANONICAL_CLASS_REF,
+        enabled=True,
+        profile=ProviderProfile.MANAGED_VENDOR,
+        priority=1,
+        endpoint=EndpointConfig(base_url="https://api.openai.com", api_type=EndpointApiType.OPENAI_NATIVE),
+        auth=AuthConfig(type="api_key", api_key_env_var=""),
+        model_defaults=ModelDefaults(model="gpt-4o-mini"),
+    )
+    registry = ProviderRegistry(
+        settings=settings,
+        providers=[record],
+        # Intentionally bind a different runtime type to prove class-ref loading is used.
+        adapters={provider_id: CustomRuntimeAdapter(provider_id=provider_id)},
+    )
+    factory = TenantRuntimeFactory(provider_registry=registry, settings=settings)
+    ctx = factory.get_or_create("tenant-loader")
+    ctx.agent_registry.register(AgentSpec(agent_id="agent-loader", role="assistant"))
+
+    factory.create_session_runtime(
+        ctx,
+        agent_id="agent-loader",
+        provider_id=provider_id,
+        session_id="sess-loader",
+    )
+
+    adapter = factory.get_session_adapter("sess-loader")
+    assert isinstance(adapter, OpenAIAgentsRuntimeAdapter)
+    assert adapter._tool_registry is ctx.tool_registry
+    assert adapter._tool_executor is ctx.tool_executor
+
+
+def test_create_session_runtime_accepts_legacy_short_adapter_class_ref() -> None:
+    provider_id = "provider-legacy-short"
+    settings = _make_settings(provider_id)
+    record = ProviderRecord(
+        provider_id=provider_id,
+        display_name="Legacy Short Ref Provider",
+        adapter_class="OpenAIAgentsRuntimeAdapter",
+        enabled=True,
+        profile=ProviderProfile.MANAGED_VENDOR,
+        priority=1,
+        endpoint=EndpointConfig(base_url="https://api.openai.com", api_type=EndpointApiType.OPENAI_NATIVE),
+        auth=AuthConfig(type="api_key", api_key_env_var=""),
+        model_defaults=ModelDefaults(model="gpt-4o-mini"),
+    )
+    registry = ProviderRegistry(
+        settings=settings,
+        providers=[record],
+        adapters={provider_id: CustomRuntimeAdapter(provider_id=provider_id)},
+    )
+    factory = TenantRuntimeFactory(provider_registry=registry, settings=settings)
+    ctx = factory.get_or_create("tenant-legacy-short")
+    ctx.agent_registry.register(AgentSpec(agent_id="agent-legacy-short", role="assistant"))
+
+    factory.create_session_runtime(
+        ctx,
+        agent_id="agent-legacy-short",
+        provider_id=provider_id,
+        session_id="sess-legacy-short",
+    )
+
+    adapter = factory.get_session_adapter("sess-legacy-short")
+    assert isinstance(adapter, OpenAIAgentsRuntimeAdapter)
 
 
 def test_get_session_runtime_raises_for_unknown_session() -> None:
