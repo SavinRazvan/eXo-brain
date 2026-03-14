@@ -85,6 +85,51 @@ class PolicyOverlayResponse(BaseModel):
     overlay: dict[str, Any]
 
 
+class PolicyTemplateSummary(BaseModel):
+    """Catalog metadata for a packaged governance policy template."""
+
+    template_id: str
+    packaged_risk_profile_id: str
+    title: str
+    description: str
+    minimum_tier: str
+    ingress_profile: str
+    ingress_classifier_mode: str
+    ingress_custom_rule_count: int
+    includes_signed_plugin: bool
+
+
+class PolicyTemplateListResponse(BaseModel):
+    """Template catalog for tenant-level packaged policy profiles."""
+
+    tenant_id: str
+    templates: list[PolicyTemplateSummary]
+
+
+class PolicyTemplateApplyRequest(BaseModel):
+    """Apply a packaged policy template to tenant overlay state.
+
+    merge_with_existing:
+      - false: replace with packaged template baseline + normalized ingress patch.
+      - true: start from existing overlay, then apply packaged template overrides.
+    extra:
+      - optional non-ingress overrides merged after the template.
+      - ingress-governed keys are locked by template and rejected if provided.
+    """
+
+    merge_with_existing: bool = False
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class PolicyTemplateApplyResponse(BaseModel):
+    """Result payload for template application endpoint."""
+
+    tenant_id: str
+    template_id: str
+    packaged_risk_profile_id: str
+    overlay: dict[str, Any]
+
+
 class QuotaResponse(BaseModel):
     """Current quota configuration and live counters for a tenant."""
 

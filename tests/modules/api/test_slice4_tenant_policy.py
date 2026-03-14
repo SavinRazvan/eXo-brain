@@ -123,6 +123,131 @@ def test_set_policy_with_extra_fields() -> None:
     assert overlay.get("max_retries") == 3
 
 
+def test_list_policy_templates_requires_pro_entitlement() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    resp = client.get("/tenants/t1/policy/templates", headers=_headers("t1", roles=["admin"]))
+    assert resp.status_code == 403
+    assert "ENTITLEMENT_TIER_REQUIRED" in resp.text
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=20))
+    entitlement = [record for record in records if record.event_type == "entitlement_decision"]
+    assert entitlement
+    latest = entitlement[-1]
+    assert latest.payload.get("surface") == "tenant_policy_template_catalog"
+    assert latest.payload.get("feature") == "governance.policy.templates"
+    assert latest.payload.get("required_tier") == "pro"
+
+
+def test_list_policy_templates_returns_catalog_for_pro_tier() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    resp = client.get(
+        "/tenants/t1/policy/templates",
+        headers=_headers("t1", roles=["entitlement_pro"]),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["tenant_id"] == "t1"
+    template_ids = {entry["template_id"] for entry in body["templates"]}
+    assert "template://governance/protocol-guard-v1" in template_ids
+    assert "template://governance/data-perimeter-v1" in template_ids
+
+
+def test_apply_policy_template_requires_pro_entitlement() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    resp = client.post(
+        "/tenants/t1/policy/templates/template://governance/protocol-guard-v1/apply",
+        json={"merge_with_existing": False, "extra": {}},
+        headers=_headers("t1", roles=["admin"]),
+    )
+    assert resp.status_code == 403
+    assert "ENTITLEMENT_TIER_REQUIRED" in resp.text
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=20))
+    entitlement = [record for record in records if record.event_type == "entitlement_decision"]
+    assert entitlement
+    latest = entitlement[-1]
+    assert latest.payload.get("surface") == "tenant_policy_template_apply"
+    assert latest.payload.get("feature") == "governance.policy.templates"
+    assert latest.payload.get("required_tier") == "pro"
+
+
+def test_apply_policy_template_updates_overlay_and_emits_audit() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    resp = client.post(
+        "/tenants/t1/policy/templates/template://governance/protocol-guard-v1/apply",
+        json={"merge_with_existing": False, "extra": {"custom_flag": True}},
+        headers=_headers("t1", roles=["entitlement_pro"]),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["template_id"] == "template://governance/protocol-guard-v1"
+    assert body["packaged_risk_profile_id"] == "risk://packaged/protocol-guard-v1"
+    assert body["overlay"].get("ingress_profile") == "strict"
+    assert body["overlay"].get("custom_flag") is True
+
+    policy_resp = client.get("/tenants/t1/policy", headers=_headers("t1", roles=["entitlement_pro"]))
+    assert policy_resp.status_code == 200
+    assert policy_resp.json()["overlay"].get("ingress_profile") == "strict"
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=40))
+    template_events = [
+        record for record in records if record.event_type == "tenant_policy_template_applied"
+    ]
+    assert template_events
+    latest_template = template_events[-1]
+    assert latest_template.payload.get("template_id") == "template://governance/protocol-guard-v1"
+    assert latest_template.payload.get("packaged_risk_profile_id") == "risk://packaged/protocol-guard-v1"
+
+    profile_events = [
+        record for record in records if record.event_type == "tenant_policy_ingress_profile_configured"
+    ]
+    assert profile_events
+    assert profile_events[-1].payload.get("surface") == "tenant_policy_template_apply"
+
+
+def test_apply_policy_template_rejects_locked_ingress_extra_override() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    resp = client.post(
+        "/tenants/t1/policy/templates/template://governance/protocol-guard-v1/apply",
+        json={"merge_with_existing": False, "extra": {"ingress_profile": "baseline"}},
+        headers=_headers("t1", roles=["entitlement_pro"]),
+    )
+    assert resp.status_code == 422
+    assert "POLICY_TEMPLATE_EXTRA_LOCKED_FIELDS" in resp.text
+
+
+def test_apply_policy_template_merge_preserves_existing_non_template_keys() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    initial_payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {"custom_flag": True},
+    }
+    initial = client.put(
+        "/tenants/t1/policy",
+        json=initial_payload,
+        headers=_headers("t1", roles=["entitlement_pro"]),
+    )
+    assert initial.status_code == 200
+
+    resp = client.post(
+        "/tenants/t1/policy/templates/template://governance/data-perimeter-v1/apply",
+        json={"merge_with_existing": True, "extra": {}},
+        headers=_headers("t1", roles=["entitlement_pro"]),
+    )
+    assert resp.status_code == 200
+    overlay = resp.json()["overlay"]
+    assert overlay.get("custom_flag") is True
+    assert overlay.get("ingress_profile") == "hardened"
+
+
 def test_set_policy_requires_pro_entitlement_for_ingress_profile() -> None:
     app = build_test_app()
     client = TestClient(app)
