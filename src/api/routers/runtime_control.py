@@ -16,10 +16,16 @@ Notes:
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from src.api.dependencies import get_tenant_context, require_valid_identity
+from src.api.middleware.entitlements import (
+    EntitlementDecision,
+    emit_entitlement_decision_event,
+    evaluate_feature_entitlement,
+)
 from src.api.schemas.runtime_control_schemas import (
     ByocCleanupRequest,
     ByocCleanupResponse,
@@ -53,18 +59,85 @@ from src.api.schemas.runtime_control_schemas import (
 )
 from src.core.run_control_registry import RunControlRegistry
 from src.identity.contracts import IdentityContext
+from src.policies.entitlements import EntitledFeature
 from src.policies.governance_anomaly_detector import (
     GovernanceAnomalyThresholds,
     detect_governance_anomalies,
 )
 from src.runtime.tenant_runtime import TenantRuntimeContext
 from src.tools.byoc.job_contracts import ByocToolResultEnvelope
+from src.schemas.tool_io import PolicyAction
 
 router = APIRouter(tags=["runtime-control"])
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _entitlement_http_exception(decision: EntitlementDecision) -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail=f"{decision.reason_code}: {decision.message}",
+    )
+
+
+def _request_route_label(request: Request) -> str:
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", request.url.path)
+    return f"{request.method.upper()} {route_path}"
+
+
+async def _enforce_feature_entitlement(
+    *,
+    request: Request,
+    tenant_id: str,
+    identity: IdentityContext,
+    feature: EntitledFeature,
+    surface: str,
+) -> None:
+    decision = evaluate_feature_entitlement(identity=identity, feature=feature)
+    correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
+    await emit_entitlement_decision_event(
+        audit_pipeline=getattr(request.app.state, "tool_audit_pipeline", None),
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        surface=surface,
+        route=_request_route_label(request),
+        decision=decision,
+    )
+    if decision.decision != PolicyAction.ALLOW:
+        raise _entitlement_http_exception(decision)
+
+
+async def _require_runtime_admin_entitlement(
+    request: Request,
+    tenant_id: str,
+    identity: IdentityContext = Depends(require_valid_identity),
+) -> IdentityContext:
+    await _enforce_feature_entitlement(
+        request=request,
+        tenant_id=tenant_id,
+        identity=identity,
+        feature=EntitledFeature.GOVERNANCE_RUNTIME_ADMIN_CONTROLS,
+        surface="runtime_control_admin",
+    )
+    return identity
+
+
+async def _require_byoc_governance_metrics_entitlement(
+    request: Request,
+    tenant_id: str,
+    identity: IdentityContext = Depends(require_valid_identity),
+) -> IdentityContext:
+    await _enforce_feature_entitlement(
+        request=request,
+        tenant_id=tenant_id,
+        identity=identity,
+        feature=EntitledFeature.GOVERNANCE_BYOC_GOVERNANCE_ANALYTICS,
+        surface="byoc_governance_metrics",
+    )
+    return identity
 
 
 def _resolve_runtime_adapter(ctx: TenantRuntimeContext):
@@ -122,7 +195,7 @@ def _to_byoc_result_envelope(payload: dict, tenant_id: str) -> ByocToolResultEnv
 async def get_runtime_control_stats(
     tenant_id: str,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> RuntimeControlStatsResponse:
     adapter = _resolve_runtime_adapter(ctx)
     pool_stats = getattr(adapter, "pool_stats", lambda: {})()
@@ -146,7 +219,7 @@ async def get_runtime_cleanup_events(
     tenant_id: str,
     limit: int = Query(default=20, ge=1, le=200),
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> RuntimeCleanupEventsResponse:
     adapter = _resolve_runtime_adapter(ctx)
     return RuntimeCleanupEventsResponse(
@@ -164,7 +237,7 @@ async def request_runtime_cancellation(
     tenant_id: str,
     body: RuntimeCancellationRequest,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> RuntimeCancellationResponse:
     adapter = _resolve_runtime_adapter(ctx)
     accepted = adapter.request_cancellation(body.call_id)
@@ -186,7 +259,7 @@ async def clear_runtime_cancellation(
     tenant_id: str,
     call_id: str,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> RuntimeCancellationResponse:
     adapter = _resolve_runtime_adapter(ctx)
     clear_method = getattr(adapter, "clear_cancellation", None)
@@ -212,7 +285,7 @@ async def list_runtime_runs(
     request: Request,
     limit: int = Query(default=50, ge=1, le=500),
     _ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> RuntimeRunListResponse:
     registry = _resolve_run_registry(request)
     records = registry.list_runs(tenant_id=tenant_id, limit=limit)
@@ -232,7 +305,7 @@ async def get_runtime_run(
     run_id: str,
     request: Request,
     _ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> RuntimeRunRecord:
     registry = _resolve_run_registry(request)
     record = registry.get_run(tenant_id=tenant_id, run_id=run_id)
@@ -250,7 +323,7 @@ async def cancel_runtime_run(
     run_id: str,
     request: Request,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> RuntimeRunCancelResponse:
     adapter = _resolve_runtime_adapter(ctx)
     registry = _resolve_run_registry(request)
@@ -289,7 +362,7 @@ async def issue_byoc_worker_token(
     tenant_id: str,
     body: ByocWorkerTokenRequest,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> ByocWorkerTokenResponse:
     adapter = _resolve_byoc_adapter(ctx)
     token = adapter.issue_worker_token(
@@ -313,7 +386,7 @@ async def claim_byoc_job(
     tenant_id: str,
     body: ByocClaimJobRequest,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> ByocClaimJobResponse:
     adapter = _resolve_byoc_adapter(ctx)
     try:
@@ -339,7 +412,7 @@ async def submit_byoc_job_result(
     tenant_id: str,
     body: ByocSubmitResultRequest,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> ByocSubmitResultResponse:
     adapter = _resolve_byoc_adapter(ctx)
     payload = body.result or {}
@@ -370,7 +443,7 @@ async def submit_byoc_webhook_job_result(
     tenant_id: str,
     body: ByocWebhookSubmitResultRequest,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> ByocSubmitResultResponse:
     adapter = _resolve_byoc_adapter(ctx)
     payload = body.result or {}
@@ -401,7 +474,7 @@ async def cleanup_byoc_runtime_retention(
     tenant_id: str,
     body: ByocCleanupRequest,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> ByocCleanupResponse:
     adapter = _resolve_byoc_adapter(ctx)
     cleanup_method = getattr(adapter, "cleanup_retention", None)
@@ -423,7 +496,7 @@ async def list_byoc_dead_letter_jobs(
     tenant_id: str,
     limit: int = Query(default=50, ge=1, le=500),
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> ByocDlqListResponse:
     adapter = _resolve_byoc_adapter(ctx)
     list_method = getattr(adapter, "list_dead_letter_jobs", None)
@@ -446,7 +519,7 @@ async def replay_byoc_dead_letter_job(
     tenant_id: str,
     job_id: str,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> ByocDlqReplayResponse:
     adapter = _resolve_byoc_adapter(ctx)
     replay_method = getattr(adapter, "replay_dead_letter_job", None)
@@ -469,7 +542,7 @@ async def replay_byoc_dead_letter_jobs_bulk(
     tenant_id: str,
     body: ByocDlqReplayBulkRequest,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> ByocDlqReplayBulkResponse:
     adapter = _resolve_byoc_adapter(ctx)
     list_method = getattr(adapter, "list_dead_letter_jobs", None)
@@ -540,7 +613,7 @@ async def get_byoc_governance_metrics(
     tenant_id: str,
     request: Request,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_byoc_governance_metrics_entitlement),
 ) -> ByocGovernanceMetricsResponse:
     adapter = _resolve_byoc_adapter(ctx)
     stats_method = getattr(adapter, "control_stats_for_tenant", None)

@@ -15,6 +15,7 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
@@ -28,8 +29,8 @@ from src.api.bootstrap import build_test_app
 # ---------------------------------------------------------------------------
 
 
-def _headers(tenant_id: str = "t1") -> dict:
-    payload = {"subject": "user@test.com", "roles": ["user"], "tenant_id": tenant_id,
+def _headers(tenant_id: str = "t1", roles: list[str] | None = None) -> dict:
+    payload = {"subject": "user@test.com", "roles": roles or ["user"], "tenant_id": tenant_id,
                "token_validation_state": "valid"}
     return {"X-Identity": json.dumps(payload)}
 
@@ -346,7 +347,7 @@ def test_add_handoff_route_success() -> None:
             "reason": "escalate",
             "required_target_capabilities": ["tool_use"],
         },
-        headers=_headers(tid),
+        headers=_headers(tid, roles=["entitlement_pro"]),
     )
     assert resp.status_code == 201
     body = resp.json()
@@ -359,9 +360,32 @@ def test_add_handoff_route_returns_422_for_unknown_source_role() -> None:
     resp = client.post(
         f"/tenants/{tid}/agents/routes",
         json={"source_role": "ghost_role", "target_role": "also_ghost"},
-        headers=_headers(tid),
+        headers=_headers(tid, roles=["entitlement_pro"]),
     )
     assert resp.status_code == 422
+
+
+def test_handoff_route_requires_pro_entitlement_and_emits_audit() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    tid = "t1"
+    _register_two_agents(client, tid)
+    resp = client.post(
+        f"/tenants/{tid}/agents/routes",
+        json={"source_role": "source_role", "target_role": "target_role"},
+        headers=_headers(tid, roles=["user"]),
+    )
+    assert resp.status_code == 403
+    assert "ENTITLEMENT_TIER_REQUIRED" in resp.text
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id=tid, limit=20))
+    entitlement = [record for record in records if record.event_type == "entitlement_decision"]
+    assert entitlement
+    latest = entitlement[-1]
+    assert latest.payload.get("surface") == "agent_routing_controls"
+    assert latest.payload.get("feature") == "governance.agent_routing.advanced"
+    assert latest.payload.get("decision") == "deny"
+    assert latest.payload.get("required_tier") == "pro"
 
 
 def test_list_handoff_routes_returns_registered_route() -> None:
@@ -370,9 +394,9 @@ def test_list_handoff_routes_returns_registered_route() -> None:
     client.post(
         f"/tenants/{tid}/agents/routes",
         json={"source_role": "source_role", "target_role": "target_role", "reason": "reason1"},
-        headers=_headers(tid),
+        headers=_headers(tid, roles=["entitlement_pro"]),
     )
-    resp = client.get(f"/tenants/{tid}/agents/routes", headers=_headers(tid))
+    resp = client.get(f"/tenants/{tid}/agents/routes", headers=_headers(tid, roles=["entitlement_pro"]))
     assert resp.status_code == 200
     routes = resp.json()
     assert any(r["source_role"] == "source_role" and r["target_role"] == "target_role" for r in routes)
@@ -380,7 +404,7 @@ def test_list_handoff_routes_returns_registered_route() -> None:
 
 def test_list_handoff_routes_returns_empty_for_no_routes() -> None:
     client, tid = _client("no-routes-tenant")
-    resp = client.get(f"/tenants/{tid}/agents/routes", headers=_headers(tid))
+    resp = client.get(f"/tenants/{tid}/agents/routes", headers=_headers(tid, roles=["entitlement_pro"]))
     assert resp.status_code == 200
     assert resp.json() == []
 
@@ -407,7 +431,7 @@ def test_set_fallback_policy_success() -> None:
             "fallback_target_roles": ["fallback_alt"],
             "target_role_priorities": {},
         },
-        headers=_headers(tid),
+        headers=_headers(tid, roles=["entitlement_pro"]),
     )
     assert resp.status_code == 201
     body = resp.json()
@@ -426,9 +450,9 @@ def test_list_fallback_policies_returns_registered_policy() -> None:
     client.post(
         f"/tenants/{tid}/agents/fallback",
         json={"source_role": "p_src", "target_role": "p_tgt", "fallback_target_roles": []},
-        headers=_headers(tid),
+        headers=_headers(tid, roles=["entitlement_pro"]),
     )
-    resp = client.get(f"/tenants/{tid}/agents/fallback", headers=_headers(tid))
+    resp = client.get(f"/tenants/{tid}/agents/fallback", headers=_headers(tid, roles=["entitlement_pro"]))
     assert resp.status_code == 200
     policies = resp.json()
     assert any(p["source_role"] == "p_src" for p in policies)

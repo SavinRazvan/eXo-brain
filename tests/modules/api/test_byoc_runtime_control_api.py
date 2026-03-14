@@ -13,6 +13,7 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import threading
 
@@ -22,10 +23,10 @@ from src.api.bootstrap import build_test_app
 from src.config.settings import AppSettings, RuntimeSettings
 
 
-def _headers(tenant_id: str = "t1") -> dict[str, str]:
+def _headers(tenant_id: str = "t1", roles: list[str] | None = None) -> dict[str, str]:
     payload = {
         "subject": "admin@test.com",
-        "roles": ["admin"],
+        "roles": roles or ["admin", "entitlement_pro"],
         "tenant_id": tenant_id,
         "token_validation_state": "valid",
     }
@@ -163,6 +164,26 @@ def test_byoc_runtime_control_issue_claim_submit_happy_path() -> None:
     assert submit_resp.json()["accepted"] is True
     thread.join(timeout=2.0)
     assert result_holder["result"].status.value == "success"
+
+
+def test_byoc_governance_metrics_requires_pro_entitlement_and_emits_audit() -> None:
+    client = _byoc_client()
+    app = client.app
+    resp = client.get(
+        "/tenants/t1/admin/byoc/governance-metrics",
+        headers=_headers("t1", roles=["admin"]),
+    )
+    assert resp.status_code == 403
+    assert "ENTITLEMENT_TIER_REQUIRED" in resp.text
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=20))
+    entitlement = [record for record in records if record.event_type == "entitlement_decision"]
+    assert entitlement
+    latest = entitlement[-1]
+    assert latest.payload.get("surface") == "byoc_governance_metrics"
+    assert latest.payload.get("feature") == "governance.byoc.governance_analytics"
+    assert latest.payload.get("decision") == "deny"
+    assert latest.payload.get("required_tier") == "pro"
 
 
 def test_byoc_runtime_control_rejects_invalid_signature() -> None:

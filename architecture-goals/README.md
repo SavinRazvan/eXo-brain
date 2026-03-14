@@ -90,9 +90,8 @@ Now enforceable in strategy package:
 - cross-document traceability anchors.
 
 Still planned (not yet fully implemented in product controls):
-- hard entitlement middleware with tier-aware API/policy gating,
-- governance ingress plane for pre-model allow/deny/escalate decisions (predefined + custom gate profiles),
-- governance performance controls (latency budgets, fail-safe policy modes, and evidence hooks),
+- deeper governance ingress profile/custom-rule/classifier/plugin controls (baseline gate chain + entitlement hard-gating is implemented),
+- deeper governance performance profile-specific controls (baseline latency budget + timeout fail-safe is implemented),
 - deployment certification path for private/self-hosted support,
 - expanded compliance artifact catalog and profile-specific runbooks.
 

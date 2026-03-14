@@ -19,7 +19,9 @@ Notes:
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.agents.contracts import (
     AgentCapabilityTag,
@@ -28,6 +30,11 @@ from src.agents.contracts import (
     HandoffRoute,
 )
 from src.api.dependencies import get_agent_store, get_tenant_context, require_valid_identity
+from src.api.middleware.entitlements import (
+    EntitlementDecision,
+    emit_entitlement_decision_event,
+    evaluate_feature_entitlement,
+)
 from src.api.schemas.agent_schemas import (
     AgentListResponse,
     AgentRegisterRequest,
@@ -39,7 +46,9 @@ from src.api.schemas.agent_schemas import (
 )
 from src.identity.contracts import IdentityContext
 from src.persistence.contracts import AgentStore, PersistedAgentRecord
+from src.policies.entitlements import EntitledFeature
 from src.runtime.tenant_runtime import TenantRuntimeContext
+from src.schemas.tool_io import PolicyAction
 
 router = APIRouter(tags=["agents"])
 
@@ -58,6 +67,42 @@ def _parse_capability_tags(tag_values: list[str]) -> set[AgentCapabilityTag]:
     """Convert string values to AgentCapabilityTag enum members; ignore unknown values."""
     valid = {t.value for t in AgentCapabilityTag}
     return {AgentCapabilityTag(v) for v in tag_values if v in valid}
+
+
+def _entitlement_http_exception(decision: EntitlementDecision) -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail=f"{decision.reason_code}: {decision.message}",
+    )
+
+
+def _request_route_label(request: Request) -> str:
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", request.url.path)
+    return f"{request.method.upper()} {route_path}"
+
+
+async def _require_agent_routing_entitlement(
+    request: Request,
+    tenant_id: str,
+    identity: IdentityContext = Depends(require_valid_identity),
+) -> IdentityContext:
+    decision = evaluate_feature_entitlement(
+        identity=identity,
+        feature=EntitledFeature.GOVERNANCE_AGENT_ROUTING_ADVANCED,
+    )
+    correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
+    await emit_entitlement_decision_event(
+        audit_pipeline=getattr(request.app.state, "tool_audit_pipeline", None),
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        surface="agent_routing_controls",
+        route=_request_route_label(request),
+        decision=decision,
+    )
+    if decision.decision != PolicyAction.ALLOW:
+        raise _entitlement_http_exception(decision)
+    return identity
 
 
 @router.post("/{tenant_id}/agents", status_code=201, response_model=AgentResponse)
@@ -119,7 +164,7 @@ async def add_handoff_route(
     tenant_id: str,
     body: HandoffRouteRequest,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_agent_routing_entitlement),
 ) -> HandoffRouteResponse:
     """Add a handoff route between two registered agent roles."""
     required_caps = _parse_capability_tags(body.required_target_capabilities)
@@ -145,7 +190,7 @@ async def add_handoff_route(
 async def list_handoff_routes(
     tenant_id: str,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_agent_routing_entitlement),
 ) -> list[HandoffRouteResponse]:
     """List all handoff routes for this tenant."""
     return [
@@ -173,7 +218,7 @@ async def set_fallback_policy(
     tenant_id: str,
     body: HandoffFallbackPolicyRequest,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_agent_routing_entitlement),
 ) -> HandoffFallbackPolicyResponse:
     """Set a handoff fallback policy for a source role."""
     policy = HandoffFallbackPolicy(
@@ -198,7 +243,7 @@ async def set_fallback_policy(
 async def list_fallback_policies(
     tenant_id: str,
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_agent_routing_entitlement),
 ) -> list[HandoffFallbackPolicyResponse]:
     """List all handoff fallback policies for this tenant."""
     return [

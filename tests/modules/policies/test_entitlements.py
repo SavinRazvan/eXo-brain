@@ -64,3 +64,33 @@ def test_required_feature_for_governance_overlay_selects_highest_tier_feature() 
         required_feature_for_governance_overlay({"signed_gate_plugin_ref": "plugin://corp/signed"})
         == EntitledFeature.GOVERNANCE_INGRESS_SIGNED_PLUGINS
     )
+
+
+def test_runtime_admin_controls_require_pro_tier() -> None:
+    denied = evaluate_feature_entitlement(
+        identity=_identity("admin"),
+        feature=EntitledFeature.GOVERNANCE_RUNTIME_ADMIN_CONTROLS,
+    )
+    assert denied.decision == PolicyAction.DENY
+    assert denied.required_tier == EntitlementTier.PRO
+
+    allowed = evaluate_feature_entitlement(
+        identity=_identity("admin", "entitlement_pro"),
+        feature=EntitledFeature.GOVERNANCE_RUNTIME_ADMIN_CONTROLS,
+    )
+    assert allowed.decision == PolicyAction.ALLOW
+
+
+def test_signed_audit_export_verify_requires_enterprise_tier() -> None:
+    denied = evaluate_feature_entitlement(
+        identity=_identity("admin", "entitlement_pro"),
+        feature=EntitledFeature.GOVERNANCE_AUDIT_SIGNED_EXPORT_VERIFY,
+    )
+    assert denied.decision == PolicyAction.DENY
+    assert denied.required_tier == EntitlementTier.ENTERPRISE
+
+    allowed = evaluate_feature_entitlement(
+        identity=_identity("admin", "entitlement_enterprise"),
+        feature=EntitledFeature.GOVERNANCE_AUDIT_SIGNED_EXPORT_VERIFY,
+    )
+    assert allowed.decision == PolicyAction.ALLOW

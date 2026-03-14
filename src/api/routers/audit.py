@@ -17,10 +17,16 @@ from collections import Counter
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from src.api.dependencies import require_valid_identity
+from src.api.middleware.entitlements import (
+    EntitlementDecision,
+    emit_entitlement_decision_event,
+    evaluate_feature_entitlement,
+)
 from src.api.schemas.audit_schemas import (
     AuditCleanupRequest,
     AuditCleanupResponse,
@@ -41,8 +47,46 @@ from src.compliance.evidence_bundle import (
     verify_signed_bundle_with_keyring,
 )
 from src.identity.contracts import IdentityContext
+from src.policies.entitlements import EntitledFeature
+from src.schemas.tool_io import PolicyAction
 
 router = APIRouter(tags=["audit"])
+
+
+def _entitlement_http_exception(decision: EntitlementDecision) -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail=f"{decision.reason_code}: {decision.message}",
+    )
+
+
+def _request_route_label(request: Request) -> str:
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", request.url.path)
+    return f"{request.method.upper()} {route_path}"
+
+
+async def _require_signed_audit_entitlement(
+    request: Request,
+    tenant_id: str,
+    identity: IdentityContext = Depends(require_valid_identity),
+) -> IdentityContext:
+    decision = evaluate_feature_entitlement(
+        identity=identity,
+        feature=EntitledFeature.GOVERNANCE_AUDIT_SIGNED_EXPORT_VERIFY,
+    )
+    correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
+    await emit_entitlement_decision_event(
+        audit_pipeline=getattr(request.app.state, "tool_audit_pipeline", None),
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        surface="audit_signed_export_verify",
+        route=_request_route_label(request),
+        decision=decision,
+    )
+    if decision.decision != PolicyAction.ALLOW:
+        raise _entitlement_http_exception(decision)
+    return identity
 
 
 def _audit_store_or_503(request: Request):
@@ -185,7 +229,7 @@ async def export_audit_bundle_to_file(
     tenant_id: str,
     body: AuditExportFileRequest,
     request: Request,
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_signed_audit_entitlement),
 ) -> AuditExportFileResponse:
     store = _audit_store_or_503(request)
     configured_max = int(getattr(request.app.state.settings.limits, "max_audit_export_records", 2_000))
@@ -216,7 +260,7 @@ async def verify_audit_bundle(
     tenant_id: str,
     body: AuditVerifyRequest,
     request: Request,
-    _identity: IdentityContext = Depends(require_valid_identity),
+    _identity: IdentityContext = Depends(_require_signed_audit_entitlement),
 ) -> AuditVerifyResponse:
     bundle_data: dict
     if str(body.file_path).strip():

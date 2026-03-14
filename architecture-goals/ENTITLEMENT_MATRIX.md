@@ -22,7 +22,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.3.0`
+- Version: `1.4.0`
 - Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `Feature-to-tier packaging, enforcement surfaces, and evidence requirements for commercial operations.`
@@ -59,9 +59,9 @@ Rules:
 
 Current status:
 - Tier intent is defined.
-- Baseline entitlement middleware for governance ingress and tenant policy overlay surfaces is `Enforceable`.
+- Baseline entitlement middleware for governance ingress, tenant policy overlays, runtime admin controls, agent routing/fallback controls, BYOC governance analytics, and signed audit export/verify surfaces is `Enforceable`.
 - Baseline ingress performance budget and timeout fail-safe controls are `Enforceable`.
-- Full ingress governance customization depth and broader premium surface coverage remain `Planned`.
+- Full ingress governance customization depth (policy packs/custom declarative rules/classifier gates/signed gate lifecycle) remains `Planned`.
 
 ---
 
@@ -75,17 +75,17 @@ Current status:
 | Tenant policy overlay controls | Foundation | `GET/PUT /{tenant_id}/policy`, `src/tenancy/policy_overlay.py` | Enforceable | `tests/modules/api/test_slice4_tenant_policy.py` | policy change and outcome visibility via runtime/audit APIs | Overlay must not bypass core policy middleware | Baseline governance configurability |
 | Tenant quota controls | Foundation | `GET/PUT /{tenant_id}/quota`, `src/tenancy/quotas.py` | Enforceable | `tests/modules/core/test_tenant_quota_enforcement.py`, `tests/modules/api/test_slice4_tenant_policy.py` | runtime control stats and run outcomes | Quota checks remain tenant-scoped | `active_jobs` live tracking is post-v1 improvement |
 | Core audit events/report access | Foundation | `GET /admin/audit/events`, `GET /admin/audit/report` | Enforceable | `tests/modules/api/test_audit_api.py` | audit report payloads | Audit collection cannot be disabled on risky paths | Baseline observability for operations |
-| Advanced runtime admin controls | Pro | `src/api/routers/runtime_control.py` (`/admin/runtime/*`) | Enforceable | `tests/modules/api/test_runtime_control_api.py`, `tests/modules/api/test_byoc_runtime_control_api.py` | runtime control stats and cancellation records | Must remain authz + tenant-scoped | Pro operations depth |
-| Advanced fallback/routing governance | Pro | `/{tenant_id}/agents/routes`, `/{tenant_id}/agents/fallback` | Enforceable | `tests/modules/agents/test_orchestrator_agent_handoff.py`, `tests/modules/api/test_slice2_tools_agents.py` | route/fallback behavior visible in run traces | Fallback cannot reduce deterministic safety posture | Pro orchestration control |
-| BYOC governance analytics and anomaly reporting | Pro | `/{tenant_id}/admin/byoc/governance-metrics`, `src/policies/governance_anomaly_detector.py` | Enforceable | `tests/modules/policies/test_governance_anomaly_detector.py` | governance metrics endpoint payloads | Advisory analytics cannot bypass policy decisions | Pro governance insight |
+| Advanced runtime admin controls | Pro | `src/api/routers/runtime_control.py` (`/admin/runtime/*`) with `src/api/middleware/entitlements.py` | Enforceable (tier-gated) | `tests/modules/api/test_runtime_control_api.py`, `tests/modules/api/test_byoc_runtime_control_api.py` | runtime control stats and cancellation records + `entitlement_decision` audit records | Must remain authz + tenant-scoped | Pro operations depth |
+| Advanced fallback/routing governance | Pro | `/{tenant_id}/agents/routes`, `/{tenant_id}/agents/fallback` with `src/api/middleware/entitlements.py` | Enforceable (tier-gated) | `tests/modules/agents/test_orchestrator_agent_handoff.py`, `tests/modules/api/test_slice2_tools_agents.py` | route/fallback behavior visible in run traces + `entitlement_decision` audit records | Fallback cannot reduce deterministic safety posture | Pro orchestration control |
+| BYOC governance analytics and anomaly reporting | Pro | `/{tenant_id}/admin/byoc/governance-metrics`, `src/policies/governance_anomaly_detector.py`, entitlement checks in `src/api/routers/runtime_control.py` | Enforceable (tier-gated) | `tests/modules/policies/test_governance_anomaly_detector.py`, `tests/modules/api/test_byoc_runtime_control_api.py` | governance metrics endpoint payloads + `entitlement_decision` audit records | Advisory analytics cannot bypass policy decisions | Pro governance insight |
 | Policy templates and packaged risk profiles | Pro | Planned policy-pack API/config layer | Planned | Planned: policy-pack contract tests | Planned: policy-pack audit trail | Templates must compile to standard policy overlay/gate paths | Requires template registry and entitlement gate implementation |
 | Custom declarative gate rules and protocol policies | Pro | Planned tenant gate profile API/config surfaces | Planned | Planned: custom gate evaluation tests and validation tests | Planned: per-gate allow/deny/escalate decision records | Custom rules can only tighten or specialize behavior; cannot disable trust baseline | Requires governance DSL/schema and validation runtime |
 | Specialized low-cost classifier gates and shadow mode | Pro | Planned gate-chain model routing + evaluation mode controls | Planned | Planned: classifier gate tests, shadow/evaluate-only tests | Planned: score/confidence/latency telemetry in audit stream | Classifier fallback behavior must be explicit (fail-safe mode) | Requires performance budgets and model version traceability |
-| Signed audit export and verification workflow | Enterprise | `POST /admin/audit/export-file`, `POST /admin/audit/verify` | Enforceable | `tests/modules/audit/test_evidence_bundle_generation.py`, `tests/modules/audit/test_audit_chain_integrity.py`, `tests/modules/api/test_audit_api.py` | signed bundle artifacts and verify responses | Signature/chain verification must remain server-side | Enterprise compliance-ready evidence |
+| Signed audit export and verification workflow | Enterprise | `POST /admin/audit/export-file`, `POST /admin/audit/verify` with entitlement checks in `src/api/routers/audit.py` | Enforceable (tier-gated) | `tests/modules/audit/test_evidence_bundle_generation.py`, `tests/modules/audit/test_audit_chain_integrity.py`, `tests/modules/api/test_audit_api.py` | signed bundle artifacts and verify responses + `entitlement_decision` audit records | Signature/chain verification must remain server-side | Enterprise compliance-ready evidence |
 | Signed custom gate plugins (sandboxed, compatibility-checked) | Enterprise | Planned plugin package lifecycle + sandboxed gate runner | Planned | Planned: plugin compatibility, sandbox policy, and non-bypass tests | Planned: plugin load/evaluate/unload decision evidence | No unsigned or unsandboxed gate plugin may execute in production path | Requires plugin signing, lifecycle policy, and strict runtime limits |
 | Advanced fairness/admission controls | Enterprise | `src/policies/byoc_fairness.py`, runtime settings in `src/config/settings.py` | Enforceable (feature-flagged) | `tests/modules/policies/test_byoc_fairness.py`, `tests/modules/tools/test_byoc_non_blocking_execute.py` | runtime stats and governance metrics | Fairness cannot weaken tenant isolation or policy controls | Enterprise scale governance |
 | Enterprise release signoff evidence bundle | Enterprise | `scripts/release/verify_gates.py`, `make rc-signoff*` | Enforceable | `tests/modules/unknown/test_release_scripts.py` | RC signoff artifacts | Release cannot skip P0 gates | Enterprise operational assurance |
-| Entitlement middleware and hard API gating by tier | Cross-tier | `src/api/middleware/entitlements.py`, `src/policies/entitlements.py`, gating in `src/api/routers/turns.py` + `src/api/routers/tenants.py` | Enforceable (governance baseline) | `tests/modules/policies/test_entitlements.py`, `tests/modules/api/test_slice3_playground.py`, `tests/modules/api/test_slice4_tenant_policy.py` | `entitlement_decision` audit records on turn-ingress and tenant-policy surfaces | No premium feature should rely on hidden/implicit gating | Baseline delivered; extend to remaining premium surfaces |
+| Entitlement middleware and hard API gating by tier | Cross-tier | `src/api/middleware/entitlements.py`, `src/policies/entitlements.py`, gating in `src/api/routers/turns.py`, `src/api/routers/tenants.py`, `src/api/routers/runtime_control.py`, `src/api/routers/agents.py`, and `src/api/routers/audit.py` | Enforceable (expanded governance surfaces) | `tests/modules/policies/test_entitlements.py`, `tests/modules/api/test_slice3_playground.py`, `tests/modules/api/test_slice4_tenant_policy.py`, `tests/modules/api/test_runtime_control_api.py`, `tests/modules/api/test_byoc_runtime_control_api.py`, `tests/modules/api/test_slice2_tools_agents.py`, `tests/modules/api/test_audit_api.py` | `entitlement_decision` audit records on ingress, policy, runtime admin, routing/fallback, BYOC analytics, and signed-audit surfaces | No premium feature should rely on hidden/implicit gating | Expanded baseline delivered; remaining work is planned premium capability build-out |
 | Gate performance budget and fail-safe policy controls | Cross-tier | `src/observability/ingress_budget.py`, ingress budget enforcement in `src/api/routers/turns.py`, release gate in `scripts/perf/ingress_budget_report.py` + `scripts/release/verify_gates.py` | Enforceable (baseline) | `tests/modules/observability/test_ingress_budget.py`, `tests/modules/api/test_slice3_playground.py`, `tests/modules/unknown/test_release_scripts.py` | `turn_ingress_decision`/`turn_ingress_budget_alert` audit events + `artifacts/evidence/ingress_budget_report.json` | Performance controls must not allow unsafe silent bypass | Baseline delivered; extend to full profile-specific SLOs |
 
 ---
@@ -94,10 +94,11 @@ Current status:
 
 Priority sequence:
 
-1. Extend entitlement middleware/gates from ingress + tenant policy baseline to all planned premium governance surfaces.
-2. Add deeper tier-aware ingress profile/custom-rule APIs with schema validation and compatibility controls.
-3. Add deeper profile-specific governance SLO targets and per-profile reporting.
-4. Add tier-aware API contract documentation for customer onboarding.
+1. Add deeper tier-aware ingress profile/custom-rule APIs with schema validation and compatibility controls.
+2. Add specialized classifier/shadow-mode gate controls with explicit entitlement and telemetry anchors.
+3. Add signed custom gate plugin lifecycle controls (packaging, compatibility, sandbox policy) with hard entitlement gates.
+4. Add deeper profile-specific governance SLO targets and per-profile reporting.
+5. Add tier-aware API contract documentation for customer onboarding.
 
 ---
 
