@@ -1,0 +1,4 @@
+{
+  "max_p95_ingress_latency_ms": 250.0,
+  "max_timeout_rate": 0.2
+}

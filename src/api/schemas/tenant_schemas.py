@@ -25,6 +25,12 @@ class PolicyOverlayRequest(BaseModel):
       deny_tools: list of tool names to block unconditionally.
       escalate_risk_tiers: list of risk tier names whose calls require escalation.
       escalate_state_changing: if true, all state-changing calls are escalated.
+
+    Governance ingress extension fields (inside `extra`):
+      ingress_profile: "baseline" (Foundation) or stricter profiles (Pro+).
+      ingress_max_input_chars: custom max-input threshold (Pro+).
+      ingress_prompt_injection_phrases: custom suspicious phrase set (Pro+).
+      signed_gate_plugin_ref: signed enterprise plugin reference (Enterprise only).
     """
 
     deny_tools: list[str] = Field(default_factory=list)
