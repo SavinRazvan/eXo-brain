@@ -29,6 +29,7 @@ from src.api.dependencies import (
 )
 from src.api.middleware.entitlements import (
     EntitlementDecision,
+    emit_entitlement_decision_event,
     evaluate_feature_entitlement,
     required_feature_for_governance_overlay,
 )
@@ -95,18 +96,14 @@ async def set_policy(
     feature = required_feature_for_governance_overlay(body.extra)
     entitlement_decision = evaluate_feature_entitlement(identity=identity, feature=feature)
     correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
-    audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
-    if audit_pipeline is not None:
-        await audit_pipeline.emit(
-            event_type="entitlement_decision",
-            correlation_id=correlation_id,
-            tenant_id=tenant_id,
-            payload={
-                "surface": "tenant_policy_overlay",
-                "route": "PUT /tenants/{tenant_id}/policy",
-                **entitlement_decision.to_payload(),
-            },
-        )
+    await emit_entitlement_decision_event(
+        audit_pipeline=getattr(request.app.state, "tool_audit_pipeline", None),
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        surface="tenant_policy_overlay",
+        route="PUT /tenants/{tenant_id}/policy",
+        decision=entitlement_decision,
+    )
     if entitlement_decision.decision != PolicyAction.ALLOW:
         raise _policy_entitlement_http_exception(entitlement_decision)
 

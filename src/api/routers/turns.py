@@ -33,6 +33,7 @@ from src.api.dependencies import get_tenant_context, require_tenant_scope_identi
 from src.api.middleware.auth import extract_identity, is_identity_usable
 from src.api.middleware.entitlements import (
     EntitlementDecision,
+    emit_entitlement_decision_event,
     evaluate_feature_entitlement,
     required_feature_for_governance_overlay,
 )
@@ -185,18 +186,18 @@ async def _evaluate_governance_entitlement(
 ) -> EntitlementDecision:
     feature = required_feature_for_governance_overlay(overlay)
     decision = evaluate_feature_entitlement(identity=identity, feature=feature)
-    if audit_pipeline is not None:
-        await audit_pipeline.emit(
-            event_type="entitlement_decision",
-            correlation_id=correlation_id,
-            tenant_id=tenant_id,
-            payload={
-                "session_id": session_id,
-                "transport": transport,
-                "surface": "turn_ingress",
-                **decision.to_payload(),
-            },
-        )
+    await emit_entitlement_decision_event(
+        audit_pipeline=audit_pipeline,
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        surface="turn_ingress",
+        route=f"{transport}_turn_entry",
+        decision=decision,
+        extra_payload={
+            "session_id": session_id,
+            "transport": transport,
+        },
+    )
     return decision
 
 

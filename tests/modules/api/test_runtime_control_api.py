@@ -13,6 +13,7 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 from fastapi.testclient import TestClient
@@ -21,10 +22,10 @@ from src.api.bootstrap import build_test_app
 from src.config.settings import AppSettings, AuthSettings, RuntimeSettings
 
 
-def _headers(tenant_id: str = "t1") -> dict[str, str]:
+def _headers(tenant_id: str = "t1", roles: list[str] | None = None) -> dict[str, str]:
     payload = {
         "subject": "admin@test.com",
-        "roles": ["admin"],
+        "roles": roles or ["admin", "entitlement_pro"],
         "tenant_id": tenant_id,
         "token_validation_state": "valid",
     }
@@ -95,6 +96,27 @@ def test_runtime_control_endpoints_require_authentication() -> None:
     client = _hosted_control_client()
     resp = client.get("/tenants/t1/admin/runtime/control-stats")
     assert resp.status_code == 401
+
+
+def test_runtime_control_requires_pro_entitlement_and_emits_decision_audit() -> None:
+    client = _hosted_control_client()
+    app = client.app
+    resp = client.get(
+        "/tenants/t1/admin/runtime/control-stats",
+        headers=_headers("t1", roles=["admin"]),
+    )
+    assert resp.status_code == 403
+    assert "ENTITLEMENT_TIER_REQUIRED" in resp.text
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=20))
+    entitlement = [record for record in records if record.event_type == "entitlement_decision"]
+    assert entitlement
+    latest = entitlement[-1]
+    assert latest.payload.get("surface") == "runtime_control_admin"
+    assert latest.payload.get("feature") == "governance.runtime.admin_controls"
+    assert latest.payload.get("decision") == "deny"
+    assert latest.payload.get("required_tier") == "pro"
+    assert latest.payload.get("current_tier") == "foundation"
 
 
 def test_runtime_run_list_and_get_expose_canonical_run_registry_state() -> None:
@@ -184,7 +206,7 @@ def test_cross_tenant_admin_runtime_route_allows_configured_super_admin_bypass()
             "X-Identity": json.dumps(
                 {
                     "subject": "sa@test.com",
-                    "roles": ["super_admin"],
+                    "roles": ["super_admin", "entitlement_pro"],
                     "tenant_id": "t1",
                     "token_validation_state": "valid",
                 }
