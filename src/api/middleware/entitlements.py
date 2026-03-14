@@ -114,6 +114,10 @@ def required_feature_for_governance_overlay(overlay: Mapping[str, Any]) -> Entit
     if signed_plugin_ref:
         return EntitledFeature.GOVERNANCE_INGRESS_SIGNED_PLUGINS
 
+    classifier_mode = str(overlay.get("ingress_classifier_mode", "")).strip().lower()
+    if classifier_mode in {"shadow", "enforce"}:
+        return EntitledFeature.GOVERNANCE_INGRESS_CLASSIFIER
+
     custom_rules = overlay.get("ingress_custom_rules")
     if isinstance(custom_rules, (list, dict)) and len(custom_rules) > 0:
         return EntitledFeature.GOVERNANCE_INGRESS_CUSTOM_RULES

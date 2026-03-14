@@ -57,6 +57,10 @@ def test_required_feature_for_governance_overlay_selects_highest_tier_feature() 
         == EntitledFeature.GOVERNANCE_INGRESS_PROFILE
     )
     assert (
+        required_feature_for_governance_overlay({"ingress_classifier_mode": "shadow"})
+        == EntitledFeature.GOVERNANCE_INGRESS_CLASSIFIER
+    )
+    assert (
         required_feature_for_governance_overlay({"ingress_custom_rules": [{"rule": "x"}]})
         == EntitledFeature.GOVERNANCE_INGRESS_CUSTOM_RULES
     )
@@ -77,6 +81,21 @@ def test_runtime_admin_controls_require_pro_tier() -> None:
     allowed = evaluate_feature_entitlement(
         identity=_identity("admin", "entitlement_pro"),
         feature=EntitledFeature.GOVERNANCE_RUNTIME_ADMIN_CONTROLS,
+    )
+    assert allowed.decision == PolicyAction.ALLOW
+
+
+def test_ingress_classifier_requires_pro_tier() -> None:
+    denied = evaluate_feature_entitlement(
+        identity=_identity("admin"),
+        feature=EntitledFeature.GOVERNANCE_INGRESS_CLASSIFIER,
+    )
+    assert denied.decision == PolicyAction.DENY
+    assert denied.required_tier == EntitlementTier.PRO
+
+    allowed = evaluate_feature_entitlement(
+        identity=_identity("admin", "entitlement_pro"),
+        feature=EntitledFeature.GOVERNANCE_INGRESS_CLASSIFIER,
     )
     assert allowed.decision == PolicyAction.ALLOW
 

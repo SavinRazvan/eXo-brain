@@ -27,6 +27,7 @@ class EntitledFeature(str, Enum):
     GOVERNANCE_INGRESS_BASELINE = "governance.ingress.baseline"
     GOVERNANCE_INGRESS_PROFILE = "governance.ingress.profile"
     GOVERNANCE_INGRESS_CUSTOM_RULES = "governance.ingress.custom_rules"
+    GOVERNANCE_INGRESS_CLASSIFIER = "governance.ingress.classifier"
     GOVERNANCE_INGRESS_SIGNED_PLUGINS = "governance.ingress.signed_plugins"
     GOVERNANCE_RUNTIME_ADMIN_CONTROLS = "governance.runtime.admin_controls"
     GOVERNANCE_AGENT_ROUTING_ADVANCED = "governance.agent_routing.advanced"
@@ -45,6 +46,7 @@ _FEATURE_MIN_TIER: dict[EntitledFeature, EntitlementTier] = {
     EntitledFeature.GOVERNANCE_INGRESS_BASELINE: EntitlementTier.FOUNDATION,
     EntitledFeature.GOVERNANCE_INGRESS_PROFILE: EntitlementTier.PRO,
     EntitledFeature.GOVERNANCE_INGRESS_CUSTOM_RULES: EntitlementTier.PRO,
+    EntitledFeature.GOVERNANCE_INGRESS_CLASSIFIER: EntitlementTier.PRO,
     EntitledFeature.GOVERNANCE_INGRESS_SIGNED_PLUGINS: EntitlementTier.ENTERPRISE,
     EntitledFeature.GOVERNANCE_RUNTIME_ADMIN_CONTROLS: EntitlementTier.PRO,
     EntitledFeature.GOVERNANCE_AGENT_ROUTING_ADVANCED: EntitlementTier.PRO,
