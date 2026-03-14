@@ -91,9 +91,18 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Option C next-phase Slice 1 (adapter packaging baseline) | Implemented | Added package skeletons under `packages/` for `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, and `exo-adapter-openai`, plus package import/conformance tests. |
 | Option C next-phase Slice 2/3 (shared control-state + non-blocking BYOC mode) | Implemented | Added SQLite-backed run control/rate limiter backends, sqlite fairness coordinator option, and BYOC non-blocking submit mode wiring via runtime settings. |
 | Option C next-phase Slice 4 (blocking SLO release gate) | Implemented | Added threshold-enforced Option C load profile gate with JSON evidence output and wired it into `scripts/release/verify_gates.py` for release-candidate blocking checks. |
+| Option C next-phase Slice 5 (northbound gateway + interaction-mode split) | Pending | Planned: add OpenAI-compatible northbound gateway surface and explicit `chat`/`agents`/`workflow` mode ownership boundaries while preserving deterministic policy and tool governance paths. |
 
 Canonical reference for current status and pending order:
 - `docs/plans/tenant-tool-execution-architecture.md` (`Canonical Current State (single source)`).
+
+Next queued slice after current Option C closures:
+- add public OpenAI-compatible gateway routing for external app compatibility.
+- formalize interaction-mode split:
+  - `chat`: gateway + runtime adapter execution
+  - `agents`: runtime adapter execution
+  - `workflow`: orchestration/core ownership
+- preserve deterministic fallback/policy middleware guarantees in all paths.
 
 Hosted external beta evidence references:
 - `docs/operations/release-candidate-signoff-checklist.md`

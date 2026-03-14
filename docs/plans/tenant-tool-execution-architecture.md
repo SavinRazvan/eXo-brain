@@ -65,6 +65,28 @@ This section supersedes conflicting historical wording in this document.
     - adapter packaging execution (`packages/exo-brain-core-contracts`, `packages/exo-brain-adapter-sdk`, `packages/exo-adapter-openai`)
     - shared control-state backend patterns (`SQLiteRunControlRegistry`, `SQLiteTenantRateLimiter`, sqlite fairness backend)
     - blocking SLO gate enforcement for release promotion (`scripts/perf/option_c_load_profiles.py --enforce`)
+  - Next queued slice after current Option C closures:
+    - add northbound OpenAI-compatible gateway endpoints (chat/completions-compatible request/stream envelopes)
+    - split interaction modes explicitly into `chat`, `agents`, and `workflow`
+    - keep `workflow` ownership in orchestration (`src/core/*`) while runtime adapters remain provider execution boundaries
+    - preserve deterministic tool governance and policy middleware wrappers across all interaction modes
+
+### Option C Next-Phase Slice 5 (planned): Gateway surface + interaction-mode split
+
+Goal:
+- expose a public OpenAI-compatible API surface without collapsing provider-neutral adapter boundaries.
+
+Scope:
+- add northbound OpenAI-compatible gateway routing for external client compatibility.
+- separate OpenAI runtime execution paths for:
+  - chat-completions style turns
+  - Agents SDK style turns
+- keep workflow coordination in orchestrator/core, not inside provider adapters.
+
+Acceptance:
+- OpenAI-compatible client requests can execute against the gateway with normalized response/stream envelopes.
+- runtime capability reporting remains explicit per mode (`chat` vs `agents`) without provider-name hardcoding in core.
+- deterministic mode enforcement for risky/state-changing tools remains unchanged across all interaction paths.
 
 ## Architecture Slice Plan
 
