@@ -6,7 +6,8 @@ alwaysApply: true
 # PR Workflow Enforcement
 
 - Use PR-first delivery for all implementation work:
-  - create branch
+  - create or switch to a task branch (`feature/<scope>`, `fix/<scope>`, `chore/<scope>`)
+  - keep branches short-lived and single-slice
   - implement and test
   - push branch
   - open PR
@@ -32,5 +33,7 @@ alwaysApply: true
 - If architecture/runtime scope changes, update tracking docs before merge:
   - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
   - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
+- Use `git push --force-with-lease` only for intentional rewrites on branches you own.
+- Do not use destructive git commands (`reset --hard`, forced history rewrites) unless explicitly requested.
 - Stop and report instead of merging when any required artifact or gate result is missing.
 - Stop and report instead of closing workflow when post-merge sync/cleanup is incomplete.

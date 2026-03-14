@@ -7,6 +7,9 @@ alwaysApply: true
 
 - Follow sequence: plan -> interfaces -> implementation -> tests -> evidence -> docs update.
 - Before coding, confirm target module boundary and acceptance criteria.
+- Include tests for happy path, failure path, and retry/timeout behavior when relevant.
+- Keep changes incremental; avoid big-bang rewrites unless explicitly approved.
+- Keep code simple (KISS).
 - For each task, define rollback/fallback behavior before merging.
 - Block release when any P0 security/quality/reliability gate fails.
 - Require deterministic replay tests for high-risk workflows and tool side effects.

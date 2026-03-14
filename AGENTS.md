@@ -6,6 +6,17 @@
 The core principle is **AI as a commodity**: model providers are pluggable adapters, not orchestration owners.
 Current delivery posture is API-first Option C (control plane + adapter plane + data plane), with UI/dashboard tracks deferred unless explicitly re-enabled.
 
+## Canonical Rules (Always Applied)
+
+- `.cursor/rules/provider-neutral-adapter-wall.mdc` — Architecture and layer boundaries
+- `.cursor/rules/execution-workflow-gates.mdc` — Plan → implement → test → docs
+- `.cursor/rules/pr-workflow-enforcement.mdc` — PR-first, merge gates, branch safety
+- `.cursor/rules/pr-action-attribution.mdc` — GitHub-User in PR artifacts
+- `.cursor/rules/commit-trailer-format.mdc` — Commit trailers
+- `.cursor/rules/file-docstring-header-relations.mdc` — File header metadata
+- `.cursor/rules/local-artifact-protection.mdc` — Protect `.exo_data/`, `.coverage`
+- `.cursor/rules/advisory-audit-alignment-enforcement.mdc` — Audit for architecture-impacting PRs
+
 ## Architecture Guardrails
 
 - Keep provider SDK code inside `src/runtime/*adapter*` only.
@@ -75,3 +86,7 @@ Current delivery posture is API-first Option C (control plane + adapter plane + 
   - `python scripts/pr/merge.py --pr <id/url> --actor "Savin I. Razvan" --agents "review-pr | prepare-pr | merge-pr"`
 - PR publish verification (before merge workflow):
   - `python scripts/pr/verify_publish.py --branch <current_branch>`
+
+## Next Directions
+
+Architecture-aligned implementation priorities are in `architecture-goals/NEXT_DIRECTIONS.md` (Tier 1: adapter portability; Tier 2: entitlement/monetization; Tier 3: customer API guide and deployment certification). Use it when starting a slice or deciding what to work on next.
