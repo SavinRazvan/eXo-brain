@@ -24,7 +24,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.1.0`
+- Version: `1.2.0`
 - Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `Prioritized implementation directions derived from architecture-goals strategy docs.`
@@ -57,6 +57,8 @@ This document consolidates next-step guidance from:
 | **Entitlement enforcement layer** | Tier claims must map to explicit enforceable controls. Needed for clean monetization boundary. | README §next slice, TRACEABILITY §3 (entitlement operability), ENTITLEMENT_MATRIX |
 | **Monetization feature flags and entitlement hooks** | Governance surfaces (policy, audit, runtime) need tier-aware gating for Pro/Enterprise. | GOAL §14.4 |
 | **Tier-aware audit evidence** | Entitlement decisions must be auditable and exportable. | README §next slice |
+| **Governance ingress plane (pre-model gate chain)** | Safety decisions must happen before model/runtime execution, with non-bypassable allow/deny/escalate outcomes and clear reason codes. | GOAL §3, INTERFACE_STRATEGY §6, MONETIZATION_STRATEGY §2 |
+| **Predefined + custom gate/policy model with latency budgets** | Customers need controlled flexibility (templates + custom rules/plugins) without degrading reliability or p95 turn latency. | MONETIZATION_STRATEGY §3, ENTITLEMENT_MATRIX §4, TRACEABILITY §3 |
 
 ---
 
@@ -64,7 +66,7 @@ This document consolidates next-step guidance from:
 
 | Direction | Why | References |
 |-----------|-----|------------|
-| **Customer-facing API integration guide (chat/agents/workflow modes)** | Customers need explicit integration paths for OpenAI-compatible chat APIs, Agents SDK-style execution, and orchestration workflows. | GOAL §14.3, INTERFACE_STRATEGY §2 |
+| **Customer-facing API integration guide (chat/agents/workflow + governance ingress)** | Customers need explicit integration paths for OpenAI-compatible chat APIs, Agents SDK-style execution, orchestration workflows, and turn-level safety governance controls. | GOAL §14.3, INTERFACE_STRATEGY §2 |
 | **Deployment certification and support-boundary automation** | Private/self-hosted support claims require explicit support and responsibility boundaries. | README §next slice, TRACEABILITY §3 (deployment model gap), DEPLOYMENT_MODELS |
 
 ---
@@ -82,6 +84,7 @@ This document consolidates next-step guidance from:
 
 - **UI/dashboard** — API-first posture; optional API-driven console may be added later. Customer builds own UI on eXo-brain APIs. See `INTERFACE_STRATEGY.md` §2.
 - **Purge of historical UI references in docs** — Low priority; historical/planning docs may retain UI mentions for future reference.
+- **Unbounded customer code execution for safety plugins** — Deferred until signed plugin packaging, sandbox boundaries, and strict policy/latency controls are production-ready.
 
 ---
 
@@ -92,6 +95,7 @@ From `architecture-goals/CORE.md` §11:
 - Policy latency inflation on hot paths
 - Fallback complexity under mixed providers
 - Operational blind spots (correlation IDs, run/audit evidence)
+- Excessively permissive customer customization that could weaken baseline trust guarantees
 
 ---
 
