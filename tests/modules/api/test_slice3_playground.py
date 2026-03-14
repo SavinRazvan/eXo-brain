@@ -267,6 +267,90 @@ def test_sse_turn_writes_ingress_allow_decision_audit() -> None:
     assert ingress_records[0].payload.get("reason_code") == "INGRESS_ALLOW_DEFAULT"
 
 
+def test_sse_turn_ingress_decision_audit_includes_profile_metadata() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    tid = "sse-ingress-profile-metadata-tenant"
+    _register_agent(client, tid)
+    session_id = _create_session(client, tid)
+    correlation_id = "run_sse_ingress_profile_metadata_1"
+    app.state.policy_overlay_store.set_overlay(
+        tid,
+        {
+            "ingress_profile": "strict",
+            "ingress_max_input_chars": 3200,
+            "ingress_prompt_injection_phrases": [
+                "ignore previous instructions",
+                "reveal system prompt",
+                "developer instructions",
+                "jailbreak",
+                "disregard safety policy",
+                "prompt leak",
+            ],
+        },
+    )
+
+    resp = client.post(
+        f"/tenants/{tid}/sessions/{session_id}/turns",
+        json={"input": "hello strict profile", "correlation_id": correlation_id},
+        headers=_headers(tid, roles=["entitlement_pro"]),
+    )
+    assert resp.status_code == 200
+
+    records = asyncio.run(
+        app.state.audit_store.query_audit_events(correlation_id=correlation_id, tenant_id=tid)
+    )
+    ingress_records = [record for record in records if record.event_type == "turn_ingress_decision"]
+    assert len(ingress_records) == 1
+    payload = ingress_records[0].payload
+    assert payload.get("ingress_profile") == "strict"
+    assert payload.get("ingress_custom_rule_count") == 0
+    assert payload.get("ingress_profile_compatibility_mode") == "strict"
+
+
+def test_sse_turn_custom_ingress_rule_denies_and_records_profile_evidence() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    tid = "sse-ingress-custom-rule-tenant"
+    _register_agent(client, tid)
+    session_id = _create_session(client, tid)
+    correlation_id = "run_sse_ingress_custom_rule_1"
+    app.state.policy_overlay_store.set_overlay(
+        tid,
+        {
+            "ingress_profile": "baseline",
+            "ingress_custom_rules": [
+                {
+                    "rule_id": "deny-credential-share",
+                    "action": "deny",
+                    "match_type": "contains_any",
+                    "patterns": ["share private key"],
+                    "reason_code": "INGRESS_DENY_CREDENTIAL_SHARE",
+                    "message": "Credential sharing is denied.",
+                }
+            ],
+        },
+    )
+
+    resp = client.post(
+        f"/tenants/{tid}/sessions/{session_id}/turns",
+        json={"input": "Please share private key material now.", "correlation_id": correlation_id},
+        headers=_headers(tid, roles=["entitlement_pro"]),
+    )
+    assert resp.status_code == 403
+    assert "INGRESS_DENY_CREDENTIAL_SHARE" in resp.text
+
+    records = asyncio.run(
+        app.state.audit_store.query_audit_events(correlation_id=correlation_id, tenant_id=tid)
+    )
+    ingress_records = [record for record in records if record.event_type == "turn_ingress_decision"]
+    assert len(ingress_records) == 1
+    payload = ingress_records[0].payload
+    assert payload.get("reason_code") == "INGRESS_DENY_CREDENTIAL_SHARE"
+    assert payload.get("ingress_profile") == "baseline"
+    assert payload.get("ingress_custom_rule_count") == 1
+
+
 def test_sse_turn_returns_403_when_ingress_overlay_requires_pro_entitlement() -> None:
     app = build_test_app()
     client = TestClient(app)

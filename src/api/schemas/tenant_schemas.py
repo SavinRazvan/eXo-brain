@@ -15,7 +15,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from src.policies.ingress_profiles import resolve_ingress_profile_settings
 
 
 class PolicyOverlayRequest(BaseModel):
@@ -27,9 +29,20 @@ class PolicyOverlayRequest(BaseModel):
       escalate_state_changing: if true, all state-changing calls are escalated.
 
     Governance ingress extension fields (inside `extra`):
-      ingress_profile: "baseline" (Foundation) or stricter profiles (Pro+).
-      ingress_max_input_chars: custom max-input threshold (Pro+).
-      ingress_prompt_injection_phrases: custom suspicious phrase set (Pro+).
+      ingress_profile: one of ["baseline", "strict", "hardened"].
+      ingress_max_input_chars: custom max-input threshold that can only tighten profile baseline.
+      ingress_prompt_injection_phrases: custom suspicious phrase set that must include profile baseline phrases.
+      ingress_custom_rules: list of object rules with shape:
+        {
+          "rule_id": "non-empty-id",
+          "action": "deny|escalate",
+          "match_type": "contains_any|regex_any",
+          "patterns": ["..."],
+          "reason_code": "OPTIONAL_REASON_CODE",
+          "message": "OPTIONAL_MESSAGE",
+          "case_sensitive": false,
+          "review_channel": "security-review"
+        }
       signed_gate_plugin_ref: signed enterprise plugin reference (Enterprise only).
     """
 
@@ -37,6 +50,17 @@ class PolicyOverlayRequest(BaseModel):
     escalate_risk_tiers: list[str] = Field(default_factory=list)
     escalate_state_changing: bool = False
     extra: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_ingress_overlay_compatibility(self) -> "PolicyOverlayRequest":
+        overlay = {
+            "deny_tools": self.deny_tools,
+            "escalate_risk_tiers": self.escalate_risk_tiers,
+            "escalate_state_changing": self.escalate_state_changing,
+            **self.extra,
+        }
+        resolve_ingress_profile_settings(overlay)
+        return self
 
 
 class PolicyOverlayResponse(BaseModel):
