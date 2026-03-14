@@ -32,7 +32,7 @@ from src.tools.registry import ToolDescriptor
 def _headers(tenant_id: str) -> dict[str, str]:
     payload = {
         "subject": "soak-admin@test.com",
-        "roles": ["admin"],
+        "roles": ["admin", "entitlement_pro"],
         "tenant_id": tenant_id,
         "token_validation_state": "valid",
     }
