@@ -189,6 +189,75 @@ def test_set_policy_requires_enterprise_entitlement_for_signed_gate_plugin() -> 
     assert latest.payload.get("current_tier") == "pro"
 
 
+def test_set_policy_rejects_invalid_ingress_profile_name() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {"ingress_profile": "unknown-profile"},
+    }
+    resp = client.put("/tenants/t1/policy", json=payload, headers=_headers("t1", roles=["entitlement_pro"]))
+    assert resp.status_code == 422
+    assert "INGRESS_PROFILE_UNSUPPORTED" in resp.text
+
+
+def test_set_policy_rejects_ingress_max_chars_profile_relaxation() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {"ingress_profile": "strict", "ingress_max_input_chars": 5000},
+    }
+    resp = client.put("/tenants/t1/policy", json=payload, headers=_headers("t1", roles=["entitlement_pro"]))
+    assert resp.status_code == 422
+    assert "INGRESS_PROFILE_COMPATIBILITY_MAX_INPUT_RELAXATION_NOT_ALLOWED" in resp.text
+
+
+def test_set_policy_accepts_custom_ingress_rules_for_pro_and_emits_profile_audit() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    payload = {
+        "deny_tools": [],
+        "escalate_risk_tiers": [],
+        "escalate_state_changing": False,
+        "extra": {
+            "ingress_profile": "strict",
+            "ingress_max_input_chars": 3200,
+            "ingress_custom_rules": [
+                {
+                    "rule_id": "deny-credential-share",
+                    "action": "deny",
+                    "match_type": "contains_any",
+                    "patterns": ["share private key"],
+                    "reason_code": "INGRESS_DENY_CREDENTIAL_SHARE",
+                    "message": "Credential sharing is denied.",
+                }
+            ],
+        },
+    }
+    resp = client.put("/tenants/t1/policy", json=payload, headers=_headers("t1", roles=["entitlement_pro"]))
+    assert resp.status_code == 200
+    overlay = resp.json()["overlay"]
+    assert overlay.get("ingress_profile") == "strict"
+    assert overlay.get("ingress_max_input_chars") == 3200
+    assert overlay.get("ingress_profile_compatibility_mode") == "strict"
+    assert len(overlay.get("ingress_custom_rules", [])) == 1
+
+    records = asyncio.run(app.state.audit_store.list_audit_events(tenant_id="t1", limit=30))
+    profile_events = [
+        record for record in records if record.event_type == "tenant_policy_ingress_profile_configured"
+    ]
+    assert profile_events
+    latest = profile_events[-1]
+    assert latest.payload.get("ingress_profile") == "strict"
+    assert latest.payload.get("ingress_custom_rule_count") == 1
+    assert latest.payload.get("ingress_max_input_chars") == 3200
+
+
 # ─── Quota management ─────────────────────────────────────────────────────────
 
 
