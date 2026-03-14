@@ -22,7 +22,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.6.0`
+- Version: `1.7.0`
 - Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `Feature-to-tier packaging, enforcement surfaces, and evidence requirements for commercial operations.`
@@ -63,7 +63,8 @@ Current status:
 - Baseline ingress performance budget and timeout fail-safe controls are `Enforceable`.
 - Baseline ingress profiles + custom declarative rules with compatibility validation are `Enforceable`.
 - Baseline specialized ingress classifier controls (shadow/enforce + telemetry anchors) are `Enforceable`.
-- Deeper governance customization depth (policy packs/signed gate lifecycle + advanced classifier model-routing depth) remains `Planned`.
+- Baseline signed ingress plugin lifecycle controls (load/reload/unload guards + sandbox/compatibility/signature checks) are `Enforceable`.
+- Deeper governance customization depth (policy packs + advanced external classifier model-routing depth) remains `Planned`.
 
 ---
 
@@ -84,7 +85,7 @@ Current status:
 | Custom declarative gate rules and protocol policies | Pro | Tenant policy API (`PUT /{tenant_id}/policy`) + ingress profile resolver (`src/policies/ingress_profiles.py`) + runtime gate evaluation (`src/policies/ingress_gates.py`) | Enforceable (baseline) | `tests/modules/policies/test_ingress_profiles.py`, `tests/modules/policies/test_ingress_gate_chain.py`, `tests/modules/api/test_slice4_tenant_policy.py`, `tests/modules/api/test_slice3_playground.py` | `tenant_policy_ingress_profile_configured` + `turn_ingress_decision` audit records | Custom rules can only tighten or specialize behavior; cannot disable trust baseline | Baseline delivered with contains/regex rule types; advanced classifier/plugin depth still planned |
 | Specialized low-cost classifier gates and shadow mode | Pro | `src/policies/ingress_profiles.py` classifier config + `src/policies/ingress_gates.py` classifier gate + ingress routing in `src/api/routers/turns.py` | Enforceable (baseline, tier-gated) | `tests/modules/policies/test_ingress_profiles.py`, `tests/modules/policies/test_ingress_gate_chain.py`, `tests/modules/api/test_slice4_tenant_policy.py`, `tests/modules/api/test_slice3_playground.py` | `turn_ingress_classifier_telemetry` + `turn_ingress_decision` + `tenant_policy_ingress_profile_configured` + `entitlement_decision` audit anchors | Classifier mode (`shadow`/`enforce`) must be explicit and non-bypassable at turn ingress | Heuristic classifier baseline delivered; advanced external classifier routing remains planned |
 | Signed audit export and verification workflow | Enterprise | `POST /admin/audit/export-file`, `POST /admin/audit/verify` with entitlement checks in `src/api/routers/audit.py` | Enforceable (tier-gated) | `tests/modules/audit/test_evidence_bundle_generation.py`, `tests/modules/audit/test_audit_chain_integrity.py`, `tests/modules/api/test_audit_api.py` | signed bundle artifacts and verify responses + `entitlement_decision` audit records | Signature/chain verification must remain server-side | Enterprise compliance-ready evidence |
-| Signed custom gate plugins (sandboxed, compatibility-checked) | Enterprise | Planned plugin package lifecycle + sandboxed gate runner | Planned | Planned: plugin compatibility, sandbox policy, and non-bypass tests | Planned: plugin load/evaluate/unload decision evidence | No unsigned or unsandboxed gate plugin may execute in production path | Requires plugin signing, lifecycle policy, and strict runtime limits |
+| Signed custom gate plugins (sandboxed, compatibility-checked) | Enterprise | Signed plugin resolution + lifecycle guards in `src/policies/ingress_signed_plugins.py`, tenant overlay lifecycle enforcement in `src/api/routers/tenants.py`, gate execution in `src/policies/ingress_gates.py` | Enforceable (baseline, tier-gated) | `tests/modules/policies/test_ingress_signed_plugins.py`, `tests/modules/policies/test_ingress_profiles.py`, `tests/modules/policies/test_ingress_gate_chain.py`, `tests/modules/api/test_slice4_tenant_policy.py`, `tests/modules/api/test_slice3_playground.py` | `tenant_policy_signed_gate_plugin_lifecycle` + `turn_ingress_signed_plugin_telemetry` + `turn_ingress_decision` + `entitlement_decision` audit anchors | No unsigned, untrusted-signer, incompatible-core, or non-declarative plugin may execute in ingress path | Baseline delivered with trusted in-repo signed registry and declarative sandbox policy; external plugin package ingestion remains planned |
 | Advanced fairness/admission controls | Enterprise | `src/policies/byoc_fairness.py`, runtime settings in `src/config/settings.py` | Enforceable (feature-flagged) | `tests/modules/policies/test_byoc_fairness.py`, `tests/modules/tools/test_byoc_non_blocking_execute.py` | runtime stats and governance metrics | Fairness cannot weaken tenant isolation or policy controls | Enterprise scale governance |
 | Enterprise release signoff evidence bundle | Enterprise | `scripts/release/verify_gates.py`, `make rc-signoff*` | Enforceable | `tests/modules/unknown/test_release_scripts.py` | RC signoff artifacts | Release cannot skip P0 gates | Enterprise operational assurance |
 | Entitlement middleware and hard API gating by tier | Cross-tier | `src/api/middleware/entitlements.py`, `src/policies/entitlements.py`, gating in `src/api/routers/turns.py`, `src/api/routers/tenants.py`, `src/api/routers/runtime_control.py`, `src/api/routers/agents.py`, and `src/api/routers/audit.py` | Enforceable (expanded governance surfaces) | `tests/modules/policies/test_entitlements.py`, `tests/modules/api/test_slice3_playground.py`, `tests/modules/api/test_slice4_tenant_policy.py`, `tests/modules/api/test_runtime_control_api.py`, `tests/modules/api/test_byoc_runtime_control_api.py`, `tests/modules/api/test_slice2_tools_agents.py`, `tests/modules/api/test_audit_api.py` | `entitlement_decision` audit records on ingress, policy, runtime admin, routing/fallback, BYOC analytics, and signed-audit surfaces | No premium feature should rely on hidden/implicit gating | Expanded baseline delivered; remaining work is planned premium capability build-out |
@@ -96,11 +97,11 @@ Current status:
 
 Priority sequence:
 
-1. Add signed custom gate plugin lifecycle controls (packaging, compatibility, sandbox policy) with hard entitlement gates.
-2. Add policy-template and packaged-risk-profile APIs with contract/evidence anchors.
-3. Add deeper profile-specific governance SLO targets and per-profile reporting.
-4. Add tier-aware API contract documentation for customer onboarding.
-5. Add advanced external classifier model-routing controls with explicit fallback and evidence anchors.
+1. Add policy-template and packaged-risk-profile APIs with contract/evidence anchors.
+2. Add deeper profile-specific governance SLO targets and per-profile reporting.
+3. Add tier-aware API contract documentation for customer onboarding.
+4. Add advanced external classifier model-routing controls with explicit fallback and evidence anchors.
+5. Add external signed-plugin package ingestion workflow with publisher trust onboarding and certification evidence.
 
 ---
 
