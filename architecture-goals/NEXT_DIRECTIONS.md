@@ -24,7 +24,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.3.0`
+- Version: `1.4.0`
 - Last Reviewed: `2026-03-15`
 - Review Cadence: `monthly`
 - Decision Scope: `Prioritized implementation directions derived from architecture-goals strategy docs.`
@@ -66,7 +66,7 @@ This document consolidates next-step guidance from:
 
 | Direction | Why | References |
 |-----------|-----|------------|
-| **Customer-facing API integration guide (chat/agents/workflow + governance ingress)** | Customers need explicit integration paths for OpenAI-compatible chat APIs, Agents SDK-style execution, orchestration workflows, and turn-level safety governance controls. | GOAL §14.3, INTERFACE_STRATEGY §2 |
+| **Customer-facing API integration guide (chat/agents/workflow + governance ingress)** | Customers need explicit integration paths for OpenAI-compatible chat APIs, Agents SDK-style execution, orchestration workflows, and turn-level safety governance controls — baseline tier-aware guide delivered at `docs/api/customer-api-integration-guide.md`. | GOAL §14.3, INTERFACE_STRATEGY §2 |
 | **Deployment certification and support-boundary automation** | Private/self-hosted support claims require explicit support and responsibility boundaries. | README §next slice, TRACEABILITY §3 (deployment model gap), DEPLOYMENT_MODELS |
 
 ---
