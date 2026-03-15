@@ -13,6 +13,7 @@ Used By:
  - architecture-goals/INTERFACE_STRATEGY.md
  - architecture-goals/TRACEABILITY_MATRIX.md
  - architecture-goals/NEXT_DIRECTIONS.md
+ - architecture-goals/EXECUTION_BOARD_12_GAPS.md
 Depends On:
  - AGENTS.md
  - docs/plans/tenant-tool-execution-architecture.md
@@ -26,7 +27,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.1.0`
+- Version: `1.3.0`
 - Last Reviewed: `2026-03-15`
 - Review Cadence: `monthly`
 - Decision Scope: `Folder-level indexing, reading order, and strategy document governance for architecture-goals.`
@@ -59,6 +60,8 @@ These documents are intended to prevent direction drift while implementation evo
    Decision-to-code and decision-to-test mapping for drift detection.
 10. `architecture-goals/NEXT_DIRECTIONS.md`  
     Architecture-aligned priorities and next implementation slices.
+11. `architecture-goals/EXECUTION_BOARD_12_GAPS.md`
+    Execution-ready implementation board for the 12 agreed priority gaps (phases, epics, tests, rollback).
 
 ## Update Policy
 
@@ -90,9 +93,14 @@ Now enforceable in strategy package:
 - cross-document traceability anchors.
 
 Still planned (not yet fully implemented in product controls):
+- adapter portfolio expansion execution across universal/native/service lanes with certification evidence automation,
+- runtime provider router depth (health/cost/policy-aware routing decisions),
 - advanced external classifier-routing depth and external signed-plugin package ingestion depth (baseline gate chain + profile/custom-rule/classifier shadow-enforce controls + signed plugin lifecycle baseline + policy-template/risk-profile APIs + entitlement hard-gating are implemented),
+- first-class approval action workflow for review-required escalation outcomes,
+- token-aware inference budget governance and MCP policy-depth controls (per-server tool filtering + credential scope policy),
 - deeper governance runtime diagnostics over profile-specific SLO baselines (profile-aware thresholds + per-profile release reporting are implemented),
 - deployment certification path for private/self-hosted support,
 - expanded compliance artifact catalog and profile-specific runbooks.
 
 For architecture-aligned next directions and slice priorities, see `architecture-goals/NEXT_DIRECTIONS.md`.
+For implementation sequencing and acceptance details for the 12 priority gaps, see `architecture-goals/EXECUTION_BOARD_12_GAPS.md`.
