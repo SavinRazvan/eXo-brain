@@ -5,6 +5,7 @@ Role: Product, architecture, and monetization north-star for eXo-brain.
 Used By:
  - architecture-goals/ADAPTER_STRATEGY.md
  - architecture-goals/NEXT_DIRECTIONS.md
+ - architecture-goals/EXECUTION_BOARD_12_GAPS.md
  - README.md
  - AGENTS.md
  - docs/plans/tenant-tool-execution-architecture.md
@@ -25,8 +26,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.1.0`
-- Last Reviewed: `2026-03-14`
+- Version: `1.3.0`
+- Last Reviewed: `2026-03-15`
 - Review Cadence: `monthly`
 - Decision Scope: `Product north-star, strategic boundaries, and long-term direction for provider-neutral orchestration.`
 
@@ -51,6 +52,7 @@ Companion strategy docs:
 - `architecture-goals/INTERFACE_STRATEGY.md`
 - `architecture-goals/TRACEABILITY_MATRIX.md`
 - `architecture-goals/NEXT_DIRECTIONS.md`
+- `architecture-goals/EXECUTION_BOARD_12_GAPS.md`
 
 ---
 
@@ -144,7 +146,7 @@ Each provider adapter should:
 - follow contract and conformance rules,
 - avoid embedding governance logic that belongs in core.
 
-Initial adapter target set:
+Initial adapter baseline set:
 - OpenAI
 - Google Gemini
 - Anthropic
@@ -157,6 +159,19 @@ Recommended package naming:
 - `exo-adapter-anthropic`
 - `exo-adapter-xai`
 - `exo-adapter-meta-llama`
+
+Planned expansion set (Adapter Portfolio Expansion v2):
+- Hugging Face (hybrid compatible -> native path)
+- Mistral
+- DeepL (service/tool lane)
+- Aleph Alpha
+- MiniMax
+- Moonshot
+- Zhipu
+- DeepSeek
+- Qwen
+- Minerva (discovery)
+- Velvet (discovery)
 
 ---
 
@@ -294,7 +309,7 @@ Canonical source: `architecture-goals/NEXT_DIRECTIONS.md`.
 
 Summary:
 1. Finalize external package boundaries for adapter portability.
-2. Define adapter certification matrix for the five target providers.
+2. Define and enforce adapter certification matrix for the baseline and expansion portfolio.
 3. Introduce a governance ingress plane for pre-model allow/deny/escalate decisions.
 4. Publish a customer-facing API integration guide focused on policy/audit/governance operations.
 5. Add monetization-oriented feature flags and entitlement hooks around governance surfaces.
