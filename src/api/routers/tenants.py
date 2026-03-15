@@ -36,11 +36,21 @@ from src.api.middleware.entitlements import (
 from src.api.schemas.tenant_schemas import (
     PolicyOverlayRequest,
     PolicyOverlayResponse,
+    PolicyTemplateApplyRequest,
+    PolicyTemplateApplyResponse,
+    PolicyTemplateListResponse,
+    PolicyTemplateSummary,
     QuotaResponse,
     QuotaUpdateRequest,
 )
 from src.identity.contracts import IdentityContext
+from src.policies.entitlements import EntitledFeature
 from src.policies.ingress_profiles import resolve_ingress_profile_settings
+from src.policies.policy_templates import (
+    compile_policy_template_overlay,
+    list_policy_templates as list_packaged_policy_templates,
+    policy_template_summary_payload,
+)
 from src.policies.ingress_signed_plugins import classify_signed_plugin_lifecycle_transition
 from src.runtime.tenant_runtime import TenantRuntimeContext
 from src.schemas.tool_io import PolicyAction
@@ -70,6 +80,57 @@ def _policy_conflict_http_exception(message: str) -> HTTPException:
     )
 
 
+def _active_run_count(request: Request, tenant_id: str) -> int:
+    run_registry = getattr(request.app.state, "run_control_registry", None)
+    if run_registry is None:
+        return 0
+    return int(run_registry.count_active_runs(tenant_id=tenant_id))
+
+
+async def _emit_ingress_profile_audit_events(
+    *,
+    request: Request,
+    tenant_id: str,
+    correlation_id: str,
+    surface: str,
+    route: str,
+    ingress_audit_payload: dict,
+    lifecycle_action: str,
+    previous_plugin_ref: str,
+    new_plugin_ref: str,
+    active_run_count: int,
+) -> None:
+    audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    if audit_pipeline is None:
+        return
+    await audit_pipeline.emit(
+        event_type="tenant_policy_ingress_profile_configured",
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        payload={
+            "surface": surface,
+            "route": route,
+            **ingress_audit_payload,
+        },
+    )
+    if lifecycle_action == "none":
+        return
+    await audit_pipeline.emit(
+        event_type="tenant_policy_signed_gate_plugin_lifecycle",
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        payload={
+            "surface": surface,
+            "route": route,
+            "action": lifecycle_action,
+            "previous_signed_gate_plugin_ref": previous_plugin_ref,
+            "new_signed_gate_plugin_ref": new_plugin_ref,
+            "active_run_count": active_run_count,
+            **ingress_audit_payload,
+        },
+    )
+
+
 # ─── Policy overlay ───────────────────────────────────────────────────────────
 
 
@@ -89,6 +150,159 @@ async def get_policy(
     """
     overlay = store.get_overlay(tenant_id)
     return PolicyOverlayResponse(tenant_id=tenant_id, overlay=overlay)
+
+
+@router.get(
+    "/{tenant_id}/policy/templates",
+    response_model=PolicyTemplateListResponse,
+    summary="List packaged policy templates",
+)
+async def list_policy_templates(
+    tenant_id: str,
+    request: Request,
+    _store: TenantPolicyOverlayStore = Depends(get_policy_overlay_store),
+    identity: IdentityContext = Depends(require_valid_identity),
+) -> PolicyTemplateListResponse:
+    """Return packaged policy templates available for tenant governance controls."""
+    correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
+    entitlement_decision = evaluate_feature_entitlement(
+        identity=identity,
+        feature=EntitledFeature.GOVERNANCE_POLICY_TEMPLATES,
+    )
+    await emit_entitlement_decision_event(
+        audit_pipeline=getattr(request.app.state, "tool_audit_pipeline", None),
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        surface="tenant_policy_template_catalog",
+        route="GET /tenants/{tenant_id}/policy/templates",
+        decision=entitlement_decision,
+    )
+    if entitlement_decision.decision != PolicyAction.ALLOW:
+        raise _policy_entitlement_http_exception(entitlement_decision)
+    templates = [
+        PolicyTemplateSummary(**policy_template_summary_payload(template))
+        for template in list_packaged_policy_templates()
+    ]
+    return PolicyTemplateListResponse(tenant_id=tenant_id, templates=templates)
+
+
+@router.post(
+    "/{tenant_id}/policy/templates/{template_id:path}/apply",
+    response_model=PolicyTemplateApplyResponse,
+    summary="Apply packaged policy template",
+)
+async def apply_policy_template(
+    tenant_id: str,
+    template_id: str,
+    body: PolicyTemplateApplyRequest,
+    request: Request,
+    store: TenantPolicyOverlayStore = Depends(get_policy_overlay_store),
+    identity: IdentityContext = Depends(require_valid_identity),
+) -> PolicyTemplateApplyResponse:
+    """Apply a packaged policy template and persist resulting tenant overlay."""
+    previous_overlay = dict(store.get_overlay(tenant_id))
+    try:
+        template, overlay, ingress_resolution = compile_policy_template_overlay(
+            template_id=template_id,
+            merge_with_overlay=previous_overlay if body.merge_with_existing else None,
+            overlay_extra=body.extra,
+        )
+    except ValueError as exc:
+        raise _policy_validation_http_exception(str(exc)) from exc
+
+    correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
+    route = "POST /tenants/{tenant_id}/policy/templates/{template_id}/apply"
+    audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+
+    template_access_decision = evaluate_feature_entitlement(
+        identity=identity,
+        feature=EntitledFeature.GOVERNANCE_POLICY_TEMPLATES,
+    )
+    await emit_entitlement_decision_event(
+        audit_pipeline=audit_pipeline,
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        surface="tenant_policy_template_apply",
+        route=route,
+        decision=template_access_decision,
+        extra_payload={
+            "template_id": template.template_id,
+            "packaged_risk_profile_id": template.packaged_risk_profile_id,
+            "merge_with_existing": body.merge_with_existing,
+        },
+    )
+    if template_access_decision.decision != PolicyAction.ALLOW:
+        raise _policy_entitlement_http_exception(template_access_decision)
+
+    overlay_feature = required_feature_for_governance_overlay(overlay)
+    overlay_entitlement_decision = evaluate_feature_entitlement(
+        identity=identity,
+        feature=overlay_feature,
+    )
+    await emit_entitlement_decision_event(
+        audit_pipeline=audit_pipeline,
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        surface="tenant_policy_template_apply_overlay",
+        route=route,
+        decision=overlay_entitlement_decision,
+        extra_payload={
+            "template_id": template.template_id,
+            "packaged_risk_profile_id": template.packaged_risk_profile_id,
+            "merge_with_existing": body.merge_with_existing,
+        },
+    )
+    if overlay_entitlement_decision.decision != PolicyAction.ALLOW:
+        raise _policy_entitlement_http_exception(overlay_entitlement_decision)
+
+    previous_plugin_ref = str(previous_overlay.get("signed_gate_plugin_ref", "")).strip()
+    next_plugin_ref = str(overlay.get("signed_gate_plugin_ref", "")).strip()
+    active_run_count = _active_run_count(request, tenant_id)
+    try:
+        lifecycle = classify_signed_plugin_lifecycle_transition(
+            previous_plugin_ref=previous_plugin_ref,
+            new_plugin_ref=next_plugin_ref,
+            active_run_count=active_run_count,
+        )
+    except ValueError as exc:
+        raise _policy_conflict_http_exception(str(exc)) from exc
+
+    store.set_overlay(tenant_id, overlay)
+    ingress_audit_payload = ingress_resolution.to_audit_payload()
+    await _emit_ingress_profile_audit_events(
+        request=request,
+        tenant_id=tenant_id,
+        correlation_id=correlation_id,
+        surface="tenant_policy_template_apply",
+        route=route,
+        ingress_audit_payload=ingress_audit_payload,
+        lifecycle_action=lifecycle.action,
+        previous_plugin_ref=lifecycle.previous_plugin_ref,
+        new_plugin_ref=lifecycle.new_plugin_ref,
+        active_run_count=active_run_count,
+    )
+    if audit_pipeline is not None:
+        await audit_pipeline.emit(
+            event_type="tenant_policy_template_applied",
+            correlation_id=correlation_id,
+            tenant_id=tenant_id,
+            payload={
+                "surface": "tenant_policy_template_apply",
+                "route": route,
+                "template_id": template.template_id,
+                "packaged_risk_profile_id": template.packaged_risk_profile_id,
+                "minimum_tier": template.minimum_tier,
+                "merge_with_existing": body.merge_with_existing,
+                "extra_keys": sorted(body.extra.keys()),
+                **ingress_audit_payload,
+            },
+        )
+    return PolicyTemplateApplyResponse(
+        tenant_id=tenant_id,
+        template_id=template.template_id,
+        packaged_risk_profile_id=template.packaged_risk_profile_id,
+        overlay=overlay,
+    )
 
 
 @router.put(
