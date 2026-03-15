@@ -9,6 +9,7 @@ Depends On:
  - exo_brain_core_contracts tool envelopes
 Notes:
  - Uses a protocol-like descriptor shape to avoid hard dependency on core registry implementation.
+ - Requires exo-brain-core-contracts as a direct pip dependency (no monorepo fallback).
 """
 
 from __future__ import annotations
@@ -17,10 +18,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
-try:
-    from exo_brain_core_contracts.tool_io import ToolCallContext, ToolResult
-except Exception:  # pragma: no cover - fallback for monorepo test import without package install
-    from src.schemas.tool_io import ToolCallContext, ToolResult
+from exo_brain_core_contracts.tool_io import ToolCallContext, ToolResult
 
 
 @dataclass(slots=True)

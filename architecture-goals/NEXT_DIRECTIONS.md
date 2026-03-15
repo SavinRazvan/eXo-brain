@@ -24,7 +24,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.5.0`
+- Version: `1.6.0`
 - Last Reviewed: `2026-03-15`
 - Review Cadence: `monthly`
 - Decision Scope: `Prioritized implementation directions derived from architecture-goals strategy docs.`
@@ -43,7 +43,7 @@ This document consolidates next-step guidance from:
 | Direction | Why | References |
 |-----------|-----|------------|
 | **Finalize external package boundaries** | Adapters must be standalone; no monorepo-only imports. Core contracts + adapter SDK must be externalizable. | GOAL §11, TRACEABILITY §3 (full external adapter portability gap) |
-| **Complete `exo-adapter-openai` extraction** | Enables independent adapter distribution and partner ecosystem. First adapter sets the pattern. | TRACEABILITY §3, ADAPTER_STRATEGY §4 |
+| **Complete `exo-adapter-openai` extraction** | Enables independent adapter distribution and partner ecosystem. First adapter sets the pattern. External install certification complete: all three packages install cleanly in an isolated venv with zero monorepo-relative imports; `scripts/packages/external_install_smoke.py` gates the external install path in CI. Next: publish certification automation (PyPI upload + version tagging). | TRACEABILITY §3, ADAPTER_STRATEGY §4 |
 | **Define adapter certification matrix** | Five target providers (OpenAI, Gemini, Anthropic, xAI, Meta) need explicit conformance criteria. | GOAL §14.2, ADAPTER_STRATEGY §3 |
 | **Add northbound OpenAI-compatible gateway surface** | External apps need drop-in `/v1` compatibility while keeping internal orchestration contracts provider-neutral. | INTERFACE_STRATEGY §2, TRACEABILITY §3 (customer API surface parity gap) |
 | **Split OpenAI execution modes by contract (`chat` vs `agents`)** | Improves reliability and testability by separating provider execution concerns from orchestration concerns. | GOAL §6, GOAL §11, ADAPTER_STRATEGY §2 |
