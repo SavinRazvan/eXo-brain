@@ -26,8 +26,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
-- Last Reviewed: `2026-03-14`
+- Version: `1.1.0`
+- Last Reviewed: `2026-03-15`
 - Review Cadence: `monthly`
 - Decision Scope: `Folder-level indexing, reading order, and strategy document governance for architecture-goals.`
 
@@ -91,7 +91,7 @@ Now enforceable in strategy package:
 
 Still planned (not yet fully implemented in product controls):
 - advanced external classifier-routing depth and external signed-plugin package ingestion depth (baseline gate chain + profile/custom-rule/classifier shadow-enforce controls + signed plugin lifecycle baseline + policy-template/risk-profile APIs + entitlement hard-gating are implemented),
-- deeper governance performance profile-specific controls (baseline latency budget + timeout fail-safe is implemented),
+- deeper governance runtime diagnostics over profile-specific SLO baselines (profile-aware thresholds + per-profile release reporting are implemented),
 - deployment certification path for private/self-hosted support,
 - expanded compliance artifact catalog and profile-specific runbooks.
 
