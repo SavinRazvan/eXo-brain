@@ -17,6 +17,7 @@ Merge safely and deterministically after review and preparation are complete.
    python scripts/pr/merge.py --pr <pr-number-or-url> \
      --actor "Savin I. Razvan" \
      --agents "review-pr | prepare-pr | merge-pr" \
+     --check-only \
      [--arch-impacting]   # add for architecture-impacting PRs; enforces alignment artifact check
    ```
    - Script checks for `.local/review.md`, `.local/prep.md`, and (if `--arch-impacting`) `.local/alignment-audit.md`.
@@ -44,9 +45,10 @@ Merge safely and deterministically after review and preparation are complete.
    (the script already wrote attribution, branch stamp, preconditions, and merge SHA)
 8. Finalize workflow (required close-out):
    - `git checkout main`
-   - `git pull --ff-only origin main`
-   - delete local feature branch if present (`git branch -d <feature-branch>`)
-   - confirm remote feature branch deletion (`git push origin --delete <feature-branch>`)
+   - `python scripts/pr/finalize.py --branch <feature-branch>`
+   - optional cleanup of other merged local branches:
+     - `python scripts/pr/finalize.py --branch <feature-branch> --delete-merged-local`
+   - confirm remote feature branch deletion (`git ls-remote --heads origin <feature-branch>` should return no output)
    - verify final repository state (`git status --short --branch`)
 
 ## No-Go Conditions
