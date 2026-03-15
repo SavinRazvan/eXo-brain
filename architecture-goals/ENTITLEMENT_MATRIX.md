@@ -22,7 +22,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.9.0`
+- Version: `1.10.0`
 - Last Reviewed: `2026-03-15`
 - Review Cadence: `monthly`
 - Decision Scope: `Feature-to-tier packaging, enforcement surfaces, and evidence requirements for commercial operations.`
@@ -102,6 +102,7 @@ Priority sequence:
 1. Add tier-aware API contract documentation for customer onboarding.
 2. Add advanced external classifier model-routing controls with explicit fallback and evidence anchors.
 3. Add external signed-plugin package ingestion workflow with publisher trust onboarding and certification evidence.
+4. Add first-class human approval lifecycle controls for escalated/review-required decisions (approve/reject APIs, actor attribution, and audit-linked state transitions).
 
 ---
 
