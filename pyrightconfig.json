@@ -1,0 +1,11 @@
+{
+  "venvPath": ".",
+  "venv": ".exo_env",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "basic",
+  "exclude": [
+    ".exo_env",
+    "packages/*/src/*.egg-info",
+    "**/__pycache__"
+  ]
+}
