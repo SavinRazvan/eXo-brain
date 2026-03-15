@@ -19,17 +19,20 @@ Review-only phase that identifies issues and decides if the PR is ready for prep
    - security/safety risks
    - missing tests
 3. Do not edit code in this phase.
-4. Write findings to `.local/review.md`.
-   - initialize/update artifact with:
-    - `python scripts/pr/review.py --pr <pr-number-or-url> --actor "Savin I. Razvan" --agents "review-pr"`
+4. Initialize the review artifact (attribution + branch stamp only):
+   - `python scripts/pr/review.py --pr <pr-number-or-url> --actor "Savin I. Razvan" --agents "review-pr"`
+   - The script writes a stub `.local/review.md` with attribution and branch context.
+   - **The agent must then overwrite the file with actual findings and recommendation.**
 5. For architecture-impacting scope, run advisory alignment audit and write:
    - `.local/alignment-audit.md`
    - `.local/alignment-todos.md`
    - classify findings per `docs/roadmap/alignment-audit-schema.md`
-6. Add recommendation:
-   - `READY FOR /prepare-pr`
-   - `NEEDS WORK`
-   - `NEEDS DISCUSSION`
+6. Write the final `.local/review.md` with:
+   - scope (changed files and PR context)
+   - minimum review checklist results
+   - findings (bugs, violations, risks, coverage gaps)
+   - alignment audit summary
+   - recommendation: `READY FOR /prepare-pr` | `NEEDS WORK` | `NEEDS DISCUSSION`
 
 ## Minimum Review Checklist
 
