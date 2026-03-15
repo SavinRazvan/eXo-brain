@@ -71,6 +71,21 @@ class RuntimeRunCancelResponse(BaseModel):
     forwarded_call_cancellations: int
 
 
+class RuntimeIngressBudgetSummary(BaseModel):
+    samples: int = 0
+    p95_latency_ms: float = 0.0
+    timeout_total: int = 0
+    timeout_rate: float = 0.0
+    budget_exceeded_total: int = 0
+
+
+class RuntimeIngressBudgetSummaryResponse(BaseModel):
+    tenant_id: str
+    generated_at_utc: str
+    summary: RuntimeIngressBudgetSummary = Field(default_factory=RuntimeIngressBudgetSummary)
+    profiles: dict[str, RuntimeIngressBudgetSummary] = Field(default_factory=dict)
+
+
 class ByocWorkerTokenRequest(BaseModel):
     worker_id: str = Field(..., min_length=1)
     ttl_seconds: int | None = Field(default=None, ge=1, le=3600)
