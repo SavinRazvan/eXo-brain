@@ -91,6 +91,14 @@ Legend: `Implemented`, `In Progress`, `Pending`.
 | Option C next-phase Slice 1 (adapter packaging baseline) | Implemented | Added package skeletons under `packages/` for `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, and `exo-adapter-openai`, plus package import/conformance tests. |
 | Option C next-phase Slice 2/3 (shared control-state + non-blocking BYOC mode) | Implemented | Added SQLite-backed run control/rate limiter backends, sqlite fairness coordinator option, and BYOC non-blocking submit mode wiring via runtime settings. |
 | Option C next-phase Slice 4 (blocking SLO release gate) | Implemented | Added threshold-enforced Option C load profile gate with JSON evidence output and wired it into `scripts/release/verify_gates.py` for release-candidate blocking checks. |
+| Governance Tier 1 — Adapter portability baseline (PR #84) | Implemented | Self-contained `exo-adapter-openai` package, canonical adapter refs, portability guardrails, and monorepo-import guard + smoke tests. |
+| Governance Tier 2 — Ingress governance baseline (PR #86) | Implemented | Pre-model gate chain + entitlement gating + ingress latency budget/timeout fail-safe with fail-closed/fail-open modes. |
+| Governance Tier 2 — Entitlement expansion (PR #87) | Implemented | Hard gates across runtime admin, routing/fallback, BYOC governance analytics, and signed audit export/verify surfaces. |
+| Governance Tier 2 — Ingress profiles/custom rules (PR #88) | Implemented | Baseline/strict/hardened profiles, compatibility validation, and custom declarative rule enforcement. |
+| Governance Tier 2 — Classifier controls (PR #89) | Implemented | Off/shadow/enforce modes with telemetry + Pro-tier gating. |
+| Governance Tier 2 — Signed plugin lifecycle (PR #90) | Implemented | Trusted/signed plugin checks + load/reload/unload guards with sandbox/compatibility policy. |
+| Governance Tier 2 — Policy templates/risk profiles (PR #91) | Implemented | Template catalog + apply APIs with locked ingress fields and tier enforcement. |
+| Governance Tier 2 — Profile-aware ingress SLO reporting (PR #92) | Implemented | Profile-tagged budget observations, per-profile SLO thresholds, per-profile release evidence reporting, and runtime admin ingress-budget endpoint. |
 | Option C next-phase Slice 5 (northbound gateway + interaction-mode split) | Pending | Planned: add OpenAI-compatible northbound gateway surface and explicit `chat`/`agents`/`workflow` mode ownership boundaries while preserving deterministic policy and tool governance paths. |
 
 Canonical reference for current status and pending order:
