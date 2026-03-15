@@ -37,6 +37,16 @@ def main() -> int:
 
     checks: list[tuple[str, bool, str]] = []
 
+    current_code, current_output = _run(["git", "branch", "--show-current"])
+    current_ok = current_code == 0 and current_output == branch
+    checks.append(
+        (
+            f"current branch is {branch}",
+            current_ok,
+            current_output or "unable to resolve current branch",
+        )
+    )
+
     upstream_code, upstream_output = _run(
         ["git", "rev-parse", "--abbrev-ref", f"{branch}@{{upstream}}"]
     )
