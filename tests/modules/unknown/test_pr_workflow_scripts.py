@@ -91,8 +91,14 @@ def test_merge_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> N
 
     local_dir = tmp_path / ".local"
     local_dir.mkdir(parents=True, exist_ok=True)
-    (local_dir / "review.md").write_text("ready\n", encoding="utf-8")
-    (local_dir / "prep.md").write_text("ready\n", encoding="utf-8")
+    (local_dir / "review.md").write_text(
+        "# Review Artifact (123)\n\n## Attribution\n- Action-By: Savin I. Razvan\n",
+        encoding="utf-8",
+    )
+    (local_dir / "prep.md").write_text(
+        "# Prepare Artifact (123)\n\n## Attribution\n- Action-By: Savin I. Razvan\n",
+        encoding="utf-8",
+    )
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(module, "_head_sha", lambda: "abc123")
@@ -122,6 +128,8 @@ def test_verify_publish_script_passes_when_upstream_and_remote_exist(monkeypatch
     module = _load_module("verify_publish_script_ok", SCRIPTS_DIR / "verify_publish.py")
 
     def _fake_run(cmd: list[str]):
+        if cmd == ["git", "branch", "--show-current"]:
+            return 0, "fix/test"
         if cmd[:4] == ["git", "rev-parse", "--abbrev-ref", "fix/test@{upstream}"]:
             return 0, "origin/fix/test"
         if cmd == ["git", "ls-remote", "--heads", "origin", "fix/test"]:
@@ -139,6 +147,8 @@ def test_verify_publish_script_fails_when_upstream_missing(monkeypatch) -> None:
     module = _load_module("verify_publish_script_fail", SCRIPTS_DIR / "verify_publish.py")
 
     def _fake_run(cmd: list[str]):
+        if cmd == ["git", "branch", "--show-current"]:
+            return 0, "fix/test"
         if cmd[:4] == ["git", "rev-parse", "--abbrev-ref", "fix/test@{upstream}"]:
             return 1, "fatal: no upstream configured"
         if cmd == ["git", "ls-remote", "--heads", "origin", "fix/test"]:

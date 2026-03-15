@@ -17,12 +17,25 @@ Do not skip steps.
 After `/merge-pr` completes, always close the workflow with repository cleanup:
 
 1. `git checkout main`
-2. `git pull --ff-only origin main`
-3. `git branch -d <feature-branch>` (if present)
-4. confirm remote feature branch is deleted (via `gh pr view` or `git ls-remote --heads origin <feature-branch>`)
+2. `python scripts/pr/finalize.py --branch <feature-branch>`
+3. optional hygiene pass for merged locals:
+   - `python scripts/pr/finalize.py --branch <feature-branch> --delete-merged-local`
+4. confirm remote feature branch is deleted:
+   - `git ls-remote --heads origin <feature-branch>` (expect no output)
 5. verify final state with `git status --short --branch` on `main`
+6. ensure stale remote-tracking refs are pruned:
+   - `git fetch --prune origin`
 
 This finalization step is mandatory for workflow completion.
+
+## Repository Hygiene Baseline
+
+Keep GitHub auto-delete on merge enabled to avoid stale remote branch buildup:
+
+1. check setting:
+   - `gh api repos/SavinRazvan/eXo-brain --jq '.delete_branch_on_merge'`
+2. if false, enable it:
+   - `gh api -X PATCH repos/SavinRazvan/eXo-brain -f delete_branch_on_merge=true`
 
 ## Required Publish Checkpoint (After Commit, Before Merge)
 
