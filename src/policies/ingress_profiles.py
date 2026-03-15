@@ -86,6 +86,8 @@ class IngressClassifierSettings:
     model_version: str
     signals: tuple[str, ...]
     review_channel: str = "security-review"
+    external_endpoint: str = ""
+    external_timeout_ms: int = 2000
 
     @property
     def enabled(self) -> bool:
@@ -151,6 +153,8 @@ class IngressProfileResolution:
             "ingress_classifier_model_version": self.classifier.model_version,
             "ingress_classifier_signals": list(self.classifier.signals),
             "ingress_classifier_review_channel": self.classifier.review_channel,
+            "ingress_classifier_external_endpoint": self.classifier.external_endpoint,
+            "ingress_classifier_external_timeout_ms": self.classifier.external_timeout_ms,
             "signed_gate_plugin_ref": self.signed_plugin.manifest.plugin_ref if self.signed_plugin else "",
             "signed_gate_plugin_version": self.signed_plugin.manifest.version if self.signed_plugin else "",
             "signed_gate_plugin_signer": self.signed_plugin.manifest.signer if self.signed_plugin else "",
@@ -175,6 +179,8 @@ class IngressProfileResolution:
             "ingress_classifier_model_version": self.classifier.model_version,
             "ingress_classifier_signal_count": len(self.classifier.signals),
             "ingress_classifier_review_channel": self.classifier.review_channel,
+            "ingress_classifier_external_endpoint_configured": bool(self.classifier.external_endpoint),
+            "ingress_classifier_external_timeout_ms": self.classifier.external_timeout_ms,
             "signed_gate_plugin_ref": self.signed_plugin.manifest.plugin_ref if self.signed_plugin else "",
             "signed_gate_plugin_version": self.signed_plugin.manifest.version if self.signed_plugin else "",
             "signed_gate_plugin_signer": self.signed_plugin.manifest.signer if self.signed_plugin else "",
@@ -406,12 +412,15 @@ def _resolve_classifier_settings(overlay: Mapping[str, Any]) -> IngressClassifie
             "INGRESS_CLASSIFIER_REVIEW_CHANNEL_INVALID: ingress_classifier_review_channel must be <=80 chars."
         )
     signals = _resolve_classifier_signals(overlay.get("ingress_classifier_signals"))
+    external_endpoint, external_timeout_ms = _resolve_external_classifier_config(overlay)
     return IngressClassifierSettings(
         mode=mode,
         threshold=threshold,
         model_version=model_version,
         signals=signals,
         review_channel=review_channel,
+        external_endpoint=external_endpoint,
+        external_timeout_ms=external_timeout_ms,
     )
 
 
@@ -462,3 +471,32 @@ def _default_custom_rule_reason_code(rule_id: str, action: str) -> str:
     if not fragment:
         fragment = "RULE"
     return f"INGRESS_CUSTOM_RULE_{fragment[:48]}_{action.upper()}"
+
+
+def _resolve_external_classifier_config(overlay: Mapping[str, Any]) -> tuple[str, int]:
+    """Return (external_endpoint, external_timeout_ms) from overlay with validation."""
+    raw_endpoint = overlay.get("ingress_classifier_external_endpoint", "")
+    endpoint = str(raw_endpoint).strip() if raw_endpoint else ""
+    if endpoint:
+        if not endpoint.startswith("https://"):
+            raise ValueError(
+                "INGRESS_CLASSIFIER_EXTERNAL_ENDPOINT_INVALID: "
+                "ingress_classifier_external_endpoint must start with 'https://'."
+            )
+        if len(endpoint) > 512:
+            raise ValueError(
+                "INGRESS_CLASSIFIER_EXTERNAL_ENDPOINT_INVALID: "
+                "ingress_classifier_external_endpoint must be <=512 characters."
+            )
+    raw_timeout = overlay.get("ingress_classifier_external_timeout_ms", 2000)
+    if not isinstance(raw_timeout, int):
+        raise ValueError(
+            "INGRESS_CLASSIFIER_EXTERNAL_TIMEOUT_INVALID: "
+            "ingress_classifier_external_timeout_ms must be an integer."
+        )
+    if not (100 <= raw_timeout <= 10000):
+        raise ValueError(
+            "INGRESS_CLASSIFIER_EXTERNAL_TIMEOUT_INVALID: "
+            "ingress_classifier_external_timeout_ms must be in [100, 10000]."
+        )
+    return endpoint, raw_timeout
