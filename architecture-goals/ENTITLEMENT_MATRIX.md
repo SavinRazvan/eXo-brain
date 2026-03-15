@@ -22,7 +22,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.7.0`
+- Version: `1.8.0`
 - Last Reviewed: `2026-03-14`
 - Review Cadence: `monthly`
 - Decision Scope: `Feature-to-tier packaging, enforcement surfaces, and evidence requirements for commercial operations.`
@@ -64,7 +64,8 @@ Current status:
 - Baseline ingress profiles + custom declarative rules with compatibility validation are `Enforceable`.
 - Baseline specialized ingress classifier controls (shadow/enforce + telemetry anchors) are `Enforceable`.
 - Baseline signed ingress plugin lifecycle controls (load/reload/unload guards + sandbox/compatibility/signature checks) are `Enforceable`.
-- Deeper governance customization depth (policy packs + advanced external classifier model-routing depth) remains `Planned`.
+- Baseline policy-template and packaged-risk-profile APIs are `Enforceable` (tier-gated).
+- Deeper governance customization depth (advanced external classifier model-routing depth + external signed-plugin package ingestion) remains `Planned`.
 
 ---
 
@@ -81,7 +82,7 @@ Current status:
 | Advanced runtime admin controls | Pro | `src/api/routers/runtime_control.py` (`/admin/runtime/*`) with `src/api/middleware/entitlements.py` | Enforceable (tier-gated) | `tests/modules/api/test_runtime_control_api.py`, `tests/modules/api/test_byoc_runtime_control_api.py` | runtime control stats and cancellation records + `entitlement_decision` audit records | Must remain authz + tenant-scoped | Pro operations depth |
 | Advanced fallback/routing governance | Pro | `/{tenant_id}/agents/routes`, `/{tenant_id}/agents/fallback` with `src/api/middleware/entitlements.py` | Enforceable (tier-gated) | `tests/modules/agents/test_orchestrator_agent_handoff.py`, `tests/modules/api/test_slice2_tools_agents.py` | route/fallback behavior visible in run traces + `entitlement_decision` audit records | Fallback cannot reduce deterministic safety posture | Pro orchestration control |
 | BYOC governance analytics and anomaly reporting | Pro | `/{tenant_id}/admin/byoc/governance-metrics`, `src/policies/governance_anomaly_detector.py`, entitlement checks in `src/api/routers/runtime_control.py` | Enforceable (tier-gated) | `tests/modules/policies/test_governance_anomaly_detector.py`, `tests/modules/api/test_byoc_runtime_control_api.py` | governance metrics endpoint payloads + `entitlement_decision` audit records | Advisory analytics cannot bypass policy decisions | Pro governance insight |
-| Policy templates and packaged risk profiles | Pro | Planned policy-pack API/config layer | Planned | Planned: policy-pack contract tests | Planned: policy-pack audit trail | Templates must compile to standard policy overlay/gate paths | Requires template registry and entitlement gate implementation |
+| Policy templates and packaged risk profiles | Pro | `GET /{tenant_id}/policy/templates`, `POST /{tenant_id}/policy/templates/{template_id}/apply`, `src/policies/policy_templates.py`, `src/api/routers/tenants.py` | Enforceable (baseline, tier-gated) | `tests/modules/policies/test_policy_templates.py`, `tests/modules/api/test_slice4_tenant_policy.py`, `tests/modules/policies/test_entitlements.py` | `tenant_policy_template_applied` + `tenant_policy_ingress_profile_configured` + `entitlement_decision` audit anchors | Templates must compile to standard policy overlay/gate paths and block locked ingress-field overrides | Baseline packaged templates + merge/replace apply modes delivered; external template publishing/certification remains planned |
 | Custom declarative gate rules and protocol policies | Pro | Tenant policy API (`PUT /{tenant_id}/policy`) + ingress profile resolver (`src/policies/ingress_profiles.py`) + runtime gate evaluation (`src/policies/ingress_gates.py`) | Enforceable (baseline) | `tests/modules/policies/test_ingress_profiles.py`, `tests/modules/policies/test_ingress_gate_chain.py`, `tests/modules/api/test_slice4_tenant_policy.py`, `tests/modules/api/test_slice3_playground.py` | `tenant_policy_ingress_profile_configured` + `turn_ingress_decision` audit records | Custom rules can only tighten or specialize behavior; cannot disable trust baseline | Baseline delivered with contains/regex rule types; advanced classifier/plugin depth still planned |
 | Specialized low-cost classifier gates and shadow mode | Pro | `src/policies/ingress_profiles.py` classifier config + `src/policies/ingress_gates.py` classifier gate + ingress routing in `src/api/routers/turns.py` | Enforceable (baseline, tier-gated) | `tests/modules/policies/test_ingress_profiles.py`, `tests/modules/policies/test_ingress_gate_chain.py`, `tests/modules/api/test_slice4_tenant_policy.py`, `tests/modules/api/test_slice3_playground.py` | `turn_ingress_classifier_telemetry` + `turn_ingress_decision` + `tenant_policy_ingress_profile_configured` + `entitlement_decision` audit anchors | Classifier mode (`shadow`/`enforce`) must be explicit and non-bypassable at turn ingress | Heuristic classifier baseline delivered; advanced external classifier routing remains planned |
 | Signed audit export and verification workflow | Enterprise | `POST /admin/audit/export-file`, `POST /admin/audit/verify` with entitlement checks in `src/api/routers/audit.py` | Enforceable (tier-gated) | `tests/modules/audit/test_evidence_bundle_generation.py`, `tests/modules/audit/test_audit_chain_integrity.py`, `tests/modules/api/test_audit_api.py` | signed bundle artifacts and verify responses + `entitlement_decision` audit records | Signature/chain verification must remain server-side | Enterprise compliance-ready evidence |
@@ -97,11 +98,10 @@ Current status:
 
 Priority sequence:
 
-1. Add policy-template and packaged-risk-profile APIs with contract/evidence anchors.
-2. Add deeper profile-specific governance SLO targets and per-profile reporting.
-3. Add tier-aware API contract documentation for customer onboarding.
-4. Add advanced external classifier model-routing controls with explicit fallback and evidence anchors.
-5. Add external signed-plugin package ingestion workflow with publisher trust onboarding and certification evidence.
+1. Add deeper profile-specific governance SLO targets and per-profile reporting.
+2. Add tier-aware API contract documentation for customer onboarding.
+3. Add advanced external classifier model-routing controls with explicit fallback and evidence anchors.
+4. Add external signed-plugin package ingestion workflow with publisher trust onboarding and certification evidence.
 
 ---
 

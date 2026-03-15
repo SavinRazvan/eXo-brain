@@ -94,6 +94,21 @@ def test_runtime_admin_controls_require_pro_tier() -> None:
     assert allowed.decision == PolicyAction.ALLOW
 
 
+def test_policy_templates_require_pro_tier() -> None:
+    denied = evaluate_feature_entitlement(
+        identity=_identity("admin"),
+        feature=EntitledFeature.GOVERNANCE_POLICY_TEMPLATES,
+    )
+    assert denied.decision == PolicyAction.DENY
+    assert denied.required_tier == EntitlementTier.PRO
+
+    allowed = evaluate_feature_entitlement(
+        identity=_identity("admin", "entitlement_pro"),
+        feature=EntitledFeature.GOVERNANCE_POLICY_TEMPLATES,
+    )
+    assert allowed.decision == PolicyAction.ALLOW
+
+
 def test_ingress_classifier_requires_pro_tier() -> None:
     denied = evaluate_feature_entitlement(
         identity=_identity("admin"),
