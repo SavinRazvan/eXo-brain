@@ -18,20 +18,18 @@ Make the PR merge-ready with validated fixes and explicit evidence.
    - `.local/alignment-todos.md`
    and ensure unresolved `P0` findings are fixed or explicitly accepted with rationale.
 3. Apply focused fixes only within PR scope.
-4. Run required gates:
-   - `python -m pytest -q`
-   - `python scripts/architecture/validate_layers.py`
-   - `python scripts/architecture/scan_forbidden_imports.py`
+4. Run gates and create the prep artifact in one step:
+   - `python scripts/pr/prepare.py --pr <pr-number-or-url> --actor "Savin I. Razvan" --agents "review-pr | prepare-pr"`
+   - The script runs `pytest -q`, `validate_layers.py`, and `scan_forbidden_imports.py` internally and writes `.local/prep.md` with results.
+   - If the script exits non-zero, fix the failing gate before proceeding.
+   - If gates were already run and verified independently (e.g. as part of a prior step), pass `--skip-gates` to record them as externally verified without re-running.
 5. Update tracking docs if implementation status changed:
    - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
    - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
-6. Write `.local/prep.md` with:
+6. Enrich `.local/prep.md` with:
    - resolved findings
-   - verification output summary
-   - current HEAD SHA
    - residual risks/follow-ups
-   - initialize/update artifact with:
-    - `python scripts/pr/prepare.py --pr <pr-number-or-url> --actor "Savin I. Razvan" --agents "review-pr | prepare-pr"`
+   (the script already wrote attribution, branch/HEAD stamp, and gate results)
 
 ## Exit Criteria
 
