@@ -664,6 +664,33 @@ Canonical reference:
 - [x] Option C next-phase Slice 4 completed: blocking SLO release gate path.
   - `scripts/perf/option_c_load_profiles.py` now supports threshold enforcement + JSON evidence output
   - release gates now include blocking Option C load profile enforcement
+- [x] Governance Tier 1 — Adapter portability baseline (PR #84) completed.
+  - self-contained `exo-adapter-openai` package with canonical adapter refs and monorepo-import guard
+  - portability smoke tests under `tests/packages/`
+- [x] Governance Tier 2 — Ingress governance baseline (PR #86) completed.
+  - pre-model gate chain with allow/deny/escalate + reason codes
+  - ingress latency budget + timeout fail-safe (fail-closed/fail-open)
+  - entitlement gating wired to ingress surfaces
+- [x] Governance Tier 2 — Entitlement expansion (PR #87) completed.
+  - hard gates across runtime admin, routing/fallback, BYOC governance analytics, signed audit export/verify
+  - `entitlement_decision` audit events on all premium surfaces
+- [x] Governance Tier 2 — Ingress profiles/custom rules (PR #88) completed.
+  - baseline/strict/hardened profile schemas + compatibility validation
+  - custom declarative rule enforcement with locked-field protection
+- [x] Governance Tier 2 — Classifier controls (PR #89) completed.
+  - off/shadow/enforce modes with `turn_ingress_classifier_telemetry` audit events
+  - Pro-tier entitlement gating
+- [x] Governance Tier 2 — Signed plugin lifecycle (PR #90) completed.
+  - trusted/signed plugin load/reload/unload guards
+  - declarative sandbox + compatibility checks + `turn_ingress_signed_plugin_telemetry` audit events
+- [x] Governance Tier 2 — Policy templates/risk profiles (PR #91) completed.
+  - template catalog + merge/replace apply APIs
+  - locked ingress-field protection on apply path + Pro-tier enforcement
+- [x] Governance Tier 2 — Profile-aware ingress SLO reporting (PR #92) completed.
+  - profile-tagged ingress budget observations in `src/observability/ingress_budget.py`
+  - per-profile SLO thresholds in `configs/release/ingress_budget_thresholds.json`
+  - per-profile release evidence in `scripts/perf/ingress_budget_report.py`
+  - runtime admin endpoint `GET /{tenant_id}/admin/runtime/ingress-budget`
 
 ---
 
