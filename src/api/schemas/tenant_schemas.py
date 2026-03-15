@@ -48,6 +48,12 @@ class PolicyOverlayRequest(BaseModel):
       ingress_classifier_model_version: telemetry model-version label (for deterministic classifier profile).
       ingress_classifier_signals: list of classifier signal phrases (max 64).
       ingress_classifier_review_channel: escalation channel used when classifier enforce mode triggers.
+      ingress_classifier_external_endpoint: optional HTTPS URL for external classifier service (Pro+ Enterprise).
+        When provided the turn-ingress gate routes scoring to the external model.
+        Must start with "https://" and be <=512 chars. Empty string disables external routing.
+      ingress_classifier_external_timeout_ms: timeout in ms for the external classifier call
+        (default 2000, range [100, 10000]). Ignored unless external_endpoint is set.
+        On timeout or error the gate falls back transparently to the heuristic scorer.
       signed_gate_plugin_ref: signed enterprise plugin reference from trusted registry
         (for example `plugin://trusted/signed-v1` or `plugin://trusted/signed-v2`).
         Plugin lifecycle is guarded as follows:
