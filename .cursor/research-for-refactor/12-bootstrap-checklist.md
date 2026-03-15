@@ -700,6 +700,15 @@ Canonical reference:
   - Overlay validation for `ingress_classifier_external_endpoint` (https-only, <=512 chars) and `ingress_classifier_external_timeout_ms` ([100, 10000])
   - 31 new tests in `tests/modules/policies/test_external_classifier_routing.py`
 
+- [x] Tier 1 — `exo-adapter-openai` external package extraction (PR #96 — branch: feature/exo-adapter-openai-external-package) completed.
+  - Removed monorepo fallback import (`from src.schemas.tool_io import ...`) from `packages/exo-brain-adapter-sdk/src/exo_brain_adapter_sdk/execution_adapter.py`
+  - `exo-brain-adapter-sdk` `pyproject.toml` now declares `exo-brain-core-contracts` as a direct pip dependency
+  - All three packages (`exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-openai`) verified to install cleanly in an isolated venv
+  - `scripts/packages/external_install_smoke.py` — new external install certification gate (6 checks: imports, module origin, conformance contract, async run_turn event shape)
+  - `tests/packages/test_openai_adapter_conformance.py` extended with 3 new tests: SDK no-monorepo-imports, core-contracts no-monorepo-imports, external install smoke script
+  - `TRACEABILITY_MATRIX.md` v1.14.0 updated with external install gate anchor and gap status
+  - `NEXT_DIRECTIONS.md` v1.6.0 updated with external install certification complete status
+
 ---
 
 ## Platform Extensions — Slice 1 (Auth Hardening — branch: feature/slice1-auth-hardening)
