@@ -41,6 +41,7 @@ from src.api.schemas.turn_schemas import TurnSubmitRequest
 from src.core.session_context import SessionContext
 from src.identity.contracts import IdentityContext
 from src.observability.ingress_budget import (
+    DEFAULT_INGRESS_PROFILE,
     IngressBudgetConfig,
     budget_config_from_policy_settings,
     evaluate_with_budget,
@@ -141,6 +142,9 @@ async def _evaluate_ingress_turn(
     policy_metadata: dict[str, Any] = {}
     if callable(policy_metadata_fn):
         policy_metadata = dict(policy_metadata_fn())
+    ingress_profile = str(policy_metadata.get("ingress_profile", DEFAULT_INGRESS_PROFILE)).strip().lower()
+    if not ingress_profile:
+        ingress_profile = DEFAULT_INGRESS_PROFILE
 
     async def _evaluate_gate_chain() -> IngressDecision:
         return gate_chain.evaluate(
@@ -158,6 +162,7 @@ async def _evaluate_ingress_turn(
     decision, observation = await evaluate_with_budget(
         evaluate=_evaluate_gate_chain,
         config=budget_config,
+        profile_name=ingress_profile,
     )
     if budget_recorder is not None:
         budget_recorder.observe(tenant_id=tenant_id, observation=observation)

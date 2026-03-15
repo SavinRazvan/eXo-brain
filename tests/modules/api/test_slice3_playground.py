@@ -616,6 +616,7 @@ def test_sse_turn_timeout_fail_closed_returns_403_and_emits_budget_alert(monkeyp
     assert len(alert_records) == 1
     assert decision_records[0].payload.get("timed_out") is True
     assert decision_records[0].payload.get("budget_exceeded") is True
+    assert decision_records[0].payload.get("ingress_profile") == "baseline"
 
 
 def test_sse_turn_timeout_fail_open_allows_and_emits_budget_alert(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -683,6 +684,7 @@ def test_sse_turn_timeout_fail_open_allows_and_emits_budget_alert(monkeypatch: p
     assert len(alert_records) == 1
     assert decision_records[0].payload.get("reason_code") == "INGRESS_GATE_TIMEOUT_FAIL_OPEN"
     assert decision_records[0].payload.get("decision") == "allow"
+    assert decision_records[0].payload.get("ingress_profile") == "baseline"
 
 
 def test_sse_turn_output_delta_before_run_complete() -> None:

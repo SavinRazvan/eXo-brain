@@ -44,6 +44,7 @@ def test_budget_recorder_summary_reports_p95_and_timeout_rate() -> None:
             budget_exceeded=False,
             reason_code="INGRESS_ALLOW_DEFAULT",
             decision="allow",
+            ingress_profile="baseline",
         ),
     )
     recorder.observe(
@@ -57,6 +58,7 @@ def test_budget_recorder_summary_reports_p95_and_timeout_rate() -> None:
             budget_exceeded=True,
             reason_code="INGRESS_GATE_TIMEOUT_FAIL_CLOSED",
             decision="deny",
+            ingress_profile="strict",
         ),
     )
     summary = recorder.summary(tenant_id="t1")
@@ -64,6 +66,25 @@ def test_budget_recorder_summary_reports_p95_and_timeout_rate() -> None:
     assert summary["timeout_total"] == 1
     assert summary["timeout_rate"] == 0.5
     assert summary["budget_exceeded_total"] == 1
+    profiles = summary["profiles"]
+    assert profiles["baseline"]["samples"] == 1
+    assert profiles["strict"]["samples"] == 1
+
+
+def test_ingress_budget_observation_payload_normalizes_profile_name() -> None:
+    observation = IngressBudgetObservation(
+        latency_ms=2.0,
+        budget_ms=20,
+        timeout_ms=15,
+        timeout_fail_mode="fail_closed",
+        timed_out=False,
+        budget_exceeded=False,
+        reason_code="INGRESS_ALLOW_DEFAULT",
+        decision="allow",
+        ingress_profile=" STRICT ",
+    )
+    payload = observation.to_payload()
+    assert payload["ingress_profile"] == "strict"
 
 
 def test_evaluate_with_budget_returns_fail_closed_timeout_decision() -> None:
@@ -110,3 +131,24 @@ def test_evaluate_with_budget_returns_fail_open_timeout_decision() -> None:
     assert decision.decision == PolicyAction.ALLOW
     assert decision.reason_code == "INGRESS_GATE_TIMEOUT_FAIL_OPEN"
     assert observation.timed_out is True
+
+
+def test_evaluate_with_budget_captures_profile_name() -> None:
+    async def _fast_decision() -> IngressDecision:
+        return IngressDecision(
+            schema_version="1.0",
+            decision=PolicyAction.ALLOW,
+            reason_code="INGRESS_ALLOW_DEFAULT",
+            message="allowed",
+            gate_id="gate",
+            gate_version="1.0.0",
+        )
+
+    _decision, observation = asyncio.run(
+        evaluate_with_budget(
+            evaluate=_fast_decision,
+            config=IngressBudgetConfig(latency_budget_ms=20, timeout_ms=20, timeout_fail_mode="fail_closed"),
+            profile_name="hardened",
+        )
+    )
+    assert observation.ingress_profile == "hardened"
