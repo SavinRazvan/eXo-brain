@@ -6,18 +6,28 @@ Used By:
  - src/api/bootstrap.py
  - src/api/routers/turns.py
 Depends On:
+ - src/policies/ingress_classifier_router.py
  - src/schemas/tool_io.py
 Notes:
  - Ingress gates run before orchestration and emit explicit allow/deny/escalate decisions.
  - Gate decisions are correlation-linked through transport-layer audit events.
+ - ExternalClassifierRoutingGate routes to an external classifier when configured and
+   falls back transparently to the heuristic gate on timeout or failure. Routing evidence
+   (routing_used, fallback_reason, external_latency_ms) is included in IngressDecision.
 """
 
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 from typing import Any, Iterable, Mapping
 
+from src.policies.ingress_classifier_router import (
+    ClassifierRoutingResult,
+    ExternalClassifierAdapter,
+    ExternalClassifierError,
+)
 from src.policies.ingress_profiles import (
     IngressClassifierSettings,
     IngressCustomRule,
@@ -57,6 +67,11 @@ class IngressDecision:
     classifier_signal_count: int = 0
     classifier_signals_matched: tuple[str, ...] = field(default_factory=tuple)
     classifier_shadow_triggered: bool = False
+    # External classifier routing evidence
+    classifier_routing_used: str = ""
+    classifier_fallback_reason: str = ""
+    classifier_external_latency_ms: int = 0
+    classifier_labels: tuple[str, ...] = field(default_factory=tuple)
     signed_plugin_ref: str = ""
     signed_plugin_version: str = ""
     signed_plugin_signer: str = ""
@@ -86,6 +101,15 @@ class IngressDecision:
                     "classifier_signal_count": self.classifier_signal_count,
                     "classifier_signals_matched": list(self.classifier_signals_matched),
                     "classifier_shadow_triggered": self.classifier_shadow_triggered,
+                }
+            )
+        if self.classifier_routing_used:
+            payload.update(
+                {
+                    "classifier_routing_used": self.classifier_routing_used,
+                    "classifier_fallback_reason": self.classifier_fallback_reason,
+                    "classifier_external_latency_ms": self.classifier_external_latency_ms,
+                    "classifier_labels": list(self.classifier_labels),
                 }
             )
         if self.signed_plugin_ref:
@@ -256,6 +280,146 @@ class IngressClassifierHeuristicGate(IngressGate):
 
 
 @dataclass(slots=True)
+class ExternalClassifierRoutingGate(IngressGate):
+    """Routes to an external classifier adapter with transparent heuristic fallback.
+
+    When ``adapter`` is provided and ``classifier.enabled`` is True, the gate
+    calls the adapter. On timeout or error it falls back to the heuristic scoring
+    logic. Routing evidence (routing_used, fallback_reason, external_latency_ms,
+    labels) is embedded in every IngressDecision this gate emits.
+    """
+
+    classifier: IngressClassifierSettings
+    adapter: ExternalClassifierAdapter | None = None
+    gate_id: str = "ingress-external-classifier-routing"
+    gate_version: str = "1.0.0"
+
+    def evaluate(self, context: IngressTurnContext) -> IngressDecision | None:
+        if not self.classifier.enabled:
+            return None
+
+        routing_result = self._route(str(context.user_input))
+        high_risk = routing_result.score >= self.classifier.threshold
+
+        if high_risk and self.classifier.mode == "enforce":
+            return self._build_decision(
+                action=PolicyAction.ESCALATE,
+                reason_code="INGRESS_CLASSIFIER_HIGH_RISK",
+                message=(
+                    "Ingress classifier marked input as high-risk in enforce mode "
+                    f"(score={routing_result.score}, threshold={self.classifier.threshold}, "
+                    f"routing={routing_result.routing_used})."
+                ),
+                routing=routing_result,
+                review_required=True,
+                shadow_triggered=False,
+            )
+
+        if high_risk and self.classifier.mode == "shadow":
+            return self._build_decision(
+                action=PolicyAction.ALLOW,
+                reason_code="INGRESS_CLASSIFIER_SHADOW_HIGH_RISK",
+                message=(
+                    "Ingress classifier flagged high-risk input in shadow mode; "
+                    "decision recorded without blocking."
+                ),
+                routing=routing_result,
+                shadow_triggered=True,
+            )
+
+        return self._build_decision(
+            action=PolicyAction.ALLOW,
+            reason_code="INGRESS_CLASSIFIER_ALLOW_LOW_RISK",
+            message="Ingress classifier evaluated input as low-risk.",
+            routing=routing_result,
+            shadow_triggered=False,
+        )
+
+    def _route(self, user_input: str) -> ClassifierRoutingResult:
+        """Attempt the external adapter; fall back to heuristic on any failure."""
+        if self.adapter is not None:
+            start = time.monotonic()
+            try:
+                ext_result = self.adapter.classify(
+                    user_input,
+                    timeout_ms=2000,
+                )
+                latency_ms = int((time.monotonic() - start) * 1000)
+                return ClassifierRoutingResult(
+                    score=ext_result.score,
+                    model_version=ext_result.model_version or self.classifier.model_version,
+                    routing_used="external",
+                    labels=ext_result.labels,
+                    external_latency_ms=latency_ms,
+                )
+            except (ExternalClassifierError, TimeoutError, Exception) as exc:
+                latency_ms = int((time.monotonic() - start) * 1000)
+                fallback_reason = f"{type(exc).__name__}: {exc}"
+                return self._heuristic_result(
+                    user_input,
+                    fallback_reason=fallback_reason,
+                    external_latency_ms=latency_ms,
+                )
+
+        return self._heuristic_result(user_input, fallback_reason="", external_latency_ms=0)
+
+    def _heuristic_result(
+        self,
+        user_input: str,
+        *,
+        fallback_reason: str,
+        external_latency_ms: int,
+    ) -> ClassifierRoutingResult:
+        normalized_input = user_input.lower()
+        matched_signals = tuple(
+            s for s in self.classifier.signals if s and s in normalized_input
+        )
+        signal_count = max(len(self.classifier.signals), 1)
+        score = round(min(1.0, len(matched_signals) / signal_count), 4)
+        return ClassifierRoutingResult(
+            score=score,
+            model_version=self.classifier.model_version,
+            routing_used="heuristic",
+            fallback_reason=fallback_reason,
+            external_latency_ms=external_latency_ms,
+            signals_matched=matched_signals,
+            signal_count=len(self.classifier.signals),
+        )
+
+    def _build_decision(
+        self,
+        *,
+        action: PolicyAction,
+        reason_code: str,
+        message: str,
+        routing: ClassifierRoutingResult,
+        review_required: bool = False,
+        shadow_triggered: bool = False,
+    ) -> IngressDecision:
+        return IngressDecision(
+            schema_version="1.0",
+            decision=action,
+            reason_code=reason_code,
+            message=message,
+            gate_id=self.gate_id,
+            gate_version=self.gate_version,
+            review_required=review_required,
+            review_channel=self.classifier.review_channel if review_required else "",
+            classifier_mode=self.classifier.mode,
+            classifier_model_version=routing.model_version,
+            classifier_score=routing.score,
+            classifier_threshold=self.classifier.threshold,
+            classifier_signal_count=routing.signal_count,
+            classifier_signals_matched=routing.signals_matched,
+            classifier_shadow_triggered=shadow_triggered,
+            classifier_routing_used=routing.routing_used,
+            classifier_fallback_reason=routing.fallback_reason,
+            classifier_external_latency_ms=routing.external_latency_ms,
+            classifier_labels=routing.labels,
+        )
+
+
+@dataclass(slots=True)
 class CustomIngressRulesGate(IngressGate):
     custom_rules: tuple[IngressCustomRule, ...] = ()
     gate_id: str = "ingress-custom-rules"
@@ -362,6 +526,7 @@ class IngressGateChain:
         classifier_threshold: float = 0.0,
         classifier_model_version: str = "",
         classifier_signal_count: int = 0,
+        classifier_routing: str = "",
         signed_plugin_ref: str = "",
         signed_plugin_version: str = "",
         signed_plugin_signer: str = "",
@@ -376,6 +541,7 @@ class IngressGateChain:
         self.classifier_threshold = classifier_threshold
         self.classifier_model_version = classifier_model_version
         self.classifier_signal_count = classifier_signal_count
+        self.classifier_routing = classifier_routing
         self.signed_plugin_ref = signed_plugin_ref
         self.signed_plugin_version = signed_plugin_version
         self.signed_plugin_signer = signed_plugin_signer
@@ -422,6 +588,10 @@ class IngressGateChain:
                     "classifier_signal_count": decision.classifier_signal_count,
                     "classifier_signals_matched": decision.classifier_signals_matched,
                     "classifier_shadow_triggered": decision.classifier_shadow_triggered,
+                    "classifier_routing_used": decision.classifier_routing_used,
+                    "classifier_fallback_reason": decision.classifier_fallback_reason,
+                    "classifier_external_latency_ms": decision.classifier_external_latency_ms,
+                    "classifier_labels": decision.classifier_labels,
                 }
             )
         if decision.signed_plugin_ref:
@@ -454,6 +624,10 @@ class IngressGateChain:
                     "classifier_signal_count": incoming.get("classifier_signal_count", 0),
                     "classifier_signals_matched": incoming.get("classifier_signals_matched", ()),
                     "classifier_shadow_triggered": incoming.get("classifier_shadow_triggered", False),
+                    "classifier_routing_used": incoming.get("classifier_routing_used", ""),
+                    "classifier_fallback_reason": incoming.get("classifier_fallback_reason", ""),
+                    "classifier_external_latency_ms": incoming.get("classifier_external_latency_ms", 0),
+                    "classifier_labels": incoming.get("classifier_labels", ()),
                 }
             )
         if incoming.get("signed_plugin_ref"):
@@ -486,6 +660,10 @@ class IngressGateChain:
                     "classifier_signal_count": telemetry.get("classifier_signal_count", 0),
                     "classifier_signals_matched": telemetry.get("classifier_signals_matched", ()),
                     "classifier_shadow_triggered": telemetry.get("classifier_shadow_triggered", False),
+                    "classifier_routing_used": telemetry.get("classifier_routing_used", ""),
+                    "classifier_fallback_reason": telemetry.get("classifier_fallback_reason", ""),
+                    "classifier_external_latency_ms": telemetry.get("classifier_external_latency_ms", 0),
+                    "classifier_labels": telemetry.get("classifier_labels", ()),
                 }
             )
         if not decision.signed_plugin_ref and telemetry.get("signed_plugin_ref"):
@@ -514,6 +692,7 @@ class IngressGateChain:
             "ingress_classifier_threshold": self.classifier_threshold,
             "ingress_classifier_model_version": self.classifier_model_version,
             "ingress_classifier_signal_count": self.classifier_signal_count,
+            "ingress_classifier_routing": self.classifier_routing,
             "signed_gate_plugin_ref": self.signed_plugin_ref,
             "signed_gate_plugin_version": self.signed_plugin_version,
             "signed_gate_plugin_signer": self.signed_plugin_signer,
@@ -526,15 +705,32 @@ def build_default_ingress_gate_chain() -> IngressGateChain:
     return build_ingress_gate_chain_from_overlay({})
 
 
-def build_ingress_gate_chain_from_overlay(overlay: Mapping[str, Any]) -> IngressGateChain:
+def build_ingress_gate_chain_from_overlay(
+    overlay: Mapping[str, Any],
+    *,
+    external_classifier_adapter: ExternalClassifierAdapter | None = None,
+) -> IngressGateChain:
     resolution = resolve_ingress_profile_settings(overlay)
     custom_rule_ids = tuple(rule.rule_id for rule in resolution.custom_rules)
     signed_plugin = resolution.signed_plugin
+
+    # Use ExternalClassifierRoutingGate when an adapter is provided; it falls back
+    # to heuristic internally. Otherwise keep the deterministic heuristic gate.
+    if external_classifier_adapter is not None:
+        classifier_gate: IngressGate = ExternalClassifierRoutingGate(
+            classifier=resolution.classifier,
+            adapter=external_classifier_adapter,
+        )
+        classifier_routing = "external"
+    else:
+        classifier_gate = IngressClassifierHeuristicGate(classifier=resolution.classifier)
+        classifier_routing = "heuristic"
+
     return IngressGateChain(
         gates=(
             EmptyInputGate(),
             MaxInputCharsGate(max_chars=resolution.max_input_chars),
-            IngressClassifierHeuristicGate(classifier=resolution.classifier),
+            classifier_gate,
             PromptInjectionHeuristicGate(escalation_phrases=resolution.prompt_injection_phrases),
             CustomIngressRulesGate(custom_rules=resolution.custom_rules),
             SignedPluginIngressGate(plugin=signed_plugin),
@@ -546,6 +742,7 @@ def build_ingress_gate_chain_from_overlay(overlay: Mapping[str, Any]) -> Ingress
         classifier_threshold=resolution.classifier.threshold,
         classifier_model_version=resolution.classifier.model_version,
         classifier_signal_count=len(resolution.classifier.signals),
+        classifier_routing=classifier_routing,
         signed_plugin_ref=signed_plugin.manifest.plugin_ref if signed_plugin else "",
         signed_plugin_version=signed_plugin.manifest.version if signed_plugin else "",
         signed_plugin_signer=signed_plugin.manifest.signer if signed_plugin else "",
