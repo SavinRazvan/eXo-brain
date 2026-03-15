@@ -4,6 +4,7 @@ Path: architecture-goals/ADAPTER_STRATEGY.md
 Role: Canonical adapter strategy for provider-neutral packaging, governance boundaries, and monetization-safe extensibility.
 Used By:
  - architecture-goals/GOAL.md
+ - architecture-goals/EXECUTION_BOARD_12_GAPS.md
  - AGENTS.md
  - docs/plans/tenant-tool-execution-architecture.md
 Depends On:
@@ -24,8 +25,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
-- Last Reviewed: `2026-03-12`
+- Version: `1.3.0`
+- Last Reviewed: `2026-03-15`
 - Review Cadence: `monthly`
 - Decision Scope: `Provider adapter ecosystem boundaries, packaging policy, conformance, and rollout strategy.`
 
@@ -39,7 +40,7 @@ Companion strategy docs:
 
 ## 1) Purpose
 
-Define how eXo-brain supports five provider adapters while preserving one non-negotiable rule:
+Define how eXo-brain supports baseline and expansion provider adapters while preserving one non-negotiable rule:
 
 - adapters handle provider transport/runtime behavior,
 - core enforces deterministic safety, policy gates, and governance.
@@ -57,21 +58,35 @@ We standardize the platform into three product layers:
 
 1. `core-contracts` (provider-neutral interfaces and envelopes)
 2. `adapter-sdk` (adapter developer kit and conformance)
-3. `provider adapters` (OpenAI, Google, Anthropic, xAI, Meta)
+3. `provider adapters` (baseline five + Expansion v2 portfolio)
 
 Customers choose providers and fallbacks, but core remains the trust boundary.
 
 ---
 
-## 3) Target Adapter Portfolio
+## 3) Target Adapter Portfolio (Baseline + Expansion)
 
-Initial provider set:
+Baseline provider set:
 
 - OpenAI
 - Google Gemini
 - Anthropic
 - xAI (Grok)
 - Meta Llama endpoints
+
+Expansion v2 provider set:
+
+- Hugging Face (hybrid compatible -> native path)
+- Mistral
+- DeepL (service/tool lane)
+- Aleph Alpha
+- MiniMax
+- Moonshot
+- Zhipu
+- DeepSeek
+- Qwen
+- Minerva (discovery)
+- Velvet (discovery)
 
 Recommended package names:
 
@@ -320,7 +335,10 @@ Definition of done for portability:
 
 ---
 
-## 15) Implementation Slices for 5 Adapters
+## 15) Implementation Slices for Baseline + Expansion
+
+This section defines the baseline-five adapter sequencing.
+Expansion v2 sequencing and controls are defined in §19.
 
 ## Slice A - Contract freeze and packaging baseline
 
@@ -395,3 +413,85 @@ Business-level:
 - Is traceability updated in `architecture-goals/TRACEABILITY_MATRIX.md`?
 
 If any answer is "no", redesign before merge.
+
+---
+
+## 19) Adapter Portfolio Expansion v2 (Planned, Implementation-Locked)
+
+### 19.1 Scope and Intent
+
+This section locks portfolio expansion decisions so implementation can proceed later without re-litigating architecture basics.
+
+Primary goals:
+- increase provider optionality,
+- keep deterministic-first safety and policy non-bypass guarantees,
+- preserve API-driven customer customization.
+
+### 19.2 Locked Decisions
+
+1. Provider registration contract adds explicit endpoint protocol type (`api_type`) and no longer depends on implicit hardcoded defaults.
+2. DeepL is integrated as a governed service/tool adapter lane (not primary runtime adapter lane).
+3. Initial P0 onboarding order: Mistral -> DeepSeek -> Qwen -> Hugging Face.
+4. Moonshot, Zhipu, and MiniMax start feature-flagged and disabled-by-default until certification gates pass.
+5. Minerva and Velvet remain discovery-only until API/compliance readiness criteria pass.
+
+### 19.3 Safety and Customization Invariants (Must Hold)
+
+- Provider-specific logic remains in adapter/runtime layers; no provider-name branching in `src/core/*`.
+- Risky/state-changing side effects remain deterministic-first and policy-wrapped.
+- Customer customization is API-first (per-tenant provider allowlists, fallback chains, policy overlays, quota/fairness limits).
+- Customization can tighten/specialize governance but cannot disable baseline trust controls.
+- Failover cannot degrade safety posture (deterministic requirements and policy gates survive fallback transitions).
+
+### 19.4 Three-Lane Expansion Model
+
+| Lane | Purpose | Typical fit | Safety boundary |
+|---|---|---|---|
+| Lane A: Universal OpenAI-compatible adapter | Fast onboarding for compatible providers | Mistral, DeepSeek, Qwen, Moonshot, Zhipu, MiniMax | Must still normalize contract outputs and preserve policy/deterministic/audit controls |
+| Lane B: Native provider adapter | Full-fidelity provider-specific integrations | Hugging Face (hybrid A->B), Aleph Alpha, selected discovery outcomes | Same runtime contract + policy/audit non-bypass requirements |
+| Lane C: Service adapter through tools | Non-LLM or specialized APIs integrated as tools | DeepL translation and related service APIs | Must run via deterministic tool executor with policy pre/post checks |
+
+### 19.5 Portfolio Mapping (v2)
+
+| Provider | Lane | Priority | Status target |
+|---|---|---|---|
+| Hugging Face | A -> B hybrid | P0 | bootstrap compatible path, then promote to native when capability/reliability requires |
+| Mistral | A | P0 | universal-compatible onboarding |
+| DeepL | C | P0 | governed translation tool path |
+| Aleph Alpha | B | P1 | native adapter path |
+| MiniMax | A | P1 | universal-compatible onboarding |
+| Moonshot | A | P1 | feature-flagged onboarding |
+| Zhipu | A | P1 | feature-flagged onboarding |
+| DeepSeek | A | P0 | universal-compatible onboarding |
+| Qwen | A | P0 | universal-compatible onboarding |
+| Minerva | B (discovery) | P2 | discovery + readiness decision |
+| Velvet | B (discovery) | P2 | discovery + readiness decision |
+
+### 19.6 Incremental Milestones (Implementation Later)
+
+| Milestone | Scope | Primary anchors | Rollback/fallback | Acceptance evidence |
+|---|---|---|---|---|
+| M0 | Provider registration protocol explicitness (`api_type`) | `src/api/schemas/provider_schemas.py`, `src/api/routers/providers.py`, `src/config/provider_registry.py` | backward-compatible default behavior when `api_type` is omitted | provider API tests + registry tests |
+| M1 | Universal adapter baseline package | adapter SDK + new universal adapter package | feature-flag per provider | contract conformance + health tests |
+| M2 | P0 universal provider wave (Mistral/DeepSeek/Qwen) | provider registration/config + integration suites | per-provider kill switch + fallback chain | cross-adapter workflow parity + fallback safety tests |
+| M3 | Hybrid/native wave (Hugging Face, Aleph Alpha) | native adapter packages + capability maps | keep Lane A fallback where available | native conformance + error normalization + timeout/retry tests |
+| M4 | Service adapter wave (DeepL) | governed tool runtime path + policy/audit hooks | disable per tenant or globally via config flags | deterministic tool-path and policy/audit evidence tests |
+| M5 | Discovery wave (Minerva/Velvet) | API/compliance due diligence + spike implementations | no production enablement before readiness pass | documented go/no-go decision with compatibility evidence |
+
+### 19.7 Readiness Criteria for Discovery Providers
+
+Minerva/Velvet stay non-production until all checks pass:
+- documented protocol/auth/reliability model,
+- runtime contract conformance feasibility,
+- policy/audit non-bypass compatibility,
+- deployment/compliance impact review,
+- tenant-level configuration and kill-switch viability.
+
+### 19.8 Implementation Safety Checklist
+
+Before enabling any new provider in production:
+- adapter passes contract conformance and isolated install checks,
+- deterministic safety replay tests pass for risky tool paths,
+- fallback tests prove no safety downgrade,
+- entitlement boundaries remain enforceable and audited,
+- release evidence contains provider-specific gate outcomes.
