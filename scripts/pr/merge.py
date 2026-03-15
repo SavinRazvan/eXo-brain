@@ -33,6 +33,24 @@ def _current_branch() -> str:
     return proc.stdout.strip() or "unknown"
 
 
+def _artifact_matches_pr(file_path: Path, pr_ref: str) -> tuple[bool, str]:
+    if not file_path.exists():
+        return False, f"missing {file_path}"
+    first_line = ""
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        first_line = (content.splitlines()[0] if content else "").strip()
+    except OSError as exc:
+        return False, f"unable to read {file_path}: {exc}"
+
+    if f"({pr_ref})" not in first_line:
+        return False, (
+            f"stale or mismatched artifact in {file_path}: "
+            f"expected header containing ({pr_ref}), got: {first_line or '<empty>'}"
+        )
+    return True, "ok"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify merge readiness and emit merge artifact.")
     parser.add_argument("--pr", required=True, help="PR number or URL")
@@ -61,6 +79,15 @@ def main() -> int:
         default=False,
         help="Set for architecture-impacting PRs; enforces alignment artifact presence check.",
     )
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        default=False,
+        help=(
+            "Run prerequisite checks only and do not write .local/merge.md. "
+            "Use this for pre-merge validation."
+        ),
+    )
     args = parser.parse_args()
 
     local_dir = Path(".local")
@@ -70,17 +97,27 @@ def main() -> int:
     merge_file = local_dir / "merge.md"
 
     errors: list[str] = []
-    if not review_file.exists():
-        errors.append("missing .local/review.md")
-    if not prep_file.exists():
-        errors.append("missing .local/prep.md")
+    review_ok, review_detail = _artifact_matches_pr(review_file, args.pr)
+    if not review_ok:
+        errors.append(review_detail)
+
+    prep_ok, prep_detail = _artifact_matches_pr(prep_file, args.pr)
+    if not prep_ok:
+        errors.append(prep_detail)
+
     if args.arch_impacting and not alignment_audit_file.exists():
-        errors.append("missing .local/alignment-audit.md (required for architecture-impacting PRs)")
+        errors.append(
+            "missing .local/alignment-audit.md (required for architecture-impacting PRs)"
+        )
 
     if errors:
         for err in errors:
             print(f"[BLOCK] {err}")
         return 1
+
+    if args.check_only:
+        print("[PASS] merge precheck passed.")
+        return 0
 
     branch = args.branch or _current_branch()
     merge_sha = args.merge_sha or _head_sha()
