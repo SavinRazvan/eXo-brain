@@ -691,6 +691,14 @@ Canonical reference:
   - per-profile SLO thresholds in `configs/release/ingress_budget_thresholds.json`
   - per-profile release evidence in `scripts/perf/ingress_budget_report.py`
   - runtime admin endpoint `GET /{tenant_id}/admin/runtime/ingress-budget`
+- [x] Governance Tier 2 — External classifier model-routing (PR #95 — branch: feature/external-classifier-routing) completed.
+  - `ExternalClassifierAdapter` contract + `ClassifierRoutingResult` dataclass in `src/policies/ingress_classifier_router.py`
+  - `ExternalClassifierRoutingGate` with transparent heuristic fallback in `src/policies/ingress_gates.py`
+  - `IngressDecision` extended with `classifier_routing_used`, `classifier_fallback_reason`, `classifier_external_latency_ms`, `classifier_labels`
+  - `IngressClassifierSettings` extended with `external_endpoint` + `external_timeout_ms`
+  - `build_ingress_gate_chain_from_overlay` accepts optional `external_classifier_adapter` parameter
+  - Overlay validation for `ingress_classifier_external_endpoint` (https-only, <=512 chars) and `ingress_classifier_external_timeout_ms` ([100, 10000])
+  - 31 new tests in `tests/modules/policies/test_external_classifier_routing.py`
 
 ---
 
