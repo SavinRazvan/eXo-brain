@@ -1,4 +1,18 @@
 {
   "max_p95_ingress_latency_ms": 250.0,
-  "max_timeout_rate": 0.2
+  "max_timeout_rate": 0.2,
+  "profiles": {
+    "baseline": {
+      "max_p95_ingress_latency_ms": 220.0,
+      "max_timeout_rate": 0.2
+    },
+    "strict": {
+      "max_p95_ingress_latency_ms": 240.0,
+      "max_timeout_rate": 0.2
+    },
+    "hardened": {
+      "max_p95_ingress_latency_ms": 250.0,
+      "max_timeout_rate": 0.2
+    }
+  }
 }

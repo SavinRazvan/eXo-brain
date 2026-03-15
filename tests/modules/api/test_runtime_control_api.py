@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 
 from src.api.bootstrap import build_test_app
 from src.config.settings import AppSettings, AuthSettings, RuntimeSettings
+from src.observability.ingress_budget import IngressBudgetObservation
 
 
 def _headers(tenant_id: str = "t1", roles: list[str] | None = None) -> dict[str, str]:
@@ -55,6 +56,48 @@ def test_runtime_control_stats_returns_hosted_adapter_metrics() -> None:
     assert body["backend_id"] == "hosted_sandbox_runtime"
     assert "control_stats" in body
     assert "pool_stats" in body
+
+
+def test_runtime_ingress_budget_endpoint_returns_per_profile_summary() -> None:
+    client = _hosted_control_client()
+    app = client.app
+    recorder = app.state.ingress_budget_recorder
+    recorder.observe(
+        tenant_id="t1",
+        observation=IngressBudgetObservation(
+            latency_ms=8.0,
+            budget_ms=20,
+            timeout_ms=40,
+            timeout_fail_mode="fail_closed",
+            timed_out=False,
+            budget_exceeded=False,
+            reason_code="INGRESS_ALLOW_DEFAULT",
+            decision="allow",
+            ingress_profile="baseline",
+        ),
+    )
+    recorder.observe(
+        tenant_id="t1",
+        observation=IngressBudgetObservation(
+            latency_ms=28.0,
+            budget_ms=20,
+            timeout_ms=40,
+            timeout_fail_mode="fail_closed",
+            timed_out=True,
+            budget_exceeded=True,
+            reason_code="INGRESS_GATE_TIMEOUT_FAIL_CLOSED",
+            decision="deny",
+            ingress_profile="strict",
+        ),
+    )
+
+    resp = client.get("/tenants/t1/admin/runtime/ingress-budget", headers=_headers("t1"))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["tenant_id"] == "t1"
+    assert body["summary"]["samples"] == 2
+    assert body["profiles"]["baseline"]["samples"] == 1
+    assert body["profiles"]["strict"]["timeout_total"] == 1
 
 
 def test_runtime_cleanup_events_endpoint_returns_list() -> None:

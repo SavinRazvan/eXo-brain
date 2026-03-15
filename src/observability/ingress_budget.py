@@ -22,6 +22,13 @@ from typing import Any, Awaitable, Callable
 from src.policies.ingress_gates import IngressDecision
 from src.schemas.tool_io import PolicyAction
 
+DEFAULT_INGRESS_PROFILE = "baseline"
+
+
+def _normalize_profile_name(profile_name: str) -> str:
+    normalized = str(profile_name).strip().lower()
+    return normalized or DEFAULT_INGRESS_PROFILE
+
 
 @dataclass(slots=True)
 class IngressBudgetConfig:
@@ -46,6 +53,7 @@ class IngressBudgetObservation:
     budget_exceeded: bool
     reason_code: str
     decision: str
+    ingress_profile: str = DEFAULT_INGRESS_PROFILE
 
     def to_payload(self) -> dict[str, object]:
         return {
@@ -57,7 +65,29 @@ class IngressBudgetObservation:
             "budget_exceeded": self.budget_exceeded,
             "reason_code": self.reason_code,
             "decision": self.decision,
+            "ingress_profile": _normalize_profile_name(self.ingress_profile),
         }
+
+
+def _summary_payload(samples: list[IngressBudgetObservation]) -> dict[str, object]:
+    if not samples:
+        return {
+            "samples": 0,
+            "p95_latency_ms": 0.0,
+            "timeout_total": 0,
+            "timeout_rate": 0.0,
+            "budget_exceeded_total": 0,
+        }
+    latencies = [sample.latency_ms for sample in samples]
+    timeout_total = sum(1 for sample in samples if sample.timed_out)
+    budget_exceeded_total = sum(1 for sample in samples if sample.budget_exceeded)
+    return {
+        "samples": len(samples),
+        "p95_latency_ms": round(percentile(latencies, 0.95), 3),
+        "timeout_total": timeout_total,
+        "timeout_rate": round(float(timeout_total) / float(len(samples)), 6),
+        "budget_exceeded_total": budget_exceeded_total,
+    }
 
 
 class IngressBudgetRecorder:
@@ -73,24 +103,19 @@ class IngressBudgetRecorder:
     def summary(self, *, tenant_id: str) -> dict[str, object]:
         with self._lock:
             samples = list(self._samples_by_tenant.get(str(tenant_id), []))
+        summary = _summary_payload(samples)
         if not samples:
-            return {
-                "samples": 0,
-                "p95_latency_ms": 0.0,
-                "timeout_total": 0,
-                "timeout_rate": 0.0,
-                "budget_exceeded_total": 0,
-            }
-        latencies = [sample.latency_ms for sample in samples]
-        timeout_total = sum(1 for sample in samples if sample.timed_out)
-        budget_exceeded_total = sum(1 for sample in samples if sample.budget_exceeded)
-        return {
-            "samples": len(samples),
-            "p95_latency_ms": round(percentile(latencies, 0.95), 3),
-            "timeout_total": timeout_total,
-            "timeout_rate": round(float(timeout_total) / float(len(samples)), 6),
-            "budget_exceeded_total": budget_exceeded_total,
+            summary["profiles"] = {}
+            return summary
+        profile_samples: dict[str, list[IngressBudgetObservation]] = {}
+        for sample in samples:
+            profile = _normalize_profile_name(sample.ingress_profile)
+            profile_samples.setdefault(profile, []).append(sample)
+        summary["profiles"] = {
+            profile: _summary_payload(profile_observations)
+            for profile, profile_observations in sorted(profile_samples.items())
         }
+        return summary
 
 
 def percentile(values: list[float], ratio: float) -> float:
@@ -127,10 +152,12 @@ async def evaluate_with_budget(
     *,
     evaluate: Callable[[], Awaitable[IngressDecision]],
     config: IngressBudgetConfig,
+    profile_name: str = DEFAULT_INGRESS_PROFILE,
 ) -> tuple[IngressDecision, IngressBudgetObservation]:
     timeout_ms = max(int(config.timeout_ms), 1)
     budget_ms = max(int(config.latency_budget_ms), 1)
     fail_mode = config.normalized_fail_mode()
+    ingress_profile = _normalize_profile_name(profile_name)
     timed_out = False
     started_at = perf_counter()
     try:
@@ -148,6 +175,7 @@ async def evaluate_with_budget(
         budget_exceeded=latency_ms > float(budget_ms),
         reason_code=decision.reason_code,
         decision=decision.decision.value,
+        ingress_profile=ingress_profile,
     )
     return decision, observation
 

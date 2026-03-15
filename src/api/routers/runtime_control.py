@@ -53,6 +53,7 @@ from src.api.schemas.runtime_control_schemas import (
     RuntimeCancellationResponse,
     RuntimeCleanupEventsResponse,
     RuntimeControlStatsResponse,
+    RuntimeIngressBudgetSummaryResponse,
     RuntimeRunCancelResponse,
     RuntimeRunListResponse,
     RuntimeRunRecord,
@@ -155,6 +156,10 @@ def _resolve_run_registry(request: Request) -> RunControlRegistry:
     if registry is None:
         raise HTTPException(status_code=503, detail="Run control registry is not configured on this server.")
     return registry
+
+
+def _resolve_ingress_budget_recorder(request: Request):
+    return getattr(request.app.state, "ingress_budget_recorder", None)
 
 
 def _resolve_byoc_adapter(ctx: TenantRuntimeContext):
@@ -719,4 +724,47 @@ async def get_byoc_governance_metrics(
                 for item in anomalies
             ],
         ),
+    )
+
+
+@router.get(
+    "/{tenant_id}/admin/runtime/ingress-budget",
+    response_model=RuntimeIngressBudgetSummaryResponse,
+)
+async def get_runtime_ingress_budget_summary(
+    tenant_id: str,
+    request: Request,
+    _ctx: TenantRuntimeContext = Depends(get_tenant_context),
+    _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
+) -> RuntimeIngressBudgetSummaryResponse:
+    recorder = _resolve_ingress_budget_recorder(request)
+    raw_summary = recorder.summary(tenant_id=tenant_id) if recorder is not None else {}
+    summary = {
+        "samples": int(raw_summary.get("samples", 0)),
+        "p95_latency_ms": float(raw_summary.get("p95_latency_ms", 0.0)),
+        "timeout_total": int(raw_summary.get("timeout_total", 0)),
+        "timeout_rate": float(raw_summary.get("timeout_rate", 0.0)),
+        "budget_exceeded_total": int(raw_summary.get("budget_exceeded_total", 0)),
+    }
+    raw_profiles = raw_summary.get("profiles", {})
+    profiles: dict[str, dict[str, float | int]] = {}
+    if isinstance(raw_profiles, dict):
+        for profile_name, profile_summary in raw_profiles.items():
+            if not isinstance(profile_summary, dict):
+                continue
+            normalized_profile = str(profile_name).strip().lower()
+            if not normalized_profile:
+                continue
+            profiles[normalized_profile] = {
+                "samples": int(profile_summary.get("samples", 0)),
+                "p95_latency_ms": float(profile_summary.get("p95_latency_ms", 0.0)),
+                "timeout_total": int(profile_summary.get("timeout_total", 0)),
+                "timeout_rate": float(profile_summary.get("timeout_rate", 0.0)),
+                "budget_exceeded_total": int(profile_summary.get("budget_exceeded_total", 0)),
+            }
+    return RuntimeIngressBudgetSummaryResponse(
+        tenant_id=tenant_id,
+        generated_at_utc=_utc_now(),
+        summary=summary,
+        profiles=profiles,
     )

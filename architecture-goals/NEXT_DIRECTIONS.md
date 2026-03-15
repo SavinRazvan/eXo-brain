@@ -24,8 +24,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.2.0`
-- Last Reviewed: `2026-03-14`
+- Version: `1.3.0`
+- Last Reviewed: `2026-03-15`
 - Review Cadence: `monthly`
 - Decision Scope: `Prioritized implementation directions derived from architecture-goals strategy docs.`
 
@@ -58,7 +58,7 @@ This document consolidates next-step guidance from:
 | **Monetization feature flags and entitlement hooks** | Governance surfaces (policy, audit, runtime) need tier-aware gating for Pro/Enterprise. | GOAL §14.4 |
 | **Tier-aware audit evidence** | Entitlement decisions must be auditable and exportable. | README §next slice |
 | **Governance ingress plane (pre-model gate chain)** | Safety decisions must happen before model/runtime execution, with non-bypassable allow/deny/escalate outcomes and clear reason codes. | GOAL §3, INTERFACE_STRATEGY §6, MONETIZATION_STRATEGY §2 |
-| **Predefined + custom gate/policy model with latency budgets** | Customers need controlled flexibility (templates + custom rules/plugins) without degrading reliability or p95 turn latency. | MONETIZATION_STRATEGY §3, ENTITLEMENT_MATRIX §4, TRACEABILITY §3 |
+| **Predefined + custom gate/policy model with latency budgets** | Customers need controlled flexibility (templates + custom rules/plugins) without degrading reliability or p95 turn latency; profile-specific ingress SLO thresholds + per-profile release reporting baseline are now implemented. | MONETIZATION_STRATEGY §3, ENTITLEMENT_MATRIX §4, TRACEABILITY §3 |
 
 ---
 
