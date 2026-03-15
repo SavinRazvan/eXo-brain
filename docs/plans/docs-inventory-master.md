@@ -19,6 +19,7 @@ Notes:
 | Path | Role |
 |---|---|
 | `README.md` | Project entrypoint and developer quick-start |
+| `docs/api/customer-api-integration-guide.md` | Tier-aware API contract documentation for customer onboarding (chat/agents/workflow + governance ingress) |
 | `docs/architecture_mvp.md` | Layer architecture and design intent |
 | `docs/runtime_contracts.md` | Runtime adapter contract and behavior |
 | `docs/mcp_integration.md` | MCP integration boundaries |
