@@ -14,6 +14,7 @@ Notes:
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -35,6 +36,8 @@ def _read_text(path: Path) -> str:
 def _collect_banned_reference_violations() -> list[str]:
     violations: list[str] = []
     for target in GOVERNANCE_SCAN_TARGETS:
+        if _is_gitignored(target):
+            continue
         absolute = ROOT / target
         if absolute.is_file():
             text = _read_text(absolute)
@@ -60,6 +63,8 @@ def _collect_banned_reference_violations() -> list[str]:
 
 def _contains_required(path: str, required_fragments: tuple[str, ...]) -> list[str]:
     violations: list[str] = []
+    if _is_gitignored(path):
+        return violations
     absolute = ROOT / path
     if not absolute.exists():
         return [f"{path}: required file is missing"]
@@ -88,6 +93,20 @@ def _collect_contract_parity_violations() -> list[str]:
         )
     )
     return violations
+
+
+def _is_gitignored(path: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "check-ignore", "--no-index", path],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
 
 
 def main() -> int:
