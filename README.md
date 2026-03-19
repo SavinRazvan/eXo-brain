@@ -74,16 +74,14 @@ pip install -r requirements.txt
 cp .env.template .env
 # Edit .env and set OPENAI_API_KEY=sk-...
 
-# 4. Run tests
-python -m pytest -q
-
-# 5. Run local quality gates (subset of CI / prepare workflow)
+# 4. Local quality gates — same **order** as scripts/pr/prepare.py GATES (then CI governance when relevant)
 python scripts/pr/check_testing_artifacts.py
+python -m pytest -q
 python scripts/architecture/validate_layers.py
 python scripts/architecture/scan_forbidden_imports.py
 python scripts/architecture/check_governance_consistency.py
 
-# 6. Start the API server
+# 5. Start the API server
 uvicorn src.api.app:create_app --factory --reload --port 8000
 # API docs: http://localhost:8000/docs
 ```
