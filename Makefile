@@ -9,7 +9,7 @@
 # Notes:
 #  - Keep targets thin wrappers around versioned scripts.
 
-.PHONY: rc-signoff rc-signoff-json db-backup db-restore db-validate
+.PHONY: rc-signoff rc-signoff-json db-backup db-restore db-validate coverage-index
 
 rc-signoff:
 	python scripts/release/rc_signoff.py --out .local/rc-signoff.md
@@ -25,3 +25,8 @@ db-restore:
 
 db-validate:
 	python scripts/release/local_data_safety.py validate --meta-out .local/db-validate-meta.json
+
+coverage-index:
+	python -m pytest --cov=src --cov-report=term-missing -q
+	coverage json -o .local/coverage.json
+	python scripts/dev/generate_coverage_index.py --coverage-json .local/coverage.json

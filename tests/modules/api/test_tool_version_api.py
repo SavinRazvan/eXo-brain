@@ -20,7 +20,9 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from src.api.bootstrap import build_test_app
+from src.api.routers import tools as tools_router
 from src.schemas.tool_io import ToolCallContext, ToolStatus
+from src.tenancy import rate_limiter as rate_limiter_module
 
 
 def _x_identity(tenant_id: str = "t1") -> dict:
@@ -286,8 +288,11 @@ def test_upload_rejects_dependency_outside_allowlist(tmp_path: Path) -> None:
     assert any("not allowed by dependency allowlist" in err for err in up.json()["errors"])
 
 
-def test_upload_returns_429_when_tenant_upload_rate_limit_exceeded(tmp_path: Path) -> None:
+def test_upload_returns_429_when_tenant_upload_rate_limit_exceeded(tmp_path: Path, monkeypatch) -> None:
     from src.config.settings import AppSettings, LimitsSettings, RuntimeSettings
+
+    # Pin fixed-window clock to prevent minute-boundary flakes during long suites.
+    monkeypatch.setattr(rate_limiter_module.time, "time", lambda: 1_700_000_000)
 
     settings = AppSettings(
         schema_version="1.0",
@@ -823,3 +828,452 @@ def test_artifact_integrity_verification_blocks_tampered_version_activation(tmp_
         )
         assert rollback.status_code == 422, rollback.text
         assert "bundle hash mismatch" in rollback.text
+
+
+def test_resolve_handler_rejects_non_callable_attribute() -> None:
+    try:
+        tools_router._resolve_handler("os:path")
+    except ValueError as exc:
+        assert "is not callable" in str(exc)
+    else:
+        raise AssertionError("Expected non-callable handler_ref validation error.")
+
+
+def test_tools_router_helper_validation_branches(monkeypatch) -> None:
+    from src.persistence.contracts import (
+        ToolPackageManifest,
+        ToolValidationResult,
+        ToolValidationState,
+        ToolVersionRecord,
+    )
+    from src.tools.artifact_store import ARTIFACT_BUNDLE_HASH_METADATA_KEY, ARTIFACT_BUNDLE_SIGNATURE_METADATA_KEY
+
+    manifest = ToolPackageManifest(
+        tool_name="",
+        version="",
+        input_schema=[],
+        entry_file="handler.txt",
+        entrypoint="",
+        metadata={"sandbox_limits": {"cpu_budget_ms": 10_000}},
+    )
+    result = tools_router._validation_for_manifest(manifest)
+    assert result.state == ToolValidationState.INVALID
+    assert "tool_name is required" in result.errors
+    assert "version is required" in result.errors
+    assert "entry_file must be a .py file" in result.errors
+    assert "entrypoint is required" in result.errors
+    assert "input_schema must be an object" in result.errors
+
+    inline_manifest = ToolPackageManifest(
+        tool_name="ok",
+        version="1.0.0",
+        input_schema={"type": "object"},
+        entry_file="handler.py",
+        entrypoint="run",
+    )
+    inline_bad = tools_router._validation_for_manifest(
+        inline_manifest,
+        inline_handler_source="def not_run():\n    return {}",
+    )
+    assert any("entrypoint" in err for err in inline_bad.errors)
+
+    base = ToolVersionRecord(
+        tenant_id="t1",
+        tool_name="demo",
+        version="1.0.0",
+        package_ref="pkg://demo/1.0.0",
+        manifest=ToolPackageManifest(
+            tool_name="demo",
+            version="1.0.0",
+            input_schema={"type": "object"},
+            entry_file="handler.py",
+            entrypoint="run",
+            metadata={"artifact_handler_path": "/tmp/h.py"},
+        ),
+        validation=ToolValidationResult(tool_name="demo", version="1.0.0", state=ToolValidationState.VALID),
+        active=False,
+    )
+    missing = tools_router._to_validation_response(base, "secret")
+    assert missing.integrity_status == "missing_metadata"
+
+    base.manifest.metadata[ARTIFACT_BUNDLE_HASH_METADATA_KEY] = "hash"
+    base.manifest.metadata[ARTIFACT_BUNDLE_SIGNATURE_METADATA_KEY] = "sig"
+    unverifiable = tools_router._to_validation_response(base, "")
+    assert unverifiable.integrity_status == "unverifiable"
+
+    monkeypatch.setattr(
+        tools_router,
+        "verify_artifact_bundle_integrity",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bundle mismatch")),
+    )
+    mismatch = tools_router._to_validation_response(base, "secret")
+    assert mismatch.integrity_status == "mismatch"
+    assert mismatch.integrity_message == "bundle mismatch"
+
+
+def test_sync_active_descriptor_handles_missing_active_and_unregistered_tool() -> None:
+    class _Registry:
+        def unregister(self, _tool_name: str) -> None:
+            raise KeyError("missing")
+
+        def register(self, _descriptor) -> None:
+            raise AssertionError("register should not be called")
+
+    class _Ctx:
+        tool_registry = _Registry()
+
+    class _Store:
+        async def get_active_tool_version(self, _tenant_id: str, _tool_name: str):
+            return None
+
+    asyncio.run(
+        tools_router._sync_active_tool_descriptor(
+            tenant_id="t1",
+            tool_name="ghost",
+            ctx=_Ctx(),
+            tool_version_store=_Store(),
+            artifact_signing_secret="secret",
+        )
+    )
+
+
+def test_tools_router_memory_backend_error_branches() -> None:
+    app = build_test_app()
+    with TestClient(app) as client:
+        validate = client.get("/tenants/t1/tools/validate/demo", headers=_x_identity())
+        assert validate.status_code == 503
+        versions = client.get("/tenants/t1/tools/versions/demo", headers=_x_identity())
+        assert versions.status_code == 503
+        deactivate = client.post("/tenants/t1/tools/versions/demo/1.0.0/deactivate", headers=_x_identity())
+        assert deactivate.status_code == 503
+        rollback = client.post(
+            "/tenants/t1/tools/versions/demo/rollback",
+            json={"target_version": "1.0.0"},
+            headers=_x_identity(),
+        )
+        assert rollback.status_code == 503
+        revoke = client.delete("/tenants/t1/tools/versions/demo/1.0.0", headers=_x_identity())
+        assert revoke.status_code == 503
+
+
+def test_import_schema_error_paths() -> None:
+    app = build_test_app()
+    with TestClient(app) as client:
+        invalid_payload = client.post(
+            "/tenants/t1/tools/import-schema",
+            json={"payload": "not-a-valid-tool-schema"},
+            headers=_x_identity(),
+        )
+        assert invalid_payload.status_code == 422
+        missing_name = client.post(
+            "/tenants/t1/tools/import-schema",
+            json={"payload": {"description": "no name"}},
+            headers=_x_identity(),
+        )
+        assert missing_name.status_code == 422
+        assert "tool_name is required" in missing_name.text
+
+
+def test_upload_inline_source_error_paths(tmp_path: Path, monkeypatch) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_tools_router_inline_errors.db")
+    app.state.tool_artifact_store = None
+    with TestClient(app) as client:
+        no_store = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "demo_inline",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "inline_handler_source": "def run(**kwargs):\n    return kwargs",
+            },
+            headers=_x_identity(),
+        )
+        assert no_store.status_code == 503
+
+    app2 = _build_sqlite_test_app(tmp_path / "exo_tools_router_signing_error.db")
+    monkeypatch.setattr(
+        tools_router,
+        "sign_bundle_hash",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("signing unavailable")),
+    )
+    with TestClient(app2) as client:
+        signing_fail = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "demo_inline",
+                    "version": "2.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "inline_handler_source": "def run(**kwargs):\n    return kwargs",
+            },
+            headers=_x_identity(),
+        )
+        assert signing_fail.status_code == 503
+
+
+def test_upload_activate_descriptor_errors_and_active_record_fallback(tmp_path: Path, monkeypatch) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_tools_router_activate_errors.db")
+    original_descriptor = tools_router.descriptor_from_tool_version
+    with TestClient(app) as client:
+        monkeypatch.setattr(
+            tools_router,
+            "descriptor_from_tool_version",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("descriptor invalid")),
+        )
+        upload = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "demo",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert upload.status_code == 422
+    monkeypatch.setattr(tools_router, "descriptor_from_tool_version", original_descriptor)
+
+    app2 = _build_sqlite_test_app(tmp_path / "exo_tools_router_active_fallback.db")
+    original_get_tool_version = app2.state.tool_version_store.get_tool_version
+
+    async def _get_tool_version_none(*_args, **_kwargs):
+        return None
+
+    app2.state.tool_version_store.get_tool_version = _get_tool_version_none
+    with TestClient(app2) as client:
+        upload = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "demo",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                    "metadata": {"handler_ref": "src.tools.user_tools:calculate_result"},
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert upload.status_code == 201
+        assert upload.json()["version"] == "1.0.0"
+    app2.state.tool_version_store.get_tool_version = original_get_tool_version
+
+
+def test_validate_without_version_uses_first_saved_version_when_no_active(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_tools_router_validate_fallback.db")
+    with TestClient(app) as client:
+        upload = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "demo",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "activate": False,
+            },
+            headers=_x_identity(),
+        )
+        assert upload.status_code == 201
+        validate = client.get("/tenants/t1/tools/validate/demo", headers=_x_identity())
+        assert validate.status_code == 200
+        assert validate.json()["version"] == "1.0.0"
+
+
+def test_deactivate_rollback_and_revoke_negative_paths(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_tools_router_negative_ops.db")
+    with TestClient(app) as client:
+        upload = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "demo",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "activate": False,
+            },
+            headers=_x_identity(),
+        )
+        assert upload.status_code == 201
+        no_active = client.post("/tenants/t1/tools/versions/demo/1.0.0/deactivate", headers=_x_identity())
+        assert no_active.status_code == 404
+
+        active_v1 = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "demo",
+                    "version": "1.1.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                    "metadata": {"handler_ref": "src.tools.user_tools:calculate_result"},
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert active_v1.status_code == 201
+        mismatch = client.post("/tenants/t1/tools/versions/demo/1.0.0/deactivate", headers=_x_identity())
+        assert mismatch.status_code == 409
+
+        missing_target = client.post(
+            "/tenants/t1/tools/versions/demo/rollback",
+            json={"target_version": "9.9.9"},
+            headers=_x_identity(),
+        )
+        assert missing_target.status_code == 404
+
+        invalid_upload = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "demo",
+                    "version": "2.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                    "metadata": {"sandbox_limits": {"memory_budget_mb": "bad"}},
+                },
+                "activate": False,
+            },
+            headers=_x_identity(),
+        )
+        assert invalid_upload.status_code == 201
+        invalid_target = client.post(
+            "/tenants/t1/tools/versions/demo/rollback",
+            json={"target_version": "2.0.0"},
+            headers=_x_identity(),
+        )
+        assert invalid_target.status_code == 409
+
+        missing_version = client.delete("/tenants/t1/tools/versions/demo/0.0.0", headers=_x_identity())
+        assert missing_version.status_code == 404
+
+
+def test_register_unregister_and_import_internal_branches(monkeypatch) -> None:
+    from src.api.schemas.tool_schemas import ToolImportSchemaRequest, ToolRegisterRequest
+    from types import SimpleNamespace
+    from src.tools.registry import ToolRegistry
+
+    class _Store:
+        def __init__(self) -> None:
+            self.saved = 0
+            self.deleted = 0
+
+        async def save_tool(self, _tenant_id: str, _record) -> None:
+            self.saved += 1
+
+        async def delete_tool(self, _tenant_id: str, _name: str) -> None:
+            self.deleted += 1
+
+    ctx = SimpleNamespace(tool_registry=ToolRegistry())
+    store = _Store()
+    body = ToolRegisterRequest(name="calc", handler_ref="math:sqrt")
+    identity = object()
+    created = asyncio.run(
+        tools_router.register_tool(
+            tenant_id="t1",
+            body=body,
+            ctx=ctx,
+            _identity=identity,
+            tool_store=store,  # type: ignore[arg-type]
+        )
+    )
+    assert created.name == "calc"
+    assert store.saved == 1
+    asyncio.run(
+        tools_router.unregister_tool(
+            tenant_id="t1",
+            name="calc",
+            ctx=ctx,
+            _identity=identity,
+            tool_store=store,  # type: ignore[arg-type]
+        )
+    )
+    assert store.deleted == 1
+
+    monkeypatch.setattr(
+        tools_router,
+        "normalize_tool_payload",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad payload")),
+    )
+    try:
+        asyncio.run(
+            tools_router.import_tool_schema(
+                tenant_id="t1",
+                body=ToolImportSchemaRequest(payload={"name": "x"}),
+                _identity=identity,
+            )
+        )
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 422
+    else:
+        raise AssertionError("Expected import schema normalization failure.")
+
+
+def test_manifest_warning_validate_version_and_missing_lookup_paths(tmp_path: Path) -> None:
+    from src.persistence.contracts import ToolPackageManifest
+
+    warning_validation = tools_router._validation_for_manifest(
+        ToolPackageManifest(
+            tool_name="demo",
+            version="1.0.0",
+            input_schema={"type": "object"},
+            timeout_ms=100,
+            entry_file="handler.py",
+            entrypoint="custom",
+            metadata={"sandbox_limits": {"cpu_budget_ms": 500}},
+        )
+    )
+    assert any("cpu_budget_ms exceeds timeout_ms" in item for item in warning_validation.warnings)
+    assert any("entrypoint is not the standard 'run'" in item for item in warning_validation.warnings)
+
+    app = _build_sqlite_test_app(tmp_path / "exo_validate_version_path.db")
+    with TestClient(app) as client:
+        upload = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "demo",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "activate": False,
+            },
+            headers=_x_identity(),
+        )
+        assert upload.status_code == 201
+        validate_specific = client.get("/tenants/t1/tools/validate/demo?version=1.0.0", headers=_x_identity())
+        assert validate_specific.status_code == 200
+        missing = client.get("/tenants/t1/tools/validate/ghost?version=1.0.0", headers=_x_identity())
+        assert missing.status_code == 404
