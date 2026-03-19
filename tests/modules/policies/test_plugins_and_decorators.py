@@ -78,6 +78,44 @@ def test_plugin_manager_blocks_incompatible_plugin() -> None:
         raise AssertionError("Expected compatibility failure")
 
 
+def test_plugin_manager_branch_guards_and_reload_paths() -> None:
+    registry = ToolRegistry()
+    manager = PluginManager(registry=registry, core_major_version=1)
+    plugin = ToolPlugin(
+        manifest=PluginManifest(plugin_id="math", version="1.0.0", compatible_core_major=1),
+        tools=[ToolDescriptor(name="plus_one", handler=lambda x: x + 1)],
+    )
+    manager.load_plugin(plugin)
+    try:
+        manager.load_plugin(plugin)
+    except ValueError as exc:
+        assert "already loaded" in str(exc)
+    else:
+        raise AssertionError("Expected duplicate load guard.")
+
+    try:
+        manager.unload_plugin("math", has_active_non_idempotent_tasks=True)
+    except RuntimeError as exc:
+        assert "active non-idempotent tasks" in str(exc)
+    else:
+        raise AssertionError("Expected active-work unload guard.")
+
+    registry.unregister("plus_one")
+    manager.unload_plugin("math")
+    assert manager.list_plugins() == []
+
+    try:
+        manager.unload_plugin("missing")
+    except KeyError as exc:
+        assert "not loaded" in str(exc)
+    else:
+        raise AssertionError("Expected missing-plugin unload guard.")
+
+    manager.load_plugin(plugin)
+    manager.reload_plugin(plugin)
+    assert manager.list_plugins() == ["math"]
+
+
 def test_executor_applies_retry_redaction_and_audit_hooks() -> None:
     registry = ToolRegistry()
     calls = {"count": 0}
