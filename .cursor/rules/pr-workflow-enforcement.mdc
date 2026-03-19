@@ -19,6 +19,14 @@ alwaysApply: true
   - `.local/review.md`
   - `.local/prep.md`
   - `.local/merge.md`
+- For PR workflow artifacts and summaries, always capture acting identity:
+  - `Action-By: Savin I. Razvan`
+  - `GitHub-User: @SavinRazvan`
+  - `Agent/s: <agent-name-or-pipeline>`
+- Use role-specific labels where applicable:
+  - review phase: `Reviewed-By: Savin I. Razvan`
+  - prepare phase: `Prepared-By: Savin I. Razvan`
+  - merge phase: `Merged-By: Savin I. Razvan`
 - For architecture-impacting changes, require advisory alignment artifacts before prepare/merge:
   - `.local/alignment-audit.md`
   - `.local/alignment-todos.md`
@@ -31,8 +39,9 @@ alwaysApply: true
   - remote branch exists (`git ls-remote --heads origin <branch>`)
   - PR head branch matches current branch (`gh pr view --json headRefName`)
 - If architecture/runtime scope changes, update tracking docs before merge:
-  - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
-  - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
+  - `docs/plans/tenant-tool-execution-architecture.md`
+  - `.local/control-center/plan.md`
+  - `.local/control-center/architecture.md`
 - Use `git push --force-with-lease` only for intentional rewrites on branches you own.
 - Do not use destructive git commands (`reset --hard`, forced history rewrites) unless explicitly requested.
 - Stop and report instead of merging when any required artifact or gate result is missing.

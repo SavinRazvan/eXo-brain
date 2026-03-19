@@ -76,8 +76,8 @@ For all BYOC integrity alerts, include:
 ## Runbook Linkage
 
 - Primary response runbook:
-  - `.cursor/research-for-refactor/18-enterprise-operational-runbooks.md`
-  - section: `8) BYOC Artifact Integrity Mismatch Runbook`
+  - `docs/operations/byoc-failure-injection-playbook.md`
+  - section: `Escalation Criteria`
 - Failure-injection drill playbook:
   - `docs/operations/byoc-failure-injection-playbook.md`
 

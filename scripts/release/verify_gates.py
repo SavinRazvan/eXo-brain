@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -47,7 +48,10 @@ REQUIRED_GATES: list[list[str]] = [
 
 
 def _run(cmd: list[str]) -> tuple[int, str]:
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    normalized = list(cmd)
+    if normalized and normalized[0] == "python" and shutil.which("python") is None:
+        normalized[0] = sys.executable
+    proc = subprocess.run(normalized, capture_output=True, text=True)
     output = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode, output.strip()
 

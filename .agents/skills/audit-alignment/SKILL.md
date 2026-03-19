@@ -14,15 +14,16 @@ Provide advisory findings that reconcile roadmap, research, code/tests, and work
 
 1. Run in advisory-only mode; do not apply direct edits in this phase.
 2. Use `docs/roadmap/alignment-audit-schema.md` for finding format and severity.
-3. Compare:
+3. When deep module understanding is requested, run `.cursor/skills/audit-module-map/SKILL.md` first and carry forward its evidence.
+4. Compare:
    - roadmap docs
    - research docs
    - implementation (`src`) + tests (`tests/modules`)
    - rules/skills/agents and `.local` artifact expectations
-4. Write outputs:
+5. Write outputs:
    - `.local/alignment-audit.md`
    - `.local/alignment-todos.md`
-5. Classify each finding:
+6. Classify each finding:
    - `open`
    - `accepted_divergence`
    - `fixed`

@@ -15,21 +15,31 @@ Notes:
 
 # Documentation Archive Index
 
+Archived docs are physically moved under `docs/archive/<domain>/` and are non-authoritative.
+Use `docs/archive/README.md` for the archive metadata contract.
+
 ## Plan Archives
 
 | Archived file | Canonical replacement |
 |---|---|
-| `docs/plans/backlog-reconciliation-v2-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
-| `docs/plans/backlog-reconciliation-v3-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
-| `docs/plans/backlog-reconciliation-v3-execution-plan.md` | `docs/plans/tenant-tool-execution-architecture.md` |
-| `docs/plans/backlog-reconciliation-v4-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
-| `docs/plans/p2-expansion-roadmap.md` | `docs/plans/tenant-tool-execution-architecture.md` |
+| `docs/archive/plans/backlog-reconciliation-v2-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
+| `docs/archive/plans/backlog-reconciliation-v3-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
+| `docs/archive/plans/backlog-reconciliation-v3-execution-plan.md` | `docs/plans/tenant-tool-execution-architecture.md` |
+| `docs/archive/plans/backlog-reconciliation-v4-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
+| `docs/archive/plans/p2-expansion-roadmap.md` | `docs/plans/tenant-tool-execution-architecture.md` |
 
 ## Operations Archives
 
 | Archived file | Canonical replacement |
 |---|---|
-| `docs/operations/local-ui-readiness-smoke.md` | `docs/operations/release-candidate-signoff-checklist.md` |
+| `docs/archive/operations/local-ui-readiness-smoke.md` | `docs/operations/release-candidate-signoff-checklist.md` |
+
+## Result Archives
+
+| Archived file | Canonical replacement |
+|---|---|
+| `docs/archive/results/audit_alignment_results.md` | `.local/alignment-audit.md` |
+| `docs/archive/results/audit_alignment_action_plan.md` | `.local/alignment-todos.md` |
 
 ## Historical but Useful Context
 

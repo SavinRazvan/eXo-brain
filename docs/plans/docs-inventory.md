@@ -8,7 +8,7 @@
 | `docs/plans/docs-and-notebooks-cleanup-plan.md` | Defines target state | None | Keep as execution plan and reference implementation artifacts |
 | `docs/plans/api-platform.md` | Contains historical notes about notebook-based OpenAI wiring | Can be read as pre-migration implementation state | Keep architecture history, add concise note that canonical execution notebooks moved to new suite |
 | `docs/operations/release-candidate-signoff-checklist.md` | No direct notebook runbook guidance | N/A | No change needed for this slice |
-| `docs/operations/local-ui-readiness-smoke.md` | Historical UI doc, not notebook-driven | N/A | No change needed |
+| `docs/archive/operations/local-ui-readiness-smoke.md` | Historical UI doc, archived | N/A | No change needed |
 | `docs/operations/byoc-failure-injection-playbook.md` | No notebook references | N/A | No change needed |
 
 ## Canonical Guidance Target

@@ -41,6 +41,7 @@ Notes:
 | `docs/plans/docs-inventory-master.md` | Lifecycle inventory and classification table |
 | `docs/plans/docs-authority-map.md` | Authority and precedence map for docs |
 | `docs/plans/docs-archive-index.md` | Archive index and replacement mapping |
+| `docs/plans/docs-governance-baseline-map.md` | Governance dependency baseline for archive migrations |
 | `docs/plans/docs-and-notebooks-cleanup-plan.md` | Notebook/doc cleanup execution history and references |
 | `docs/plans/notebook-standards.md` | Notebook standards and ownership |
 
@@ -48,14 +49,16 @@ Notes:
 
 | Path | Replacement |
 |---|---|
-| `docs/plans/backlog-reconciliation-v2-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
-| `docs/plans/backlog-reconciliation-v3-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
-| `docs/plans/backlog-reconciliation-v3-execution-plan.md` | `docs/plans/tenant-tool-execution-architecture.md` |
-| `docs/plans/backlog-reconciliation-v4-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
-| `docs/plans/p2-expansion-roadmap.md` | `docs/plans/tenant-tool-execution-architecture.md` |
-| `docs/operations/local-ui-readiness-smoke.md` | `docs/operations/release-candidate-signoff-checklist.md` |
+| `docs/archive/plans/backlog-reconciliation-v2-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
+| `docs/archive/plans/backlog-reconciliation-v3-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
+| `docs/archive/plans/backlog-reconciliation-v3-execution-plan.md` | `docs/plans/tenant-tool-execution-architecture.md` |
+| `docs/archive/plans/backlog-reconciliation-v4-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
+| `docs/archive/plans/p2-expansion-roadmap.md` | `docs/plans/tenant-tool-execution-architecture.md` |
+| `docs/archive/operations/local-ui-readiness-smoke.md` | `docs/operations/release-candidate-signoff-checklist.md` |
+| `docs/archive/results/audit_alignment_results.md` | `.local/alignment-audit.md` |
+| `docs/archive/results/audit_alignment_action_plan.md` | `.local/alignment-todos.md` |
 
 ## Notes
 
-- `.cursor/research-for-refactor/*` remains supporting/historical research unless explicitly promoted by active docs/rules.
+- `docs/archive/*` contains non-authoritative historical documents with replacement pointers.
 - `.local/*` artifacts are execution evidence snapshots and not long-lived canonical docs.

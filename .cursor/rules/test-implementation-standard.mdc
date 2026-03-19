@@ -1,0 +1,23 @@
+---
+description: Enforce module-aligned test implementation and validation standards
+alwaysApply: true
+---
+
+# Test Implementation Standard
+
+- Keep tests aligned with source module boundaries under `tests/modules/<module>/`.
+- For behavior changes, add or update tests in matching module suites.
+- Cover happy paths, failure paths, and edge cases (invalid input, boundary values, cleanup/lifecycle).
+- For high-risk or state-changing flows, include retry/timeout/replay assertions where relevant.
+- Keep modular test tracking updated:
+  - `.local/control-center/test-plan.md`
+  - `.local/control-center/test-index.md`
+- If modules/tests are renamed or removed, remove/update obsolete tests in the same slice and record rationale in `.local/control-center/updates-log.md`.
+- Prefer targeted module test execution first, then broaden to full-suite validation.
+- Before merge, required gates must pass:
+  - `python -m pytest -q`
+  - `python scripts/architecture/validate_layers.py`
+  - `python scripts/architecture/scan_forbidden_imports.py`
+- For medium/high-risk slices, run coverage evidence:
+  - `pytest --cov=src --cov-report=term-missing -q`
+- If gaps remain, record them explicitly in `.local/control-center/work-tracker.md` and `.local/control-center/updates-log.md`.
