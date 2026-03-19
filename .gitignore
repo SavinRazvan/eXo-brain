@@ -27,3 +27,7 @@ _archive/*
 _archive/
 .tmp_tools/*
 .tmp_tools
+
+# local agent metadata/config
+.agents/
+.cursor/
