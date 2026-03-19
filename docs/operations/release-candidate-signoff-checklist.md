@@ -105,10 +105,9 @@ The signoff runner verifies these files exist before running gates:
 
 - `docs/plans/tenant-tool-execution-architecture.md`
 - `docs/operations/byoc-artifact-integrity-dashboard.md`
-- `.cursor/research-for-refactor/18-enterprise-operational-runbooks.md`
-- `.cursor/research-for-refactor/26-deployment-profiles-matrix.md`
-- `.cursor/research-for-refactor/12-bootstrap-checklist.md`
-- `.cursor/research-for-refactor/06-mvp-build-sequence.md`
+- `docs/plans/docs-inventory-master.md`
+- `docs/operations/release-candidate-signoff-checklist.md`
+- `docs/roadmap/alignment-audit-schema.md`
 
 ## Operator Checklist
 

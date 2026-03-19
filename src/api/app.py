@@ -42,8 +42,7 @@ from src.config.settings import (
     PolicySettings,
     RuntimeSettings,
 )
-from src.runtime.adapter_factory import OPENAI_ADAPTER_CANONICAL_CLASS_REF
-from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
+from src.runtime.adapter_factory import OPENAI_ADAPTER_CANONICAL_CLASS_REF, load_adapter
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -270,7 +269,7 @@ def _default_settings() -> AppSettings:
 
 def _default_provider_registry(settings: AppSettings) -> ProviderRegistry:
     provider_id = settings.runtime.default_provider_id
-    adapter = OpenAIAgentsRuntimeAdapter(provider_id=provider_id)
+    adapter = load_adapter(OPENAI_ADAPTER_CANONICAL_CLASS_REF, provider_id=provider_id)
     record = ProviderRecord(
         provider_id=provider_id,
         display_name=f"{provider_id} (default)",

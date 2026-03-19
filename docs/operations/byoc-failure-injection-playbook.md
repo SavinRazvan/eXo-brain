@@ -111,4 +111,4 @@ Escalate to incident review when any condition persists after one remediation cy
 
 - `docs/operations/release-candidate-signoff-checklist.md`
 - `docs/operations/byoc-artifact-integrity-dashboard.md`
-- `.cursor/research-for-refactor/18-enterprise-operational-runbooks.md`
+- `docs/archive/plans/backlog-reconciliation-v4-execution-board.md`

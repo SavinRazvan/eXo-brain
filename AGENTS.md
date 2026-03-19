@@ -20,9 +20,9 @@ Abbreviation notepad:
 ## Canonical Rules (Always Applied)
 
 - `.cursor/rules/provider-neutral-adapter-wall.mdc` — Architecture and layer boundaries
-- `.cursor/rules/execution-workflow-gates.mdc` — Plan → implement → test → docs
+- `.cursor/rules/implementation-workflow-governance.mdc` — Plan-first implementation, validation, and control-center tracking
+- `.cursor/rules/test-implementation-standard.mdc` — Module-aligned testing depth and validation standards
 - `.cursor/rules/pr-workflow-enforcement.mdc` — PR-first, merge gates, branch safety
-- `.cursor/rules/pr-action-attribution.mdc` — GitHub-User in PR artifacts
 - `.cursor/rules/commit-trailer-format.mdc` — Commit trailers
 - `.cursor/rules/file-docstring-header-relations.mdc` — File header metadata
 - `.cursor/rules/local-artifact-protection.mdc` — Protect `.exo_data/`, `.coverage`
@@ -43,9 +43,12 @@ Abbreviation notepad:
 - Prefer incremental, reversible slices over big-bang rewrites.
 - Add rollback/fallback behavior for new runtime features.
 - Keep checklist/docs synchronized with implementation status:
-  - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
-  - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
   - `docs/plans/tenant-tool-execution-architecture.md`
+  - `.local/control-center/plan.md`
+  - `.local/control-center/architecture.md`
+  - `.local/control-center/work-tracker.md`
+  - `.local/control-center/test-plan.md`
+  - `.local/control-center/test-index.md`
   - `docs/plans/docs-inventory-master.md` (when doc lifecycle status changes)
 
 ## Quality and Safety Gates
@@ -75,7 +78,7 @@ Abbreviation notepad:
 - Keep `main` stable and merge-ready; avoid direct implementation commits on `main`.
 - Before merge, require:
   - tests and architecture checks passing
-  - checklist/research status updates for implemented scope
+  - implementation control-center status updates for implemented scope
   - docs maintenance review for architecture/workflow changes (`docs/operations/documentation-maintenance-checklist.md`)
 - After merge, require workflow finalization:
   - sync local `main` with `origin/main`
@@ -88,6 +91,12 @@ Abbreviation notepad:
 - Primary project skills location: `.cursor/skills/`
 - Standards-friendly project skills location: `.agents/skills/`
 - Keep skill names stable and use `SKILL.md` per skill directory.
+- For deep module-understanding audits, use `.cursor/skills/audit-module-map/SKILL.md` before alignment reconciliation.
+- For implementation execution discipline, use `.cursor/skills/implementation-execution-loop/SKILL.md`.
+- For module-focused testing and coverage depth, use `.cursor/skills/test-module-coverage/SKILL.md`.
+- Primary implementation agent profile: `.cursor/agents/implementer.md`.
+- Testing specialist agent profile: `.cursor/agents/test-runner.md`.
+- Validation specialist agent profile: `.cursor/agents/verifier.md`.
 - Maintainer PR workflow is defined in `.agents/skills/PR_WORKFLOW.md` and uses:
   - `.agents/skills/review-pr/SKILL.md`
   - `.agents/skills/prepare-pr/SKILL.md`
