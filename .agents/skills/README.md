@@ -40,6 +40,14 @@ This repository also defines PR maintainer workflow skills:
 - `prepare-pr`
 - `merge-pr`
 
+Testing and coverage execution is anchored in:
+
+- `.cursor/skills/test-module-coverage/SKILL.md`
+- `.cursor/agents/test-runner.md`
+- `.cursor/agents/verifier.md`
+- `.local/control-center/test-plan.md`
+- `.local/control-center/test-index.md`
+
 Shared maintainer guidance is in:
 
 - `.agents/skills/PR_WORKFLOW.md`
@@ -49,3 +57,4 @@ Local wrapper scripts for these skills:
 - `scripts/pr/review.py`
 - `scripts/pr/prepare.py`
 - `scripts/pr/merge.py`
+- `scripts/pr/check_testing_artifacts.py`

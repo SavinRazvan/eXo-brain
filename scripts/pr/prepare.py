@@ -19,11 +19,14 @@ Notes:
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 
 GATES = [
+    ["python", "scripts/pr/check_testing_artifacts.py"],
     ["python", "-m", "pytest", "-q"],
     ["python", "scripts/architecture/validate_layers.py"],
     ["python", "scripts/architecture/scan_forbidden_imports.py"],
@@ -31,7 +34,10 @@ GATES = [
 
 
 def _run(cmd: list[str]) -> tuple[int, str]:
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    normalized = list(cmd)
+    if normalized and normalized[0] == "python" and shutil.which("python") is None:
+        normalized[0] = sys.executable
+    proc = subprocess.run(normalized, capture_output=True, text=True)
     output = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode, output.strip()
 

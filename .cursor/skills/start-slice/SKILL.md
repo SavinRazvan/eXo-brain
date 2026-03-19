@@ -14,8 +14,9 @@ description: Starts a safe implementation slice by creating a branch, mapping ch
 ## Instructions
 
 1. Confirm slice scope from project checklist/docs:
-   - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
-   - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
+   - `docs/plans/tenant-tool-execution-architecture.md`
+   - `.local/control-center/plan.md`
+   - `.local/control-center/work-tracker.md`
 2. Propose a branch name based on scope:
    - `feature/<scope>`, `fix/<scope>`, or `chore/<scope>`
 3. Ensure branch safety:

@@ -6,6 +6,7 @@ alwaysApply: true
 # Provider-Neutral Adapter Wall
 
 - Keep provider SDKs behind runtime adapters only (for example `runtime/openai_*`, `runtime/*_adapter*`).
+- Do not import concrete provider adapter classes in API/control-plane layers; load adapters via registry/factory indirection.
 - Treat OpenAI Agents SDK as a first-class adapter, not orchestration core.
 - Core layers (`core`, `tools`, `policies`, `persistence`, `observability`) must depend on internal contracts only.
 - Do not import provider SDK types/classes/functions in core layers.

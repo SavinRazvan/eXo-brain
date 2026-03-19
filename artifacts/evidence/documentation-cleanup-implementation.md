@@ -49,12 +49,12 @@ Notes:
 ## Archive/Status Updates
 
 - Marked historical/archived:
-  - `docs/plans/backlog-reconciliation-v2-execution-board.md`
-  - `docs/plans/backlog-reconciliation-v3-execution-board.md`
-  - `docs/plans/backlog-reconciliation-v3-execution-plan.md`
-  - `docs/plans/backlog-reconciliation-v4-execution-board.md`
-  - `docs/plans/p2-expansion-roadmap.md`
-  - `docs/operations/local-ui-readiness-smoke.md` (canonical replacement pointer added)
+  - `docs/archive/plans/backlog-reconciliation-v2-execution-board.md`
+  - `docs/archive/plans/backlog-reconciliation-v3-execution-board.md`
+  - `docs/archive/plans/backlog-reconciliation-v3-execution-plan.md`
+  - `docs/archive/plans/backlog-reconciliation-v4-execution-board.md`
+  - `docs/archive/plans/p2-expansion-roadmap.md`
+  - `docs/archive/operations/local-ui-readiness-smoke.md` (canonical replacement pointer added)
 
 ## Contradiction Fixes Applied
 

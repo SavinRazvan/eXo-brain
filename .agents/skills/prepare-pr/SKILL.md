@@ -20,12 +20,15 @@ Make the PR merge-ready with validated fixes and explicit evidence.
 3. Apply focused fixes only within PR scope.
 4. Run gates and create the prep artifact in one step:
    - `python scripts/pr/prepare.py --pr <pr-number-or-url> --actor "Savin I. Razvan" --agents "review-pr | prepare-pr"`
-   - The script runs `pytest -q`, `validate_layers.py`, and `scan_forbidden_imports.py` internally and writes `.local/prep.md` with results.
+   - The script runs `check_testing_artifacts.py`, `pytest -q`, `validate_layers.py`, and `scan_forbidden_imports.py` internally and writes `.local/prep.md` with results.
    - If the script exits non-zero, fix the failing gate before proceeding.
    - If gates were already run and verified independently (e.g. as part of a prior step), pass `--skip-gates` to record them as externally verified without re-running.
 5. Update tracking docs if implementation status changed:
-   - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
-   - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
+   - `docs/plans/tenant-tool-execution-architecture.md`
+   - `.local/control-center/plan.md`
+   - `.local/control-center/work-tracker.md`
+   - `.local/control-center/test-plan.md`
+   - `.local/control-center/test-index.md`
 6. Enrich `.local/prep.md` with:
    - resolved findings
    - residual risks/follow-ups

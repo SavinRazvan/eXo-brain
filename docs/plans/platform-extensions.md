@@ -56,7 +56,7 @@ for Slice 2 and Slice 3).
 
 ## Current State Snapshot
 
-> Clarification: the "What is already built" and "What is missing" tables below are historical planning snapshots captured before slice execution. Current completion status is tracked by the status header and the project trackers in `.cursor/research-for-refactor/12-bootstrap-checklist.md` and `.cursor/research-for-refactor/06-mvp-build-sequence.md`.
+> Clarification: the "What is already built" and "What is missing" tables below are historical planning snapshots captured before slice execution. Current completion status is tracked by the status header and the project trackers in `.local/control-center/plan.md` and `.local/control-center/work-tracker.md`.
 > Canonical current-state + pending gap-closure priority order is maintained in `docs/plans/tenant-tool-execution-architecture.md` under `Canonical Current State (single source)`.
 
 ### What is already built and reusable

@@ -48,8 +48,8 @@ This section supersedes conflicting historical wording in this document.
      - structured gate metadata in markdown evidence (`command`, `exit_code`, `duration_ms`)
      - normalized JSON parser support with backward compatibility for legacy evidence
 - Companion trackers that should mirror this exact status:
-  - `.cursor/research-for-refactor/12-bootstrap-checklist.md`
-  - `.cursor/research-for-refactor/06-mvp-build-sequence.md`
+  - `.local/control-center/plan.md`
+  - `.local/control-center/work-tracker.md`
 
 ### Reconciled Backlog Status (post-delivery)
 
@@ -58,9 +58,9 @@ This section supersedes conflicting historical wording in this document.
   - P1 backlog closure: provider delete graceful-drain mode (policy-gated), observability sink/export hardening, and resilience/quota deferred edge-path coverage.
   - P2 baseline closure: BYOC webhook submit path for worker push results (`/tenants/{tenant_id}/admin/byoc/webhook/jobs/submit`).
 - Open implementation queue:
-  - P2 expansion queue is closed in `docs/plans/p2-expansion-roadmap.md`.
+  - P2 expansion queue is closed in `docs/archive/plans/p2-expansion-roadmap.md`.
   - Backlog reconciliation v3 queue is closed after full gates + UI validation handoff.
-  - Backlog reconciliation v4 queue is closed in `docs/plans/backlog-reconciliation-v4-execution-board.md`.
+  - Backlog reconciliation v4 queue is closed in `docs/archive/plans/backlog-reconciliation-v4-execution-board.md`.
   - Current active implementation track is Option C next-phase:
     - adapter packaging execution (`packages/exo-brain-core-contracts`, `packages/exo-brain-adapter-sdk`, `packages/exo-adapter-openai`)
     - shared control-state backend patterns (`SQLiteRunControlRegistry`, `SQLiteTenantRateLimiter`, sqlite fairness backend)
@@ -752,8 +752,8 @@ Hosted external beta evidence links:
   - `tests/modules/api/test_deployment_profile_defaults.py`
 - Operational docs:
   - `docs/operations/byoc-artifact-integrity-dashboard.md`
-  - `.cursor/research-for-refactor/18-enterprise-operational-runbooks.md`
-  - `.cursor/research-for-refactor/26-deployment-profiles-matrix.md`
+  - `docs/operations/byoc-failure-injection-playbook.md`
+  - `docs/operations/release-candidate-signoff-checklist.md`
 - Required gates:
   - `python -m pytest -q`
   - `python scripts/architecture/validate_layers.py`

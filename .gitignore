@@ -20,3 +20,7 @@ env/
 # coverage reports
 .coverage/
 htmlcov/
+
+
+_archive/*
+_archive/

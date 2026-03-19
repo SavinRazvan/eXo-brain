@@ -49,7 +49,7 @@ Use this order for expected behavior:
 2. `.agents/skills/PR_WORKFLOW.md` and phase skills
 3. `docs/roadmap/*`
 4. `docs/*` architecture references
-5. `.cursor/research-for-refactor/*` (supporting/historical unless explicitly promoted)
+5. `docs/archive/*` (supporting/historical unless explicitly promoted)
 
 ## Minimal JSON Example
 

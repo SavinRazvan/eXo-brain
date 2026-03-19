@@ -63,16 +63,37 @@ Do not proceed to `/merge-pr` unless branch publication and PR linkage are both 
 
 Run at minimum:
 
+- `python scripts/pr/check_testing_artifacts.py`
 - `python -m pytest -q`
 - `python scripts/architecture/validate_layers.py`
 - `python scripts/architecture/scan_forbidden_imports.py`
+
+For medium/high-risk module changes, include:
+
+- `pytest --cov=src --cov-report=term-missing -q`
+
+## Module Testing Agent Invocation Pattern
+
+Before `/prepare-pr`, run module-focused testing through the testing specialist flow:
+
+1. Map changed modules to `tests/modules/<module>/`.
+2. Invoke `test-runner` using `.cursor/skills/test-module-coverage/SKILL.md`.
+3. Ensure updates are recorded in:
+   - `.local/control-center/test-plan.md`
+   - `.local/control-center/test-index.md`
+4. Remove/update obsolete tests when modules/contracts changed.
+5. Run `python scripts/pr/check_testing_artifacts.py` before final `/prepare-pr`.
 
 ## Required Tracking Sync
 
 If PR scope changes architecture/runtime status, update:
 
-- `.cursor/research-for-refactor/12-bootstrap-checklist.md`
-- `.cursor/research-for-refactor/06-mvp-build-sequence.md`
+- `docs/plans/tenant-tool-execution-architecture.md`
+- `.local/control-center/plan.md`
+- `.local/control-center/architecture.md`
+- `.local/control-center/work-tracker.md`
+- `.local/control-center/test-plan.md`
+- `.local/control-center/test-index.md`
 - `docs/plans/docs-inventory-master.md` (if doc lifecycle status changes)
 
 ## Documentation Maintenance Checklist
@@ -84,7 +105,7 @@ For architecture-impacting or workflow-impacting PRs, run documentation checks d
    - `.cursor/rules/*.mdc`
    - this PR workflow file
    - `docs/plans/docs-authority-map.md`
-3. If a document is superseded, mark it archived and add replacement in `docs/plans/docs-archive-index.md`.
+3. If a document is superseded, move it to `docs/archive/<domain>/`, mark it archived, and add replacement in `docs/plans/docs-archive-index.md` in the same PR.
 4. Optionally run:
    - `python scripts/docs/check_docs_metadata.py`
 5. Record documentation updates in `.local/prep.md`.

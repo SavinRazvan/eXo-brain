@@ -26,7 +26,7 @@ Run this checklist when a PR changes architecture, runtime contracts, policies, 
   - `.cursor/rules/*.mdc`
   - `.agents/skills/PR_WORKFLOW.md`
   - `docs/plans/docs-authority-map.md`
-- [ ] If a doc is superseded, mark it `archived` and add replacement pointer.
+- [ ] If a doc is superseded, move it to `docs/archive/<domain>/`, mark it `archived`, and add replacement pointer.
 - [ ] Update `docs/plans/docs-inventory-master.md` when status changes (`active`, `planned`, `archived`).
 
 ## Optional Lint Check

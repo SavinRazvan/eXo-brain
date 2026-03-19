@@ -24,4 +24,4 @@ Notes:
 
 ## Historical Runbooks
 
-- `docs/operations/local-ui-readiness-smoke.md` (retired for API-first Option C)
+- `docs/archive/operations/local-ui-readiness-smoke.md` (retired for API-first Option C)

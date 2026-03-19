@@ -44,5 +44,5 @@ Notes:
 
 ## Historical/Archived References
 
-- `docs/operations/local-ui-readiness-smoke.md` (historical)
+- `docs/archive/operations/local-ui-readiness-smoke.md` (historical)
 - `docs/plans/docs-archive-index.md` (full archive mapping)

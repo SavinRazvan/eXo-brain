@@ -1,34 +1,25 @@
 ---
 name: research-flexiai-reuse
-description: Researches the flexiai codebase to identify reusable modules, extension points, coupling risks, and migration candidates for new architectures. Use when auditing existing runtime/tooling code before refactors.
+description: Deprecated compatibility shim. Redirects to active eXo-brain control-center planning workflows.
+disable-model-invocation: true
 ---
-# Research FlexiAI Reuse
 
-## Objective
-Produce an actionable reuse map from `flexiai` for architecture planning.
+# Research FlexiAI Reuse (Deprecated)
 
-## Workflow
-1. Read architecture docs first:
-   - `README.md`
-   - `docs/ARCHITECTURE.md`
-   - `docs/WORKFLOW.md`
-2. Inspect implementation layers:
-   - `flexiai/core/handlers`
-   - `flexiai/toolsmith`
-   - `flexiai/config`
-   - `flexiai/credentials`
-3. Classify components into:
-   - Direct reuse
-   - Reuse with wrapper
-   - Rewrite
-4. Extract key interfaces and extension points.
-5. Report risks and compatibility constraints.
-6. Explicitly assess background-concurrency limits and sequential bottlenecks.
-7. Identify reusable pieces for plugin lifecycle and dynamic scaling.
+## Status
 
-## Output Format
-- Reusable modules with file paths
-- Reuse strategy per module
-- Gaps and risks
-- Recommended next migration step
-- Background runtime readiness assessment
+This skill is deprecated and must not be used as active operational guidance.
+
+## Use Instead
+
+For current planning and migration execution, use active repo sources:
+
+1. `.local/control-center/plan.md`
+2. `.local/control-center/architecture.md`
+3. `.local/control-center/work-tracker.md`
+4. `.cursor/skills/plan-refactor-migration/SKILL.md`
+5. `.cursor/skills/implementation-execution-loop/SKILL.md`
+
+## Compatibility Note
+
+If a legacy prompt references this skill, treat it as a redirect and continue from the control-center files above.

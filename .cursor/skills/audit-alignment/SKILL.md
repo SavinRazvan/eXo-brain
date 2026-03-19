@@ -1,52 +1,25 @@
 ---
 name: audit-alignment
-description: Runs an advisory-only cross-source alignment audit and outputs deterministic findings and reconciliation tasks.
+description: Compatibility shim that delegates to the canonical maintainer audit skill.
+disable-model-invocation: true
 ---
 
-# Audit Alignment (Advisory-Only)
+# Audit Alignment (Compatibility Shim)
 
-## Goal
+## Canonical Source
 
-Detect drift between roadmap, research, implementation, and governance artifacts without changing files.
+Use `.agents/skills/audit-alignment/SKILL.md` as the single source of truth for behavior, constraints, and outputs.
 
-## Required Sources
+## Delegation Contract
 
-- `docs/roadmap/*`
-- `.cursor/research-for-refactor/*`
-- `src/*`
-- `tests/modules/*`
-- `AGENTS.md`
-- `.agents/skills/*`
-- `.cursor/rules/*`
-- `.cursor/skills/*`
-- `.local/*` (if present)
+When invoked through this path:
 
-## Mandatory Constraints
+1. Read `.agents/skills/audit-alignment/SKILL.md`.
+2. Execute that canonical instruction set exactly.
+3. Preserve advisory-only behavior and required outputs:
+   - `.local/alignment-audit.md`
+   - `.local/alignment-todos.md`
 
-1. Advisory-only mode: findings + recommendations only.
-2. Use the shared schema in `docs/roadmap/alignment-audit-schema.md`.
-3. Every finding must include evidence and recommended remediation.
-4. Respect precedence from the schema doc when sources conflict.
+## Note
 
-## Execution Steps
-
-1. Run structure audit (`audit-alignment-structure`).
-2. Run policy/workflow audit (`audit-alignment-policy`).
-3. Run module traceability audit (`audit-alignment-traceability`).
-4. Merge findings, de-duplicate IDs, classify P0/P1/P2.
-5. Emit:
-   - `.local/alignment-audit.md` (report format from template)
-   - `.local/alignment-todos.md` (prioritized reconciliation actions)
-
-## Output Contract
-
-Each finding must include:
-
-- `id`
-- `severity`
-- `category`
-- `source_path`
-- `target_path`
-- `evidence`
-- `recommendation`
-- `status`
+This shim exists for backward compatibility with older references under `.cursor/skills/`.

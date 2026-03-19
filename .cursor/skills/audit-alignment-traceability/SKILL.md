@@ -12,7 +12,9 @@ Ensure each module has coherent traceability across plan, implementation, tests,
 ## Inputs
 
 - `docs/roadmap/*`
-- `.cursor/research-for-refactor/*`
+- `docs/plans/*`
+- `.local/control-center/plan.md`
+- `.local/control-center/work-tracker.md`
 - `src/*`
 - `tests/modules/*`
 - `.github/workflows/*`

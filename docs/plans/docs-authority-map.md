@@ -32,7 +32,7 @@ Notes:
    - `docs/plans/*` files marked active/planned
 5. **Historical docs**
    - `docs/*` files marked archived/historical
-   - `.cursor/research-for-refactor/*` (supporting unless explicitly promoted)
+   - `docs/archive/*` (supporting unless explicitly promoted)
 
 ## Conflict Resolution Rules
 
@@ -40,6 +40,7 @@ Notes:
 - If PR step details differ, `.agents/skills/PR_WORKFLOW.md` wins over `README.md`.
 - If operational gate wording differs, `docs/operations/release-candidate-signoff-checklist.md` wins.
 - If historical plan guidance conflicts with current implementation, `docs/plans/tenant-tool-execution-architecture.md` wins.
+- Superseded documents must be moved to `docs/archive/*` and indexed in `docs/plans/docs-archive-index.md`.
 
 ## Required Status Labels
 

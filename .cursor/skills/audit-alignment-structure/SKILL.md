@@ -13,7 +13,8 @@ Find structural drift between declared module boundaries and implemented layout.
 
 - `docs/architecture_mvp.md`
 - `docs/roadmap/*`
-- `.cursor/research-for-refactor/13-project-structure-blueprint.md`
+- `docs/plans/tenant-tool-execution-architecture.md`
+- `.local/control-center/architecture.md`
 - `src/*`
 - `tests/modules/*`
 - CI workflow files in `.github/workflows/*`
