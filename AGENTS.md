@@ -56,9 +56,12 @@ Abbreviation notepad:
 - Block merge for P0 architecture/safety failures.
 - Require tests for happy path, failure path, and replay/retry behavior when relevant.
 - Require correlation IDs in runtime paths for auditability.
-- Keep architecture fitness checks passing:
-  - `scripts/architecture/validate_layers.py`
-  - `scripts/architecture/scan_forbidden_imports.py`
+- Keep architecture fitness checks passing (match `scripts/pr/prepare.py` gate order):
+  - `python scripts/pr/check_testing_artifacts.py`
+  - `python -m pytest -q`
+  - `python scripts/architecture/validate_layers.py`
+  - `python scripts/architecture/scan_forbidden_imports.py`
+  - `python scripts/architecture/check_governance_consistency.py` (when changing governance/workflows; CI runs this on relevant paths)
 - Keep release-candidate signoff artifacts healthy:
   - `make rc-signoff`
   - `make rc-signoff-json`

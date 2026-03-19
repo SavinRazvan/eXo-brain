@@ -1,3 +1,12 @@
+<!--
+File: README.md
+Path: README.md
+Role: Repository overview, quick start, architecture diagrams, and maintainer workflow summary.
+Used By: Contributors, onboarding, cross-links from architecture-goals and docs indexes.
+Depends On: docs/README.md, docs/plans/tenant-tool-execution-architecture.md, scripts/pr/prepare.py (gate order).
+Notes: Keep PR / quality gate bullets aligned with `scripts/pr/prepare.py` `GATES` and CI workflows.
+-->
+
 # eXo-brain
 
 Provider-neutral AI orchestration platform with deterministic tool execution, multi-tenant runtime isolation, and a REST/SSE/WebSocket API for single-agent and multi-agent workloads.
@@ -19,10 +28,11 @@ Provider-neutral AI orchestration platform with deterministic tool execution, mu
 ## Current reality (Mar 2026)
 
 - API-first Option C is the active delivery path (no required UI/dashboard mount).
-- Tool-level deterministic policy enforcement is implemented.
-- Turn-level governance ingress (pre-model gate chain) is documented and planned as the next architecture slice.
-- Canonical current-state tracker: `docs/plans/tenant-tool-execution-architecture.md`.
-- Documentation authority and lifecycle: `docs/plans/docs-authority-map.md` and `docs/plans/docs-inventory-master.md`.
+- Tool-level deterministic policy enforcement is implemented; turn-level **governance ingress** (pre-model gate chain) is advanced in code and docs—see the canonical plan for **implemented vs planned** detail.
+- Prioritized roadmap tiers: `architecture-goals/NEXT_DIRECTIONS.md` (keep in sync with strategy docs under `architecture-goals/`).
+- Canonical implementation status + queued slices: `docs/plans/tenant-tool-execution-architecture.md`.
+- Documentation authority, lifecycle, and archive pointers: `docs/plans/docs-authority-map.md`, `docs/plans/docs-inventory-master.md`, `docs/plans/docs-archive-index.md`.
+- Top-level doc index: `docs/README.md`.
 
 ---
 
@@ -67,9 +77,11 @@ cp .env.template .env
 # 4. Run tests
 python -m pytest -q
 
-# 5. Run architecture checks
+# 5. Run local quality gates (subset of CI / prepare workflow)
+python scripts/pr/check_testing_artifacts.py
 python scripts/architecture/validate_layers.py
 python scripts/architecture/scan_forbidden_imports.py
+python scripts/architecture/check_governance_consistency.py
 
 # 6. Start the API server
 uvicorn src.api.app:create_app --factory --reload --port 8000
@@ -85,8 +97,8 @@ If you are new to this project, read the system in this order:
 1. **You call the API** (`REST`, `SSE`, or `WebSocket`).
 2. **Tenant context is resolved** (identity, tenant scope, policy/quota state).
 3. **Governance checks run**:
-   - today: tool-level policy gates are enforced,
-   - planned next: turn-level ingress gate chain before orchestration.
+   - tool-level policy gates are enforced on tool execution,
+   - turn-level ingress governance is implemented/planned per slice—see `docs/plans/tenant-tool-execution-architecture.md` for current status.
 4. **Orchestrator runs provider-neutral logic** and delegates model transport to adapters.
 5. **Tool calls are policy-gated** and deterministic for risky/state-changing operations.
 6. **Events and audit evidence are emitted** with correlation IDs for traceability.
@@ -106,21 +118,30 @@ For acronym help, see `docs/operations/abbreviations-notepad.md`.
 
 ---
 
-## Notebook Validation Suite
+## Makefile shortcuts (optional)
 
-| Notebook | Purpose | API key |
-|---|---|---|
-| `notebooks/01_idea_validation.ipynb` | Canonical deterministic tool-call proof (Notebook 3 style, single interaction flow) | Required for live model cell |
-| `notebooks/10_core_orchestrator_checks.ipynb` | Orchestrator and deterministic tool-intent path checks | Not required |
-| `notebooks/11_policy_middleware_checks.ipynb` | `before_tool_call` / `after_tool_call` policy behavior checks | Not required |
-| `notebooks/12_runtime_adapter_checks.ipynb` | Runtime adapter session/capability/turn event checks | Not required (stub path) |
-| `notebooks/13_tenant_and_limits_checks.ipynb` | Tenant quota and rate-limiter primitive checks | Not required |
+Thin wrappers around versioned scripts (outputs under `.local/` where noted):
 
-Build notebooks from source:
+| Target | Purpose |
+|--------|---------|
+| `make rc-signoff` | Generate `.local/rc-signoff.md` via `scripts/release/rc_signoff.py` |
+| `make rc-signoff-json` | Parse signoff markdown → `.local/rc-signoff.json` |
+| `make db-backup` / `db-restore` / `db-validate` | Local SQLite safety helpers |
+| `make coverage-index` | Full `pytest --cov` run + regenerate `.local/control-center/coverage-index.md` |
 
-```bash
-python notebooks/build_validation_notebooks.py
-```
+---
+
+## Notebooks (tutorials, checks, edge cases)
+
+Interactive notebooks live under `notebooks/`. **Source of truth** is the build scripts—regenerate `.ipynb` files from Python builders; see `notebooks/README.md` for the full index, kernel setup, and naming rules.
+
+| Category | Examples | Build script |
+|----------|----------|----------------|
+| `tutorial_*` | `tutorial_01_core_framework.ipynb` → `tutorial_07_governance_and_anomaly.ipynb` (learning order in notebook README) | `python notebooks/build_tutorials.py` |
+| `check_*` | `check_01_core_orchestrator.ipynb` … `check_04_tenant_and_limits.ipynb` | `python notebooks/build_checks.py` |
+| `edge_*` | `edge_01_ingress_policy_conflicts.ipynb`, `edge_02_tool_error_envelopes.ipynb` | `python notebooks/build_checks.py` |
+
+Cells marked `[REQUIRES API KEY]` skip when `OPENAI_API_KEY` is unset; most checks run without a live model.
 
 ---
 
@@ -430,21 +451,27 @@ Use `docs/operations/abbreviations-notepad.md` for a beginner-friendly glossary 
 
 ---
 
-## PR workflow
+## PR workflow (maintainers)
 
-- Use PR-first delivery and branch-per-slice.
-- Verify publication/linkage after push:
-  - `python scripts/pr/verify_publish.py --branch \"$(git branch --show-current)\"`
-  - `gh pr view --json number,url,headRefName,state,mergeStateStatus`
-- Follow maintainer phases in order: `/review-pr -> /prepare-pr -> /merge-pr`.
-- Produce and keep `.local/review.md`, `.local/prep.md`, `.local/merge.md`.
-- Merge only after tests and architecture checks pass:
-  - `python -m pytest -q`
-  - `python scripts/architecture/validate_layers.py`
-  - `python scripts/architecture/scan_forbidden_imports.py`
-- Keep docs synchronized on architecture/workflow changes:
-  - `docs/operations/documentation-maintenance-checklist.md`
-  - `python scripts/docs/check_docs_metadata.py` (optional docs lint)
-- Finalize workflow after merge:
-  - `git checkout main && git pull --ff-only origin main`
-  - delete local/remote feature branch after merge verification
+Tracked automation lives under `scripts/pr/` and `.github/workflows/`. Use **PR-first** delivery and short-lived branches (`feature/`, `fix/`, `chore/`).
+
+1. **After push / before merge** — verify publication and linkage:
+   - `python scripts/pr/verify_publish.py --branch "$(git branch --show-current)"`
+   - `gh pr view --json number,url,headRefName,state,mergeStateStatus`
+2. **Phases (in order)** — `review-pr` → `prepare-pr` → `merge-pr` (skills or manual equivalent). Scripts:
+   - `python scripts/pr/review.py --pr <id|url> --actor "…" --agents "review-pr"`
+   - `python scripts/pr/prepare.py --pr <id|url> --actor "…" --agents "review-pr | prepare-pr"` (runs gates unless `--skip-gates`)
+   - `python scripts/pr/merge.py --pr … --check-only` then merge via `gh`, then `merge.py` again with `--merge-sha <oid>`
+3. **Local artifacts** (create under `.local/` as you run the flow): `review.md`, `prep.md`, `merge.md`. For **architecture-impacting** changes, also maintain `alignment-audit.md` and `alignment-todos.md`, and pass `--arch-impacting` to `merge.py` so both files are enforced.
+4. **Merge gates** — must match `scripts/pr/prepare.py` `GATES` (canonical order):
+   - `python scripts/pr/check_testing_artifacts.py`
+   - `python -m pytest -q` (CI also enforces coverage thresholds on PRs)
+   - `python scripts/architecture/validate_layers.py`
+   - `python scripts/architecture/scan_forbidden_imports.py`
+   - `python scripts/architecture/check_governance_consistency.py` (run locally when touching governance/workflows; CI runs it in `architecture-fitness`)
+5. **Docs** — on architecture/workflow changes, follow `docs/operations/documentation-maintenance-checklist.md`; optional `python scripts/docs/check_docs_metadata.py`.
+6. **After merge** — sync `main`, then `python scripts/pr/finalize.py --branch <feature-branch>` (optional `--delete-merged-local`); confirm remote branch deletion per team policy.
+
+**Local IDE/agent files** (e.g. Cursor rules, optional `AGENTS.md`) may be maintained per developer and are **not** required for a minimal clone—the repo’s enforced contracts are in `scripts/`, tests, and GitHub Actions.
+
+---
