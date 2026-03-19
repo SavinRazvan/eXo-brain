@@ -18,7 +18,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -131,17 +133,19 @@ DATA_SAFETY_COMMAND: tuple[str, ...] = (
 REQUIRED_EVIDENCE_LINKS: tuple[str, ...] = (
     "docs/plans/tenant-tool-execution-architecture.md",
     "docs/operations/byoc-artifact-integrity-dashboard.md",
-    ".cursor/research-for-refactor/18-enterprise-operational-runbooks.md",
-    ".cursor/research-for-refactor/26-deployment-profiles-matrix.md",
-    ".cursor/research-for-refactor/12-bootstrap-checklist.md",
-    ".cursor/research-for-refactor/06-mvp-build-sequence.md",
+    "docs/plans/docs-inventory-master.md",
+    "docs/operations/release-candidate-signoff-checklist.md",
+    "docs/roadmap/alignment-audit-schema.md",
 )
 
 
 def _run_gate(gate: GateCommand) -> GateResult:
+    command = list(gate.command)
+    if command and command[0] == "python" and shutil.which("python") is None:
+        command[0] = sys.executable
     started = time.perf_counter()
     completed = subprocess.run(
-        gate.command,
+        command,
         capture_output=True,
         text=True,
         check=False,
@@ -213,6 +217,8 @@ def _ensure_required_links() -> list[str]:
 
 def _run_data_safety(required: bool) -> DataSafetyResult:
     command = list(DATA_SAFETY_COMMAND)
+    if command and command[0] == "python" and shutil.which("python") is None:
+        command[0] = sys.executable
     started = time.perf_counter()
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     duration_ms = int((time.perf_counter() - started) * 1000)

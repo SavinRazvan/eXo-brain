@@ -94,6 +94,7 @@ def main() -> int:
     review_file = local_dir / "review.md"
     prep_file = local_dir / "prep.md"
     alignment_audit_file = local_dir / "alignment-audit.md"
+    alignment_todos_file = local_dir / "alignment-todos.md"
     merge_file = local_dir / "merge.md"
 
     errors: list[str] = []
@@ -105,10 +106,15 @@ def main() -> int:
     if not prep_ok:
         errors.append(prep_detail)
 
-    if args.arch_impacting and not alignment_audit_file.exists():
-        errors.append(
-            "missing .local/alignment-audit.md (required for architecture-impacting PRs)"
-        )
+    if args.arch_impacting:
+        if not alignment_audit_file.exists():
+            errors.append(
+                "missing .local/alignment-audit.md (required for architecture-impacting PRs)"
+            )
+        if not alignment_todos_file.exists():
+            errors.append(
+                "missing .local/alignment-todos.md (required for architecture-impacting PRs)"
+            )
 
     if errors:
         for err in errors:
@@ -139,6 +145,7 @@ def main() -> int:
                 f"- review artifact present: {review_file.exists()}",
                 f"- prepare artifact present: {prep_file.exists()}",
                 f"- alignment audit present: {alignment_audit_file.exists()}",
+                f"- alignment todos present: {alignment_todos_file.exists()}",
                 "",
                 "## Merge Summary",
                 f"- merge SHA: {merge_sha} ({sha_source})",
