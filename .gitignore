@@ -31,3 +31,4 @@ _archive/
 # local agent metadata/config
 .agents/
 .cursor/
+AGENTS.md
