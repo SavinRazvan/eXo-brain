@@ -17,6 +17,8 @@ Depends On:
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from src.agents.contracts import AgentCapabilityTag, AgentSpec, HandoffFallbackPolicy, HandoffRoute
@@ -254,6 +256,39 @@ def test_tenant_factory_uses_byoc_runtime_when_flag_enabled() -> None:
     assert adapter.backend_id == "byoc_pull_worker_runtime"
 
 
+def test_tenant_factory_byoc_invalid_conflict_strategy_falls_back_to_first_write_wins(
+    tmp_path,
+) -> None:
+    settings = _make_settings()
+    settings.runtime.enable_byoc_tool_runtime = True
+    settings.runtime.byoc_worker_jwt_secret = "test-secret"
+    settings.runtime.byoc_result_conflict_strategy = "not-a-valid-strategy"
+    settings.runtime.byoc_store_backend = "sqlite"
+    settings.runtime.byoc_sqlite_db_path = str(tmp_path / "byoc_conflict.db")
+    factory = TenantRuntimeFactory(
+        provider_registry=_make_provider_registry(),
+        settings=settings,
+    )
+    ctx = factory.get_or_create("tenant-byoc-bad-strategy")
+    adapter = getattr(ctx.tool_executor, "_execution_adapter")
+    assert getattr(adapter, "_result_store").conflict_strategy_name() == "first_write_wins"
+
+
+def test_tenant_factory_byoc_in_memory_invalid_conflict_strategy_falls_back() -> None:
+    settings = _make_settings()
+    settings.runtime.enable_byoc_tool_runtime = True
+    settings.runtime.byoc_worker_jwt_secret = "test-secret"
+    settings.runtime.byoc_store_backend = "memory"
+    settings.runtime.byoc_result_conflict_strategy = "@@@"
+    factory = TenantRuntimeFactory(
+        provider_registry=_make_provider_registry(),
+        settings=settings,
+    )
+    ctx = factory.get_or_create("tenant-byoc-mem-bad")
+    adapter = getattr(ctx.tool_executor, "_execution_adapter")
+    assert getattr(adapter, "_result_store").conflict_strategy_name() == "first_write_wins"
+
+
 def test_tenant_factory_uses_sqlite_backed_byoc_stores_when_configured(tmp_path) -> None:
     from src.tools.byoc.sqlite_store import SQLiteByocJobQueueStore, SQLiteByocResultStore, SQLiteReplayGuard
 
@@ -366,6 +401,91 @@ def test_get_session_runtime_raises_for_unknown_session() -> None:
     factory = _make_factory()
     with pytest.raises(KeyError, match="sess-unknown"):
         factory.get_session_runtime("sess-unknown")
+
+
+def test_get_session_adapter_raises_for_unknown_session() -> None:
+    factory = _make_factory()
+    with pytest.raises(KeyError, match="No session adapter"):
+        factory.get_session_adapter("missing-adapter-session")
+
+
+def test_evict_sessions_for_provider_removes_matching_sessions() -> None:
+    provider_id = "openai-test"
+    factory = _make_factory(provider_id)
+    ctx = factory.get_or_create("tenant-evict-prov")
+    ctx.agent_registry.register(AgentSpec(agent_id="agent-evict", role="assistant"))
+    factory.create_session_runtime(ctx, "agent-evict", provider_id, "sess-evict-1")
+    factory.create_session_runtime(ctx, "agent-evict", provider_id, "sess-evict-2")
+    removed = factory.evict_sessions_for_provider(provider_id)
+    assert removed == 2
+    with pytest.raises(KeyError):
+        factory.get_session_runtime("sess-evict-1")
+
+
+def test_create_session_runtime_schedules_start_session_when_loop_running() -> None:
+    provider_id = "async-loop-provider"
+    settings = _make_settings(provider_id)
+    record = ProviderRecord(
+        provider_id=provider_id,
+        display_name="Async Provider",
+        adapter_class=OPENAI_ADAPTER_CANONICAL_CLASS_REF,
+        enabled=True,
+        profile=ProviderProfile.MANAGED_VENDOR,
+        priority=1,
+        endpoint=EndpointConfig(base_url="https://api.openai.com", api_type=EndpointApiType.OPENAI_NATIVE),
+        auth=AuthConfig(type="api_key", api_key_env_var=""),
+        model_defaults=ModelDefaults(model="gpt-4o-mini"),
+    )
+    registry = ProviderRegistry(
+        settings=settings,
+        providers=[record],
+        adapters={provider_id: CustomRuntimeAdapter(provider_id=provider_id)},
+    )
+    factory = TenantRuntimeFactory(provider_registry=registry, settings=settings)
+    ctx = factory.get_or_create("tenant-async")
+    ctx.agent_registry.register(AgentSpec(agent_id="agent-async", role="assistant"))
+
+    async def _run() -> None:
+        factory.create_session_runtime(
+            ctx,
+            agent_id="agent-async",
+            provider_id=provider_id,
+            session_id="sess-async-loop",
+        )
+        await asyncio.sleep(0.01)
+
+    asyncio.run(_run())
+    host = factory.get_session_runtime("sess-async-loop")
+    assert host is not None
+
+
+def test_instantiate_session_adapter_import_error_falls_back_to_registered_adapter() -> None:
+    provider_id = "broken-import-provider"
+    settings = _make_settings(provider_id)
+    record = ProviderRecord(
+        provider_id=provider_id,
+        display_name="Broken Import",
+        adapter_class="definitely_missing_module_xyz.NoSuchAdapter",
+        enabled=True,
+        profile=ProviderProfile.MANAGED_VENDOR,
+        priority=1,
+        endpoint=EndpointConfig(base_url="https://example.com", api_type=EndpointApiType.OPENAI_NATIVE),
+        auth=AuthConfig(type="api_key", api_key_env_var=""),
+        model_defaults=ModelDefaults(model="gpt-4o-mini"),
+    )
+    bound = CustomRuntimeAdapter(provider_id=provider_id)
+    registry = ProviderRegistry(
+        settings=settings,
+        providers=[record],
+        adapters={provider_id: bound},
+    )
+    factory = TenantRuntimeFactory(provider_registry=registry, settings=settings)
+    ctx = factory.get_or_create("tenant-fallback-adapter")
+    ctx.agent_registry.register(AgentSpec(agent_id="agent-fb", role="assistant"))
+    factory.create_session_runtime(ctx, "agent-fb", provider_id, "sess-fallback-import")
+    adapter = factory.get_session_adapter("sess-fallback-import")
+    assert isinstance(adapter, CustomRuntimeAdapter)
+    assert adapter._provider_id == provider_id
 
 
 def test_destroy_evicts_tenant_context_and_session_runtimes() -> None:
