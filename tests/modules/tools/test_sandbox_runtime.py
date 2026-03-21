@@ -24,6 +24,8 @@ from src.tools.registry import ToolDescriptor
 from src.tools.sandbox.pool import TenantSandboxPool
 from src.tools.sandbox.process_runner import ProcessSandboxRunner
 from src.tools.sandbox.runtime import (
+    AllowAllSandboxResourceHooks,
+    ManifestBudgetResourceHooks,
     SandboxResourceDecision,
     TenantSandboxToolRuntime,
 )
@@ -424,3 +426,78 @@ def test_hosted_runtime_cleanup_observability_reports_idle_evictions() -> None:
     assert events[-1]["tenant_id"] == "cleanup-t1"
     assert events[-1]["reason"] == "idle_ttl"
     pool.close()
+
+
+def test_allow_all_resource_hooks_permit_execution() -> None:
+    runtime = TenantSandboxToolRuntime(resource_hooks=AllowAllSandboxResourceHooks())
+    descriptor = ToolDescriptor(name="math_tool", handler=lambda: {"a": 1}, timeout_ms=1000)
+    result = runtime.execute(_call(), descriptor)
+    assert result.status == ToolStatus.SUCCESS
+
+
+def test_manifest_hooks_reject_invalid_limits_before_execute() -> None:
+    runtime = TenantSandboxToolRuntime(resource_hooks=ManifestBudgetResourceHooks())
+    descriptor = ToolDescriptor(
+        name="math_tool",
+        handler=lambda: "ok",
+        timeout_ms=1000,
+        metadata={"sandbox_limits": "not-an-object"},
+    )
+    result = runtime.execute(_call(), descriptor)
+    assert result.status == ToolStatus.BLOCKED
+    assert result.error.details["reason_code"] == "SANDBOX_LIMITS_INVALID"
+
+
+def test_manifest_hooks_cpu_budget_exceeds_platform_before_execute() -> None:
+    runtime = TenantSandboxToolRuntime(
+        resource_hooks=ManifestBudgetResourceHooks(platform_cpu_budget_ms=50),
+    )
+    descriptor = ToolDescriptor(
+        name="math_tool",
+        handler=lambda: "ok",
+        timeout_ms=1000,
+        metadata={"sandbox_limits": {"cpu_budget_ms": 5000}},
+    )
+    result = runtime.execute(_call(), descriptor)
+    assert result.status == ToolStatus.BLOCKED
+    assert result.error.details["reason_code"] == "CPU_BUDGET_EXCEEDED"
+
+
+def test_normalize_output_prefers_model_dump_dict() -> None:
+    class _Modelish:
+        def model_dump(self) -> dict:
+            return {"k": "v"}
+
+    runtime = TenantSandboxToolRuntime()
+    normalized = runtime._normalize_output(_Modelish())
+    assert normalized == {"k": "v"}
+
+
+def test_request_and_clear_cancellation_tokens() -> None:
+    runtime = TenantSandboxToolRuntime()
+    assert runtime.request_cancellation("  ") is False
+    assert runtime.request_cancellation("c1") is True
+    assert runtime.request_cancellation("c1") is False
+    assert runtime.clear_cancellation("") is False
+    assert runtime.control_stats()["pending_cancellations"] == 1
+    assert runtime.clear_cancellation("c1") is True
+    assert runtime.clear_cancellation("c1") is False
+    stats = runtime.control_stats()
+    assert stats["cancel_requested_total"] == 1
+    assert stats["pending_cancellations"] == 0
+
+
+def test_private_consume_cancellation_rejects_blank_ids() -> None:
+    runtime = TenantSandboxToolRuntime()
+    assert runtime._consume_cancellation("   ") is False
+
+
+def test_cancellation_token_consumed_at_execute_start() -> None:
+    runtime = TenantSandboxToolRuntime()
+    call = _call()
+    call.call_id = "pre-dispatch-cancel"
+    assert runtime.request_cancellation(call.call_id) is True
+    descriptor = ToolDescriptor(name="math_tool", handler=lambda: "nope", timeout_ms=1000)
+    result = runtime.execute(call, descriptor)
+    assert result.status == ToolStatus.CANCELLED
+    assert runtime.control_stats()["cancel_consumed_total"] == 1
