@@ -96,3 +96,62 @@ def test_capability_gap_falls_back_to_deterministic() -> None:
     )
     mode = select_execution_mode(_call_context(), capability, _allow_decision())
     assert mode == ToolExecutionMode.DETERMINISTIC
+
+
+def test_non_allow_policy_forces_deterministic() -> None:
+    capability = ProviderCapabilityMap(
+        provider_id="openai",
+        supports_function_calling=True,
+        supports_structured_output=True,
+        reliability_score=5,
+    )
+    deny = PolicyDecision(
+        schema_version="1.0",
+        decision=PolicyAction.DENY,
+        reason_code="NO",
+        message="no",
+    )
+    mode = select_execution_mode(_call_context(), capability, deny)
+    assert mode == ToolExecutionMode.DETERMINISTIC
+
+
+def test_enforced_provider_native_used_when_safe() -> None:
+    capability = ProviderCapabilityMap(
+        provider_id="openai",
+        supports_function_calling=True,
+        supports_structured_output=True,
+        reliability_score=5,
+    )
+    mode = select_execution_mode(
+        _call_context(),
+        capability,
+        _allow_decision(enforced=ToolExecutionMode.PROVIDER_NATIVE),
+    )
+    assert mode == ToolExecutionMode.PROVIDER_NATIVE
+
+
+def test_requested_deterministic_honored_when_policy_enforced_none() -> None:
+    capability = ProviderCapabilityMap(
+        provider_id="openai",
+        supports_function_calling=True,
+        supports_structured_output=True,
+        reliability_score=5,
+    )
+    call = _call_context()
+    call = ToolCallContext(
+        schema_version=call.schema_version,
+        call_id=call.call_id,
+        session_id=call.session_id,
+        run_id=call.run_id,
+        job_id=call.job_id,
+        task_id=call.task_id,
+        agent_id=call.agent_id,
+        provider_id=call.provider_id,
+        tool_name=call.tool_name,
+        arguments=call.arguments,
+        risk_tier=call.risk_tier,
+        is_state_changing=call.is_state_changing,
+        requested_mode=ToolExecutionMode.DETERMINISTIC,
+    )
+    mode = select_execution_mode(call, capability, _allow_decision())
+    assert mode == ToolExecutionMode.DETERMINISTIC
