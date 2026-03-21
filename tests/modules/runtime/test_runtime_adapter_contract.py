@@ -17,8 +17,9 @@ from collections.abc import AsyncIterator
 from src.runtime.custom_runtime import CustomRuntimeAdapter
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 from src.runtime.openai_compatible_runtime import OpenAICompatibleRuntimeAdapter
-from src.runtime.runtime_adapter import RuntimeAdapter
+from src.runtime.runtime_adapter import RuntimeAdapter, SessionHandle
 from src.schemas.events import RuntimeEventType
+from src.schemas.tool_io import ToolResult
 
 
 def test_openai_adapter_implements_runtime_interface() -> None:
@@ -129,5 +130,63 @@ def test_openai_agents_adapter_normalizes_malformed_planned_tool_call() -> None:
         ]
         assert events[-1].event_type == RuntimeEventType.ERROR
         assert events[-1].payload.get("code") == "RUNTIME_TURN_ERROR"
+
+    asyncio.run(_run())
+
+
+def test_runtime_adapter_abstract_method_bodies_raise_not_implemented() -> None:
+    class _AbstractBodyProbe(RuntimeAdapter):
+        async def start_session(self, session_id: str, metadata: dict | None = None) -> SessionHandle:
+            return await RuntimeAdapter.start_session(self, session_id, metadata)
+
+        async def run_turn(self, session_id: str, user_input: str, context: dict) -> AsyncIterator:
+            return await RuntimeAdapter.run_turn(self, session_id, user_input, context)
+
+        async def submit_tool_results(
+            self,
+            session_id: str,
+            run_id: str,
+            tool_results: list[ToolResult],
+        ) -> AsyncIterator:
+            return await RuntimeAdapter.submit_tool_results(self, session_id, run_id, tool_results)
+
+        def get_capabilities(self):  # type: ignore[override]
+            return RuntimeAdapter.get_capabilities(self)
+
+        async def healthcheck(self):
+            return await RuntimeAdapter.healthcheck(self)
+
+    adapter = _AbstractBodyProbe()
+
+    async def _run() -> None:
+        try:
+            await adapter.start_session("sess_probe", metadata={})
+            assert False, "Expected NotImplementedError for start_session body"
+        except NotImplementedError:
+            pass
+
+        try:
+            await adapter.run_turn("sess_probe", "hello", {})
+            assert False, "Expected NotImplementedError for run_turn body"
+        except NotImplementedError:
+            pass
+
+        try:
+            await adapter.submit_tool_results("sess_probe", "run_probe", [])
+            assert False, "Expected NotImplementedError for submit_tool_results body"
+        except NotImplementedError:
+            pass
+
+        try:
+            adapter.get_capabilities()
+            assert False, "Expected NotImplementedError for get_capabilities body"
+        except NotImplementedError:
+            pass
+
+        try:
+            await adapter.healthcheck()
+            assert False, "Expected NotImplementedError for healthcheck body"
+        except NotImplementedError:
+            pass
 
     asyncio.run(_run())
