@@ -20,8 +20,7 @@ Abbreviation notepad:
 ## Canonical Rules (Always Applied)
 
 - `.cursor/rules/provider-neutral-adapter-wall.mdc` — Architecture and layer boundaries
-- `.cursor/rules/implementation-workflow-governance.mdc` — Plan-first implementation, validation, and control-center tracking
-- `.cursor/rules/test-implementation-standard.mdc` — Module-aligned testing depth and validation standards
+- `.cursor/rules/implementation-workflow-governance.mdc` — Implementation slice lifecycle, control-center discipline, module-aligned testing
 - `.cursor/rules/pr-workflow-enforcement.mdc` — PR-first, merge gates, branch safety
 - `.cursor/rules/commit-trailer-format.mdc` — Commit trailers
 - `.cursor/rules/file-docstring-header-relations.mdc` — File header metadata

@@ -1,0 +1,11 @@
+---
+description: Do not delete protected local data without explicit user confirmation
+alwaysApply: true
+---
+
+# Local artifact protection
+
+- Protected: `.exo_data/` and `.coverage`.
+- Do not delete, reset, or clean these unless the user explicitly confirms in this conversation.
+- Before cleanup commands, list targets; if they include either path, ask for approval.
+- If removed by mistake, say so and restore baseline (`.exo_data/` + `exo.db`, `.coverage`) immediately.

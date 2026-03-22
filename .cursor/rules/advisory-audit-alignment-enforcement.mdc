@@ -1,0 +1,13 @@
+---
+description: Advisory-only alignment audits before prepare/merge for architecture-impacting work
+alwaysApply: true
+---
+
+# Advisory audit alignment
+
+- Audits are **advisory**: findings and recommendations only; do not auto-apply fixes during the audit step.
+- Run before `/prepare-pr` when scope touches: module boundaries, workflow/rule/skill policy, test/CI layout, roadmap/research source of truth.
+- **Outputs:** `.local/alignment-audit.md`, `.local/alignment-todos.md`.
+- **Schema:** `docs/roadmap/alignment-audit-schema.md`.
+- Each finding: evidence path, mismatch category, recommended fix, status (`open` | `accepted_divergence` | `fixed` | `deferred`).
+- **P0:** block merge prep until fixed or accepted with rationale. **P1:** fix in-slice or defer with owner and slice. **P2:** batch but track in reconciliation TODOs.
