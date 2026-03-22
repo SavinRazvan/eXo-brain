@@ -8,8 +8,8 @@ Used By:
 Depends On:
  - docs/plans/tenant-tool-execution-architecture.md
  - docs/archive/plans/p2-expansion-roadmap.md
- - .local/control-center/plan.md
- - .local/control-center/work-tracker.md
+ - .local/index-and-planning/plan.md
+ - .local/index-and-planning/work-tracker.md
 Notes:
  - This board is planning-only until explicitly approved for coding.
 -->
@@ -150,8 +150,8 @@ Define the next approved execution queue after closure of:
 - `python scripts/architecture/validate_layers.py`
 - `python scripts/architecture/scan_forbidden_imports.py`
 - companion tracker synchronization:
-  - `.local/control-center/plan.md`
-  - `.local/control-center/work-tracker.md`
+  - `.local/index-and-planning/plan.md`
+  - `.local/index-and-planning/work-tracker.md`
 
 ## Immediate Next Step
 

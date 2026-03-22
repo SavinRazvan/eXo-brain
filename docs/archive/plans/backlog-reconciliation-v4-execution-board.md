@@ -9,8 +9,8 @@ Depends On:
  - docs/plans/tenant-tool-execution-architecture.md
  - docs/archive/plans/backlog-reconciliation-v3-execution-board.md
  - docs/archive/plans/p2-expansion-roadmap.md
- - .local/control-center/plan.md
- - .local/control-center/work-tracker.md
+ - .local/index-and-planning/plan.md
+ - .local/index-and-planning/work-tracker.md
 Notes:
  - This board is planning-only until explicitly approved for coding.
 -->
@@ -198,8 +198,8 @@ Define the next approved queue after closure of:
 - `python scripts/architecture/scan_forbidden_imports.py`
 - Optional legacy UI gates (`make ui-build`, `make ui-verify`) apply only when a UI track is explicitly re-opened.
 - companion tracker synchronization:
-  - `.local/control-center/plan.md`
-  - `.local/control-center/work-tracker.md`
+  - `.local/index-and-planning/plan.md`
+  - `.local/index-and-planning/work-tracker.md`
 
 ## Immediate Next Step
 

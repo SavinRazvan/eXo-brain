@@ -125,7 +125,7 @@ Thin wrappers around versioned scripts (outputs under `.local/` where noted):
 | `make rc-signoff` | Generate `.local/rc-signoff.md` via `scripts/release/rc_signoff.py` |
 | `make rc-signoff-json` | Parse signoff markdown → `.local/rc-signoff.json` |
 | `make db-backup` / `db-restore` / `db-validate` | Local SQLite safety helpers |
-| `make coverage-index` | Full `pytest --cov` run + regenerate `.local/control-center/coverage-index.md` |
+| `make coverage-index` | Full `pytest --cov` run + regenerate `.local/index-and-planning/coverage-index.md` |
 
 ---
 

@@ -48,7 +48,7 @@ Produce a module-by-module audit that explains workflow, behavior, importance, a
    - rules/skill guidance needed for repeatable audits
 5. Emit:
    - `.local/module-map.md` (detailed module catalog)
-   - `.local/module-audit.html` (visual report with architecture graphic and per-module cards)
+   - `.local/agents-control-center/module-audit.html` (visual report with architecture graphic and per-module cards)
    - Optional reconciliation findings appended into `.local/alignment-audit.md` and `.local/alignment-todos.md`
 
 ## Output Contract

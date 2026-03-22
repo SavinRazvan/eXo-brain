@@ -48,8 +48,8 @@ This section supersedes conflicting historical wording in this document.
      - structured gate metadata in markdown evidence (`command`, `exit_code`, `duration_ms`)
      - normalized JSON parser support with backward compatibility for legacy evidence
 - Companion trackers that should mirror this exact status:
-  - `.local/control-center/plan.md`
-  - `.local/control-center/work-tracker.md`
+  - `.local/index-and-planning/plan.md`
+  - `.local/index-and-planning/work-tracker.md`
 
 ### Reconciled Backlog Status (post-delivery)
 

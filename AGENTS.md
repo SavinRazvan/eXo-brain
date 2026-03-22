@@ -17,10 +17,13 @@ If you are new to the repository, read in this order:
 Abbreviation notepad:
 - `docs/operations/abbreviations-notepad.md`
 
+Local workspace map (`.local/` folders: `index-and-planning`, `agents-control-center`, `generated-data`):
+- `docs/operations/local-workspace-layout.md`
+
 ## Canonical Rules (Always Applied)
 
 - `.cursor/rules/provider-neutral-adapter-wall.mdc` — Architecture and layer boundaries
-- `.cursor/rules/implementation-workflow-governance.mdc` — Implementation slice lifecycle, control-center discipline, module-aligned testing
+- `.cursor/rules/implementation-workflow-governance.mdc` — Implementation slice lifecycle, `.local/index-and-planning` discipline, module-aligned testing
 - `.cursor/rules/pr-workflow-enforcement.mdc` — PR-first, merge gates, branch safety
 - `.cursor/rules/commit-trailer-format.mdc` — Commit trailers
 - `.cursor/rules/file-docstring-header-relations.mdc` — File header metadata
@@ -43,11 +46,11 @@ Abbreviation notepad:
 - Add rollback/fallback behavior for new runtime features.
 - Keep checklist/docs synchronized with implementation status:
   - `docs/plans/tenant-tool-execution-architecture.md`
-  - `.local/control-center/plan.md`
-  - `.local/control-center/architecture.md`
-  - `.local/control-center/work-tracker.md`
-  - `.local/control-center/test-plan.md`
-  - `.local/control-center/test-index.md`
+  - `.local/index-and-planning/plan.md`
+  - `.local/index-and-planning/architecture.md`
+  - `.local/index-and-planning/work-tracker.md`
+  - `.local/index-and-planning/test-plan.md`
+  - `.local/index-and-planning/test-index.md`
   - `docs/plans/docs-inventory-master.md` (when doc lifecycle status changes)
 
 ## Quality and Safety Gates
@@ -80,7 +83,7 @@ Abbreviation notepad:
 - Keep `main` stable and merge-ready; avoid direct implementation commits on `main`.
 - Before merge, require:
   - tests and architecture checks passing
-  - implementation control-center status updates for implemented scope
+  - implementation status updates in `.local/index-and-planning/` for implemented scope
   - docs maintenance review for architecture/workflow changes (`docs/operations/documentation-maintenance-checklist.md`)
 - After merge, require workflow finalization:
   - sync local `main` with `origin/main`

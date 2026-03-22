@@ -11,6 +11,6 @@ alwaysApply: true
 - **Architecture-impacting** changes: before prepare/merge, produce `.local/alignment-audit.md` and `.local/alignment-todos.md` (see [advisory-audit-alignment-enforcement.mdc](advisory-audit-alignment-enforcement.mdc)).
 - **Pre-merge gates** (order = `GATES` in `scripts/pr/prepare.py`): `python scripts/pr/check_testing_artifacts.py`, `python -m pytest -q`, `python scripts/architecture/validate_layers.py`, `python scripts/architecture/scan_forbidden_imports.py`. When changing governance, workflows, or tracked policy docs, also run `python scripts/architecture/check_governance_consistency.py` locally (CI runs it on relevant paths).
 - **Branch/PR health:** current branch tracks `origin/<branch>`; `git ls-remote --heads origin <branch>` shows head; `gh pr view --json headRefName` matches current branch.
-- **Tracking docs** when architecture/runtime scope shifts: `docs/plans/tenant-tool-execution-architecture.md`, `.local/control-center/plan.md`, `.local/control-center/architecture.md`.
+- **Tracking docs** when architecture/runtime scope shifts: `docs/plans/tenant-tool-execution-architecture.md`, `.local/index-and-planning/plan.md`, `.local/index-and-planning/architecture.md`.
 - `git push --force-with-lease` only for intentional rewrites on branches you own.
 - **Stop and report** if required artifacts or gates are missing, or post-merge sync/cleanup is incomplete.
