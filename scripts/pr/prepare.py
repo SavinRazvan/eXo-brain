@@ -10,6 +10,7 @@ Depends On:
  - subprocess
  - scripts/pr/local_workflow_paths.py
 Notes:
+ - Gate subprocesses use `sys.executable` (same interpreter as this script), not a bare `python` on PATH.
  - By default runs all gates (check_testing_artifacts, pytest, validate_layers, scan_forbidden_imports)
    per `GATES` and writes `.local/workflow-artifacts/prep.md`.
  - Pass --skip-gates when the agent has already run and verified gates independently; the script
@@ -21,7 +22,6 @@ Notes:
 from __future__ import annotations
 
 import argparse
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -41,10 +41,16 @@ GATES = [
 ]
 
 
+def _resolve_gate_cmd(cmd: list[str]) -> list[str]:
+    """Run gates with the same interpreter that executed this script (e.g. project venv)."""
+    resolved = list(cmd)
+    if resolved and resolved[0] == "python":
+        resolved[0] = sys.executable
+    return resolved
+
+
 def _run(cmd: list[str]) -> tuple[int, str]:
-    normalized = list(cmd)
-    if normalized and normalized[0] == "python" and shutil.which("python") is None:
-        normalized[0] = sys.executable
+    normalized = _resolve_gate_cmd(cmd)
     proc = subprocess.run(normalized, capture_output=True, text=True)
     output = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode, output.strip()
@@ -109,7 +115,7 @@ def main() -> int:
         for gate in GATES:
             code, output = _run(gate)
             label = "PASS" if code == 0 else "FAIL"
-            lines.append(f"- `{ ' '.join(gate) }` -> {label}")
+            lines.append(f"- `{ ' '.join(_resolve_gate_cmd(gate)) }` -> {label}")
             if code != 0:
                 failed = True
                 lines.append("")

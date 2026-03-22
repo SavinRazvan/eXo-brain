@@ -43,10 +43,10 @@ Use these files as the operating system for implementation:
 5. Run validation gates.
 6. Close the loop (see `plan.md` **Implementer slice closure**):
    - mark tasks in `work-tracker.md` as `done`, `blocked`, or `deferred` (one primary `in_progress` at a time)
-   - append `updates-log.md` with impact and next step (no full gate-list paste — use `agent-workflow-procedures.md`)
+   - append `updates-log.md` with impact and next step (no full gate-list paste — use `.local/index-and-planning/agent-workflow-procedures.md`)
    - update `test-plan.md` / `test-index.md` when tests or module buckets moved
    - regenerate `coverage-index.md` after relevant coverage runs
-   - update `agents-control-center/implementation-control-center.html` if you added a new `index-and-planning/*.md` or changed which trackers exist
+   - update `.local/agents-control-center/implementation-control-center.html` if you added a new `index-and-planning/*.md` or changed which trackers exist
 7. Stop with explicit handoff notes (list which tracker files changed).
 
 ## Architecture Rules (non-negotiable)

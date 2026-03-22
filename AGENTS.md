@@ -17,8 +17,9 @@ If you are new to the repository, read in this order:
 Abbreviation notepad:
 - `docs/operations/abbreviations-notepad.md`
 
-Local workspace map (`.local/` folders: `index-and-planning`, `agents-control-center`, `generated-data`):
+Local workspace map (`.local/` folders: `index-and-planning`, `agents-control-center`, `generated-data`, `workflow-artifacts`):
 - `docs/operations/local-workspace-layout.md`
+- PR phase markdown from `scripts/pr/review.py` / `prepare.py` / `merge.py` lives under **`.local/workflow-artifacts/`** (paths in **`scripts/pr/local_workflow_paths.py`**).
 
 ## Canonical Rules (Always Applied)
 
