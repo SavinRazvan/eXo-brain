@@ -26,7 +26,7 @@ alwaysApply: true
 - After substantive code change: `work-tracker.md`; `test-index.md` / `test-plan.md` when tests or risk change; `updates-log.md` (summary, impact, blockers, next step).
 - Planning-only scope changes: update `plan.md` / `work-tracker.md` + at least one `updates-log.md` entry.
 - Blocked: mark blocker and unblock action in `work-tracker.md`.
-- **Slice closure** (before handoff): regenerate `coverage-index.md` when coverage mattered (`coverage json` → `scripts/dev/generate_coverage_index.py`); if a new `*.md` tracker is added under `index-and-planning/`, update `.local/agents-control-center/implementation-control-center.html` `PAGES` and header **Depends On**; do not edit `agents-control-center/module-audit.html` unless refreshing that export.
+- **Slice closure** (before handoff): regenerate `coverage-index.md` when coverage mattered (`coverage json` → `scripts/dev/generate_coverage_index.py`); if a new `*.md` tracker is added under `index-and-planning/`, update `.local/agents-control-center/implementation-control-center.html` `PAGES` and header **Depends On**; do not edit `.local/agents-control-center/module-audit.html` unless refreshing that export.
 
 ## Merge gates
 
