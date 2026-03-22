@@ -34,8 +34,8 @@ Notes:
 | `index-and-planning/current/` | Live trackers: plan, work-tracker, tests, coverage index |
 | `index-and-planning/history/` | Chronological logs (e.g. updates-log) |
 | `index-and-planning/audits/` | Local governance audit snapshots |
-| `agents-control-center/dashboards/` | HTML shells (manifest-driven) |
-| `agents-control-center/audits/` | Deep audit HTML exports |
+| `agents-control-center/dashboards/` | HTML shells: `index.html` (landing) + manifest-driven dashboards |
+| `agents-control-center/audits/` | Deep audit HTML exports and similar static reports |
 | `agents-control-center/config/` | `pages.json` and local UI config |
 | `agents-control-center/data/` | Generated summaries for dashboards |
 | `workflow-artifacts/pr/` | review / prep / merge markdown |

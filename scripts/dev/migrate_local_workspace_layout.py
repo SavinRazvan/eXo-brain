@@ -101,6 +101,17 @@ def _copy_template(name: str, dest: Path, dry_run: bool, log: list[str]) -> None
         shutil.copy2(src, dest)
 
 
+def _copy_template_overwrite(name: str, dest: Path, dry_run: bool, log: list[str]) -> None:
+    """Always refresh small shared assets (e.g. site navigator) so `.local` picks up fixes."""
+    src = TEMPLATE / name
+    if not src.exists():
+        return
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    log.append(f"[COPY+] {src.relative_to(REPO)} -> {dest.relative_to(REPO)}")
+    if not dry_run:
+        shutil.copy2(src, dest)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Migrate .local/ to nested layout.")
     parser.add_argument("--dry-run", action="store_true", help="Print planned actions only.")
@@ -131,6 +142,12 @@ def main() -> int:
 
     cfg = LOCAL / "agents-control-center" / "config" / "pages.json"
     _copy_template("pages.json", cfg, dry_run, log)
+    landing = LOCAL / "agents-control-center" / "dashboards" / "index.html"
+    _copy_template("index.html", landing, dry_run, log)
+    nav_js = LOCAL / "agents-control-center" / "dashboards" / "site-nav.js"
+    _copy_template_overwrite("site-nav.js", nav_js, dry_run, log)
+    shell_css = LOCAL / "agents-control-center" / "dashboards" / "local-shell.css"
+    _copy_template_overwrite("local-shell.css", shell_css, dry_run, log)
     dash = LOCAL / "agents-control-center" / "dashboards" / "implementation-control-center.html"
     legacy_backup = (
         LOCAL / "agents-control-center" / "dashboards" / "implementation-control-center.legacy.html"
@@ -146,6 +163,9 @@ def main() -> int:
             shutil.copy2(TEMPLATE / "implementation-control-center.html", dash)
     else:
         _copy_template("implementation-control-center.html", dash, dry_run, log)
+
+    audit_html = LOCAL / "agents-control-center" / "audits" / "module-audit.html"
+    _copy_template("audits/module-audit.html", audit_html, dry_run, log)
 
     summary = LOCAL / "agents-control-center" / "data" / "summary.json"
     if not summary.exists():
