@@ -1,0 +1,33 @@
+---
+description: Implementation slice lifecycle, index-and-planning updates, and module-aligned testing
+alwaysApply: true
+---
+
+# Implementation and testing governance
+
+## Lifecycle
+
+- Sequence: `plan -> interfaces -> implementation -> tests -> evidence -> docs update`.
+- Before coding: confirm module boundary, acceptance criteria, rollback in `.local/index-and-planning/plan.md`; read `plan.md`, `work-tracker.md`, `architecture.md`, `test-plan.md`, `test-index.md`.
+- Treat `.local/index-and-planning/*` as live implementation state.
+- Exactly one primary task `in_progress` in `work-tracker.md`; do not implement without scope in `plan.md`.
+- Incremental, reversible slices; KISS. Block release on P0 failures; RCs need CI/CD evidence bundles.
+
+## Tests
+
+- Place tests under `tests/modules/<module>/` matching source boundaries.
+- Cover happy, failure, and edge cases; add retry/timeout/replay where high-risk or state-changing.
+- Run targeted module tests first, then full suite before merge.
+- For medium/high-risk slices, run `pytest --cov=src --cov-report=term-missing -q`; record gaps in `work-tracker.md` and `updates-log.md`.
+- If modules/tests move or drop, update/remove tests in the same slice; note rationale in `updates-log.md`.
+
+## Planning index updates
+
+- After substantive code change: `work-tracker.md`; `test-index.md` / `test-plan.md` when tests or risk change; `updates-log.md` (summary, impact, blockers, next step).
+- Planning-only scope changes: update `plan.md` / `work-tracker.md` + at least one `updates-log.md` entry.
+- Blocked: mark blocker and unblock action in `work-tracker.md`.
+- **Slice closure** (before handoff): regenerate `coverage-index.md` when coverage mattered (`coverage json` → `scripts/dev/generate_coverage_index.py`); if a new `*.md` tracker is added under `index-and-planning/`, update `.local/agents-control-center/implementation-control-center.html` `PAGES` and header **Depends On**; do not edit `agents-control-center/module-audit.html` unless refreshing that export.
+
+## Merge gates
+
+- Full gate order: [`.cursor/rules/pr-workflow-enforcement.mdc`](pr-workflow-enforcement.mdc) and `scripts/pr/prepare.py` (`GATES`).

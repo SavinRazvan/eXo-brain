@@ -1,0 +1,12 @@
+---
+description: Required git commit message trailers
+alwaysApply: true
+---
+
+# Commit trailer format
+
+- End every commit message body with exactly:
+  - `Author: Savin I. Razvan`
+  - `GitHub-User: @SavinRazvan`
+- `Author` is mandatory; display name must be `Savin I. Razvan`. `GitHub-User` must be `@SavinRazvan`.
+- `Co-authored-by:` optional; only for real co-authors.

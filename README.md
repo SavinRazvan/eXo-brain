@@ -125,7 +125,7 @@ Thin wrappers around versioned scripts (outputs under `.local/` where noted):
 | `make rc-signoff` | Generate `.local/rc-signoff.md` via `scripts/release/rc_signoff.py` |
 | `make rc-signoff-json` | Parse signoff markdown → `.local/rc-signoff.json` |
 | `make db-backup` / `db-restore` / `db-validate` | Local SQLite safety helpers |
-| `make coverage-index` | Full `pytest --cov` run + regenerate `.local/control-center/coverage-index.md` |
+| `make coverage-index` | Full `pytest --cov` run + regenerate `.local/index-and-planning/coverage-index.md` |
 
 ---
 
@@ -460,7 +460,7 @@ Tracked automation lives under `scripts/pr/` and `.github/workflows/`. Use **PR-
    - `python scripts/pr/review.py --pr <id|url> --actor "…" --agents "review-pr"`
    - `python scripts/pr/prepare.py --pr <id|url> --actor "…" --agents "review-pr | prepare-pr"` (runs gates unless `--skip-gates`)
    - `python scripts/pr/merge.py --pr … --check-only` then merge via `gh`, then `merge.py` again with `--merge-sha <oid>`
-3. **Local artifacts** (create under `.local/` as you run the flow): `review.md`, `prep.md`, `merge.md`. For **architecture-impacting** changes, also maintain `alignment-audit.md` and `alignment-todos.md`, and pass `--arch-impacting` to `merge.py` so both files are enforced.
+3. **Local artifacts** (scripts write under **`.local/workflow-artifacts/`**): `review.md`, `prep.md`, `merge.md`. For **architecture-impacting** changes, also maintain `alignment-audit.md` and `alignment-todos.md` there, and pass `--arch-impacting` to `merge.py` so both files are enforced.
 4. **Merge gates** — must match `scripts/pr/prepare.py` `GATES` (canonical order):
    - `python scripts/pr/check_testing_artifacts.py`
    - `python -m pytest -q` (CI also enforces coverage thresholds on PRs)

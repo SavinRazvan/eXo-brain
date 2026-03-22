@@ -17,11 +17,13 @@ If you are new to the repository, read in this order:
 Abbreviation notepad:
 - `docs/operations/abbreviations-notepad.md`
 
+Local workspace map (`.local/` folders: `index-and-planning`, `agents-control-center`, `generated-data`):
+- `docs/operations/local-workspace-layout.md`
+
 ## Canonical Rules (Always Applied)
 
 - `.cursor/rules/provider-neutral-adapter-wall.mdc` — Architecture and layer boundaries
-- `.cursor/rules/implementation-workflow-governance.mdc` — Plan-first implementation, validation, and control-center tracking
-- `.cursor/rules/test-implementation-standard.mdc` — Module-aligned testing depth and validation standards
+- `.cursor/rules/implementation-workflow-governance.mdc` — Implementation slice lifecycle, `.local/index-and-planning` discipline, module-aligned testing
 - `.cursor/rules/pr-workflow-enforcement.mdc` — PR-first, merge gates, branch safety
 - `.cursor/rules/commit-trailer-format.mdc` — Commit trailers
 - `.cursor/rules/file-docstring-header-relations.mdc` — File header metadata
@@ -44,11 +46,11 @@ Abbreviation notepad:
 - Add rollback/fallback behavior for new runtime features.
 - Keep checklist/docs synchronized with implementation status:
   - `docs/plans/tenant-tool-execution-architecture.md`
-  - `.local/control-center/plan.md`
-  - `.local/control-center/architecture.md`
-  - `.local/control-center/work-tracker.md`
-  - `.local/control-center/test-plan.md`
-  - `.local/control-center/test-index.md`
+  - `.local/index-and-planning/plan.md`
+  - `.local/index-and-planning/architecture.md`
+  - `.local/index-and-planning/work-tracker.md`
+  - `.local/index-and-planning/test-plan.md`
+  - `.local/index-and-planning/test-index.md`
   - `docs/plans/docs-inventory-master.md` (when doc lifecycle status changes)
 
 ## Quality and Safety Gates
@@ -81,7 +83,7 @@ Abbreviation notepad:
 - Keep `main` stable and merge-ready; avoid direct implementation commits on `main`.
 - Before merge, require:
   - tests and architecture checks passing
-  - implementation control-center status updates for implemented scope
+  - implementation status updates in `.local/index-and-planning/` for implemented scope
   - docs maintenance review for architecture/workflow changes (`docs/operations/documentation-maintenance-checklist.md`)
 - After merge, require workflow finalization:
   - sync local `main` with `origin/main`
@@ -91,8 +93,8 @@ Abbreviation notepad:
 
 ## Skills and Agent Extensions
 
-- Primary project skills location: `.cursor/skills/`
-- Standards-friendly project skills location: `.agents/skills/`
+- Primary project skills location: `.cursor/skills/` (agent profiles and these skills are versioned in git; see `.gitignore` exceptions for `.cursor/rules`, `.cursor/agents`, `.cursor/skills/**/SKILL.md`)
+- Standards-friendly project skills location: `.agents/skills/` (typically local / not committed; mirror of maintainer PR workflow)
 - Keep skill names stable and use `SKILL.md` per skill directory.
 - For deep module-understanding audits, use `.cursor/skills/audit-module-map/SKILL.md` before alignment reconciliation.
 - For implementation execution discipline, use `.cursor/skills/implementation-execution-loop/SKILL.md`.

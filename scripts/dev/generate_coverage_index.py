@@ -7,7 +7,7 @@ Used By:
  - CI coverage evidence steps
 Depends On:
  - coverage.py JSON report format
- - .local/control-center/coverage-index.md
+ - .local/index-and-planning/coverage-index.md
 Notes:
  - This script is read-only for source/tests; it only writes the index artifact.
 """
@@ -37,13 +37,13 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--coverage-json",
-        default=".local/coverage.json",
-        help="Path to coverage JSON file (default: .local/coverage.json).",
+        default=".local/generated-data/coverage.json",
+        help="Path to coverage JSON file (default: .local/generated-data/coverage.json).",
     )
     parser.add_argument(
         "--output",
-        default=".local/control-center/coverage-index.md",
-        help="Markdown output path (default: .local/control-center/coverage-index.md).",
+        default=".local/index-and-planning/coverage-index.md",
+        help="Markdown output path (default: .local/index-and-planning/coverage-index.md).",
     )
     parser.add_argument(
         "--low-threshold",
@@ -131,11 +131,11 @@ def _render(
     lines: list[str] = [
         "<!--",
         "File: coverage-index.md",
-        "Path: .local/control-center/coverage-index.md",
+        "Path: .local/index-and-planning/coverage-index.md",
         "Role: Generated index of source coverage status by module and file.",
         "Used By:",
-        " - .local/control-center/test-plan.md",
-        " - .local/control-center/test-index.md",
+        " - .local/index-and-planning/test-plan.md",
+        " - .local/index-and-planning/test-index.md",
         "Depends On:",
         " - coverage.py JSON report",
         " - scripts/dev/generate_coverage_index.py",

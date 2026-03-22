@@ -45,9 +45,16 @@ def _check_test_index_structure(path: Path) -> tuple[bool, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate required testing artifacts for PR prepare.")
     parser.add_argument(
+        "--planning-dir",
+        dest="planning_dir",
+        default=".local/index-and-planning",
+        help="Directory containing test-plan.md, test-index.md, and related planning markdown.",
+    )
+    parser.add_argument(
         "--control-center-dir",
-        default=".local/control-center",
-        help="Directory containing testing control-center markdown files.",
+        dest="legacy_planning_dir",
+        default=None,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--tests-dir",
@@ -56,7 +63,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    control_center = Path(args.control_center_dir)
+    planning_root = args.legacy_planning_dir or args.planning_dir
+    control_center = Path(planning_root)
     tests_dir = Path(args.tests_dir)
     test_plan = control_center / "test-plan.md"
     test_index = control_center / "test-index.md"
