@@ -90,8 +90,8 @@ Abbreviation notepad:
 
 ## Skills and Agent Extensions
 
-- Primary project skills location: `.cursor/skills/`
-- Standards-friendly project skills location: `.agents/skills/`
+- Primary project skills location: `.cursor/skills/` (agent profiles and these skills are versioned in git; see `.gitignore` exceptions for `.cursor/rules`, `.cursor/agents`, `.cursor/skills/**/SKILL.md`)
+- Standards-friendly project skills location: `.agents/skills/` (typically local / not committed; mirror of maintainer PR workflow)
 - Keep skill names stable and use `SKILL.md` per skill directory.
 - For deep module-understanding audits, use `.cursor/skills/audit-module-map/SKILL.md` before alignment reconciliation.
 - For implementation execution discipline, use `.cursor/skills/implementation-execution-loop/SKILL.md`.
