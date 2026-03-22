@@ -92,6 +92,16 @@ def test_decode_jwt_no_sub_claim_returns_none() -> None:
     assert identity is None
 
 
+def test_decode_jwt_blank_sub_returns_none() -> None:
+    payload = {
+        "sub": "   ",
+        "exp": int(time.time()) + 3600,
+    }
+    token = jwt.encode(payload, _SECRET, algorithm=_ALG)
+    identity = decode_jwt(token, secret=_SECRET, algorithm=_ALG)
+    assert identity is None
+
+
 def test_decode_jwt_no_secret_configured_returns_none() -> None:
     token = _make_token()
     identity = decode_jwt(token, secret="", algorithm=_ALG)
@@ -222,6 +232,93 @@ def test_bearer_jwt_wrong_secret_returns_401() -> None:
             headers={"Authorization": f"Bearer {bad_token}"},
         )
     assert resp.status_code == 401
+
+
+def test_extract_identity_returns_none_when_bearer_token_empty() -> None:
+    """Bearer header present but blank token hits auth middleware early return."""
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from src.api.app import create_app
+    from src.api.middleware.auth import extract_identity
+    from src.config.settings import AppSettings, RuntimeSettings
+
+    app = create_app()
+    mock_req = MagicMock()
+    mock_req.headers = {"Authorization": "Bearer   "}
+    mock_req.app = app
+    app.state.settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+    )
+    assert asyncio.run(extract_identity(mock_req)) is None
+
+
+def test_extract_identity_jwt_path_requires_app_settings_for_decode() -> None:
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from src.api.middleware.auth import extract_identity
+
+    token = _make_token(sub="jwt-path", tenant_id="t1")
+    mock_req = MagicMock()
+    mock_req.headers = {"Authorization": f"Bearer {token}"}
+    # Explicit state without `settings` → line 61–63 (`settings is None`).
+    mock_req.app = MagicMock()
+    mock_req.app.state = SimpleNamespace()
+    assert asyncio.run(extract_identity(mock_req)) is None
+
+
+def test_extract_identity_jwt_path_requires_auth_attribute_on_settings() -> None:
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from src.api.app import create_app
+    from src.api.middleware.auth import extract_identity
+
+    token = _make_token(sub="jwt-path-2", tenant_id="t1")
+    mock_req = MagicMock()
+    mock_req.headers = {"Authorization": f"Bearer {token}"}
+    mock_req.app = create_app()
+    # Settings without `auth` → getattr(..., "auth", None) is None (lines 64–66).
+    mock_req.app.state.settings = SimpleNamespace(environment="test")
+    assert asyncio.run(extract_identity(mock_req)) is None
+
+
+def test_extract_identity_accepts_valid_bearer_jwt_when_configured() -> None:
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from src.api.middleware.auth import extract_identity
+    from src.config.settings import AppSettings, AuthSettings, RuntimeSettings
+
+    from src.api.app import create_app
+
+    token = _make_token(sub="jwt-ok", tenant_id="t1", roles=["admin"])
+    mock_req = MagicMock()
+    mock_req.headers = {"Authorization": f"Bearer {token}"}
+    mock_req.app = create_app()
+    mock_req.app.state.settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        auth=AuthSettings(jwt_secret=_SECRET, algorithm=_ALG),
+    )
+    identity = asyncio.run(extract_identity(mock_req))
+    assert identity is not None
+    assert identity.subject == "jwt-ok"
+    assert identity.token_validation_state == TokenValidationState.VALID
 
 
 def test_jwt_and_x_identity_precedence() -> None:

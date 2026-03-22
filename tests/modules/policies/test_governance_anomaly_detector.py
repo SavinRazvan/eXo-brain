@@ -43,6 +43,40 @@ def test_detect_governance_anomalies_emits_spike_and_dominance_findings() -> Non
     assert anomalies[-1].reason_code == "BYOC_LEASE_INVALID_OR_EXPIRED"
 
 
+def test_detect_governance_anomalies_skips_reason_dominance_when_no_rejections() -> None:
+    thresholds = GovernanceAnomalyThresholds(
+        min_submit_attempts=1,
+        min_rejection_count=0,
+        reason_share_threshold=0.1,
+    )
+    anomalies = detect_governance_anomalies(
+        cost_utilization_ratio=0.0,
+        rejection_rate=0.0,
+        submit_attempts_total=5,
+        rejected_results_total=0,
+        rejection_reason_counts={},
+        thresholds=thresholds,
+    )
+    assert all(a.code != "BYOC_REJECTION_REASON_DOMINANCE" for a in anomalies)
+
+
+def test_detect_governance_anomalies_skips_reason_dominance_when_rejections_below_min() -> None:
+    thresholds = GovernanceAnomalyThresholds(
+        min_submit_attempts=1,
+        min_rejection_count=5,
+        reason_share_threshold=0.5,
+    )
+    anomalies = detect_governance_anomalies(
+        cost_utilization_ratio=0.0,
+        rejection_rate=0.0,
+        submit_attempts_total=10,
+        rejected_results_total=2,
+        rejection_reason_counts={"ONLY_REASON": 2},
+        thresholds=thresholds,
+    )
+    assert all(a.code != "BYOC_REJECTION_REASON_DOMINANCE" for a in anomalies)
+
+
 def test_detect_governance_anomalies_returns_empty_below_min_submit_attempts() -> None:
     thresholds = GovernanceAnomalyThresholds(min_submit_attempts=5)
     anomalies = detect_governance_anomalies(

@@ -12,13 +12,18 @@ Notes:
 """
 
 from src.policies.ingress_gates import (
+    CustomIngressRulesGate,
     EmptyInputGate,
+    IngressClassifierHeuristicGate,
+    IngressDecision,
     IngressGateChain,
     IngressTurnContext,
     MaxInputCharsGate,
     PromptInjectionHeuristicGate,
+    build_default_ingress_gate_chain,
     build_ingress_gate_chain_from_overlay,
 )
+from src.policies.ingress_profiles import IngressClassifierSettings, IngressCustomRule
 from src.schemas.tool_io import PolicyAction
 
 
@@ -68,6 +73,79 @@ def test_ingress_gate_chain_escalates_suspicious_prompt_injection_phrase() -> No
     assert decision.decision == PolicyAction.ESCALATE
     assert decision.reason_code == "INGRESS_PROMPT_INJECTION_SUSPECTED"
     assert decision.review_required is True
+
+
+def test_classifier_gate_records_low_risk_allow_decision() -> None:
+    gate = IngressClassifierHeuristicGate(
+        classifier=IngressClassifierSettings(
+            mode="enforce",
+            threshold=0.9,
+            model_version="t-v1",
+            signals=("zzzznotpresent",),
+        )
+    )
+    decision = gate.evaluate(_turn("plain safe text"))
+    assert decision is not None
+    assert decision.reason_code == "INGRESS_CLASSIFIER_ALLOW_LOW_RISK"
+    assert decision.classifier_shadow_triggered is False
+
+
+def test_classifier_shadow_mode_records_high_risk_without_blocking() -> None:
+    gate = IngressClassifierHeuristicGate(
+        classifier=IngressClassifierSettings(
+            mode="shadow",
+            threshold=0.1,
+            model_version="t-v1",
+            signals=("secret",),
+        )
+    )
+    decision = gate.evaluate(_turn("contains secret keyword"))
+    assert decision is not None
+    assert decision.decision == PolicyAction.ALLOW
+    assert decision.classifier_shadow_triggered is True
+
+
+def test_custom_rules_gate_skips_non_matching_rules() -> None:
+    gate = CustomIngressRulesGate(
+        custom_rules=(
+            IngressCustomRule(
+                rule_id="r1",
+                action="deny",
+                match_type="contains_any",
+                patterns=("nope",),
+                reason_code="R1",
+                message="m",
+            ),
+        )
+    )
+    assert gate.evaluate(_turn("hello")) is None
+
+
+def test_ingress_chain_merges_classifier_telemetry_into_subsequent_deny() -> None:
+    shadow = IngressClassifierHeuristicGate(
+        classifier=IngressClassifierSettings(
+            mode="shadow",
+            threshold=0.1,
+            model_version="t-v1",
+            signals=("badtoken",),
+        )
+    )
+    deny = CustomIngressRulesGate(
+        custom_rules=(
+            IngressCustomRule(
+                rule_id="block",
+                action="deny",
+                match_type="contains_any",
+                patterns=("stop",),
+                reason_code="CUSTOM_STOP",
+                message="blocked",
+            ),
+        )
+    )
+    chain = IngressGateChain(gates=(shadow, deny))
+    decision = chain.evaluate(_turn("badtoken and stop"))
+    assert decision.decision == PolicyAction.DENY
+    assert decision.classifier_mode == "shadow"
 
 
 def test_ingress_gate_chain_from_overlay_exposes_profile_metadata() -> None:
@@ -173,6 +251,33 @@ def test_ingress_gate_chain_signed_plugin_denies_matching_high_risk_input() -> N
     assert decision.reason_code == "INGRESS_SIGNED_PLUGIN_DENY_CREDENTIAL_EXFIL"
     assert decision.signed_plugin_ref == "plugin://trusted/signed-v1"
     assert decision.signed_plugin_matched is True
+
+
+def test_build_default_ingress_gate_chain_matches_empty_overlay_chain() -> None:
+    default_chain = build_default_ingress_gate_chain()
+    overlay_chain = build_ingress_gate_chain_from_overlay({})
+    assert default_chain.profile_name == overlay_chain.profile_name
+
+
+def test_apply_allow_telemetry_returns_decision_unchanged_when_fields_already_set() -> None:
+    decision = IngressDecision(
+        schema_version="1.0",
+        decision=PolicyAction.DENY,
+        reason_code="INGRESS_DENY",
+        message="denied",
+        gate_id="gate",
+        gate_version="1.0.0",
+        classifier_mode="shadow",
+        classifier_model_version="v1",
+        signed_plugin_ref="plugin://trusted/signed-v1",
+    )
+    telemetry = {
+        "classifier_mode": "shadow",
+        "classifier_model_version": "v1",
+        "signed_plugin_ref": "plugin://trusted/signed-v1",
+    }
+    merged = IngressGateChain._apply_allow_telemetry(decision, telemetry)
+    assert merged is decision
 
 
 def test_ingress_gate_chain_signed_plugin_emits_allow_telemetry_when_no_match() -> None:

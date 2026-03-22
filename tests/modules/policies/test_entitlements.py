@@ -12,7 +12,13 @@ Notes:
  - Validates deterministic fail-closed entitlement decisions and feature mapping.
 """
 
-from src.api.middleware.entitlements import evaluate_feature_entitlement, required_feature_for_governance_overlay
+import pytest
+
+from src.api.middleware.entitlements import (
+    emit_entitlement_decision_event,
+    evaluate_feature_entitlement,
+    required_feature_for_governance_overlay,
+)
 from src.identity.contracts import IdentityContext
 from src.policies.entitlements import EntitledFeature, EntitlementTier, resolve_tier_from_roles
 from src.schemas.tool_io import PolicyAction
@@ -122,6 +128,36 @@ def test_ingress_classifier_requires_pro_tier() -> None:
         feature=EntitledFeature.GOVERNANCE_INGRESS_CLASSIFIER,
     )
     assert allowed.decision == PolicyAction.ALLOW
+
+
+def test_required_feature_for_governance_overlay_uses_max_input_chars_alone() -> None:
+    assert (
+        required_feature_for_governance_overlay({"ingress_max_input_chars": 1200})
+        == EntitledFeature.GOVERNANCE_INGRESS_PROFILE
+    )
+
+
+def test_required_feature_for_governance_overlay_uses_phrases_alone() -> None:
+    assert (
+        required_feature_for_governance_overlay({"ingress_prompt_injection_phrases": ["x"]})
+        == EntitledFeature.GOVERNANCE_INGRESS_PROFILE
+    )
+
+
+@pytest.mark.asyncio
+async def test_emit_entitlement_decision_event_noops_when_audit_pipeline_missing() -> None:
+    decision = evaluate_feature_entitlement(
+        identity=_identity("entitlement_pro"),
+        feature=EntitledFeature.GOVERNANCE_INGRESS_PROFILE,
+    )
+    await emit_entitlement_decision_event(
+        audit_pipeline=None,
+        correlation_id="corr-1",
+        tenant_id="t1",
+        surface="unit",
+        route="TEST",
+        decision=decision,
+    )
 
 
 def test_signed_audit_export_verify_requires_enterprise_tier() -> None:

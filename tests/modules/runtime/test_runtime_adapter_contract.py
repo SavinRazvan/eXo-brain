@@ -72,6 +72,57 @@ def test_custom_adapter_contract_methods_work() -> None:
     asyncio.run(_run())
 
 
+async def _collect_submit_events(adapter, tool_results) -> list:
+    out = []
+    async for event in adapter.submit_tool_results("s1", "r1", tool_results=tool_results):  # type: ignore[arg-type]
+        out.append(event)
+    return out
+
+
+def test_custom_adapter_submit_tool_results_rejects_non_list_payload() -> None:
+    adapter = CustomRuntimeAdapter()
+
+    async def _run() -> None:
+        events = await _collect_submit_events(adapter, tool_results="not-a-list")  # type: ignore[arg-type]
+        assert events
+        assert events[0].event_type == RuntimeEventType.ERROR
+
+    asyncio.run(_run())
+
+
+def test_openai_compatible_adapter_submit_tool_results_rejects_non_list_payload() -> None:
+    adapter = OpenAICompatibleRuntimeAdapter()
+
+    async def _run() -> None:
+        events = await _collect_submit_events(adapter, tool_results={})  # type: ignore[arg-type]
+        assert events
+        assert events[0].event_type == RuntimeEventType.ERROR
+
+    asyncio.run(_run())
+
+
+def test_custom_adapter_submit_tool_results_accepts_empty_list() -> None:
+    adapter = CustomRuntimeAdapter()
+
+    async def _run() -> None:
+        events = await _collect_submit_events(adapter, tool_results=[])
+        assert len(events) == 1
+        assert events[0].event_type == RuntimeEventType.RUN_COMPLETE
+
+    asyncio.run(_run())
+
+
+def test_openai_compatible_adapter_submit_tool_results_accepts_empty_list() -> None:
+    adapter = OpenAICompatibleRuntimeAdapter()
+
+    async def _run() -> None:
+        events = await _collect_submit_events(adapter, tool_results=[])
+        assert len(events) == 1
+        assert events[0].event_type == RuntimeEventType.RUN_COMPLETE
+
+    asyncio.run(_run())
+
+
 def test_runtime_adapters_normalize_turn_errors_for_invalid_user_input() -> None:
     adapters = (
         OpenAIAgentsRuntimeAdapter(),

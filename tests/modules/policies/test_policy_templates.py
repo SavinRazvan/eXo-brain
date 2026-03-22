@@ -34,6 +34,11 @@ def test_resolve_policy_template_rejects_unknown_template() -> None:
         resolve_policy_template("template://governance/unknown")
 
 
+def test_resolve_policy_template_rejects_blank_ref() -> None:
+    with pytest.raises(ValueError, match="cannot be empty"):
+        resolve_policy_template("   ")
+
+
 def test_policy_template_summary_payload_reports_compiled_metadata() -> None:
     template = resolve_policy_template("template://governance/protocol-guard-v1")
     summary = policy_template_summary_payload(template)
@@ -61,6 +66,22 @@ def test_compile_policy_template_overlay_rejects_locked_extra_overrides() -> Non
             "template://governance/protocol-guard-v1",
             overlay_extra={"ingress_profile": "baseline"},
         )
+
+
+def test_compile_policy_template_overlay_normalizes_tuple_lists_and_bool_flag() -> None:
+    # Template overlay is applied after merge_with_overlay; use overlay_extra so
+    # tuple normalization is asserted on the final compiled overlay.
+    _, overlay, _ = compile_policy_template_overlay(
+        "template://governance/protocol-guard-v1",
+        overlay_extra={
+            "deny_tools": ("tool-a",),
+            "escalate_risk_tiers": ("high",),
+            "escalate_state_changing": 0,
+        },
+    )
+    assert overlay["deny_tools"] == ["tool-a"]
+    assert overlay["escalate_risk_tiers"] == ["high"]
+    assert overlay["escalate_state_changing"] is False
 
 
 def test_compile_policy_template_overlay_merge_mode_preserves_non_template_keys() -> None:

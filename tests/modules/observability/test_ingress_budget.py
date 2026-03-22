@@ -31,6 +31,17 @@ def test_percentile_returns_expected_p95() -> None:
     assert percentile(values, 0.95) == 4.0
 
 
+def test_percentile_empty_list_returns_zero() -> None:
+    assert percentile([], 0.5) == 0.0
+
+
+def test_budget_recorder_summary_empty_tenant_includes_zeroed_profiles() -> None:
+    recorder = IngressBudgetRecorder()
+    summary = recorder.summary(tenant_id="no_one")
+    assert summary["samples"] == 0
+    assert summary["profiles"] == {}
+
+
 def test_budget_recorder_summary_reports_p95_and_timeout_rate() -> None:
     recorder = IngressBudgetRecorder()
     recorder.observe(

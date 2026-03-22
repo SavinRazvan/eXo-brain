@@ -12,6 +12,8 @@ Notes:
 
 from __future__ import annotations
 
+import pytest
+
 from src.core.agent_scaler import AgentScaler, AgentScalerConfig
 
 
@@ -92,6 +94,25 @@ def test_agent_scaler_enforces_cooldown_between_scale_up_events() -> None:
     assert third.scale_up is False
     assert third.reason_code == "SCALER_COOLDOWN_ACTIVE"
     assert fourth.scale_up is True
+
+
+def test_agent_scaler_init_validates_configuration_fields() -> None:
+    with pytest.raises(ValueError, match="min_concurrency"):
+        AgentScaler(AgentScalerConfig(min_concurrency=0))
+    with pytest.raises(ValueError, match="max_concurrency"):
+        AgentScaler(AgentScalerConfig(min_concurrency=2, max_concurrency=1))
+    with pytest.raises(ValueError, match="scale_up_backlog_threshold"):
+        AgentScaler(AgentScalerConfig(scale_up_backlog_threshold=-1))
+    with pytest.raises(ValueError, match="scale_up_step"):
+        AgentScaler(AgentScalerConfig(scale_up_step=0))
+    with pytest.raises(ValueError, match="scale_up_cooldown_evaluations"):
+        AgentScaler(AgentScalerConfig(scale_up_cooldown_evaluations=-1))
+    with pytest.raises(ValueError, match="scale_up_hysteresis_backlog_delta"):
+        AgentScaler(AgentScalerConfig(scale_up_hysteresis_backlog_delta=-1))
+    with pytest.raises(ValueError, match="backpressure_backlog_threshold"):
+        AgentScaler(AgentScalerConfig(backpressure_backlog_threshold=0))
+    with pytest.raises(ValueError, match="backpressure_active_ratio_threshold"):
+        AgentScaler(AgentScalerConfig(backpressure_active_ratio_threshold=0))
 
 
 def test_agent_scaler_hysteresis_requires_extra_backlog_after_scale_up() -> None:

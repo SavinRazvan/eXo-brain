@@ -258,3 +258,97 @@ def test_cross_tenant_admin_runtime_route_allows_configured_super_admin_bypass()
     )
     assert resp.status_code == 200
     assert resp.json()["tenant_id"] == "t2"
+
+
+def test_cross_tenant_admin_route_denies_when_bypass_disabled_even_with_super_admin() -> None:
+    """Covers dependencies._cross_tenant_admin_allowed early exit when allow_cross_tenant_admin is False."""
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+            enable_hosted_tool_runtime=True,
+        ),
+        auth=AuthSettings(allow_cross_tenant_admin=False, cross_tenant_admin_roles=["super_admin"]),
+    )
+    client = TestClient(build_test_app(settings=settings))
+    resp = client.get(
+        "/tenants/t2/admin/runtime/control-stats",
+        headers={
+            "X-Identity": json.dumps(
+                {
+                    "subject": "sa@test.com",
+                    "roles": ["super_admin", "entitlement_pro"],
+                    "tenant_id": "t1",
+                    "token_validation_state": "valid",
+                }
+            )
+        },
+    )
+    assert resp.status_code == 403
+    assert "TENANT_SCOPE_MISMATCH" in resp.text
+
+
+def test_cross_tenant_admin_route_denies_when_configured_roles_are_blank() -> None:
+    """Covers dependencies._cross_tenant_admin_allowed when allow list normalizes to empty."""
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+            enable_hosted_tool_runtime=True,
+        ),
+        auth=AuthSettings(allow_cross_tenant_admin=True, cross_tenant_admin_roles=["", "   "]),
+    )
+    client = TestClient(build_test_app(settings=settings))
+    resp = client.get(
+        "/tenants/t2/admin/runtime/control-stats",
+        headers={
+            "X-Identity": json.dumps(
+                {
+                    "subject": "sa@test.com",
+                    "roles": ["super_admin", "entitlement_pro"],
+                    "tenant_id": "t1",
+                    "token_validation_state": "valid",
+                }
+            )
+        },
+    )
+    assert resp.status_code == 403
+    assert "TENANT_SCOPE_MISMATCH" in resp.text
+
+
+def test_runtime_run_endpoints_return_503_when_run_registry_missing() -> None:
+    client = _hosted_control_client()
+    client.app.state.run_control_registry = None
+    resp = client.get("/tenants/t1/admin/runtime/runs?limit=5", headers=_headers("t1"))
+    assert resp.status_code == 503
+    assert "Run control registry" in resp.json()["detail"]
+
+
+def test_runtime_ingress_budget_skips_non_dict_profile_entries() -> None:
+    client = _hosted_control_client()
+    recorder = client.app.state.ingress_budget_recorder
+
+    class _OddRecorder:
+        def summary(self, *, tenant_id: str) -> dict:
+            return {
+                "samples": 1,
+                "profiles": {
+                    "valid": {"samples": 2},
+                    "": {"samples": 9},
+                    "bad": "not-a-dict",
+                },
+            }
+
+    client.app.state.ingress_budget_recorder = _OddRecorder()
+    resp = client.get("/tenants/t1/admin/runtime/ingress-budget", headers=_headers("t1"))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "valid" in body["profiles"]
+    assert "" not in body["profiles"]
+    client.app.state.ingress_budget_recorder = recorder

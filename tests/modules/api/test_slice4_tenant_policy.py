@@ -646,6 +646,231 @@ def test_cross_tenant_policy_access_is_forbidden() -> None:
     assert "TENANT_SCOPE_MISMATCH" in resp.text
 
 
+def test_active_run_count_returns_zero_when_run_registry_missing() -> None:
+    from unittest.mock import MagicMock
+
+    from src.api.routers.tenants import _active_run_count
+
+    request = MagicMock()
+    request.app.state.run_control_registry = None
+    assert _active_run_count(request, "t1") == 0
+
+
+@pytest.mark.asyncio
+async def test_emit_ingress_profile_audit_events_noops_when_pipeline_missing() -> None:
+    from unittest.mock import MagicMock
+
+    from src.api.routers.tenants import _emit_ingress_profile_audit_events
+
+    request = MagicMock()
+    request.app.state.tool_audit_pipeline = None
+    await _emit_ingress_profile_audit_events(
+        request=request,
+        tenant_id="t1",
+        correlation_id="corr-y",
+        surface="unit",
+        route="TEST",
+        ingress_audit_payload={},
+        lifecycle_action="load",
+        previous_plugin_ref="",
+        new_plugin_ref="plugin://trusted/signed-v1",
+        active_run_count=0,
+    )
+
+
+@pytest.mark.asyncio
+async def test_emit_ingress_profile_audit_events_emits_plugin_lifecycle_when_action_not_none() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from src.api.routers.tenants import _emit_ingress_profile_audit_events
+
+    pipeline = AsyncMock()
+    request = MagicMock()
+    request.app.state.tool_audit_pipeline = pipeline
+    await _emit_ingress_profile_audit_events(
+        request=request,
+        tenant_id="t1",
+        correlation_id="corr-z",
+        surface="unit",
+        route="TEST",
+        ingress_audit_payload={"ingress_profile": "strict"},
+        lifecycle_action="load",
+        previous_plugin_ref="",
+        new_plugin_ref="plugin://trusted/signed-v1",
+        active_run_count=0,
+    )
+    assert pipeline.emit.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_emit_ingress_profile_audit_events_skips_plugin_lifecycle_when_action_none() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from src.api.routers.tenants import _emit_ingress_profile_audit_events
+
+    pipeline = AsyncMock()
+    request = MagicMock()
+    request.app.state.tool_audit_pipeline = pipeline
+    await _emit_ingress_profile_audit_events(
+        request=request,
+        tenant_id="t1",
+        correlation_id="corr-x",
+        surface="unit",
+        route="TEST",
+        ingress_audit_payload={"ingress_profile": "strict"},
+        lifecycle_action="none",
+        previous_plugin_ref="",
+        new_plugin_ref="",
+        active_run_count=0,
+    )
+    assert pipeline.emit.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_update_quota_route_wraps_quota_manager_value_error_as_422() -> None:
+    """Exercises tenants.update_quota except branch (Pydantic normally blocks negative limits)."""
+    from unittest.mock import MagicMock
+
+    from fastapi import HTTPException
+
+    from src.api.routers.tenants import update_quota
+    from src.api.schemas.tenant_schemas import QuotaUpdateRequest
+    from src.tenancy.quotas import TenantQuotaManager
+
+    ctx = MagicMock()
+    ctx.quota_manager = TenantQuotaManager()
+    body = QuotaUpdateRequest.model_construct(max_active_jobs=-1)
+    with pytest.raises(HTTPException) as exc_info:
+        await update_quota(
+            tenant_id="t1",
+            body=body,
+            ctx=ctx,
+            _identity=MagicMock(),
+        )
+    assert exc_info.value.status_code == 422
+
+
+def test_apply_policy_template_succeeds_when_audit_pipeline_disabled() -> None:
+    app = build_test_app()
+    app.state.tool_audit_pipeline = None
+    client = TestClient(app)
+    resp = client.post(
+        "/tenants/t1/policy/templates/template://governance/protocol-guard-v1/apply",
+        json={"merge_with_existing": False, "extra": {}},
+        headers=_headers("t1", roles=["entitlement_pro"]),
+    )
+    assert resp.status_code == 200
+
+
+def test_apply_policy_template_uses_zero_active_runs_when_run_registry_missing() -> None:
+    app = build_test_app()
+    app.state.run_control_registry = None
+    client = TestClient(app)
+    resp = client.post(
+        "/tenants/t1/policy/templates/template://governance/protocol-guard-v1/apply",
+        json={"merge_with_existing": False, "extra": {}},
+        headers=_headers("t1", roles=["entitlement_pro"]),
+    )
+    assert resp.status_code == 200
+
+
+def test_apply_policy_template_denies_overlay_entitlement_when_feature_requires_enterprise(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.policies.ingress_profiles import resolve_ingress_profile_settings
+    from src.policies.policy_templates import resolve_policy_template
+
+    template = resolve_policy_template("template://governance/protocol-guard-v1")
+    enterprise_overlay = {
+        **dict(template.overlay),
+        "signed_gate_plugin_ref": "plugin://trusted/signed-v1",
+    }
+    ingress_resolution = resolve_ingress_profile_settings(enterprise_overlay)
+
+    def _fake_compile(
+        *,
+        template_id: str,
+        merge_with_overlay: dict | None = None,
+        overlay_extra: dict | None = None,
+    ):
+        _ = template_id, merge_with_overlay, overlay_extra
+        return template, enterprise_overlay, ingress_resolution
+
+    monkeypatch.setattr(
+        "src.api.routers.tenants.compile_policy_template_overlay",
+        _fake_compile,
+    )
+
+    app = build_test_app()
+    client = TestClient(app)
+    resp = client.post(
+        "/tenants/t1/policy/templates/template://governance/protocol-guard-v1/apply",
+        json={"merge_with_existing": False, "extra": {}},
+        headers=_headers("t1", roles=["entitlement_pro"]),
+    )
+    assert resp.status_code == 403
+    assert "ENTITLEMENT_TIER_REQUIRED" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_set_policy_route_wraps_ingress_resolution_value_error_as_422() -> None:
+    from unittest.mock import MagicMock
+
+    from fastapi import HTTPException
+
+    from src.api.routers.tenants import set_policy
+    from src.api.schemas.tenant_schemas import PolicyOverlayRequest
+    from src.tenancy.policy_overlay import TenantPolicyOverlayStore
+
+    store = TenantPolicyOverlayStore()
+    body = PolicyOverlayRequest.model_construct(
+        deny_tools=[],
+        escalate_risk_tiers=[],
+        escalate_state_changing=False,
+        extra={"ingress_profile": "___unsupported_profile_for_coverage___"},
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        await set_policy(
+            tenant_id="t1",
+            body=body,
+            request=MagicMock(),
+            store=store,
+            identity=MagicMock(),
+        )
+    assert exc_info.value.status_code == 422
+    assert "INGRESS" in str(exc_info.value.detail).upper()
+
+
+def test_apply_policy_template_blocks_signed_plugin_unload_with_active_runs() -> None:
+    app = build_test_app()
+    client = TestClient(app)
+    initial = client.put(
+        "/tenants/t1/policy",
+        json={
+            "deny_tools": [],
+            "escalate_risk_tiers": [],
+            "escalate_state_changing": False,
+            "extra": {"signed_gate_plugin_ref": "plugin://trusted/signed-v1"},
+        },
+        headers=_headers("t1", roles=["entitlement_enterprise"]),
+    )
+    assert initial.status_code == 200
+
+    app.state.run_control_registry.start_run(
+        tenant_id="t1",
+        session_id="sess_tpl_gate",
+        run_id="run_tpl_gate_1",
+        correlation_id="run_tpl_gate_1",
+        transport="sse",
+    )
+
+    resp = client.post(
+        "/tenants/t1/policy/templates/template://governance/protocol-guard-v1/apply",
+        json={"merge_with_existing": False, "extra": {}},
+        headers=_headers("t1", roles=["entitlement_pro"]),
+    )
+    assert resp.status_code == 409
+    assert "INGRESS_SIGNED_PLUGIN_LIFECYCLE_BLOCKED_ACTIVE_RUNS" in resp.text
+
+
 def test_cross_tenant_policy_access_remains_forbidden_for_super_admin_on_non_admin_route() -> None:
     settings = AppSettings(
         schema_version="1.0",

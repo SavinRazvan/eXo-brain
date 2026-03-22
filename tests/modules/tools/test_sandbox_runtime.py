@@ -15,6 +15,7 @@ Notes:
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import MagicMock
 import os
 import time
 
@@ -22,7 +23,7 @@ import pytest
 from src.schemas.tool_io import ToolCallContext, ToolStatus
 from src.tools.registry import ToolDescriptor
 from src.tools.sandbox.pool import TenantSandboxPool
-from src.tools.sandbox.process_runner import ProcessSandboxRunner
+from src.tools.sandbox.process_runner import ProcessRunnerTimeoutError, ProcessSandboxRunner
 from src.tools.sandbox.runtime import (
     AllowAllSandboxResourceHooks,
     ManifestBudgetResourceHooks,
@@ -90,6 +91,18 @@ def _tenant_call(tenant_id: str, tool_name: str = "math_tool", arguments: dict |
     call = _call(tool_name=tool_name, arguments=arguments)
     call.tenant_id = tenant_id
     return call
+
+
+def test_hosted_runtime_process_runner_timeout_error_maps_to_timeout_envelope() -> None:
+    runner = MagicMock()
+    runner.run.side_effect = ProcessRunnerTimeoutError("timed out")
+    runtime = TenantSandboxToolRuntime(enable_process_isolation=True, process_runner=runner)
+    descriptor = ToolDescriptor(name="math_tool", handler=lambda: "nope", timeout_ms=1000)
+    result = runtime.execute(_call(), descriptor)
+    assert result.status == ToolStatus.TIMEOUT
+    assert result.error.code == "HOSTED_RUNTIME_TIMEOUT"
+    assert result.error.details["isolation_mode"] == "process"
+    runner.run.assert_called_once()
 
 
 def test_hosted_runtime_executes_successfully_and_maps_result() -> None:
@@ -433,6 +446,19 @@ def test_allow_all_resource_hooks_permit_execution() -> None:
     descriptor = ToolDescriptor(name="math_tool", handler=lambda: {"a": 1}, timeout_ms=1000)
     result = runtime.execute(_call(), descriptor)
     assert result.status == ToolStatus.SUCCESS
+
+
+def test_manifest_hooks_after_execute_rejects_invalid_limits() -> None:
+    hooks = ManifestBudgetResourceHooks()
+    descriptor = ToolDescriptor(
+        name="math_tool",
+        handler=lambda: "ok",
+        timeout_ms=1000,
+        metadata={"sandbox_limits": "not-an-object"},
+    )
+    decision = hooks.after_execute(_call(), descriptor, duration_ms=1)
+    assert decision.allow is False
+    assert decision.reason_code == "SANDBOX_LIMITS_INVALID"
 
 
 def test_manifest_hooks_reject_invalid_limits_before_execute() -> None:
