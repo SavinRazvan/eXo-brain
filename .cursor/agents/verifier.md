@@ -30,3 +30,4 @@ Rules:
 - Do not accept completion claims without command/file evidence.
 - Prefer minimal high-signal checks before broad suites.
 - Flag workflow drift against `AGENTS.md` and active `.cursor/rules/*`.
+- For maintainer PR readiness, expect `review.md` / `prep.md` / `merge.md` under **`.local/workflow-artifacts/`** (see `scripts/pr/local_workflow_paths.py`), not `.local/` root.

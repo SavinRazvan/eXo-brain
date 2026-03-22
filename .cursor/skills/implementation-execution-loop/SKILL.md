@@ -42,8 +42,8 @@ Execute implementation work in high-quality, reversible slices while keeping the
    - `updates-log.md` summarized progress (no repeated prepare-gate blocks — `agent-workflow-procedures.md`)
    - `test-plan.md` / `test-index.md` when tests or ownership changed
    - `coverage-index.md` via `coverage json` + `scripts/dev/generate_coverage_index.py` when coverage was run for the slice
-   - `agents-control-center/implementation-control-center.html` `PAGES` + header **Depends On** when new `index-and-planning/*.md` trackers appear or Coverage tab must match `coverage-index.md`
-   - do **not** edit `agents-control-center/module-audit.html` unless refreshing a deliberate audit export
+   - `.local/agents-control-center/implementation-control-center.html` `PAGES` + header **Depends On** when new `index-and-planning/*.md` trackers appear or Coverage tab must match `coverage-index.md`
+   - do **not** edit `.local/agents-control-center/module-audit.html` unless refreshing a deliberate audit export
 7. Emit handoff with:
    - what changed
    - validation outcomes
