@@ -31,8 +31,8 @@ while reporting clear test coverage outcomes.
    - failure/recovery behavior
 3. Add or update tests under `tests/modules/<module>/` with module-aligned naming.
 4. Update persistent testing trackers:
-   - `.local/index-and-planning/test-index.md` (ownership, status, cleanup notes)
-   - `.local/index-and-planning/test-plan.md` (priorities and remaining gaps)
+   - `.local/index-and-planning/current/test-index.md` (ownership, status, cleanup notes)
+   - `.local/index-and-planning/current/test-plan.md` (priorities and remaining gaps)
    - remove or rewrite obsolete tests when module behavior/contracts are removed or renamed
 5. Run progressively:
    - targeted module suites first (`pytest -q tests/modules/<module>`)

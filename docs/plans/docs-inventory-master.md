@@ -20,7 +20,20 @@ Notes:
 |---|---|
 | `README.md` | Project entrypoint and developer quick-start |
 | `docs/api/customer-api-integration-guide.md` | Tier-aware API contract documentation for customer onboarding (chat/agents/workflow + governance ingress) |
-| `docs/architecture_mvp.md` | Layer architecture and design intent |
+| `docs/architecture/mvp.md` | Layer architecture and design intent (canonical) |
+| `docs/architecture_mvp.md` | Redirect stub → `docs/architecture/mvp.md` |
+| `docs/architecture/workspace-architecture.md` | Workspace doctrine (adapters, policy, enterprise controls) |
+| `docs/strategy/README.md` | Strategy package index (product direction, entitlements, traceability) |
+| `docs/operations/workflow-complete.md` | Maintainer workflow checklist (durable) |
+| `docs/operations/agent-workflow-procedures.md` | Audit/PR dedup procedures |
+| `docs/operations/logging-and-errors.md` | Logging rollout plan |
+| `docs/plans/archive-agents-research.md` | Archive agent reuse research |
+| `docs/governance/folder-charter.md` | `docs/` vs `.local/` charter |
+| `docs/governance/path-migration-map.md` | Old → new path map |
+| `docs/governance/workflow-source-owners.md` | Script-first ownership map |
+| `docs/governance/drift-prevention.md` | Lightweight drift process |
+| `docs/governance/rollout-phases.md` | IA rollout phase notes |
+| `docs/governance/rules-overlap-matrix.md` | Cursor rules inventory / Track D |
 | `docs/runtime_contracts.md` | Runtime adapter contract and behavior |
 | `docs/mcp_integration.md` | MCP integration boundaries |
 | `docs/plugin_lifecycle.md` | Plugin lifecycle contract |
@@ -55,8 +68,8 @@ Notes:
 | `docs/archive/plans/backlog-reconciliation-v4-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
 | `docs/archive/plans/p2-expansion-roadmap.md` | `docs/plans/tenant-tool-execution-architecture.md` |
 | `docs/archive/operations/local-ui-readiness-smoke.md` | `docs/operations/release-candidate-signoff-checklist.md` |
-| `docs/archive/results/audit_alignment_results.md` | `.local/workflow-artifacts/alignment-audit.md` |
-| `docs/archive/results/audit_alignment_action_plan.md` | `.local/workflow-artifacts/alignment-todos.md` |
+| `docs/archive/results/audit_alignment_results.md` | `.local/workflow-artifacts/alignment/alignment-audit.md` |
+| `docs/archive/results/audit_alignment_action_plan.md` | `.local/workflow-artifacts/alignment/alignment-todos.md` |
 
 ## Notes
 

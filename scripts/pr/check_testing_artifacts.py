@@ -47,7 +47,7 @@ def main() -> int:
     parser.add_argument(
         "--planning-dir",
         dest="planning_dir",
-        default=".local/index-and-planning",
+        default=".local/index-and-planning/current",
         help="Directory containing test-plan.md, test-index.md, and related planning markdown.",
     )
     parser.add_argument(

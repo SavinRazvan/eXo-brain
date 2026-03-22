@@ -8,8 +8,8 @@ alwaysApply: true
 ## Lifecycle
 
 - Sequence: `plan -> interfaces -> implementation -> tests -> evidence -> docs update`.
-- Before coding: confirm module boundary, acceptance criteria, rollback in `.local/index-and-planning/plan.md`; read `plan.md`, `work-tracker.md`, `architecture.md`, `test-plan.md`, `test-index.md`.
-- Treat `.local/index-and-planning/*` as live implementation state.
+- Before coding: confirm module boundary, acceptance criteria, rollback in `.local/index-and-planning/current/plan.md`; read `plan.md`, `work-tracker.md`, `docs/architecture/workspace-architecture.md` (and local stub if present), `test-plan.md`, `test-index.md`.
+- Treat `.local/index-and-planning/current/*`, `history/*`, and `audits/*` as live local execution state; durable workflow doctrine lives in `docs/operations/*`.
 - Exactly one primary task `in_progress` in `work-tracker.md`; do not implement without scope in `plan.md`.
 - Incremental, reversible slices; KISS. Block release on P0 failures; RCs need CI/CD evidence bundles.
 
@@ -26,7 +26,7 @@ alwaysApply: true
 - After substantive code change: `work-tracker.md`; `test-index.md` / `test-plan.md` when tests or risk change; `updates-log.md` (summary, impact, blockers, next step).
 - Planning-only scope changes: update `plan.md` / `work-tracker.md` + at least one `updates-log.md` entry.
 - Blocked: mark blocker and unblock action in `work-tracker.md`.
-- **Slice closure** (before handoff): regenerate `coverage-index.md` when coverage mattered (`coverage json` → `scripts/dev/generate_coverage_index.py`); if a new `*.md` tracker is added under `index-and-planning/`, update `.local/agents-control-center/implementation-control-center.html` `PAGES` and header **Depends On**; do not edit `.local/agents-control-center/module-audit.html` unless refreshing that export.
+- **Slice closure** (before handoff): regenerate `current/coverage-index.md` when coverage mattered (`coverage json` → `scripts/dev/generate_coverage_index.py`); if a new tracker path is added, update `.local/agents-control-center/config/pages.json` and dashboard header **Depends On**; do not edit `.local/agents-control-center/audits/module-audit.html` unless refreshing that export.
 
 ## Merge gates
 

@@ -8,8 +8,8 @@ Used By:
 Depends On:
  - docs/plans/tenant-tool-execution-architecture.md
  - docs/archive/plans/backlog-reconciliation-v2-execution-board.md
- - .local/index-and-planning/plan.md
- - .local/index-and-planning/work-tracker.md
+ - .local/index-and-planning/current/plan.md
+ - .local/index-and-planning/current/work-tracker.md
 Notes:
  - This board is planning-only until explicitly approved for coding.
 -->
@@ -152,8 +152,8 @@ Define the next approved queue after closure of backlog reconciliation v2:
 - `make ui-build`
 - `make ui-verify`
 - companion tracker synchronization:
-  - `.local/index-and-planning/plan.md`
-  - `.local/index-and-planning/work-tracker.md`
+  - `.local/index-and-planning/current/plan.md`
+  - `.local/index-and-planning/current/work-tracker.md`
 
 ## Immediate Next Step
 

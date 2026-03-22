@@ -18,16 +18,16 @@ Deliver planned goals with production quality:
 ## Source of Truth (must keep updated)
 
 Use these files as the operating system for implementation:
-- `.local/index-and-planning/plan.md` (includes **Implementer slice closure** — read before handoff)
-- `.local/index-and-planning/architecture.md`
-- `.local/index-and-planning/work-tracker.md`
-- `.local/index-and-planning/test-plan.md` and `.local/index-and-planning/test-index.md` (when tests/ownership change)
-- `.local/index-and-planning/coverage-index.md` (refresh after coverage runs that matter for the slice)
-- `.local/index-and-planning/archive-agents.md`
-- `.local/index-and-planning/logging-and-errors.md`
-- `.local/index-and-planning/updates-log.md`
-- `.local/agents-control-center/implementation-control-center.html` (keep `PAGES` + header **Depends On** in sync with `index-and-planning/*.md`, including **Coverage** → `coverage-index.md`)
-- `.local/agents-control-center/module-audit.html` — **do not** update per slice; only when deliberately regenerating a deep audit report
+- `.local/index-and-planning/current/plan.md` (includes **Implementer slice closure** — read before handoff)
+- `docs/architecture/workspace-architecture.md` (doctrine; local stub: `.local/index-and-planning/current/architecture.md`)
+- `.local/index-and-planning/current/work-tracker.md`
+- `.local/index-and-planning/current/test-plan.md` and `.local/index-and-planning/current/test-index.md` (when tests/ownership change)
+- `.local/index-and-planning/current/coverage-index.md` (refresh after coverage runs that matter for the slice)
+- `docs/plans/archive-agents-research.md`
+- `docs/operations/logging-and-errors.md`
+- `.local/index-and-planning/history/updates-log.md`
+- `.local/agents-control-center/dashboards/implementation-control-center.html` (keep **`../config/pages.json`** + header **Depends On** in sync with tracked markdown paths, including **Coverage** → `current/coverage-index.md`)
+- `.local/agents-control-center/audits/module-audit.html` — **do not** update per slice; only when deliberately regenerating a deep audit report
 
 ## Working Loop (for every slice)
 
@@ -43,10 +43,10 @@ Use these files as the operating system for implementation:
 5. Run validation gates.
 6. Close the loop (see `plan.md` **Implementer slice closure**):
    - mark tasks in `work-tracker.md` as `done`, `blocked`, or `deferred` (one primary `in_progress` at a time)
-   - append `updates-log.md` with impact and next step (no full gate-list paste — use `.local/index-and-planning/agent-workflow-procedures.md`)
+   - append `history/updates-log.md` with impact and next step (no full gate-list paste — use `docs/operations/agent-workflow-procedures.md`)
    - update `test-plan.md` / `test-index.md` when tests or module buckets moved
    - regenerate `coverage-index.md` after relevant coverage runs
-   - update `.local/agents-control-center/implementation-control-center.html` if you added a new `index-and-planning/*.md` or changed which trackers exist
+   - update `.local/agents-control-center/config/pages.json` if you added a new tracker markdown or changed tab labels/paths
 7. Stop with explicit handoff notes (list which tracker files changed).
 
 ## Architecture Rules (non-negotiable)
@@ -60,7 +60,7 @@ Use these files as the operating system for implementation:
 
 ## Quality and Safety Gates
 
-- **Canonical prep gate order** matches `scripts/pr/prepare.py` (`GATES`) and `.local/index-and-planning/workflow-complete.md` §A — run before treating a slice as done:
+- **Canonical prep gate order** matches `scripts/pr/prepare.py` (`GATES`) and `docs/operations/workflow-complete.md` §A — run before treating a slice as done:
   - `python scripts/pr/check_testing_artifacts.py`
   - `python -m pytest -q` (or targeted suites when explicitly scoped and justified)
   - `python scripts/architecture/validate_layers.py`
@@ -104,7 +104,7 @@ Review `_archive` assets and adapt useful components for:
 - module testing automation
 - module docs alignment automation
 
-Track findings and decisions in `.local/index-and-planning/archive-agents.md`.
+Track findings and decisions in `docs/plans/archive-agents-research.md`.
 
 ## Logging Stack Evaluation
 
