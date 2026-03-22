@@ -9,7 +9,8 @@ Depends On:
  - pathlib
  - subprocess
 Notes:
- - By default runs all gates (pytest, validate_layers, scan_forbidden_imports) and writes .local/prep.md.
+ - By default runs all gates (check_testing_artifacts, pytest, validate_layers, scan_forbidden_imports)
+   per `GATES` and writes .local/prep.md.
  - Pass --skip-gates when the agent has already run and verified gates independently; the script
    then only writes the attribution/stamp block and marks gates as externally verified.
  - The script is the canonical source of the prep artifact; agent writes resolved findings,
