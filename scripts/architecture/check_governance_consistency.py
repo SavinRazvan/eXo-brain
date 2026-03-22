@@ -81,8 +81,8 @@ def _collect_contract_parity_violations() -> list[str]:
         _contains_required(
             "scripts/pr/merge.py",
             (
-                ".local/alignment-audit.md",
-                ".local/alignment-todos.md",
+                ".local/workflow-artifacts/alignment-audit.md",
+                ".local/workflow-artifacts/alignment-todos.md",
             ),
         )
     )

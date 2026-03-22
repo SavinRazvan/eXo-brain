@@ -55,8 +55,8 @@ Notes:
 | `docs/archive/plans/backlog-reconciliation-v4-execution-board.md` | `docs/plans/tenant-tool-execution-architecture.md` |
 | `docs/archive/plans/p2-expansion-roadmap.md` | `docs/plans/tenant-tool-execution-architecture.md` |
 | `docs/archive/operations/local-ui-readiness-smoke.md` | `docs/operations/release-candidate-signoff-checklist.md` |
-| `docs/archive/results/audit_alignment_results.md` | `.local/alignment-audit.md` |
-| `docs/archive/results/audit_alignment_action_plan.md` | `.local/alignment-todos.md` |
+| `docs/archive/results/audit_alignment_results.md` | `.local/workflow-artifacts/alignment-audit.md` |
+| `docs/archive/results/audit_alignment_action_plan.md` | `.local/workflow-artifacts/alignment-todos.md` |
 
 ## Notes
 

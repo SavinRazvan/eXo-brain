@@ -52,7 +52,9 @@ def test_review_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> 
     )
     assert module.main() == 0
 
-    content = (tmp_path / ".local" / "review.md").read_text(encoding="utf-8")
+    content = (tmp_path / ".local" / "workflow-artifacts" / "review.md").read_text(
+        encoding="utf-8"
+    )
     assert "Action-By: Savin I. Razvan" in content
     assert "Reviewed-By: Savin I. Razvan" in content
     assert "GitHub-User: @SavinRazvan" in content
@@ -79,7 +81,9 @@ def test_prepare_script_writes_actor_attribution(tmp_path: Path, monkeypatch) ->
     )
     assert module.main() == 0
 
-    content = (tmp_path / ".local" / "prep.md").read_text(encoding="utf-8")
+    content = (tmp_path / ".local" / "workflow-artifacts" / "prep.md").read_text(
+        encoding="utf-8"
+    )
     assert "Action-By: Savin I. Razvan" in content
     assert "Prepared-By: Savin I. Razvan" in content
     assert "GitHub-User: @SavinRazvan" in content
@@ -89,13 +93,13 @@ def test_prepare_script_writes_actor_attribution(tmp_path: Path, monkeypatch) ->
 def test_merge_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> None:
     module = _load_module("merge_script", SCRIPTS_DIR / "merge.py")
 
-    local_dir = tmp_path / ".local"
-    local_dir.mkdir(parents=True, exist_ok=True)
-    (local_dir / "review.md").write_text(
+    wf = tmp_path / ".local" / "workflow-artifacts"
+    wf.mkdir(parents=True, exist_ok=True)
+    (wf / "review.md").write_text(
         "# Review Artifact (123)\n\n## Attribution\n- Action-By: Savin I. Razvan\n",
         encoding="utf-8",
     )
-    (local_dir / "prep.md").write_text(
+    (wf / "prep.md").write_text(
         "# Prepare Artifact (123)\n\n## Attribution\n- Action-By: Savin I. Razvan\n",
         encoding="utf-8",
     )
@@ -117,7 +121,9 @@ def test_merge_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> N
     )
     assert module.main() == 0
 
-    content = (tmp_path / ".local" / "merge.md").read_text(encoding="utf-8")
+    content = (tmp_path / ".local" / "workflow-artifacts" / "merge.md").read_text(
+        encoding="utf-8"
+    )
     assert "Action-By: Savin I. Razvan" in content
     assert "Merged-By: Savin I. Razvan" in content
     assert "GitHub-User: @SavinRazvan" in content

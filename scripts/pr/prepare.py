@@ -8,9 +8,10 @@ Depends On:
  - argparse
  - pathlib
  - subprocess
+ - scripts/pr/local_workflow_paths.py
 Notes:
  - By default runs all gates (check_testing_artifacts, pytest, validate_layers, scan_forbidden_imports)
-   per `GATES` and writes .local/prep.md.
+   per `GATES` and writes `.local/workflow-artifacts/prep.md`.
  - Pass --skip-gates when the agent has already run and verified gates independently; the script
    then only writes the attribution/stamp block and marks gates as externally verified.
  - The script is the canonical source of the prep artifact; agent writes resolved findings,
@@ -24,6 +25,12 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+_PR_DIR = Path(__file__).resolve().parent
+if str(_PR_DIR) not in sys.path:
+    sys.path.insert(0, str(_PR_DIR))
+
+from local_workflow_paths import PREP_MD, ensure_workflow_artifacts_dir
 
 
 GATES = [
@@ -75,9 +82,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    local_dir = Path(".local")
-    local_dir.mkdir(exist_ok=True)
-    prep_file = local_dir / "prep.md"
+    ensure_workflow_artifacts_dir()
+    prep_file = PREP_MD
 
     branch = _current_branch()
     head_sha = _head_sha()

@@ -120,9 +120,9 @@ The signoff runner verifies these files exist before running gates:
 - [ ] If BYOC anomalies/rejections are present, run the matching drill in `docs/operations/byoc-failure-injection-playbook.md`.
 - [ ] Attach `.local/rc-signoff.md` to release/PR records.
 - [ ] Confirm required PR artifacts exist:
-  - `.local/review.md`
-  - `.local/prep.md`
-  - `.local/merge.md` (post-merge finalization artifact; required to close full PR workflow, not pre-merge RC gate)
+  - `.local/workflow-artifacts/review.md`
+  - `.local/workflow-artifacts/prep.md`
+  - `.local/workflow-artifacts/merge.md` (post-merge finalization artifact; required to close full PR workflow, not pre-merge RC gate)
 
 ## Notes
 

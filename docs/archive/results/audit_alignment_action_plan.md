@@ -8,8 +8,8 @@ Used By:
  - .agents/skills/merge-pr/SKILL.md
 Depends On:
  - docs/archive/results/audit_alignment_results.md
- - .local/alignment-audit.md
- - .local/alignment-todos.md
+ - .local/workflow-artifacts/alignment-audit.md
+ - .local/workflow-artifacts/alignment-todos.md
 Notes:
  - This plan is execution-oriented and must stay aligned with advisory audit outputs.
 -->
@@ -17,7 +17,7 @@ Notes:
 # Audit Alignment Action Plan
 
 > Status: archived
-> Canonical replacement: `.local/alignment-todos.md`
+> Canonical replacement: `.local/workflow-artifacts/alignment-todos.md`
 > Archived on: 2026-03-19
 > Archive reason: historical snapshot
 
@@ -52,10 +52,10 @@ Notes:
     - `gh pr view --json headRefName,url,state`
     - `git ls-remote --heads origin <branch>`
 - Required artifacts:
-  - `.local/review.md`
-  - `.local/prep.md`
-  - `.local/merge.md`
-  - `.local/alignment-audit.md` and `.local/alignment-todos.md` for architecture-impacting slices
+  - `.local/workflow-artifacts/review.md`
+  - `.local/workflow-artifacts/prep.md`
+  - `.local/workflow-artifacts/merge.md`
+  - `.local/workflow-artifacts/alignment-audit.md` and `.local/workflow-artifacts/alignment-todos.md` for architecture-impacting slices
 
 ---
 
@@ -69,8 +69,8 @@ Notes:
 ### Target Areas
 - `docs/archive/results/audit_alignment_results.md`
 - `docs/archive/results/audit_alignment_action_plan.md`
-- `.local/alignment-audit.md`
-- `.local/alignment-todos.md`
+- `.local/workflow-artifacts/alignment-audit.md`
+- `.local/workflow-artifacts/alignment-todos.md`
 
 ### Tasks
 1. Revalidate stale P0/P1 claims with direct source + test evidence.
@@ -215,12 +215,12 @@ Notes:
 
 ## Finding Lifecycle Tracking Standard
 
-For each finding tracked in `.local/alignment-todos.md`, maintain:
+For each finding tracked in `.local/workflow-artifacts/alignment-todos.md`, maintain:
 - `status`: `open | in_progress | fixed | deferred | accepted`
 - `owner`: GitHub username
 - `slice`: remediation slice ID
 - `pr_link`: pull request URL
-- `evidence_link`: artifact reference (`.local/review.md`, `.local/prep.md`, test output)
+- `evidence_link`: artifact reference (`.local/workflow-artifacts/review.md`, `.local/workflow-artifacts/prep.md`, test output)
 - `last_updated`: date
 - `review_due` (required for `accepted` divergences)
 
