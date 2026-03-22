@@ -1,40 +1,70 @@
 <!--
 File: local-workspace-layout.md
 Path: docs/operations/local-workspace-layout.md
-Role: Describes the intended layout under `.local/` for planning markdown, HTML dashboards, generated metrics, and PR workflow artifacts.
+Role: Versioned map of the gitignored `.local/` operating workspace (nested layout).
 Used By:
- - Maintainers and agents (see AGENTS.md, .cursor/agents, .cursor/skills)
+ - AGENTS.md, maintainer onboarding, migrate script
 Depends On:
- - scripts/pr/prepare.py (GATES use check_testing_artifacts against planning dir)
- - scripts/pr/local_workflow_paths.py (PR artifact paths)
- - scripts/dev/generate_coverage_index.py
+ - scripts/pr/local_workflow_paths.py
+ - scripts/dev/migrate_local_workspace_layout.py
+ - docs/governance/path-migration-map.md
 Notes:
- - `.local/` is gitignored; this doc is the durable map when clones are fresh.
+ - Run `python scripts/dev/migrate_local_workspace_layout.py` after upgrades if your tree is still flat.
 -->
 
 # Local workspace layout (`.local/`)
 
-Ephemeral operating state lives under **`.local/`** (not committed). Use this structure:
+The `.local/` directory is **gitignored**. This document is the **versioned contract** for how it should be organized.
+
+## Top-level buckets
 
 | Path | Purpose |
-|------|--------|
-| **`index-and-planning/`** | Planning and execution trackers: `plan.md`, `work-tracker.md`, `updates-log.md`, `workflow-complete.md`, `test-plan.md`, `test-index.md`, `coverage-index.md`, governance notes, etc. |
-| **`agents-control-center/`** | Local HTML shells: `implementation-control-center.html` (tabs over markdown in `index-and-planning/`), `module-audit.html` (deep audit export when regenerated). Open HTML via local file or static server. |
-| **`generated-data/`** | Machine outputs consumed by scripts, e.g. `coverage.json` from `coverage json`. |
-| **`workflow-artifacts/`** | PR phase outputs from `scripts/pr/*`: `review.md`, `prep.md`, `merge.md`, and (when required) `alignment-audit.md`, `alignment-todos.md`. |
-| **`.local/` root (other)** | RC signoff, smoke metrics, and other JSON snapshots may remain at `.local/` root until further cleanup. |
+|------|---------|
+| **`index-and-planning/current/`** | Live trackers: `plan.md`, `work-tracker.md`, `test-plan.md`, `test-index.md`, `coverage-index.md`, `architecture.md` (stub → `docs/architecture/workspace-architecture.md`) |
+| **`index-and-planning/history/`** | Chronological logs (e.g. `updates-log.md`, optional legacy snapshots) |
+| **`index-and-planning/audits/`** | Local governance audit markdown (`agent-governance-audit.md`, `agent-governance-todos.md`) |
+| **`agents-control-center/dashboards/`** | `implementation-control-center.html` (manifest-driven) |
+| **`agents-control-center/audits/`** | `module-audit.html` and similar exports |
+| **`agents-control-center/config/`** | `pages.json` — tab labels + relative paths to markdown |
+| **`agents-control-center/data/`** | Optional `summary.json` for UI summaries |
+| **`workflow-artifacts/pr/`** | `review.md`, `prep.md`, `merge.md` from `scripts/pr/*` |
+| **`workflow-artifacts/alignment/`** | `alignment-audit.md`, `alignment-todos.md` |
+| **`workflow-artifacts/release/`** | RC signoff and release-local artifacts |
+| **`generated-data/coverage/`** | `coverage.json` from `coverage json` |
+| **`generated-data/validation/`**, **`ui/`**, **`governance/`** | Other generated JSON snapshots |
+
+## Durable documentation (not in `.local`)
+
+Canonical workflow and doctrine live under **`docs/`**:
+
+- `docs/operations/workflow-complete.md`
+- `docs/operations/agent-workflow-procedures.md`
+- `docs/operations/logging-and-errors.md`
+- `docs/plans/archive-agents-research.md`
+- `docs/architecture/workspace-architecture.md`
+- `docs/strategy/*` (strategy package; `architecture-goals/` holds redirect stubs only)
 
 ## Script alignment
 
-- **`scripts/pr/check_testing_artifacts.py`** — expects `test-plan.md` and `test-index.md` under **`--planning-dir`** (default: `.local/index-and-planning`). **`--control-center-dir`** is a deprecated alias.
-- **`scripts/dev/generate_coverage_index.py`** — reads **`--coverage-json`** (default `.local/generated-data/coverage.json`), writes **`--output`** (default `.local/index-and-planning/coverage-index.md`).
-- **`make coverage-index`** — runs pytest with coverage, writes JSON to `generated-data`, then regenerates the markdown index.
-- **`scripts/pr/review.py`**, **`prepare.py`**, **`merge.py`** — read/write markdown under **`workflow-artifacts/`** (see **`scripts/pr/local_workflow_paths.py`**).
+| Script | Behavior |
+|--------|----------|
+| **`scripts/pr/check_testing_artifacts.py`** | Default `--planning-dir`: `.local/index-and-planning/current` |
+| **`scripts/dev/generate_coverage_index.py`** | Reads `.local/generated-data/coverage/coverage.json`, writes `.local/index-and-planning/current/coverage-index.md` |
+| **`make coverage-index`** | Same paths as above |
+| **`scripts/pr/review.py`**, **`prepare.py`**, **`merge.py`** | Artifacts under **`workflow-artifacts/pr/`** and **`alignment/`** (see **`local_workflow_paths.py`**) |
 
-## Migrating from `control-center/`
+## Templates (versioned in git)
 
-Older clones used **`.local/control-center/`** and **`.local/implementation-control-center.html`**. Those paths are retired: move markdown into **`index-and-planning/`**, HTML into **`agents-control-center/`**, and refresh **`implementation-control-center.html`** `PAGES` paths to **`../index-and-planning/...`**.
+Copy or sync from **`docs/templates/local-workspace/`** into `.local/agents-control-center/`:
 
-## Migrating PR artifacts from `.local/` root
+- `pages.json` → `config/pages.json`
+- `implementation-control-center.html` → `dashboards/implementation-control-center.html`
 
-If **`review.md`**, **`prep.md`**, **`merge.md`**, or alignment files still live at **`.local/*.md`**, move them into **`.local/workflow-artifacts/`** so the PR scripts find them.
+The **`migrate_local_workspace_layout.py`** helper copies these when missing.
+
+## Migrating from flat layout
+
+1. `python scripts/dev/migrate_local_workspace_layout.py --dry-run`
+2. `python scripts/dev/migrate_local_workspace_layout.py`
+
+See **`docs/governance/path-migration-map.md`** for the full old → new map.

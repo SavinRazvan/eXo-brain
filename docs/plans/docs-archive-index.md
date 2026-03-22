@@ -38,8 +38,8 @@ Use `docs/archive/README.md` for the archive metadata contract.
 
 | Archived file | Canonical replacement |
 |---|---|
-| `docs/archive/results/audit_alignment_results.md` | `.local/workflow-artifacts/alignment-audit.md` |
-| `docs/archive/results/audit_alignment_action_plan.md` | `.local/workflow-artifacts/alignment-todos.md` |
+| `docs/archive/results/audit_alignment_results.md` | `.local/workflow-artifacts/alignment/alignment-audit.md` |
+| `docs/archive/results/audit_alignment_action_plan.md` | `.local/workflow-artifacts/alignment/alignment-todos.md` |
 
 ## Historical but Useful Context
 

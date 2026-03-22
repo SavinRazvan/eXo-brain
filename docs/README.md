@@ -12,11 +12,40 @@ Notes:
  - Keep this file concise and update links whenever doc status changes.
 -->
 
-# Documentation Index
+# Documentation index
 
-## Active Canonical Docs
+## Reading spine (recommended)
 
-- `docs/architecture_mvp.md`
+1. `README.md` (repository entry)
+2. `docs/strategy/goal.md` + `docs/strategy/next-directions.md` (direction)
+3. `docs/architecture/mvp.md` + `docs/architecture/workspace-architecture.md` (shape)
+4. `docs/plans/tenant-tool-execution-architecture.md` (implementation status)
+5. `docs/operations/workflow-complete.md` (maintainer path)
+6. `docs/operations/local-workspace-layout.md` (gitignored `.local/` contract)
+
+## Strategy (`docs/strategy/`)
+
+- `docs/strategy/README.md` — index and reading order
+- `docs/strategy/next-directions.md` — prioritized tiers
+- `docs/strategy/entitlement-matrix.md`, `docs/strategy/traceability-matrix.md`, etc.
+
+> `architecture-goals/` at repo root holds **redirect stubs** only; edit `docs/strategy/*`.
+
+## Architecture (`docs/architecture/`)
+
+- `docs/architecture/README.md`
+- `docs/architecture/mvp.md` — layers and flows
+- `docs/architecture/workspace-architecture.md` — workspace doctrine
+
+## Governance (`docs/governance/`)
+
+- `docs/governance/folder-charter.md` — durable vs local boundaries
+- `docs/governance/workflow-source-owners.md` — scripts vs docs authority
+- `docs/governance/drift-prevention.md` — keep docs aligned with gates
+- `docs/governance/path-migration-map.md` — migration reference
+
+## Active canonical docs
+
 - `docs/runtime_contracts.md`
 - `docs/mcp_integration.md`
 - `docs/plugin_lifecycle.md`
@@ -30,7 +59,13 @@ Notes:
 - `docs/operations/byoc-artifact-integrity-dashboard.md`
 - `docs/operations/documentation-maintenance-checklist.md`
 
-## Planning and Cleanup Governance
+## Operations (workflows)
+
+- `docs/operations/workflow-complete.md`
+- `docs/operations/agent-workflow-procedures.md`
+- `docs/operations/local-workspace-layout.md`
+
+## Planning and cleanup governance
 
 - `docs/plans/documentation-cleanup-master-plan.md`
 - `docs/plans/docs-inventory-master.md`
@@ -38,11 +73,21 @@ Notes:
 - `docs/plans/docs-archive-index.md`
 - `docs/plans/README.md`
 
-## Module Docs
+## Module docs
 
 - `docs/modules/README.md`
 
-## Historical/Archived References
+## API docs
+
+- `docs/api/customer-api-integration-guide.md`
+
+## Local workspace templates (copy into `.local/`)
+
+- `docs/templates/local-workspace/pages.json`
+- `docs/templates/local-workspace/implementation-control-center.html`
+- Run `python scripts/dev/migrate_local_workspace_layout.py` after upgrades
+
+## Historical/archived references
 
 - `docs/archive/operations/local-ui-readiness-smoke.md` (historical)
 - `docs/plans/docs-archive-index.md` (full archive mapping)

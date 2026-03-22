@@ -6,8 +6,8 @@ Used By:
  - README.md
  - AGENTS.md
 Depends On:
- - architecture-goals/GOAL.md
- - architecture-goals/NEXT_DIRECTIONS.md
+ - docs/strategy/goal.md
+ - docs/strategy/next-directions.md
  - src/api/*
 Notes:
  - Keep definitions short and practical for newcomers.

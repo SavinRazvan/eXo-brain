@@ -6,7 +6,7 @@
 - Scope: `src/*`, `tests/modules/*`, CI architecture fitness workflows
 - Last Updated: 2026-03-01
 - Related:
-  - `docs/architecture_mvp.md`
+  - `docs/architecture/mvp.md`
   - `docs/runtime_contracts.md`
   - `docs/mcp_integration.md`
   - `AGENTS.md`
@@ -200,7 +200,7 @@ For each PR slice, all must pass:
 - Full `pytest -q`
 - `python scripts/architecture/validate_layers.py`
 - `python scripts/architecture/scan_forbidden_imports.py`
-- Updated `.local/workflow-artifacts/review.md` and `.local/workflow-artifacts/prep.md`
+- Updated `.local/workflow-artifacts/pr/review.md` and `.local/workflow-artifacts/pr/prep.md`
 - Rollback/fallback notes captured in PR body
 
 ## 7) Rollback Strategy

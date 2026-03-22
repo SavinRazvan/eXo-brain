@@ -28,5 +28,5 @@ db-validate:
 
 coverage-index:
 	python -m pytest --cov=src --cov-report=term-missing -q
-	coverage json -o .local/generated-data/coverage.json
-	python scripts/dev/generate_coverage_index.py --coverage-json .local/generated-data/coverage.json
+	coverage json -o .local/generated-data/coverage/coverage.json
+	python scripts/dev/generate_coverage_index.py --coverage-json .local/generated-data/coverage/coverage.json

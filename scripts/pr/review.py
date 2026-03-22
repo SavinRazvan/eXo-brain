@@ -9,7 +9,7 @@ Depends On:
  - pathlib
  - scripts/pr/local_workflow_paths.py
 Notes:
- - Writes `.local/workflow-artifacts/review.md` with the attribution block only (PR number, actor, branch, agents).
+ - Writes `.local/workflow-artifacts/pr/review.md` with the attribution block only (PR number, actor, branch, agents).
  - The agent MUST overwrite this file with actual review findings and recommendation.
  - Script does not run on existing files if --no-overwrite is passed (safe re-init guard).
 """

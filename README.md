@@ -2,7 +2,7 @@
 File: README.md
 Path: README.md
 Role: Repository overview, quick start, architecture diagrams, and maintainer workflow summary.
-Used By: Contributors, onboarding, cross-links from architecture-goals and docs indexes.
+Used By: Contributors, onboarding, cross-links from docs/strategy and docs indexes.
 Depends On: docs/README.md, docs/plans/tenant-tool-execution-architecture.md, scripts/pr/prepare.py (gate order).
 Notes: Keep PR / quality gate bullets aligned with `scripts/pr/prepare.py` `GATES` and CI workflows.
 -->
@@ -29,7 +29,7 @@ Provider-neutral AI orchestration platform with deterministic tool execution, mu
 
 - API-first Option C is the active delivery path (no required UI/dashboard mount).
 - Tool-level deterministic policy enforcement is implemented; turn-level **governance ingress** (pre-model gate chain) is advanced in code and docs—see the canonical plan for **implemented vs planned** detail.
-- Prioritized roadmap tiers: `architecture-goals/NEXT_DIRECTIONS.md` (keep in sync with strategy docs under `architecture-goals/`).
+- Prioritized roadmap tiers: `docs/strategy/next-directions.md` (strategy package; `architecture-goals/` holds redirect stubs only).
 - Canonical implementation status + queued slices: `docs/plans/tenant-tool-execution-architecture.md`.
 - Documentation authority, lifecycle, and archive pointers: `docs/plans/docs-authority-map.md`, `docs/plans/docs-inventory-master.md`, `docs/plans/docs-archive-index.md`.
 - Top-level doc index: `docs/README.md`.
@@ -125,7 +125,7 @@ Thin wrappers around versioned scripts (outputs under `.local/` where noted):
 | `make rc-signoff` | Generate `.local/rc-signoff.md` via `scripts/release/rc_signoff.py` |
 | `make rc-signoff-json` | Parse signoff markdown → `.local/rc-signoff.json` |
 | `make db-backup` / `db-restore` / `db-validate` | Local SQLite safety helpers |
-| `make coverage-index` | Full `pytest --cov` run + regenerate `.local/index-and-planning/coverage-index.md` |
+| `make coverage-index` | Full `pytest --cov` run + regenerate `.local/index-and-planning/current/coverage-index.md` |
 
 ---
 
@@ -460,7 +460,7 @@ Tracked automation lives under `scripts/pr/` and `.github/workflows/`. Use **PR-
    - `python scripts/pr/review.py --pr <id|url> --actor "…" --agents "review-pr"`
    - `python scripts/pr/prepare.py --pr <id|url> --actor "…" --agents "review-pr | prepare-pr"` (runs gates unless `--skip-gates`)
    - `python scripts/pr/merge.py --pr … --check-only` then merge via `gh`, then `merge.py` again with `--merge-sha <oid>`
-3. **Local artifacts** (scripts write under **`.local/workflow-artifacts/`**): `review.md`, `prep.md`, `merge.md`. For **architecture-impacting** changes, also maintain `alignment-audit.md` and `alignment-todos.md` there, and pass `--arch-impacting` to `merge.py` so both files are enforced.
+3. **Local artifacts** (scripts write under **`.local/workflow-artifacts/pr/`**): `review.md`, `prep.md`, `merge.md`. For **architecture-impacting** changes, also maintain `alignment-audit.md` and `alignment-todos.md` under **`.local/workflow-artifacts/alignment/`**, and pass `--arch-impacting` to `merge.py` so both files are enforced.
 4. **Merge gates** — must match `scripts/pr/prepare.py` `GATES` (canonical order):
    - `python scripts/pr/check_testing_artifacts.py`
    - `python -m pytest -q` (CI also enforces coverage thresholds on PRs)

@@ -10,21 +10,21 @@ Current delivery posture is API-first Option C (control plane + adapter plane + 
 
 If you are new to the repository, read in this order:
 1. `README.md` (architecture map + request/turn workflows)
-2. `architecture-goals/NEXT_DIRECTIONS.md` (current priority tiers)
-3. `architecture-goals/GOAL.md` (product boundary and non-negotiables)
-4. `architecture-goals/ENTITLEMENT_MATRIX.md` (what is Foundation vs Pro vs Enterprise)
+2. `docs/strategy/next-directions.md` (current priority tiers)
+3. `docs/strategy/goal.md` (product boundary and non-negotiables)
+4. `docs/strategy/entitlement-matrix.md` (what is Foundation vs Pro vs Enterprise)
 
 Abbreviation notepad:
 - `docs/operations/abbreviations-notepad.md`
 
-Local workspace map (`.local/` folders: `index-and-planning`, `agents-control-center`, `generated-data`, `workflow-artifacts`):
+Local workspace map (nested `.local/` — see `docs/operations/local-workspace-layout.md`):
 - `docs/operations/local-workspace-layout.md`
-- PR phase markdown from `scripts/pr/review.py` / `prepare.py` / `merge.py` lives under **`.local/workflow-artifacts/`** (paths in **`scripts/pr/local_workflow_paths.py`**).
+- PR phase markdown from `scripts/pr/review.py` / `prepare.py` / `merge.py` lives under **`.local/workflow-artifacts/pr/`** (alignment under **`alignment/`**; paths in **`scripts/pr/local_workflow_paths.py`**).
 
 ## Canonical Rules (Always Applied)
 
 - `.cursor/rules/provider-neutral-adapter-wall.mdc` — Architecture and layer boundaries
-- `.cursor/rules/implementation-workflow-governance.mdc` — Implementation slice lifecycle, `.local/index-and-planning` discipline, module-aligned testing
+- `.cursor/rules/implementation-workflow-governance.mdc` — Implementation slice lifecycle, `.local/index-and-planning/current` discipline, module-aligned testing
 - `.cursor/rules/pr-workflow-enforcement.mdc` — PR-first, merge gates, branch safety
 - `.cursor/rules/commit-trailer-format.mdc` — Commit trailers
 - `.cursor/rules/file-docstring-header-relations.mdc` — File header metadata
@@ -47,11 +47,11 @@ Local workspace map (`.local/` folders: `index-and-planning`, `agents-control-ce
 - Add rollback/fallback behavior for new runtime features.
 - Keep checklist/docs synchronized with implementation status:
   - `docs/plans/tenant-tool-execution-architecture.md`
-  - `.local/index-and-planning/plan.md`
-  - `.local/index-and-planning/architecture.md`
-  - `.local/index-and-planning/work-tracker.md`
-  - `.local/index-and-planning/test-plan.md`
-  - `.local/index-and-planning/test-index.md`
+  - `.local/index-and-planning/current/plan.md`
+  - `docs/architecture/workspace-architecture.md` (doctrine; local stub may exist under `.local/.../current/architecture.md`)
+  - `.local/index-and-planning/current/work-tracker.md`
+  - `.local/index-and-planning/current/test-plan.md`
+  - `.local/index-and-planning/current/test-index.md`
   - `docs/plans/docs-inventory-master.md` (when doc lifecycle status changes)
 
 ## Quality and Safety Gates
@@ -84,7 +84,7 @@ Local workspace map (`.local/` folders: `index-and-planning`, `agents-control-ce
 - Keep `main` stable and merge-ready; avoid direct implementation commits on `main`.
 - Before merge, require:
   - tests and architecture checks passing
-  - implementation status updates in `.local/index-and-planning/` for implemented scope
+  - implementation status updates in `.local/index-and-planning/current/` (and `history/updates-log.md`) for implemented scope
   - docs maintenance review for architecture/workflow changes (`docs/operations/documentation-maintenance-checklist.md`)
 - After merge, require workflow finalization:
   - sync local `main` with `origin/main`
@@ -116,4 +116,4 @@ Local workspace map (`.local/` folders: `index-and-planning`, `agents-control-ce
 
 ## Next Directions
 
-Architecture-aligned implementation priorities are in `architecture-goals/NEXT_DIRECTIONS.md` (Tier 1: adapter portability; Tier 2: entitlement/monetization + governance ingress safety controls; Tier 3: customer API guide and deployment certification). Use it when starting a slice or deciding what to work on next.
+Architecture-aligned implementation priorities are in `docs/strategy/next-directions.md` (Tier 1: adapter portability; Tier 2: entitlement/monetization + governance ingress safety controls; Tier 3: customer API guide and deployment certification). Use it when starting a slice or deciding what to work on next.

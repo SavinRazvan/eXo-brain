@@ -24,10 +24,14 @@ Notes:
    - `.agents/skills/PR_WORKFLOW.md`
 3. **Canonical active docs**
    - `README.md`
-   - `docs/architecture_mvp.md`
+   - `docs/strategy/README.md` (strategy package index)
+   - `docs/architecture/mvp.md` (see `docs/architecture_mvp.md` stub for legacy links)
+   - `docs/architecture/workspace-architecture.md`
    - `docs/runtime_contracts.md`
    - `docs/plans/tenant-tool-execution-architecture.md`
    - `docs/operations/release-candidate-signoff-checklist.md`
+   - `docs/operations/workflow-complete.md`
+   - `docs/governance/folder-charter.md`
 4. **Planning docs**
    - `docs/plans/*` files marked active/planned
 5. **Historical docs**

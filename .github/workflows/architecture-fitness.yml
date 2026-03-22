@@ -8,7 +8,7 @@
 #  - scripts/architecture/scan_forbidden_imports.py
 #  - tests/modules/
 # Notes:
-#  - Keep this workflow aligned with active governance scripts and `.local/index-and-planning` coverage index output.
+#  - Keep this workflow aligned with active governance scripts and `.local/index-and-planning/current` coverage index output.
 
 name: architecture-fitness
 
@@ -79,14 +79,14 @@ jobs:
       - name: Run automated test suite
         run: python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=100 -q
       - name: Build coverage JSON index input
-        run: mkdir -p .local/generated-data .local/index-and-planning && coverage json -o .local/generated-data/coverage.json
+        run: mkdir -p .local/generated-data/coverage .local/index-and-planning/current && coverage json -o .local/generated-data/coverage/coverage.json
       - name: Generate coverage index artifact
-        run: python scripts/dev/generate_coverage_index.py --coverage-json .local/generated-data/coverage.json
+        run: python scripts/dev/generate_coverage_index.py --coverage-json .local/generated-data/coverage/coverage.json
       - name: Upload coverage index artifact
         uses: actions/upload-artifact@v7
         with:
           name: coverage-index
-          path: .local/index-and-planning/coverage-index.md
+          path: .local/index-and-planning/current/coverage-index.md
 
   contract_tests:
     runs-on: ubuntu-latest

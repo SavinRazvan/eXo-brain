@@ -12,7 +12,7 @@ Depends On:
 Notes:
  - Gate subprocesses use `sys.executable` (same interpreter as this script), not a bare `python` on PATH.
  - By default runs all gates (check_testing_artifacts, pytest, validate_layers, scan_forbidden_imports)
-   per `GATES` and writes `.local/workflow-artifacts/prep.md`.
+   per `GATES` and writes `.local/workflow-artifacts/pr/prep.md`.
  - Pass --skip-gates when the agent has already run and verified gates independently; the script
    then only writes the attribution/stamp block and marks gates as externally verified.
  - The script is the canonical source of the prep artifact; agent writes resolved findings,

@@ -1,0 +1,320 @@
+<!--
+File: implementation-control-center.html
+Path: docs/templates/local-workspace/implementation-control-center.html
+Role: Template dashboard — copy to `.local/agents-control-center/dashboards/` (see migrate script).
+Used By:
+ - Local preview (file:// or static server)
+Depends On:
+ - ../config/pages.json (after copy: `.local/agents-control-center/config/pages.json`)
+ - Paths declared inside pages.json (`.local/...` and `docs/...`)
+Notes:
+ - Page list is manifest-driven; edit `pages.json` instead of hardcoding PAGES here.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Implementation Control Center</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #111a33;
+      --panel-2: #142041;
+      --line: #2b3f73;
+      --text: #eaf0ff;
+      --muted: #9eb3e6;
+      --accent: #61b2ff;
+      --ok: #42d392;
+      --warn: #ffd166;
+      --bad: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top left, #172750 0%, var(--bg) 50%);
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 18px;
+      display: grid;
+      gap: 12px;
+    }
+    .header {
+      background: linear-gradient(135deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      letter-spacing: 0.3px;
+    }
+    .meta {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 0.92rem;
+      flex-wrap: wrap;
+    }
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: #0f1a36;
+    }
+    button {
+      background: #1f3264;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 10px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+      gap: 8px;
+    }
+    .tab {
+      background: #0f1a36;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 10px;
+      color: var(--muted);
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+      font-weight: 600;
+    }
+    .tab.active {
+      color: var(--text);
+      border-color: var(--accent);
+      background: #173064;
+    }
+    .panel {
+      background: #0e1730;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      min-height: 62vh;
+      overflow: auto;
+      padding: 18px;
+      line-height: 1.55;
+      white-space: normal;
+    }
+    .panel h1, .panel h2, .panel h3 {
+      margin-top: 1em;
+      margin-bottom: 0.45em;
+      color: #dce8ff;
+    }
+    .panel h1 { font-size: 1.25rem; }
+    .panel h2 { font-size: 1.12rem; }
+    .panel h3 { font-size: 1.02rem; }
+    .panel p { margin: 0.45em 0; }
+    .panel ul { margin: 0.35em 0 0.5em 1.2em; padding: 0; }
+    .panel li { margin: 0.2em 0; }
+    .panel code {
+      background: #16264d;
+      padding: 1px 4px;
+      border-radius: 4px;
+      color: #a8ccff;
+      font-family: Consolas, "Courier New", monospace;
+    }
+    .status-ok { color: var(--ok); }
+    .status-warn { color: var(--warn); }
+    .status-bad { color: var(--bad); }
+    @media (max-width: 900px) {
+      .tabs { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="header">
+      <h1>Implementation Control Center</h1>
+      <div class="meta">
+        <span class="pill">manifest: ../config/pages.json</span>
+        <span id="last-refresh" class="pill">refresh: --</span>
+        <button id="refresh-btn" type="button">Refresh</button>
+      </div>
+    </section>
+
+    <section class="tabs" id="tabs"></section>
+    <section class="panel" id="content">Loading manifest...</section>
+  </div>
+
+  <script>
+    const MANIFEST = "../config/pages.json";
+    let PAGES = [];
+    let activePage = "";
+
+    const contentEl = document.getElementById("content");
+    const tabsEl = document.getElementById("tabs");
+    const refreshEl = document.getElementById("last-refresh");
+    const refreshBtn = document.getElementById("refresh-btn");
+
+    function escapeHtml(value) {
+      return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function parseInline(text) {
+      const escaped = escapeHtml(text);
+      return escaped.replace(/`([^`]+)`/g, "<code>$1</code>");
+    }
+
+    function renderMarkdown(md) {
+      const lines = md.split("\n");
+      const out = [];
+      let inList = false;
+      let inCode = false;
+
+      function closeListIfOpen() {
+        if (inList) {
+          out.push("</ul>");
+          inList = false;
+        }
+      }
+
+      for (const rawLine of lines) {
+        const line = rawLine.trimEnd();
+
+        if (line.startsWith("<!--")) {
+          continue;
+        }
+        if (line.endsWith("-->")) {
+          continue;
+        }
+
+        if (line.startsWith("```")) {
+          closeListIfOpen();
+          if (!inCode) {
+            out.push("<pre><code>");
+            inCode = true;
+          } else {
+            out.push("</code></pre>");
+            inCode = false;
+          }
+          continue;
+        }
+
+        if (inCode) {
+          out.push(escapeHtml(rawLine) + "\n");
+          continue;
+        }
+
+        if (!line) {
+          closeListIfOpen();
+          continue;
+        }
+
+        if (line.startsWith("### ")) {
+          closeListIfOpen();
+          out.push("<h3>" + parseInline(line.slice(4)) + "</h3>");
+          continue;
+        }
+        if (line.startsWith("## ")) {
+          closeListIfOpen();
+          out.push("<h2>" + parseInline(line.slice(3)) + "</h2>");
+          continue;
+        }
+        if (line.startsWith("# ")) {
+          closeListIfOpen();
+          out.push("<h1>" + parseInline(line.slice(2)) + "</h1>");
+          continue;
+        }
+
+        if (line.startsWith("- ")) {
+          if (!inList) {
+            out.push("<ul>");
+            inList = true;
+          }
+          out.push("<li>" + parseInline(line.slice(2)) + "</li>");
+          continue;
+        }
+
+        closeListIfOpen();
+        out.push("<p>" + parseInline(line) + "</p>");
+      }
+
+      closeListIfOpen();
+      if (inCode) {
+        out.push("</code></pre>");
+      }
+
+      return out.join("");
+    }
+
+    function renderTabs() {
+      tabsEl.innerHTML = "";
+      for (const page of PAGES) {
+        const tab = document.createElement("button");
+        tab.className = "tab" + (page.id === activePage ? " active" : "");
+        tab.textContent = page.title;
+        tab.type = "button";
+        tab.onclick = () => {
+          activePage = page.id;
+          renderTabs();
+          refreshActivePage();
+        };
+        tabsEl.appendChild(tab);
+      }
+    }
+
+    async function refreshActivePage() {
+      const page = PAGES.find((entry) => entry.id === activePage);
+      if (!page) return;
+      contentEl.textContent = "Loading " + page.title + "...";
+      try {
+        const response = await fetch(page.file + "?t=" + Date.now(), { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to load " + page.file + " (" + response.status + ")");
+        }
+        const markdown = await response.text();
+        contentEl.innerHTML = renderMarkdown(markdown);
+        refreshEl.textContent = "refresh: " + new Date().toLocaleString();
+      } catch (error) {
+        contentEl.innerHTML = "<p class=\"status-bad\">Could not load markdown: " + escapeHtml(String(error.message || error)) + "</p>";
+      }
+    }
+
+    async function bootstrap() {
+      try {
+        const res = await fetch(MANIFEST + "?t=" + Date.now(), { cache: "no-store" });
+        if (!res.ok) {
+          throw new Error("Manifest " + MANIFEST + " (" + res.status + ")");
+        }
+        const data = await res.json();
+        PAGES = data.pages || [];
+        if (!PAGES.length) {
+          contentEl.innerHTML = "<p class=\"status-bad\">Manifest has no pages.</p>";
+          return;
+        }
+        activePage = PAGES[0].id;
+        renderTabs();
+        await refreshActivePage();
+      } catch (error) {
+        contentEl.innerHTML = "<p class=\"status-bad\">" + escapeHtml(String(error.message || error)) + "</p>";
+      }
+    }
+
+    refreshBtn.addEventListener("click", refreshActivePage);
+    bootstrap();
+    setInterval(refreshActivePage, 12000);
+  </script>
+</body>
+</html>
