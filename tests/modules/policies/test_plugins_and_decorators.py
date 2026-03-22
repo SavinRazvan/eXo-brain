@@ -17,11 +17,14 @@ Notes:
 
 from __future__ import annotations
 
+import pytest
+
 from src.policies.middleware import DeterministicFirstPolicyMiddleware
 from src.schemas.tool_io import ToolCallContext, ToolStatus
 from src.tools.executor import DeterministicToolExecutor
 from src.tools.plugins.plugin_contract import PluginManifest, ToolPlugin
 from src.tools.plugins.plugin_manager import PluginManager
+from src.tools.decorators import apply_execution_decorators, authz, validation
 from src.tools.registry import ToolDescriptor, ToolRegistry
 
 
@@ -149,3 +152,43 @@ def test_executor_applies_retry_redaction_and_audit_hooks() -> None:
     assert calls["count"] == 2
     assert any(event["event"] == "tool.flaky_tool.start" for event in audit_events)
     assert any(event["event"] == "tool.flaky_tool.success" for event in audit_events)
+
+
+def test_validation_decorator_raises_on_missing_kwargs() -> None:
+    @validation(required_args=["a"])
+    def _fn(*, a: int) -> int:
+        return a
+
+    with pytest.raises(ValueError, match="Missing required arguments"):
+        _fn()
+
+
+def test_authz_decorator_blocks_state_changing_when_disallowed() -> None:
+    @authz(allow_state_changing=False, is_state_changing_call=True)
+    def _fn() -> str:
+        return "ok"
+
+    with pytest.raises(PermissionError, match="State-changing"):
+        _fn()
+
+
+def test_audit_logging_decorator_emits_error_event() -> None:
+    events: list[dict] = []
+
+    def _bad() -> None:
+        raise RuntimeError("boom")
+
+    wrapped = apply_execution_decorators(
+        _bad,
+        required_args=[],
+        allow_state_changing=True,
+        is_state_changing_call=False,
+        max_attempts=1,
+        redact_keys=[],
+        audit_sink=events.append,
+        event_prefix="t",
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        wrapped()
+    assert any(e.get("event") == "t.error" for e in events)

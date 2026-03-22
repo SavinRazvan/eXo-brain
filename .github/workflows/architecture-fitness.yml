@@ -77,7 +77,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Run automated test suite
-        run: python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=90 -q
+        run: python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=100 -q
       - name: Build coverage JSON index input
         run: coverage json -o .local/coverage.json
       - name: Generate coverage index artifact

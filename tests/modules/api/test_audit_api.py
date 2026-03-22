@@ -17,6 +17,7 @@ import asyncio
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.api.app import create_app
@@ -355,3 +356,160 @@ def test_audit_verify_supports_key_rotation_and_legacy_signature_version(tmp_pat
         assert verify_legacy_payload["verified"] is True
         assert verify_legacy_payload["signature_valid"] is True
         assert verify_legacy_payload["verified_with_version"] == "v1"
+
+
+def test_audit_list_events_returns_503_when_audit_store_unconfigured(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_audit_no_store.db")
+    app.state.audit_store = None
+    with TestClient(app) as client:
+        resp = client.get("/tenants/t1/admin/audit/events", headers=_x_identity())
+    assert resp.status_code == 503
+    assert "not configured" in resp.json()["detail"].lower()
+
+
+def test_audit_verify_rejects_path_outside_export_directory(tmp_path: Path) -> None:
+    export_dir = tmp_path / "audit_exports_safe"
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        limits=LimitsSettings(
+            audit_export_directory=str(export_dir),
+            audit_bundle_signing_secret="audit-verify-secret",
+            max_audit_export_records=50,
+        ),
+    )
+    app = _build_sqlite_test_app(tmp_path / "exo_audit_path.db", settings_override=settings)
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}", encoding="utf-8")
+    with TestClient(app) as client:
+        resp = client.post(
+            "/tenants/t1/admin/audit/verify",
+            json={"file_path": str(outside.resolve())},
+            headers=_x_identity(roles=["admin", "entitlement_enterprise"]),
+        )
+    assert resp.status_code == 400
+    assert "audit export directory" in resp.json()["detail"].lower()
+
+
+def test_audit_verify_returns_404_when_export_file_missing(tmp_path: Path) -> None:
+    export_dir = tmp_path / "audit_exports_missing"
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        limits=LimitsSettings(
+            audit_export_directory=str(export_dir),
+            audit_bundle_signing_secret="audit-missing-secret",
+            max_audit_export_records=50,
+        ),
+    )
+    app = _build_sqlite_test_app(tmp_path / "exo_audit_missing.db", settings_override=settings)
+    export_dir.mkdir(parents=True, exist_ok=True)
+    ghost = (export_dir / "ghost.json").resolve()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/tenants/t1/admin/audit/verify",
+            json={"file_path": str(ghost)},
+            headers=_x_identity(roles=["admin", "entitlement_enterprise"]),
+        )
+    assert resp.status_code == 404
+
+
+def test_audit_verify_requires_bundle_or_file_path(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_audit_bundle_req.db")
+    with TestClient(app) as client:
+        resp = client.post(
+            "/tenants/t1/admin/audit/verify",
+            json={},
+            headers=_x_identity(roles=["admin", "entitlement_enterprise"]),
+        )
+    assert resp.status_code == 422
+
+
+def test_audit_export_file_rejects_path_when_resolved_file_escapes_export_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Covers export path guard when resolved JSON path is outside the export root."""
+    export_dir = tmp_path / "audit_exports_escape"
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        limits=LimitsSettings(
+            audit_export_directory=str(export_dir),
+            audit_bundle_signing_secret="escape-test-secret",
+            max_audit_export_records=50,
+        ),
+    )
+    app = _build_sqlite_test_app(tmp_path / "exo_audit_escape.db", settings_override=settings)
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    _orig_resolve = Path.resolve
+
+    def _patched_resolve(self: Path) -> Path:
+        s = str(self)
+        if s.endswith(".json") and "exo_bad_resolve" in s:
+            return Path("/tmp/exo_audit_escape_out.json").resolve()
+        return _orig_resolve(self)
+
+    monkeypatch.setattr(Path, "resolve", _patched_resolve)
+    with TestClient(app) as client:
+        upload = client.post(
+            "/tenants/t1/tools/upload",
+            json={
+                "manifest": {
+                    "tool_name": "calculate_result",
+                    "version": "1.0.0",
+                    "input_schema": {"type": "object"},
+                    "risk_tier": "low",
+                    "entry_file": "handler.py",
+                    "entrypoint": "run",
+                },
+                "activate": True,
+            },
+            headers=_x_identity(),
+        )
+        assert upload.status_code == 201, upload.text
+
+        resp = client.post(
+            "/tenants/t1/admin/audit/export-file",
+            json={"limit": 10, "filename_prefix": "exo_bad_resolve"},
+            headers=_x_identity(roles=["admin", "entitlement_enterprise"]),
+        )
+    assert resp.status_code == 400
+    assert "invalid export file path" in resp.json()["detail"].lower()
+
+
+def test_audit_verify_reports_tenant_mismatch_without_verifying_signature(tmp_path: Path) -> None:
+    app = _build_sqlite_test_app(tmp_path / "exo_audit_mismatch.db")
+    with TestClient(app) as client:
+        resp = client.post(
+            "/tenants/t1/admin/audit/verify",
+            json={
+                "bundle": {
+                    "tenant_id": "other-tenant",
+                    "signature": "x",
+                    "signature_version": "v1",
+                    "record_count": 0,
+                    "records": [],
+                }
+            },
+            headers=_x_identity(roles=["admin", "entitlement_enterprise"]),
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["verified"] is False
+    assert body["reason"] == "TENANT_MISMATCH"

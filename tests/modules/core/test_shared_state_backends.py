@@ -15,6 +15,7 @@ Notes:
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from src.core.run_control_registry import SQLiteRunControlRegistry
 from src.policies.byoc_fairness import SQLiteByocFairAdmissionCoordinator
@@ -57,6 +58,32 @@ def test_sqlite_rate_limiter_enforces_window(tmp_path: Path) -> None:
     allowed, retry = limiter.allow("t1")
     assert allowed is False
     assert retry == 60
+
+
+def test_sqlite_fair_admission_stats_treats_missing_count_row_as_zero(tmp_path: Path) -> None:
+    coordinator = SQLiteByocFairAdmissionCoordinator(
+        db_path=str(tmp_path / "state.db"),
+        max_inflight_global=2,
+        lease_seconds=5,
+    )
+
+    class _FakeConn:
+        def __enter__(self) -> "_FakeConn":
+            return self
+
+        def __exit__(self, *_args: object) -> bool:
+            return False
+
+        def execute(self, sql: str, parameters: tuple = ()) -> MagicMock:  # noqa: ANN401
+            cursor = MagicMock()
+            if "COUNT(*)" in sql and "byoc_fair_admission_slots" in sql:
+                cursor.fetchone.return_value = None
+            return cursor
+
+    coordinator._conn = lambda: _FakeConn()  # type: ignore[method-assign, assignment]
+    stats = coordinator.stats()
+    assert stats["fair_admission_inflight_total"] == 0
+    assert stats["fair_admission_pending_total"] == 0
 
 
 def test_sqlite_fair_admission_acquire_release(tmp_path: Path) -> None:

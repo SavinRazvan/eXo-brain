@@ -33,12 +33,17 @@ from src.config.provider_registry import (
     ProviderRegistry,
 )
 from src.config.settings import AppSettings, RuntimeSettings
+from collections.abc import AsyncIterator
+
 from src.runtime.adapter_factory import OPENAI_ADAPTER_CANONICAL_CLASS_REF
+from src.runtime.capability_map import HealthState, HealthStatus, ProviderCapabilityMap, SecurityTier
 from src.runtime.custom_runtime import CustomRuntimeAdapter
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
+from src.runtime.runtime_adapter import RuntimeAdapter, SessionHandle
 from src.runtime.tenant_runtime import TenantRuntimeContext, TenantRuntimeFactory
+from src.schemas.events import RuntimeEvent
 from src.runtime.tool_wiring import build_agent_tools
-from src.schemas.tool_io import RiskTier
+from src.schemas.tool_io import RiskTier, ToolResult
 from src.tools.execution_adapter import ToolExecutionAdapter
 from src.tools.executor import DeterministicToolExecutor
 from src.tools.registry import ToolDescriptor, ToolRegistry
@@ -651,3 +656,107 @@ def test_list_fallback_policies_returns_registered_policies() -> None:
 def test_list_fallback_policies_empty_when_no_policies() -> None:
     registry = AgentRegistry()
     assert registry.list_fallback_policies() == []
+
+
+def test_session_adapter_load_retries_without_tool_wiring_kwargs() -> None:
+    adapter = CustomRuntimeAdapter(provider_id="custom-p")
+    record = ProviderRecord(
+        provider_id="custom-p",
+        display_name="Custom",
+        adapter_class="src.runtime.custom_runtime.CustomRuntimeAdapter",
+        enabled=True,
+        profile=ProviderProfile.MANAGED_VENDOR,
+        priority=1,
+        endpoint=EndpointConfig(base_url="http://localhost", api_type=EndpointApiType.OPENAI_COMPATIBLE),
+        auth=AuthConfig(type="api_key", api_key_env_var=""),
+        model_defaults=ModelDefaults(model="stub"),
+    )
+    registry = ProviderRegistry(
+        settings=_make_settings("custom-p"),
+        providers=[record],
+        adapters={"custom-p": adapter},
+    )
+    factory = TenantRuntimeFactory(provider_registry=registry, settings=_make_settings("custom-p"))
+    ctx = factory.get_or_create("tenant-custom")
+    resolved = factory._instantiate_session_adapter(ctx, "custom-p")
+    assert isinstance(resolved, CustomRuntimeAdapter)
+
+
+class _BareInitAdapter(RuntimeAdapter):
+    """Adapter whose class can only be constructed with a no-arg __init__."""
+
+    def __init__(self) -> None:
+        self._provider_id = "bare"
+
+    async def start_session(
+        self,
+        session_id: str,
+        metadata: dict | None = None,
+    ) -> SessionHandle:
+        return SessionHandle(session_id=session_id, provider_id=self._provider_id, metadata=dict(metadata or {}))
+
+    async def run_turn(
+        self,
+        session_id: str,
+        user_input: str,
+        context: dict,
+    ) -> AsyncIterator[RuntimeEvent]:
+        yield RuntimeEvent.run_complete(session_id=session_id, run_id="r1", output={})
+
+    async def submit_tool_results(
+        self,
+        session_id: str,
+        run_id: str,
+        tool_results: list[ToolResult],
+    ) -> AsyncIterator[RuntimeEvent]:
+        yield RuntimeEvent.run_complete(session_id=session_id, run_id=run_id, output={})
+
+    def get_capabilities(self) -> ProviderCapabilityMap:
+        return ProviderCapabilityMap(provider_id=self._provider_id, security_tier=SecurityTier.LOCAL_ONLY)
+
+    async def healthcheck(self) -> HealthStatus:
+        return HealthStatus(state=HealthState.HEALTHY, reason="test")
+
+
+def test_session_adapter_uses_bare_constructor_when_registered_type_rejects_provider_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bare = _BareInitAdapter()
+    record = ProviderRecord(
+        provider_id="bare-p",
+        display_name="Bare",
+        adapter_class="unresolvable.bare.Adapter",
+        enabled=True,
+        profile=ProviderProfile.MANAGED_VENDOR,
+        priority=1,
+        endpoint=EndpointConfig(base_url="http://localhost", api_type=EndpointApiType.CUSTOM),
+        auth=AuthConfig(type="api_key", api_key_env_var=""),
+        model_defaults=ModelDefaults(model="stub"),
+    )
+    registry = ProviderRegistry(
+        settings=_make_settings("bare-p"),
+        providers=[record],
+        adapters={"bare-p": bare},
+    )
+    factory = TenantRuntimeFactory(provider_registry=registry, settings=_make_settings("bare-p"))
+    ctx = factory.get_or_create("tenant-bare")
+
+    def _boom(*_a, **_k):
+        raise ImportError("forced")
+
+    monkeypatch.setattr("src.runtime.adapter_factory.load_adapter", _boom)
+    resolved = factory._instantiate_session_adapter(ctx, "bare-p")
+    assert isinstance(resolved, _BareInitAdapter)
+    assert resolved is not bare
+
+
+def test_session_adapter_falls_back_to_registered_adapter_when_load_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    factory = _make_factory()
+    ctx = factory.get_or_create("tenant-fallback")
+
+    def _boom(*_a, **_k):
+        raise ImportError("forced")
+
+    monkeypatch.setattr("src.runtime.adapter_factory.load_adapter", _boom)
+    resolved = factory._instantiate_session_adapter(ctx, "openai-test")
+    assert isinstance(resolved, OpenAIAgentsRuntimeAdapter)

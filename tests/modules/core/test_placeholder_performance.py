@@ -12,6 +12,8 @@ Notes:
 
 import asyncio
 
+import pytest
+
 from src.core.worker_pool import WorkerPool
 
 
@@ -34,6 +36,12 @@ def test_worker_pool_runs_async_task() -> None:
         return await pool.run(work)
 
     assert asyncio.run(scenario()) == 7
+
+
+def test_worker_pool_scale_up_rejects_non_positive_target() -> None:
+    pool = WorkerPool(max_concurrency=2)
+    with pytest.raises(ValueError, match="target_concurrency"):
+        pool.scale_up_to(0)
 
 
 def test_worker_pool_scale_up_increases_concurrency_target() -> None:

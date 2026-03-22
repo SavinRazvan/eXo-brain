@@ -13,12 +13,17 @@ Notes:
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from src.tools.byoc.job_contracts import ByocResultStatus, ByocToolResultEnvelope
 from src.tools.byoc.result_store import (
     ByocResultConflictStrategy,
+    ByocResultIngestOutcome,
+    ByocResultStore,
     InMemoryByocResultStore,
+    InMemoryReplayGuard,
+    ReplayGuard,
 )
 from src.tools.byoc.sqlite_store import SQLiteByocResultStore
 
@@ -123,3 +128,98 @@ def test_inmemory_prefer_success_keeps_existing_success_when_new_success_arrives
     consumed = store.consume("job_e")
     assert consumed is not None
     assert consumed.output["value"] == 11
+
+
+class _MinimalResultStore(ByocResultStore):
+    def ingest(self, result: ByocToolResultEnvelope) -> ByocResultIngestOutcome:
+        return ByocResultIngestOutcome(accepted=True, duplicate=False, reason_code="noop")
+
+    def consume(self, job_id: str) -> ByocToolResultEnvelope | None:
+        return None
+
+
+def test_byoc_result_store_default_hooks_return_safe_defaults() -> None:
+    store = _MinimalResultStore()
+    assert store.has_idempotency_key("any") is False
+    assert store.conflict_strategy_name() == "unknown"
+    assert store.list_conflict_counts(tenant_id="t") == []
+
+
+class _MinimalReplayGuard(ReplayGuard):
+    def mark_once(self, *, key: str, ttl_seconds: int) -> bool:
+        return True
+
+
+def test_replay_guard_default_metrics_and_cleanup() -> None:
+    guard = _MinimalReplayGuard()
+    assert guard.health_metrics(tenant_id="t") == {"replay_keys_active": 0}
+    assert guard.cleanup_retention(tenant_id="t") == {"replay_keys_pruned": 0}
+
+
+def test_inmemory_result_store_rejects_blank_idempotency_key() -> None:
+    store = InMemoryByocResultStore()
+    outcome = store.ingest(_result(job_id="j", idempotency_key="  ", status=ByocResultStatus.SUCCESS, value=1))
+    assert outcome.accepted is False
+    assert outcome.reason_code == "IDEMPOTENCY_KEY_REQUIRED"
+
+
+def test_inmemory_result_store_duplicate_idempotency_short_circuits() -> None:
+    store = InMemoryByocResultStore()
+    payload = _result(job_id="j1", idempotency_key="t1:same", status=ByocResultStatus.SUCCESS, value=1)
+    first = store.ingest(payload)
+    second = store.ingest(payload)
+    assert first.reason_code == "INGESTED"
+    assert second.duplicate is True
+    assert second.reason_code == "IDEMPOTENT_DUPLICATE"
+
+
+def test_inmemory_consume_and_has_idempotency_blank_keys() -> None:
+    store = InMemoryByocResultStore()
+    assert store.consume("  ") is None
+    assert store.has_idempotency_key(" ") is False
+
+
+def test_inmemory_list_conflict_counts_blank_tenant_returns_empty() -> None:
+    store = InMemoryByocResultStore()
+    assert store.list_conflict_counts(tenant_id="   ") == []
+
+
+def test_inmemory_replay_guard_blank_key_rejected() -> None:
+    guard = InMemoryReplayGuard()
+    assert guard.mark_once(key="  ", ttl_seconds=10) is False
+
+
+def test_inmemory_replay_guard_health_and_cleanup_retention() -> None:
+    guard = InMemoryReplayGuard()
+    assert guard.mark_once(key="t1:n1", ttl_seconds=1) is True
+    assert guard.mark_once(key="t1:n1", ttl_seconds=1) is False
+    metrics = guard.health_metrics(tenant_id="t1")
+    assert metrics["replay_keys_active"] == 1
+    pruned = guard.cleanup_retention(tenant_id="t1")
+    assert pruned["replay_keys_pruned"] >= 0
+
+
+def test_inmemory_list_conflict_counts_skips_other_tenants() -> None:
+    store = InMemoryByocResultStore()
+    store._conflict_counts[("t_other", "R", "x@y")] = 1  # type: ignore[attr-defined]
+    store._conflict_counts[("t1", "R", "x@y")] = 2  # type: ignore[attr-defined]
+    rows = store.list_conflict_counts(tenant_id="t1")
+    assert len(rows) == 1
+    assert rows[0].count == 2
+
+
+def test_inmemory_replay_guard_cleanup_unlocked_pops_stale_keys() -> None:
+    guard = InMemoryReplayGuard()
+    past = time.time() - 10.0
+    guard._expires_at_epoch["t1:k1"] = past  # type: ignore[attr-defined]
+    guard._cleanup_unlocked(time.time())
+    assert "t1:k1" not in guard._expires_at_epoch
+
+
+def test_inmemory_conflict_list_tool_key_without_at_separator() -> None:
+    store = InMemoryByocResultStore()
+    store._conflict_counts[("t1", "BYOC_RESULT_CONFLICT_REJECTED", "baretool")] = 2  # type: ignore[attr-defined]
+    rows = store.list_conflict_counts(tenant_id="t1")
+    assert len(rows) == 1
+    assert rows[0].tool_name == "baretool"
+    assert rows[0].tool_version == ""

@@ -329,3 +329,26 @@ def test_admin_keys_returns_503_without_store() -> None:
     with TestClient(app) as client:
         resp = client.get("/admin/keys", headers=_x_identity())
     assert resp.status_code == 503
+
+
+def test_admin_keys_post_returns_503_without_store() -> None:
+    app = build_test_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/admin/keys",
+            headers=_x_identity(),
+            json={
+                "tenant_id": "t1",
+                "subject": "alice",
+                "roles": ["reader"],
+                "description": "d",
+            },
+        )
+    assert resp.status_code == 503
+
+
+def test_admin_keys_delete_returns_503_without_store() -> None:
+    app = build_test_app()
+    with TestClient(app) as client:
+        resp = client.delete("/admin/keys/some-id", headers=_x_identity())
+    assert resp.status_code == 503

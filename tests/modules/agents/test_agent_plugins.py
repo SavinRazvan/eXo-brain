@@ -101,6 +101,24 @@ class _DenyUnloadLifecyclePolicy:
         )
 
 
+def test_agent_plugin_manager_rejects_loading_same_plugin_twice() -> None:
+    registry = _base_registry()
+    manager = AgentPluginManager(registry=registry, core_major_version=1)
+    plugin = _review_plugin()
+    manager.load_plugin(plugin)
+    with pytest.raises(ValueError, match="already loaded"):
+        manager.load_plugin(plugin)
+
+
+def test_agent_plugin_manager_unload_skips_unregister_keyerror_for_churned_agents() -> None:
+    registry = _base_registry()
+    manager = AgentPluginManager(registry=registry, core_major_version=1)
+    manager.load_plugin(_review_plugin())
+    registry.unregister("agent_reviewer")
+    manager.unload_plugin("review-pack")
+    assert manager.list_plugins() == []
+
+
 def test_agent_plugin_manager_loads_agents_routes_and_fallbacks() -> None:
     registry = _base_registry()
     manager = AgentPluginManager(registry=registry, core_major_version=1)
@@ -138,6 +156,13 @@ def test_agent_plugin_manager_blocks_incompatible_plugin() -> None:
 
     with pytest.raises(ValueError, match="requires core major"):
         manager.load_plugin(incompatible)
+
+
+def test_agent_plugin_manager_unload_unknown_plugin_raises_keyerror() -> None:
+    registry = _base_registry()
+    manager = AgentPluginManager(registry=registry, core_major_version=1)
+    with pytest.raises(KeyError, match="not loaded"):
+        manager.unload_plugin("missing-pack")
 
 
 def test_agent_plugin_manager_blocks_unload_when_non_idempotent_tasks_active() -> None:

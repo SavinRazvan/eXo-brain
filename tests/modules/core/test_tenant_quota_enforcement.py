@@ -17,6 +17,8 @@ Notes:
 
 import asyncio
 
+import pytest
+
 from src.core.background_runtime import BackgroundRuntime
 from src.core.checkpoint_store import InMemoryCheckpointStore
 from src.core.scheduler import TaskScheduler
@@ -78,6 +80,12 @@ def test_tenant_quota_manager_soft_enforcement_returns_reason() -> None:
     decision = manager.check_submission(tenant_id="tenant_soft", active_jobs=1)
     assert decision.allowed is True
     assert decision.reason_code == "TENANT_QUOTA_SOFT_LIMIT"
+
+
+def test_tenant_quota_manager_set_limit_rejects_negative() -> None:
+    manager = TenantQuotaManager(max_active_jobs_per_tenant=2, hard_enforcement=True)
+    with pytest.raises(ValueError, match="max_active_jobs"):
+        manager.set_limit(-1)
 
 
 def test_tenant_quota_manager_limit_update_applies_on_next_check() -> None:

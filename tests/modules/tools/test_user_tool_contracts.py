@@ -16,6 +16,7 @@ import pytest
 
 from src.tools.user_tool_contracts import (
     SANDBOX_CPU_BUDGET_MS_KEY,
+    SANDBOX_CPU_BUDGET_MS_MAX,
     SANDBOX_LIMITS_METADATA_KEY,
     SANDBOX_MEMORY_BUDGET_MB_KEY,
     default_handler_ref,
@@ -59,6 +60,11 @@ def test_normalize_raw_schema_payload_without_name() -> None:
     assert normalized.parameters_schema == payload
 
 
+def test_normalize_tool_payload_rejects_non_object() -> None:
+    with pytest.raises(ValueError, match="JSON object"):
+        normalize_tool_payload([])  # type: ignore[arg-type]
+
+
 def test_normalize_invalid_wrapper_raises() -> None:
     payload = {"type": "function", "function": "not-an-object"}
     try:
@@ -90,6 +96,22 @@ def test_parse_sandbox_limits_accepts_valid_values() -> None:
     assert limits is not None
     assert limits.cpu_budget_ms == 5000
     assert limits.memory_budget_mb == 256
+
+
+def test_parse_sandbox_limits_rejects_non_object_metadata() -> None:
+    with pytest.raises(ValueError, match="metadata must be an object"):
+        parse_sandbox_limits("bad")  # type: ignore[arg-type]
+
+
+def test_parse_sandbox_limits_rejects_non_object_limits_block() -> None:
+    with pytest.raises(ValueError, match="must be an object"):
+        parse_sandbox_limits({SANDBOX_LIMITS_METADATA_KEY: "nope"})
+
+
+def test_parse_sandbox_limits_rejects_out_of_range_cpu_budget() -> None:
+    metadata = {SANDBOX_LIMITS_METADATA_KEY: {SANDBOX_CPU_BUDGET_MS_KEY: SANDBOX_CPU_BUDGET_MS_MAX + 1}}
+    with pytest.raises(ValueError, match="cpu_budget_ms must be between"):
+        parse_sandbox_limits(metadata)
 
 
 def test_parse_sandbox_limits_rejects_invalid_values() -> None:

@@ -18,10 +18,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.observability.logging import FileLogSink, LogLevel, StructuredLogger
+import pytest
+
+from src.observability.logging import FileLogSink, LogLevel, LogSink, LogRecord, StructuredLogger
 from src.observability.metrics import RuntimeMetrics
-from src.observability.tracing import FileTraceExporter, RuntimeTracer
+from src.observability.tracing import FileTraceExporter, RuntimeTracer, TraceExporter, TraceSpan
 from src.observability.timeline import RuntimeTimeline
+
+
+def test_log_sink_base_emit_raises_not_implemented() -> None:
+    record = LogRecord(level=LogLevel.INFO, event="e", message="m", correlation_id="c")
+    with pytest.raises(NotImplementedError):
+        LogSink().emit(record)
 
 
 def test_structured_logger_persists_context() -> None:
@@ -58,6 +66,16 @@ def test_runtime_metrics_rate_calculation() -> None:
     assert metrics.rate("tool.call.failed", "tool.call.blocked") == 0.0
 
 
+def test_runtime_timeline_all_entries_returns_copy() -> None:
+    timeline = RuntimeTimeline()
+    timeline.append(correlation_id="c1", event="a")
+    timeline.append(correlation_id="c2", event="b")
+    all_e = timeline.all_entries()
+    assert len(all_e) == 2
+    all_e.clear()
+    assert len(timeline.all_entries()) == 2
+
+
 def test_runtime_timeline_filters_entries_by_correlation() -> None:
     timeline = RuntimeTimeline()
     timeline.append(correlation_id="job_1", event="job.started")
@@ -65,6 +83,17 @@ def test_runtime_timeline_filters_entries_by_correlation() -> None:
     timeline.append(correlation_id="job_1", event="job.finished")
     job_entries = timeline.entries_for("job_1")
     assert [entry.event for entry in job_entries] == ["job.started", "job.finished"]
+
+
+def test_trace_exporter_base_export_raises_not_implemented() -> None:
+    span = TraceSpan(span_id="s1", correlation_id="c", name="n")
+    with pytest.raises(NotImplementedError):
+        TraceExporter().export(span)
+
+
+def test_runtime_tracer_finish_unknown_span_is_noop() -> None:
+    tracer = RuntimeTracer()
+    tracer.finish_span(span_id="missing", status="ok")
 
 
 def test_runtime_tracer_records_span_lifecycle() -> None:
@@ -81,6 +110,7 @@ def test_runtime_tracer_records_span_lifecycle() -> None:
     )
 
     spans = tracer.spans_for("job_1")
+    assert len(tracer.all_spans()) == 1
     assert len(spans) == 1
     assert spans[0].name == "scheduler.execute"
     assert spans[0].status == "ok"
@@ -104,6 +134,21 @@ def test_structured_logger_exports_to_file_sink(tmp_path: Path) -> None:
     payload = json.loads(exported[0])
     assert payload["event"] == "runtime.event"
     assert payload["correlation_id"] == "corr_export"
+
+
+def test_structured_logger_raises_when_sink_fails_and_no_fallback() -> None:
+    class FailingSink:
+        def emit(self, record) -> None:
+            raise RuntimeError("no export")
+
+    logger = StructuredLogger(sink=FailingSink(), fallback_to_memory=False)
+    with pytest.raises(RuntimeError, match="no export"):
+        logger.log(
+            level=LogLevel.INFO,
+            event="e",
+            message="m",
+            correlation_id="c1",
+        )
 
 
 def test_logger_fallback_keeps_record_when_sink_fails() -> None:
@@ -131,6 +176,17 @@ def test_runtime_tracer_exports_spans_to_file(tmp_path: Path) -> None:
     payload = json.loads(exported[0])
     assert payload["correlation_id"] == "corr_trace"
     assert payload["status"] == "ok"
+
+
+def test_runtime_tracer_raises_when_exporter_fails_and_no_fallback() -> None:
+    class FailingExporter:
+        def export(self, span) -> None:
+            raise RuntimeError("trace down")
+
+    tracer = RuntimeTracer(exporter=FailingExporter(), fallback_to_memory=False)
+    span_id = tracer.start_span(correlation_id="c", name="n")
+    with pytest.raises(RuntimeError, match="trace down"):
+        tracer.finish_span(span_id=span_id, status="ok")
 
 
 def test_runtime_tracer_fallback_keeps_span_when_exporter_fails() -> None:

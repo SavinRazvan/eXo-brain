@@ -23,6 +23,11 @@ def test_evaluate_gates_fails_when_observed_metric_missing() -> None:
     assert "latency_p95_ms" in report.failed_keys
 
 
+def test_slo_registry_get_target_returns_none_for_unknown_key() -> None:
+    registry = SloRegistry()
+    assert registry.get_target("missing_metric") is None
+
+
 def test_evaluate_gates_fails_when_value_exceeds_target() -> None:
     registry = SloRegistry()
     registry.set_target("error_rate", 0.01)

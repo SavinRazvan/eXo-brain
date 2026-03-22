@@ -300,3 +300,19 @@ def test_tools_registered_in_one_tenant_not_visible_in_another() -> None:
 
     assert resp_a.json()["tool_count"] == 1
     assert resp_b.json()["tool_count"] == 0
+
+
+def test_get_run_control_registry_reads_optional_app_state() -> None:
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from src.api.dependencies import get_run_control_registry
+
+    sentinel = object()
+    request = MagicMock()
+    request.app.state = SimpleNamespace(run_control_registry=sentinel)
+    assert get_run_control_registry(request) is sentinel
+
+    bare = MagicMock()
+    bare.app.state = SimpleNamespace()
+    assert get_run_control_registry(bare) is None
