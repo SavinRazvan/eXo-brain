@@ -38,8 +38,8 @@ Standardize advisory audit findings so outputs from skills, rules checks, and ma
 
 ## Canonical Outputs
 
-- `.local/workflow-artifacts/alignment-audit.md`
-- `.local/workflow-artifacts/alignment-todos.md`
+- `.local/workflow-artifacts/alignment/alignment-audit.md`
+- `.local/workflow-artifacts/alignment/alignment-todos.md`
 
 ## Precedence Rule (When Sources Conflict)
 

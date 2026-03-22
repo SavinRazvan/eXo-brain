@@ -124,12 +124,12 @@ def main() -> int:
     if args.arch_impacting:
         if not alignment_audit_file.exists():
             errors.append(
-                "missing .local/workflow-artifacts/alignment-audit.md "
+                "missing .local/workflow-artifacts/alignment/alignment-audit.md "
                 "(required for architecture-impacting PRs)"
             )
         if not alignment_todos_file.exists():
             errors.append(
-                "missing .local/workflow-artifacts/alignment-todos.md "
+                "missing .local/workflow-artifacts/alignment/alignment-todos.md "
                 "(required for architecture-impacting PRs)"
             )
 

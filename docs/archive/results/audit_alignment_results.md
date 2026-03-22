@@ -5,8 +5,8 @@ Role: Historical snapshot of cross-source alignment findings.
 Used By:
  - docs/plans/docs-archive-index.md
 Depends On:
- - .local/workflow-artifacts/alignment-audit.md
- - .local/workflow-artifacts/alignment-todos.md
+ - .local/workflow-artifacts/alignment/alignment-audit.md
+ - .local/workflow-artifacts/alignment/alignment-todos.md
 Notes:
  - Historical reference only; active audit artifacts live under .local/.
 -->
@@ -14,7 +14,7 @@ Notes:
 # Audit Alignment Results
 
 > Status: archived
-> Canonical replacement: `.local/workflow-artifacts/alignment-audit.md`
+> Canonical replacement: `.local/workflow-artifacts/alignment/alignment-audit.md`
 > Archived on: 2026-03-19
 > Archive reason: historical snapshot
 
@@ -31,8 +31,8 @@ Notes:
   - `.agents/*`, `.cursor/rules/*`, `.cursor/skills/*`, `.local/*`
 - Document scope note:
   This file is the broadest-scope audit (12 findings, cross-source pass).
-  `.local/workflow-artifacts/alignment-audit.md` is a narrower targeted-pass artifact (6 findings, subset of local/specific findings).
-  `.local/workflow-artifacts/alignment-todos.md` is the full historical backlog, now rebaselined to match this file.
+  `.local/workflow-artifacts/alignment/alignment-audit.md` is a narrower targeted-pass artifact (6 findings, subset of local/specific findings).
+  `.local/workflow-artifacts/alignment/alignment-todos.md` is the full historical backlog, now rebaselined to match this file.
   Count differences between the three documents are expected and intentional.
 
 ## Executive Summary

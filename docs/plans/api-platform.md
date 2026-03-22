@@ -789,7 +789,7 @@ Reconciliation note (2026-03-05):
 - Treat this section as historical discovery context.
 - Canonical open/closed state and execution order are maintained in:
   - `docs/plans/tenant-tool-execution-architecture.md` (`Reconciled Open Backlog`)
-  - `.local/workflow-artifacts/alignment-audit.md` and `.local/workflow-artifacts/alignment-todos.md`
+  - `.local/workflow-artifacts/alignment/alignment-audit.md` and `.local/workflow-artifacts/alignment/alignment-todos.md`
 
 ### Zero test coverage (confirmed during review)
 

@@ -17,12 +17,12 @@ Execute implementation work in high-quality, reversible slices while keeping the
 
 ## Required Inputs
 
-- `.local/index-and-planning/plan.md` (includes **Implementer slice closure**)
-- `.local/index-and-planning/work-tracker.md`
-- `.local/index-and-planning/updates-log.md`
-- `.local/index-and-planning/architecture.md`
-- `.local/index-and-planning/test-plan.md` and `.local/index-and-planning/test-index.md` when the slice touches tests or ownership
-- `.local/index-and-planning/workflow-complete.md` section **F** for the full handoff checklist
+- `.local/index-and-planning/current/plan.md` (includes **Implementer slice closure**)
+- `.local/index-and-planning/current/work-tracker.md`
+- `.local/index-and-planning/history/updates-log.md`
+- `docs/architecture/workspace-architecture.md` (local stub may live under `.local/.../current/architecture.md`)
+- `.local/index-and-planning/current/test-plan.md` and `.local/index-and-planning/current/test-index.md` when the slice touches tests or ownership
+- `docs/operations/workflow-complete.md` section **F** for the full handoff checklist
 - Applicable architecture/rule docs in `.cursor/rules/*`
 
 ## Mandatory Steps
@@ -31,19 +31,19 @@ Execute implementation work in high-quality, reversible slices while keeping the
 2. Select one focused slice and mark it `in_progress`.
 3. Ensure acceptance criteria and rollback/fallback are documented.
 4. Implement incrementally (contracts -> implementation -> tests).
-5. Run required gates (same order as `scripts/pr/prepare.py` `GATES`; see `.local/index-and-planning/workflow-complete.md` §A):
+5. Run required gates (same order as `scripts/pr/prepare.py` `GATES`; see `docs/operations/workflow-complete.md` §A):
    - `python scripts/pr/check_testing_artifacts.py`
    - `python -m pytest -q` (or scoped tests with justification)
    - `python scripts/architecture/validate_layers.py`
    - `python scripts/architecture/scan_forbidden_imports.py`
    - `python scripts/architecture/check_governance_consistency.py` when governance/workflows/policy docs changed
-6. Close the implementer loop after execution (canonical checklist: `.local/index-and-planning/plan.md` **Implementer slice closure** + `workflow-complete.md` section **F**):
+6. Close the implementer loop after execution (canonical checklist: `.local/index-and-planning/current/plan.md` **Implementer slice closure** + `docs/operations/workflow-complete.md` section **F**):
    - `work-tracker.md` status changes (one primary `in_progress` at a time)
    - `updates-log.md` summarized progress (no repeated prepare-gate blocks — `agent-workflow-procedures.md`)
    - `test-plan.md` / `test-index.md` when tests or ownership changed
    - `coverage-index.md` via `coverage json` + `scripts/dev/generate_coverage_index.py` when coverage was run for the slice
-   - `.local/agents-control-center/implementation-control-center.html` `PAGES` + header **Depends On** when new `index-and-planning/*.md` trackers appear or Coverage tab must match `coverage-index.md`
-   - do **not** edit `.local/agents-control-center/module-audit.html` unless refreshing a deliberate audit export
+   - `.local/agents-control-center/config/pages.json` + dashboard header **Depends On** when new tracker paths appear or Coverage tab must match `current/coverage-index.md`
+   - do **not** edit `.local/agents-control-center/audits/module-audit.html` unless refreshing a deliberate audit export
 7. Emit handoff with:
    - what changed
    - validation outcomes

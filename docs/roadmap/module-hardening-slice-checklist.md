@@ -40,9 +40,9 @@ Use this checklist in each module-hardening PR to keep execution consistent and 
 - [ ] Relevant module subset tests pass
 
 ## F) Evidence + Docs
-- [ ] `.local/workflow-artifacts/review.md` updated with findings and recommendation
-- [ ] `.local/workflow-artifacts/prep.md` updated with gate evidence
-- [ ] `.local/workflow-artifacts/merge.md` updated in merge phase with merge evidence and follow-ups
+- [ ] `.local/workflow-artifacts/pr/review.md` updated with findings and recommendation
+- [ ] `.local/workflow-artifacts/pr/prep.md` updated with gate evidence
+- [ ] `.local/workflow-artifacts/pr/merge.md` updated in merge phase with merge evidence and follow-ups
 - [ ] Docs updated for changed contracts/behaviors
 - [ ] CI workflow paths verified if tests/scripts moved
 

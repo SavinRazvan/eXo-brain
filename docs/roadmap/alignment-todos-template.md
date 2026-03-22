@@ -1,7 +1,7 @@
 # Alignment Reconciliation TODOs
 
 ## Metadata
-- Generated from: `.local/workflow-artifacts/alignment-audit.md`
+- Generated from: `.local/workflow-artifacts/alignment/alignment-audit.md`
 - Owner:
 - Date:
 

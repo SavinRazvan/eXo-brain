@@ -52,7 +52,7 @@ def test_review_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> 
     )
     assert module.main() == 0
 
-    content = (tmp_path / ".local" / "workflow-artifacts" / "review.md").read_text(
+    content = (tmp_path / ".local" / "workflow-artifacts" / "pr" / "review.md").read_text(
         encoding="utf-8"
     )
     assert "Action-By: Savin I. Razvan" in content
@@ -81,7 +81,7 @@ def test_prepare_script_writes_actor_attribution(tmp_path: Path, monkeypatch) ->
     )
     assert module.main() == 0
 
-    content = (tmp_path / ".local" / "workflow-artifacts" / "prep.md").read_text(
+    content = (tmp_path / ".local" / "workflow-artifacts" / "pr" / "prep.md").read_text(
         encoding="utf-8"
     )
     assert "Action-By: Savin I. Razvan" in content
@@ -93,7 +93,7 @@ def test_prepare_script_writes_actor_attribution(tmp_path: Path, monkeypatch) ->
 def test_merge_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> None:
     module = _load_module("merge_script", SCRIPTS_DIR / "merge.py")
 
-    wf = tmp_path / ".local" / "workflow-artifacts"
+    wf = tmp_path / ".local" / "workflow-artifacts" / "pr"
     wf.mkdir(parents=True, exist_ok=True)
     (wf / "review.md").write_text(
         "# Review Artifact (123)\n\n## Attribution\n- Action-By: Savin I. Razvan\n",
@@ -121,7 +121,7 @@ def test_merge_script_writes_actor_attribution(tmp_path: Path, monkeypatch) -> N
     )
     assert module.main() == 0
 
-    content = (tmp_path / ".local" / "workflow-artifacts" / "merge.md").read_text(
+    content = (tmp_path / ".local" / "workflow-artifacts" / "pr" / "merge.md").read_text(
         encoding="utf-8"
     )
     assert "Action-By: Savin I. Razvan" in content

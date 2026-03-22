@@ -4,7 +4,7 @@ Path: docs/api/customer-api-integration-guide.md
 Role: Tier-aware API contract documentation for customer onboarding across chat/agents/workflow and governance ingress surfaces.
 Used By:
  - docs/plans/docs-inventory-master.md
- - architecture-goals/TRACEABILITY_MATRIX.md
+ - docs/strategy/traceability-matrix.md
  - README.md
 Depends On:
  - src/api/routers/turns.py
@@ -14,10 +14,10 @@ Depends On:
  - src/api/routers/tools.py
  - src/api/routers/audit.py
  - src/api/routers/providers.py
- - architecture-goals/ENTITLEMENT_MATRIX.md
- - architecture-goals/INTERFACE_STRATEGY.md
+ - docs/strategy/entitlement-matrix.md
+ - docs/strategy/interface-strategy.md
 Notes:
- - Keep tier labels in sync with architecture-goals/ENTITLEMENT_MATRIX.md.
+ - Keep tier labels in sync with docs/strategy/entitlement-matrix.md.
  - All safety and governance controls are server-side and non-bypassable regardless of tier.
 -->
 
@@ -420,8 +420,8 @@ curl -X PUT https://<host>/tenant-123/policy \
 
 ## 16) References
 
-- `architecture-goals/ENTITLEMENT_MATRIX.md` — authoritative tier-to-feature mapping
-- `architecture-goals/INTERFACE_STRATEGY.md` — API-first design rules and safety constraints
-- `architecture-goals/TRACEABILITY_MATRIX.md` — strategy-to-code-to-test anchors
+- `docs/strategy/entitlement-matrix.md` — authoritative tier-to-feature mapping
+- `docs/strategy/interface-strategy.md` — API-first design rules and safety constraints
+- `docs/strategy/traceability-matrix.md` — strategy-to-code-to-test anchors
 - `src/api/routers/` — canonical endpoint implementations
 - `docs/operations/release-candidate-signoff-checklist.md` — release evidence requirements

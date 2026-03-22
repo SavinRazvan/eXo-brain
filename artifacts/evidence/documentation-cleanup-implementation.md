@@ -59,7 +59,7 @@ Notes:
 ## Contradiction Fixes Applied
 
 - Root `README.md` workflow section aligned with publish/linkage verification and post-merge finalization steps.
-- RC signoff checklist clarified `.local/workflow-artifacts/merge.md` as post-merge workflow artifact.
+- RC signoff checklist clarified `.local/workflow-artifacts/pr/merge.md` as post-merge workflow artifact.
 - Research folder root and two key trackers clarified as supporting/historical context with canonical pointers.
 - Historical UI fallback wording in backlog v4 board changed to API-first canonical release gate reference.
 
