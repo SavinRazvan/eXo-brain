@@ -196,6 +196,132 @@ def test_byoc_runtime_control_rejects_invalid_signature() -> None:
     assert claim_resp.status_code == 401
 
 
+def test_byoc_submit_result_rejects_invalid_worker_token() -> None:
+    client = _byoc_client()
+    resp = client.post(
+        "/tenants/t1/admin/byoc/jobs/submit",
+        json={
+            "worker_token": "totally-not-a-jwt",
+            "request_nonce": "abcdefgh",
+            "result": {
+                "job_id": "job-x",
+                "tenant_id": "t1",
+                "run_id": "run-x",
+                "call_id": "call-x",
+                "tool_name": "echo_tool",
+            },
+        },
+        headers=_headers("t1"),
+    )
+    assert resp.status_code == 401
+
+
+def test_byoc_admin_routes_return_409_when_only_hosted_runtime_enabled() -> None:
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+            enable_hosted_tool_runtime=True,
+            enable_byoc_tool_runtime=False,
+        ),
+    )
+    client = TestClient(build_test_app(settings=settings))
+    resp = client.post(
+        "/tenants/t1/admin/byoc/jobs/submit",
+        json={
+            "worker_token": "x",
+            "request_nonce": "12345678",
+            "result": {"job_id": "j", "tenant_id": "t1", "run_id": "r", "call_id": "c", "tool_name": "t"},
+        },
+        headers=_headers("t1"),
+    )
+    assert resp.status_code == 409
+    assert "BYOC" in resp.json()["detail"]
+
+
+def test_byoc_dlq_bulk_replay_ingests_partial_failure_summary() -> None:
+    client = _byoc_client()
+    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    adapter = ctx.tool_executor.execution_adapter()
+    assert adapter is not None
+
+    def _fake_bulk(*, tenant_id: str, job_ids: list[str], limit: int) -> dict:  # noqa: ARG001
+        return {
+            "attempted": 3,
+            "replayed": 1,
+            "failures": [
+                "not-a-dict",
+                {"job_id": "", "reason_code": "IGNORED"},
+                {"job_id": "job-bad", "reason_code": ""},
+            ],
+        }
+
+    adapter.replay_dead_letter_jobs = _fake_bulk  # type: ignore[assignment]
+    resp = client.post(
+        "/tenants/t1/admin/byoc/dlq/replay",
+        json={"job_ids": ["job-a", "job-b"], "limit": 10},
+        headers=_headers("t1"),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["attempted"] == 3
+    assert body["replayed"] == 1
+    assert body["failures"] == [{"job_id": "job-bad", "reason_code": "DLQ_REPLAY_REJECTED"}]
+
+
+def test_byoc_dlq_bulk_replay_falls_back_to_single_replay_when_bulk_missing() -> None:
+    client = _byoc_client()
+    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    adapter = ctx.tool_executor.execution_adapter()
+    assert adapter is not None
+    adapter.replay_dead_letter_jobs = None  # type: ignore[assignment]
+
+    def _replay_one(*, tenant_id: str, job_id: str) -> bool:  # noqa: ARG001
+        return job_id == "job-ok"
+
+    adapter.replay_dead_letter_job = _replay_one  # type: ignore[method-assign]
+
+    resp = client.post(
+        "/tenants/t1/admin/byoc/dlq/replay",
+        json={"job_ids": ["job-ok", "job-miss"], "limit": 10},
+        headers=_headers("t1"),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["attempted"] == 2
+    assert body["replayed"] == 1
+    assert len(body["failures"]) == 1
+    assert body["failures"][0]["job_id"] == "job-miss"
+
+
+def test_byoc_dlq_bulk_replay_returns_empty_summary_when_no_job_ids_resolved() -> None:
+    client = _byoc_client()
+    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    adapter = ctx.tool_executor.execution_adapter()
+    assert adapter is not None
+
+    def _empty_dlq(*, tenant_id: str, limit: int) -> list[dict[str, str]]:  # noqa: ARG001
+        return []
+
+    adapter.list_dead_letter_jobs = _empty_dlq  # type: ignore[method-assign]
+    adapter.replay_dead_letter_jobs = None  # type: ignore[assignment]
+    adapter.replay_dead_letter_job = lambda **kwargs: False  # type: ignore[assignment]
+
+    resp = client.post(
+        "/tenants/t1/admin/byoc/dlq/replay",
+        json={"job_ids": [], "limit": 5},
+        headers=_headers("t1"),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["attempted"] == 0
+    assert body["replayed"] == 0
+    assert body["failures"] == []
+
+
 def test_byoc_runtime_control_replayed_nonce_rejected() -> None:
     client = _byoc_client()
     token_resp = client.post(

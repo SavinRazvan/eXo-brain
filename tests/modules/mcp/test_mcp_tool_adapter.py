@@ -18,13 +18,16 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from src.mcp.mcp_client_adapter import LocalCallableMcpClientAdapter
 from src.mcp.mcp_registry import McpHealthState, McpRegistry, McpServerRecord, McpTrustTier
 from src.mcp.mcp_tool_adapter import McpToolAdapter
 from src.observability.logging import StructuredLogger
-from src.policies.middleware import DeterministicFirstPolicyMiddleware
+from src.policies.middleware import DeterministicFirstPolicyMiddleware, PolicyMiddleware
+from src.resilience.circuit_breaker import CircuitBreaker
 from src.resilience.compensation_hooks import CompensationHooks
-from src.schemas.tool_io import RiskTier, ToolCallContext, ToolStatus
+from src.schemas.tool_io import PolicyAction, PolicyDecision, RiskTier, ToolCallContext, ToolStatus
 
 
 def _context(is_state_changing: bool = False, risk_tier: RiskTier = RiskTier.LOW) -> ToolCallContext:
@@ -42,6 +45,12 @@ def _context(is_state_changing: bool = False, risk_tier: RiskTier = RiskTier.LOW
         is_state_changing=is_state_changing,
         risk_tier=risk_tier,
     )
+
+
+def test_local_mcp_client_raises_when_tool_not_registered() -> None:
+    client = LocalCallableMcpClientAdapter(tools={})
+    with pytest.raises(KeyError, match="not registered"):
+        asyncio.run(client.call_tool("srv", "missing", {}))
 
 
 def test_mcp_adapter_executes_tool_on_trusted_server() -> None:
@@ -244,3 +253,101 @@ def test_mcp_adapter_logs_compensation_hook_failures() -> None:
     assert result.status == ToolStatus.ERROR
     events = {record.event for record in logger.records()}
     assert "mcp.compensation_hook.failed" in events
+
+
+class _AlwaysDenyPolicy(PolicyMiddleware):
+    def before_tool_call(self, context: ToolCallContext) -> PolicyDecision:
+        return PolicyDecision(
+            schema_version="1.0",
+            decision=PolicyAction.DENY,
+            reason_code="TEST_DENY",
+            message="denied",
+        )
+
+    def after_tool_call(self, result):
+        return result
+
+    def before_output(self, output: dict[str, object]) -> dict[str, object]:
+        return output
+
+
+def test_mcp_adapter_blocks_when_policy_denies() -> None:
+    registry = McpRegistry()
+    registry.register_server(
+        McpServerRecord(
+            server_id="srv",
+            endpoint="local://srv",
+            trust_tier=McpTrustTier.TRUSTED,
+        )
+    )
+    client = LocalCallableMcpClientAdapter(tools={("srv", "lookup"): lambda a: a})
+    logger = StructuredLogger()
+    adapter = McpToolAdapter(registry=registry, client=client, policy=_AlwaysDenyPolicy(), logger=logger)
+    result = asyncio.run(adapter.execute("srv", "lookup", _context()))
+    assert result.status == ToolStatus.BLOCKED
+    assert "mcp.policy.blocked" in {r.event for r in logger.records()}
+
+
+def test_mcp_adapter_returns_error_when_circuit_open() -> None:
+    registry = McpRegistry()
+    registry.register_server(
+        McpServerRecord(server_id="srv", endpoint="local://x", trust_tier=McpTrustTier.TRUSTED)
+    )
+    client = LocalCallableMcpClientAdapter(tools={("srv", "lookup"): lambda a: {"ok": True}})
+    breaker = CircuitBreaker(failure_threshold=1)
+    breaker.record_failure("srv:lookup")
+    logger = StructuredLogger()
+    adapter = McpToolAdapter(
+        registry=registry,
+        client=client,
+        policy=DeterministicFirstPolicyMiddleware(),
+        circuit_breaker=breaker,
+        logger=logger,
+    )
+    result = asyncio.run(adapter.execute("srv", "lookup", _context()))
+    assert result.status == ToolStatus.ERROR
+    assert result.error.code == "MCP_CIRCUIT_OPEN"
+    assert "mcp.circuit.open" in {r.event for r in logger.records()}
+
+
+def test_mcp_adapter_blocks_sandboxed_high_risk_call() -> None:
+    registry = McpRegistry()
+    registry.register_server(
+        McpServerRecord(
+            server_id="box",
+            endpoint="local://box",
+            trust_tier=McpTrustTier.SANDBOXED,
+        )
+    )
+    client = LocalCallableMcpClientAdapter(tools={("box", "lookup"): lambda a: a})
+    adapter = McpToolAdapter(registry=registry, client=client, policy=DeterministicFirstPolicyMiddleware())
+    result = asyncio.run(adapter.execute("box", "lookup", _context(risk_tier=RiskTier.CRITICAL)))
+    assert result.status == ToolStatus.ERROR
+    assert result.error.code == "MCP_VALIDATION_ERROR"
+
+
+def test_mcp_adapter_treats_invalid_max_retries_metadata_as_zero() -> None:
+    registry = McpRegistry()
+    registry.register_server(
+        McpServerRecord(
+            server_id="srv",
+            endpoint="local://srv",
+            trust_tier=McpTrustTier.TRUSTED,
+            timeout_ms=10,
+            metadata={"max_retries": "not-int"},
+        )
+    )
+
+    class SlowClient(LocalCallableMcpClientAdapter):
+        async def call_tool(self, server_id: str, tool_name: str, arguments: dict[str, object]) -> dict[str, object]:
+            await asyncio.sleep(0.02)
+            return {"result": 1}
+
+    adapter = McpToolAdapter(
+        registry=registry,
+        client=SlowClient(tools={}),
+        policy=DeterministicFirstPolicyMiddleware(),
+    )
+    result = asyncio.run(adapter.execute("srv", "lookup", _context()))
+    assert result.status == ToolStatus.TIMEOUT
+    assert result.execution.attempt == 1

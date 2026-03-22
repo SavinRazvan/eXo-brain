@@ -80,9 +80,6 @@ def normalize_tool_payload(payload: dict[str, Any]) -> NormalizedToolPayload:
     else:
         schema = candidate
 
-    if not isinstance(schema, dict):
-        raise ValueError("Tool parameters schema must be a JSON object.")
-
     return NormalizedToolPayload(
         name=name,
         description=description,

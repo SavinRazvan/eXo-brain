@@ -21,7 +21,7 @@ from src.core.checkpoint_store import InMemoryCheckpointStore
 from src.core.scheduler import TaskScheduler
 from src.core.task_graph import TaskGraph, TaskNode, TaskStatus
 from src.core.worker_pool import WorkerPool
-from src.persistence.contracts import CheckpointStatus
+from src.persistence.contracts import CheckpointRecord, CheckpointStatus
 
 
 def test_scheduler_resume_skips_completed_nodes() -> None:
@@ -53,6 +53,62 @@ def test_scheduler_resume_skips_completed_nodes() -> None:
     assert second.outcomes["a"].status == TaskStatus.COMPLETED
     assert second.outcomes["b"].status == TaskStatus.COMPLETED
     assert calls == {"a": 1, "b": 1}
+
+
+def test_scheduler_resume_marks_failed_checkpoint_nodes() -> None:
+    async def node_ok(_: dict) -> dict:
+        return {"ok": True}
+
+    async def _scenario() -> None:
+        graph = TaskGraph([TaskNode(node_id="fragile", handler=node_ok)])
+        checkpoints = InMemoryCheckpointStore()
+        scheduler = TaskScheduler(worker_pool=WorkerPool(max_concurrency=1), checkpoint_store=checkpoints)
+        await checkpoints.save_checkpoint(
+            CheckpointRecord(
+                job_id="job_failed_ckpt",
+                node_id="fragile",
+                status=CheckpointStatus.FAILED,
+                attempt=1,
+                reason_code="PREVIOUS_FAILURE",
+                tenant_id="default",
+            )
+        )
+        result = await scheduler.execute(job_id="job_failed_ckpt", graph=graph, resume=True)
+        assert "fragile" in result.outcomes
+        assert result.outcomes["fragile"].status == TaskStatus.FAILED
+        assert result.failed is True
+
+    asyncio.run(_scenario())
+
+
+def test_scheduler_execute_propagates_when_checkpoint_list_raises() -> None:
+    class _BoomStore(InMemoryCheckpointStore):
+        async def list_checkpoints(self, job_id: str, tenant_id: str = "default") -> list[CheckpointRecord]:
+            raise RuntimeError("checkpoint store unavailable")
+
+    async def node(_: dict) -> dict:
+        return {"ok": True}
+
+    graph = TaskGraph([TaskNode(node_id="n1", handler=node)])
+    scheduler = TaskScheduler(worker_pool=WorkerPool(max_concurrency=1), checkpoint_store=_BoomStore())
+    try:
+        asyncio.run(scheduler.execute(job_id="job_boom", graph=graph, resume=True))
+        raise AssertionError("expected RuntimeError")
+    except RuntimeError as exc:
+        assert "unavailable" in str(exc)
+
+
+def test_scheduler_marks_timeout_with_task_timeout_reason() -> None:
+    async def slow(_: dict) -> dict:
+        await asyncio.sleep(0.2)
+        return {"late": True}
+
+    graph = TaskGraph([TaskNode(node_id="slow", handler=slow, timeout_ms=20, retry_limit=0)])
+    checkpoints = InMemoryCheckpointStore()
+    scheduler = TaskScheduler(worker_pool=WorkerPool(max_concurrency=1), checkpoint_store=checkpoints)
+    result = asyncio.run(scheduler.execute(job_id="job_timeout", graph=graph))
+    assert result.outcomes["slow"].status == TaskStatus.FAILED
+    assert result.outcomes["slow"].reason_code == "TASK_TIMEOUT"
 
 
 def test_scheduler_failure_emits_checkpoint_reason_code() -> None:

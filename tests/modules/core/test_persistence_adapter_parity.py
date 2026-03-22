@@ -16,12 +16,15 @@ Notes:
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from src.core.session_context import SessionContext
-from src.persistence.adapters.postgres import build_postgres_stores
+from src.persistence.adapters.postgres import InMemoryPostgresDriver, build_postgres_stores
 from src.persistence.adapters.sqlite import SQLiteCheckpointStore, SQLiteSessionStore
-from src.persistence.contracts import CheckpointRecord, CheckpointStatus, SessionRecord
+from src.persistence.contracts import CheckpointRecord, CheckpointStatus, PersistenceIsolationError, SessionRecord
 
 
 def _sample_session_record(session_id: str = "sess_1") -> SessionRecord:
@@ -69,6 +72,82 @@ def test_sqlite_and_postgres_session_store_parity(tmp_path: Path) -> None:
         assert sqlite_result.state == postgres_result.state == "active"
         assert sqlite_result.session.provider_id == postgres_result.session.provider_id == "openai"
         assert sqlite_result.data == postgres_result.data == {"step": "initialized"}
+
+    asyncio.run(scenario())
+
+
+def test_persistence_isolation_error_str() -> None:
+    err = PersistenceIsolationError(
+        reason_code="PERSISTENCE_TENANT_ISOLATION_VIOLATION",
+        message="cross",
+        tenant_id="t_a",
+        requested_tenant_id="t_b",
+    )
+    assert "PERSISTENCE_TENANT_ISOLATION_VIOLATION" in str(err)
+    assert "cross" in str(err)
+
+
+def test_postgres_session_store_raises_when_session_belongs_to_other_tenant() -> None:
+    async def scenario() -> None:
+        driver = InMemoryPostgresDriver()
+        store, _ = build_postgres_stores(driver=driver)
+        record = _sample_session_record()
+        await store.save_session(record)
+        with pytest.raises(PersistenceIsolationError):
+            await store.get_session(record.session.session_id, tenant_id="other_tenant")
+
+    asyncio.run(scenario())
+
+
+def test_postgres_session_store_counts_active_sessions_by_provider() -> None:
+    async def scenario() -> None:
+        store, _ = build_postgres_stores()
+        record = _sample_session_record()
+        await store.save_session(record)
+        assert await store.count_active_sessions_by_provider("openai") == 1
+        assert await store.count_active_sessions_by_provider("missing") == 0
+
+    asyncio.run(scenario())
+
+
+def test_postgres_driver_detects_session_tenant_mismatch_on_key_collision() -> None:
+    driver = InMemoryPostgresDriver()
+    record = _sample_session_record()
+    driver.save_session(record)
+    key = (record.tenant_id, record.session.session_id)
+    driver._sessions[key] = replace(record, tenant_id="mismatch")
+    with pytest.raises(PersistenceIsolationError):
+        driver.get_session(record.session.session_id, tenant_id=record.tenant_id)
+
+
+def test_postgres_driver_returns_none_for_unknown_session() -> None:
+    driver = InMemoryPostgresDriver()
+    assert driver.get_session("missing", tenant_id="default") is None
+
+
+def test_postgres_driver_returns_none_for_unknown_checkpoint() -> None:
+    driver = InMemoryPostgresDriver()
+    assert driver.get_checkpoint("job_x", "node_y", tenant_id="default") is None
+
+
+def test_postgres_driver_detects_checkpoint_tenant_mismatch_on_key_collision() -> None:
+    driver = InMemoryPostgresDriver()
+    checkpoint = _sample_checkpoint()
+    driver.save_checkpoint(checkpoint)
+    key = (checkpoint.tenant_id, checkpoint.job_id, checkpoint.node_id)
+    driver._checkpoints[key] = replace(checkpoint, tenant_id="mismatch")
+    with pytest.raises(PersistenceIsolationError):
+        driver.get_checkpoint(checkpoint.job_id, checkpoint.node_id, tenant_id=checkpoint.tenant_id)
+
+
+def test_postgres_checkpoint_store_raises_when_checkpoint_belongs_to_other_tenant() -> None:
+    async def scenario() -> None:
+        driver = InMemoryPostgresDriver()
+        _, store = build_postgres_stores(driver=driver)
+        checkpoint = _sample_checkpoint()
+        await store.save_checkpoint(checkpoint)
+        with pytest.raises(PersistenceIsolationError):
+            await store.get_checkpoint(checkpoint.job_id, checkpoint.node_id, tenant_id="other_tenant")
 
     asyncio.run(scenario())
 

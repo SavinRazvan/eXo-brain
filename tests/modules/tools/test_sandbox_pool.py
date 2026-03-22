@@ -81,6 +81,15 @@ def test_pool_evict_idle_removes_only_stale_tenants() -> None:
     pool.close()
 
 
+def test_pool_trims_cleanup_event_buffer_after_200_entries() -> None:
+    pool = TenantSandboxPool(max_workers_per_tenant=1, max_tenants=1)
+    for i in range(205):
+        pool.acquire(f"tenant_{i}")
+    events = pool.cleanup_events(limit=500)
+    assert len(events) == 200
+    pool.close()
+
+
 def test_pool_cleanup_stats_include_capacity_and_explicit_evictions() -> None:
     pool = TenantSandboxPool(max_workers_per_tenant=1, max_tenants=1)
     pool.acquire("t1")

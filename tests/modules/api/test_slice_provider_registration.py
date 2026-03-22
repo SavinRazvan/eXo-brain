@@ -395,3 +395,80 @@ def test_delete_provider_force_drain_succeeds_when_feature_enabled(tmp_path: Pat
 
     remaining = asyncio.run(app.state.session_store.count_active_sessions_by_provider("busy-provider"))
     assert remaining == 0
+
+
+def test_post_providers_rejects_unhealthy_adapter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.runtime.capability_map import HealthState, HealthStatus
+    from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
+
+    async def _sick_healthcheck(self) -> HealthStatus:  # noqa: ARG001
+        return HealthStatus(state=HealthState.DEGRADED, reason="unit-test-unhealthy")
+
+    monkeypatch.setattr(OpenAIAgentsRuntimeAdapter, "healthcheck", _sick_healthcheck, raising=True)
+    app = _build_sqlite_provider_app(tmp_path / "exo_health.db")
+    with TestClient(app) as client:
+        resp = client.post(
+            "/providers",
+            json={
+                "provider_id": "unhealthy-provider",
+                "display_name": "Unhealthy",
+                "adapter_class_ref": "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
+            },
+            headers=_x_identity(),
+        )
+    assert resp.status_code == 422
+    assert "healthcheck failed" in resp.json()["detail"].lower()
+
+
+def test_post_providers_invalid_profile_string_defaults_to_managed_vendor(tmp_path: Path) -> None:
+    app = _build_sqlite_provider_app(tmp_path / "exo_profile.db")
+    with TestClient(app) as client:
+        resp = client.post(
+            "/providers",
+            json={
+                "provider_id": "weird-profile-provider",
+                "display_name": "Weird Profile",
+                "adapter_class_ref": "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
+                "profile": "___not_a_valid_profile_enum___",
+            },
+            headers=_x_identity(),
+        )
+    assert resp.status_code == 201
+    assert resp.json()["profile"] == "managed_vendor"
+
+
+def test_delete_provider_force_drain_returns_422_when_store_lacks_deactivate(tmp_path: Path) -> None:
+    app = _build_sqlite_provider_app(tmp_path / "exo_drain_missing.db", enable_graceful_drain=True)
+
+    class _SessionStoreWithoutDrain:
+        async def count_active_sessions_by_provider(self, provider_id: str) -> int:  # noqa: ARG002
+            return 2
+
+    app.state.session_store = _SessionStoreWithoutDrain()
+    with TestClient(app) as client:
+        resp = client.delete(
+            "/providers/openai-test?force_drain=true",
+            headers=_x_identity_with_roles("admin"),
+        )
+    assert resp.status_code == 422
+    assert "does not support provider-drain" in resp.json()["detail"].lower()
+
+
+def test_delete_provider_force_drain_returns_409_when_sessions_remain_after_drain(tmp_path: Path) -> None:
+    app = _build_sqlite_provider_app(tmp_path / "exo_drain_stuck.db", enable_graceful_drain=True)
+
+    class _SessionStoreStuckActive:
+        async def count_active_sessions_by_provider(self, provider_id: str) -> int:  # noqa: ARG002
+            return 2
+
+        async def deactivate_sessions_by_provider(self, provider_id: str) -> int:  # noqa: ARG002
+            return 0
+
+    app.state.session_store = _SessionStoreStuckActive()
+    with TestClient(app) as client:
+        resp = client.delete(
+            "/providers/openai-test?force_drain=true",
+            headers=_x_identity_with_roles("admin"),
+        )
+    assert resp.status_code == 409
+    assert "remain after attempted drain" in resp.json()["detail"].lower()

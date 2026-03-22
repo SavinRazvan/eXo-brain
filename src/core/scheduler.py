@@ -280,14 +280,6 @@ class TaskScheduler:
             )
             await asyncio.sleep(self._retry_policy.delay_seconds(attempts))
 
-        self._finish_span(
-            span_id=node_span_id,
-            status="error",
-            attributes={"node_id": node.node_id, "reason_code": "UNEXPECTED_SCHEDULER_STATE"},
-            error="Unexpected scheduler state",
-        )
-        return TaskOutcome(node_id=node.node_id, status=TaskStatus.FAILED, reason_code="UNEXPECTED_SCHEDULER_STATE")
-
     def _build_input_payload(
         self,
         node: TaskNode,

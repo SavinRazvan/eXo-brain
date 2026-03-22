@@ -641,3 +641,37 @@ def test_resolve_handoff_returns_none_when_no_route_to_explicit_target() -> None
         AgentSpec(agent_id="a2", role="r2", capability_tags={AgentCapabilityTag.TOOL_USE})
     )
     assert registry.resolve_handoff_target("a1", target_role="r2") is None
+
+
+def test_resolve_handoff_skips_duplicate_fallback_role_in_runtime_list() -> None:
+    """Exercise seen_roles guard when fallback list contains repeated roles (defensive)."""
+    registry = _build_registry()
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="reviewer",
+            reason="r1",
+            required_target_capabilities={AgentCapabilityTag.REVIEW},
+        )
+    )
+    registry.add_handoff_route(
+        HandoffRoute(
+            source_role="router",
+            target_role="worker",
+            reason="w1",
+            required_target_capabilities={AgentCapabilityTag.BACKGROUND_EXECUTION},
+        )
+    )
+    registry.set_handoff_fallback_policy(
+        HandoffFallbackPolicy(
+            source_role="router",
+            target_role="reviewer",
+            fallback_target_roles=["worker"],
+        )
+    )
+    registry.unregister("agent_reviewer")
+    key = ("router", "reviewer")
+    registry._fallback_roles[key] = ["worker", "worker"]
+    resolved = registry.resolve_handoff_target("agent_router", target_role="reviewer")
+    assert resolved is not None
+    assert resolved.agent_id == "agent_worker"

@@ -105,10 +105,7 @@ async def register_provider(
         profile = ProviderProfile(body.profile)
     except ValueError:
         profile = ProviderProfile.MANAGED_VENDOR
-    try:
-        api_type = EndpointApiType("openai_native")
-    except ValueError:
-        api_type = EndpointApiType.OPENAI_NATIVE
+    api_type = EndpointApiType.OPENAI_NATIVE
     record = ProviderRecord(
         provider_id=body.provider_id,
         display_name=body.display_name,

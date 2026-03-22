@@ -414,6 +414,28 @@ def test_list_handoff_routes_returns_empty_for_no_routes() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_set_fallback_policy_returns_422_when_registry_rejects_policy() -> None:
+    client, tid = _client()
+    client.post(
+        f"/tenants/{tid}/agents",
+        json={"agent_id": "fb1", "role": "only_role"},
+        headers=_headers(tid),
+    )
+    resp = client.post(
+        f"/tenants/{tid}/agents/fallback",
+        json={
+            "source_role": "missing_source",
+            "target_role": "only_role",
+            "fallback_target_roles": [],
+            "target_role_priorities": {},
+        },
+        headers=_headers(tid, roles=["entitlement_pro"]),
+    )
+    assert resp.status_code == 422
+    detail = str(resp.json()["detail"]).lower()
+    assert "unknown source role" in detail
+
+
 def test_set_fallback_policy_success() -> None:
     client, tid = _client()
     # Register three agents: src, primary target, fallback target

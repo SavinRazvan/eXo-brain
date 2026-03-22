@@ -31,6 +31,38 @@ def test_task_graph_rejects_unknown_dependency() -> None:
         )
 
 
+def test_task_graph_rejects_duplicate_node_ids() -> None:
+    async def _h(_: dict) -> dict:
+        return {}
+
+    with pytest.raises(ValueError, match="duplicate node_id"):
+        TaskGraph(
+            [
+                TaskNode(node_id="same", handler=_h),
+                TaskNode(node_id="same", handler=_h),
+            ]
+        )
+
+
+def test_task_graph_get_node_raises_keyerror_with_message() -> None:
+    graph = TaskGraph([TaskNode(node_id="only", handler=_noop)])
+    with pytest.raises(KeyError, match="not defined"):
+        graph.get_node("missing")
+
+
+def test_task_graph_rejects_cycles() -> None:
+    async def _h(_: dict) -> dict:
+        return {}
+
+    with pytest.raises(ValueError, match="Cycle detected"):
+        TaskGraph(
+            [
+                TaskNode(node_id="a", handler=_h, depends_on=["b"]),
+                TaskNode(node_id="b", handler=_h, depends_on=["a"]),
+            ]
+        )
+
+
 def test_task_graph_ready_nodes_respect_dependencies() -> None:
     graph = TaskGraph(
         [

@@ -17,6 +17,20 @@ from src.identity.contracts import ActorType, TokenValidationState
 from src.identity.resolver import resolve_identity
 
 
+def test_resolve_identity_returns_none_for_non_dict_payload() -> None:
+    assert resolve_identity("not-a-dict") is None
+
+
+def test_resolve_identity_returns_none_for_blank_subject() -> None:
+    assert resolve_identity({"subject": "  "}) is None
+
+
+def test_resolve_identity_treats_non_list_roles_as_empty() -> None:
+    identity = resolve_identity({"subject": "u1", "roles": "admin"})
+    assert identity is not None
+    assert identity.roles == []
+
+
 def test_resolve_identity_parses_valid_payload() -> None:
     identity = resolve_identity(
         {

@@ -105,4 +105,3 @@ def load_adapter(adapter_class_ref: str, provider_id: str, **kwargs) -> RuntimeA
             f"Could not load adapter class for {adapter_class_ref!r} "
             f"(canonical={canonical_ref!r}); last_error={last_error}"
         ) from last_error
-    raise ImportError(f"Could not load adapter class for {adapter_class_ref!r}")
