@@ -200,8 +200,8 @@ Delivered evidence:
 - `make ui-build`
 - `make ui-verify`
 - companion tracker updates:
-  - `.local/control-center/plan.md`
-  - `.local/control-center/work-tracker.md`
+  - `.local/index-and-planning/plan.md`
+  - `.local/index-and-planning/work-tracker.md`
 
 ## PR Workflow Per Slice
 

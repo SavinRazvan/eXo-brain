@@ -8,8 +8,8 @@ Used By:
 Depends On:
  - docs/plans/tenant-tool-execution-architecture.md
  - docs/archive/plans/p2-expansion-roadmap.md
- - .local/control-center/plan.md
- - .local/control-center/work-tracker.md
+ - .local/index-and-planning/plan.md
+ - .local/index-and-planning/work-tracker.md
 Notes:
  - This board is planning-only until explicitly approved for coding.
 -->
@@ -37,7 +37,7 @@ Define the next approved execution queue after closure of:
 ## Current State Summary
 
 - `docs/archive/plans/p2-expansion-roadmap.md` is closed (no open P2 items).
-- `.local/alignment-audit.md` and `.local/alignment-todos.md` are closed snapshots for the completed P2 track.
+- `.local/workflow-artifacts/alignment-audit.md` and `.local/workflow-artifacts/alignment-todos.md` are closed snapshots for the completed P2 track.
 - P0 docs/data-safety sequence is completed (`p0-1`, `p0-2`, `p0-3`).
 - P1-1 governance metrics export contract is completed.
 - P1-2 tenant budget window policy is completed.
@@ -54,8 +54,8 @@ Define the next approved execution queue after closure of:
    - Objective: remove stale "open P2 queue" wording and make docs status fully consistent.
    - Scope:
      - `docs/plans/tenant-tool-execution-architecture.md`
-     - `.local/alignment-audit.md`
-     - `.local/alignment-todos.md`
+     - `.local/workflow-artifacts/alignment-audit.md`
+     - `.local/workflow-artifacts/alignment-todos.md`
    - Acceptance:
      - plan and `.local` artifacts all state P2 queue is closed
      - only one canonical "next queue source" pointer remains
@@ -150,8 +150,8 @@ Define the next approved execution queue after closure of:
 - `python scripts/architecture/validate_layers.py`
 - `python scripts/architecture/scan_forbidden_imports.py`
 - companion tracker synchronization:
-  - `.local/control-center/plan.md`
-  - `.local/control-center/work-tracker.md`
+  - `.local/index-and-planning/plan.md`
+  - `.local/index-and-planning/work-tracker.md`
 
 ## Immediate Next Step
 

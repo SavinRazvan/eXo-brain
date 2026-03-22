@@ -30,5 +30,11 @@ _archive/
 
 # local agent metadata/config
 .agents/
-.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**/*.mdc
+!.cursor/agents/
+!.cursor/agents/**/*.md
+!.cursor/skills/
+!.cursor/skills/**/SKILL.md
 AGENTS.md

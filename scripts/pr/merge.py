@@ -7,6 +7,7 @@ Used By:
 Depends On:
  - argparse
  - pathlib
+ - scripts/pr/local_workflow_paths.py
 Notes:
  - This script does not perform git merge; it verifies readiness and logs evidence.
  - Call AFTER gh pr merge with --merge-sha <oid> so the artifact records the correct merge commit.
@@ -18,7 +19,21 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+import sys
 from pathlib import Path
+
+_PR_DIR = Path(__file__).resolve().parent
+if str(_PR_DIR) not in sys.path:
+    sys.path.insert(0, str(_PR_DIR))
+
+from local_workflow_paths import (
+    ALIGNMENT_AUDIT_MD,
+    ALIGNMENT_TODOS_MD,
+    MERGE_MD,
+    PREP_MD,
+    REVIEW_MD,
+    ensure_workflow_artifacts_dir,
+)
 
 
 def _head_sha() -> str:
@@ -84,18 +99,18 @@ def main() -> int:
         action="store_true",
         default=False,
         help=(
-            "Run prerequisite checks only and do not write .local/merge.md. "
+            "Run prerequisite checks only and do not write workflow merge.md. "
             "Use this for pre-merge validation."
         ),
     )
     args = parser.parse_args()
 
-    local_dir = Path(".local")
-    review_file = local_dir / "review.md"
-    prep_file = local_dir / "prep.md"
-    alignment_audit_file = local_dir / "alignment-audit.md"
-    alignment_todos_file = local_dir / "alignment-todos.md"
-    merge_file = local_dir / "merge.md"
+    ensure_workflow_artifacts_dir()
+    review_file = REVIEW_MD
+    prep_file = PREP_MD
+    alignment_audit_file = ALIGNMENT_AUDIT_MD
+    alignment_todos_file = ALIGNMENT_TODOS_MD
+    merge_file = MERGE_MD
 
     errors: list[str] = []
     review_ok, review_detail = _artifact_matches_pr(review_file, args.pr)
@@ -109,11 +124,13 @@ def main() -> int:
     if args.arch_impacting:
         if not alignment_audit_file.exists():
             errors.append(
-                "missing .local/alignment-audit.md (required for architecture-impacting PRs)"
+                "missing .local/workflow-artifacts/alignment-audit.md "
+                "(required for architecture-impacting PRs)"
             )
         if not alignment_todos_file.exists():
             errors.append(
-                "missing .local/alignment-todos.md (required for architecture-impacting PRs)"
+                "missing .local/workflow-artifacts/alignment-todos.md "
+                "(required for architecture-impacting PRs)"
             )
 
     if errors:

@@ -200,7 +200,7 @@ For each PR slice, all must pass:
 - Full `pytest -q`
 - `python scripts/architecture/validate_layers.py`
 - `python scripts/architecture/scan_forbidden_imports.py`
-- Updated `.local/review.md` and `.local/prep.md`
+- Updated `.local/workflow-artifacts/review.md` and `.local/workflow-artifacts/prep.md`
 - Rollback/fallback notes captured in PR body
 
 ## 7) Rollback Strategy
