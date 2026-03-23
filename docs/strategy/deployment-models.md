@@ -25,8 +25,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
-- Last Reviewed: `2026-03-12`
+- Version: `1.1.0`
+- Last Reviewed: `2026-03-22`
 - Review Cadence: `monthly`
 - Decision Scope: `Deployment model definitions, responsibilities, support posture, and tier alignment.`
 
@@ -38,7 +38,8 @@ This document answers:
 - where workloads run,
 - who owns what responsibilities,
 - what SLA posture is realistic by model,
-- how models map to tier packaging and compliance readiness.
+- how models map to tier packaging and compliance readiness,
+- how observability export and provider-connectivity ownership should be handled by model.
 
 ---
 
@@ -64,6 +65,7 @@ Reasoning:
   - runtime governance and audit systems,
   - upgrade lifecycle and incident response.
 - Customer:
+  - provider credentials and provider-native adapter/account configuration,
   - tenant-level configuration (providers, policies, agents, quotas),
   - business data and workflow design.
 
@@ -71,6 +73,12 @@ Reasoning:
 
 - Control plane and execution services are managed by platform.
 - Tenant isolation enforced logically (tenant-scoped registries/policies/sessions/audit paths).
+- Customer-owned provider connectivity may be configured through adapters or deployment-local settings without changing the platform governance boundary.
+
+### Observability posture
+
+- Runtime/audit APIs remain authoritative for governance evidence.
+- Standard telemetry export (OpenTelemetry/Prometheus) should be offered as a supported sink when the shared SaaS profile is productized for enterprise operations.
 
 ### Support and SLA posture
 
@@ -97,6 +105,7 @@ Reasoning:
   - managed deployment in dedicated account/VPC profile,
   - release management, security patches, control-plane reliability.
 - Customer:
+  - provider credentials and provider-native adapter/account configuration,
   - network/access constraints and optional shared-responsibility inputs,
   - workflow and data governance policy definitions.
 
@@ -104,6 +113,11 @@ Reasoning:
 
 - Tenant receives isolated deployment boundary.
 - Stronger network and runtime isolation posture than shared SaaS.
+
+### Observability posture
+
+- Runtime/audit APIs remain authoritative for governance evidence.
+- OpenTelemetry/Prometheus export should integrate with customer-approved sinks and incident tooling.
 
 ### Support and SLA posture
 
@@ -129,12 +143,18 @@ Reasoning:
 - Platform owner:
   - distribution artifacts, compatibility guidance, documented support boundaries.
 - Customer:
+  - provider credentials and provider-native adapter/account configuration,
   - infrastructure operations, security hardening, reliability operations, incident response execution.
 
 ### Data/control plane boundary
 
 - Customer owns deployment and operations boundary.
 - Platform provides product and support interfaces as contracted.
+
+### Observability posture
+
+- Customer operates telemetry sinks in their environment.
+- Supported self-hosted profiles should document exporter configuration, redaction guarantees, and health/failure behavior for OpenTelemetry/Prometheus integrations.
 
 ### Support and SLA posture
 
@@ -198,14 +218,15 @@ Private/self-hosted should remain `Planned` until:
 2. deployment certification matrix is documented,
 3. upgrade compatibility policy is automated and tested,
 4. incident and evidence exchange runbooks are productized,
-5. support boundaries are contract-ready and repeatable.
+5. support boundaries are contract-ready and repeatable,
+6. supported observability export profiles (including OpenTelemetry/Prometheus expectations) are documented and validated.
 
 ---
 
 ## 8) Open Decisions
 
 1. Minimum supported versions policy for self-hosted customers.
-2. Customer-managed observability requirements for supported incident response.
+2. Customer-managed observability requirements and minimum OpenTelemetry/Prometheus support expectations for supported incident response.
 3. Whether private adapter certification is mandatory for enterprise self-hosted production.
 4. Exact SLA commitments by tier and deployment model.
 

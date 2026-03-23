@@ -26,8 +26,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.3.0`
-- Last Reviewed: `2026-03-15`
+- Version: `1.4.0`
+- Last Reviewed: `2026-03-22`
 - Review Cadence: `monthly`
 - Decision Scope: `Product north-star, strategic boundaries, and long-term direction for provider-neutral orchestration.`
 
@@ -60,13 +60,15 @@ Companion strategy docs:
 
 eXo-brain is a provider-neutral AI orchestration platform where:
 - providers are replaceable adapters,
+- customers keep provider/model connectivity in adapters and deployment environments they control,
 - deterministic execution is mandatory for risky/state-changing operations,
 - policy and audit controls are first-class,
-- customers consume all controls and telemetry through API.
+- customers consume governed execution controls through API,
+- enterprise operations can consume standard telemetry exports through supported deployment profiles.
 
 In simple terms:
 - adapters give model connectivity,
-- core gives trust, control, and enterprise reliability.
+- core gives trust, control, and enterprise reliability as the governed execution boundary.
 
 ---
 
@@ -103,12 +105,14 @@ In simple terms:
 - Policy middleware and risk gates.
 - Tenant isolation, rate limits, quotas, fairness.
 - Audit logging, export, verification, and operational controls.
+- Standard telemetry export posture for supported enterprise operations.
 - API layer for integration into customer UI/platforms.
 
 ### Out of scope (customer-owned or adapter-owned)
 - Customer business workflows and domain data schemas.
 - Customer-specific front-end/dashboard UX as a required product surface in the current delivery scope.
 - Provider proprietary SDK lifecycle decisions inside customer products.
+- Provider credentials, provider-native account setup, and cloud/network ownership for customer-controlled adapters.
 
 UI scope note:
 - UI is out of current delivery scope; optional API-driven console may be added later.
@@ -125,7 +129,8 @@ Core must remain provider-neutral and own:
 - policy gates,
 - deterministic tool execution,
 - tenant governance,
-- observability and audit.
+- observability and audit,
+- standard telemetry export contracts for supported deployment profiles.
 
 Core is the non-bypassable enforcement layer.
 
@@ -212,7 +217,7 @@ Monetization should focus on governance and operational value, not raw model acc
 - Compliance and audit artifacts (signed export, verification workflows).
 - Reliability and scale controls (fairness, SLO gates, non-blocking orchestration).
 - Enterprise operations (multi-tenant controls, runtime admin APIs, BYOC hardening).
-- Premium observability (advanced dashboards and anomaly detection using existing APIs).
+- Premium observability and telemetry interoperability (advanced dashboards, anomaly detection, and standard telemetry export using existing APIs and supported sinks).
 
 ### Example tiering
 - Community/Foundation:
@@ -255,12 +260,13 @@ Monetization should focus on governance and operational value, not raw model acc
 
 Target usage pattern:
 1. Customer deploys eXo-brain API.
-2. Customer installs selected adapters.
+2. Customer installs selected adapters and keeps provider credentials/configuration in customer-controlled environments.
 3. Customer registers providers, tools, agents, and policies via API.
 4. Customer builds their own UI/platform on top of eXo-brain APIs.
 5. Customer uses audit and runtime endpoints for governance and observability.
+6. Customer exports operational telemetry through supported sinks such as OpenTelemetry/Prometheus when those deployment profiles are enabled.
 
-This keeps eXo-brain as the secure orchestration backbone.
+This keeps eXo-brain as the governed execution backbone without turning it into a raw model-access resale surface.
 
 ---
 
