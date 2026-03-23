@@ -25,6 +25,7 @@ from typing import Callable
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from src.api.dependencies import (
+    get_app_modules,
     get_tenant_context,
     get_tool_store,
     get_tool_version_store,
@@ -208,7 +209,38 @@ def _validation_for_manifest(
 
 
 def _artifact_signing_secret(request: Request) -> str:
-    return str(request.app.state.settings.limits.tool_artifact_signing_secret or "")
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Application modules are not configured.")
+    return str(modules.tool_management.artifact_signing_secret or "")
+
+
+def _limits(request: Request):
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Application modules are not configured.")
+    return modules.platform_bootstrap.settings.limits
+
+
+def _tool_upload_rate_limiter(request: Request):
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Application modules are not configured.")
+    return modules.tenant_governance.tool_upload_rate_limiter
+
+
+def _tool_audit_pipeline(request: Request):
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Application modules are not configured.")
+    return modules.audit_observability.tool_audit_pipeline
+
+
+def _tool_artifact_store(request: Request):
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Application modules are not configured.")
+    return modules.tool_management.tool_artifact_store
 
 
 async def _sync_active_tool_descriptor(
@@ -324,11 +356,11 @@ async def upload_tool_package(
             status_code=503,
             detail="Tool version store is not configured (memory backend).",
         )
-    rate_limiter = getattr(request.app.state, "tool_upload_rate_limiter", None)
+    rate_limiter = _tool_upload_rate_limiter(request)
     if rate_limiter is not None:
         allowed, _ = rate_limiter.allow(tenant_id)
         if not allowed:
-            pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+            pipeline = _tool_audit_pipeline(request)
             if pipeline is not None:
                 await pipeline.emit(
                     event_type="tool_upload_rejected_rate_limit",
@@ -367,7 +399,7 @@ async def upload_tool_package(
     if not provided_handler_source:
         provided_handler_source = body.inline_handler_source.strip()
     if provided_handler_source:
-        artifact_store = getattr(request.app.state, "tool_artifact_store", None)
+        artifact_store = _tool_artifact_store(request)
         if artifact_store is None:
             raise HTTPException(status_code=503, detail="Tool artifact store is not configured.")
         rendered_tool_yaml = provided_tool_yaml or render_tool_yaml(manifest)
@@ -382,7 +414,7 @@ async def upload_tool_package(
         manifest.metadata[ARTIFACT_BUNDLE_DIR_METADATA_KEY] = persisted.bundle_dir
         manifest.metadata[ARTIFACT_MANIFEST_PATH_METADATA_KEY] = persisted.manifest_path
         manifest.metadata[ARTIFACT_HANDLER_PATH_METADATA_KEY] = persisted.handler_path
-        signing_secret = str(request.app.state.settings.limits.tool_artifact_signing_secret or "").strip()
+        signing_secret = _artifact_signing_secret(request).strip()
         signature_version = DEFAULT_ARTIFACT_SIGNATURE_VERSION
         bundle_hash = compute_bundle_hash(rendered_tool_yaml, provided_handler_source)
         try:
@@ -399,7 +431,7 @@ async def upload_tool_package(
         manifest=manifest,
         package_ref=body.package_ref,
         artifact_size_bytes=computed_artifact_size_bytes,
-        limits=request.app.state.settings.limits,
+        limits=_limits(request),
     )
     validation = _validation_for_manifest(
         manifest,
@@ -420,7 +452,7 @@ async def upload_tool_package(
         created_at=datetime.now(tz=timezone.utc).isoformat(),
     )
     await tool_version_store.save_tool_version(record)
-    pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    pipeline = _tool_audit_pipeline(request)
     if pipeline is not None:
         await pipeline.emit(
             event_type="tool_upload_saved",
@@ -440,7 +472,7 @@ async def upload_tool_package(
         try:
             descriptor_from_tool_version(
                 record,
-                artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
+                artifact_signing_secret=_artifact_signing_secret(request),
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -450,7 +482,7 @@ async def upload_tool_package(
             tool_name=manifest.tool_name,
             ctx=ctx,
             tool_version_store=tool_version_store,
-            artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
+            artifact_signing_secret=_artifact_signing_secret(request),
         )
         active_record = await tool_version_store.get_tool_version(tenant_id, manifest.tool_name, manifest.version)
         if active_record is not None:
@@ -558,9 +590,9 @@ async def deactivate_tool_version(
         tool_name=tool_name,
         ctx=ctx,
         tool_version_store=tool_version_store,
-        artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
+        artifact_signing_secret=_artifact_signing_secret(request),
     )
-    pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    pipeline = _tool_audit_pipeline(request)
     if pipeline is not None:
         await pipeline.emit(
             event_type="tool_version_deactivated",
@@ -607,7 +639,7 @@ async def rollback_tool_version(
     try:
         descriptor_from_tool_version(
             target,
-            artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
+            artifact_signing_secret=_artifact_signing_secret(request),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -617,9 +649,9 @@ async def rollback_tool_version(
         tool_name=tool_name,
         ctx=ctx,
         tool_version_store=tool_version_store,
-        artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
+        artifact_signing_secret=_artifact_signing_secret(request),
     )
-    pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    pipeline = _tool_audit_pipeline(request)
     if pipeline is not None:
         await pipeline.emit(
             event_type="tool_version_rollback",
@@ -669,9 +701,9 @@ async def revoke_tool_package_version(
         tool_name=tool_name,
         ctx=ctx,
         tool_version_store=tool_version_store,
-        artifact_signing_secret=str(request.app.state.settings.limits.tool_artifact_signing_secret or ""),
+        artifact_signing_secret=_artifact_signing_secret(request),
     )
-    pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    pipeline = _tool_audit_pipeline(request)
     if pipeline is not None:
         await pipeline.emit(
             event_type="tool_package_revoked",

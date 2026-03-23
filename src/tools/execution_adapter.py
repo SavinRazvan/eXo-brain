@@ -51,3 +51,7 @@ class ToolExecutionAdapter(ABC):
         """Optional tool progress events emitted by the adapter for a call_id."""
         _ = call_id
         return []
+
+    def manages_progress_events(self) -> bool:
+        """Return True when the adapter emits its own lifecycle progress events."""
+        return False

@@ -29,6 +29,7 @@ from src.runtime.runtime_adapter import RuntimeAdapter
 from src.schemas.events import RuntimeEvent, RuntimeEventType
 from src.schemas.tool_io import PolicyAction, RiskTier, ToolCallContext, ToolExecutionMode, ToolStatus, blocked_result
 from src.tools.executor import DeterministicToolExecutor
+from src.modules.turn_execution.service import adapter_manages_progress_events
 
 
 class Orchestrator:
@@ -77,7 +78,7 @@ class Orchestrator:
                 continue
 
             adapter = self._tool_executor.execution_adapter()
-            use_adapter_progress = bool(adapter is not None and adapter.backend_id == "byoc_pull_worker_runtime")
+            use_adapter_progress = adapter_manages_progress_events(adapter)
             if not use_adapter_progress:
                 yield RuntimeEvent.tool_progress(
                     session_id=session_id,

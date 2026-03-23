@@ -29,7 +29,7 @@ from src.agents.contracts import (
     HandoffFallbackPolicy,
     HandoffRoute,
 )
-from src.api.dependencies import get_agent_store, get_tenant_context, require_valid_identity
+from src.api.dependencies import get_agent_store, get_app_modules, get_tenant_context, require_valid_identity
 from src.api.middleware.entitlements import (
     EntitlementDecision,
     emit_entitlement_decision_event,
@@ -92,8 +92,9 @@ async def _require_agent_routing_entitlement(
         feature=EntitledFeature.GOVERNANCE_AGENT_ROUTING_ADVANCED,
     )
     correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
+    modules = get_app_modules(request)
     await emit_entitlement_decision_event(
-        audit_pipeline=getattr(request.app.state, "tool_audit_pipeline", None),
+        audit_pipeline=modules.audit_observability.tool_audit_pipeline if modules is not None else None,
         correlation_id=correlation_id,
         tenant_id=tenant_id,
         surface="agent_routing_controls",
