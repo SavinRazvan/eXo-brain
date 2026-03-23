@@ -10,6 +10,7 @@ Depends On:
  - packages/exo-brain-core-contracts
  - packages/exo-brain-adapter-sdk
  - packages/exo-adapter-openai
+ - packages/exo-adapter-echo
 Notes:
  - Creates a throwaway venv in /tmp, installs all three packages, runs import + conformance assertions.
  - Exit code 0 = pass, non-zero = fail.
@@ -31,6 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGES_INSTALL_ORDER = [
     REPO_ROOT / "packages" / "exo-brain-core-contracts",
     REPO_ROOT / "packages" / "exo-brain-adapter-sdk",
+    REPO_ROOT / "packages" / "exo-adapter-echo",
     REPO_ROOT / "packages" / "exo-adapter-openai",
 ]
 
@@ -68,6 +70,13 @@ ASSERTION_SCRIPT = textwrap.dedent(
     except Exception as exc:
         results["openai_adapter_import"] = f"FAIL: {exc}"
 
+    # --- echo adapter import (second portable package) ---
+    try:
+        from exo_adapter_echo import EchoRuntimeAdapter, load_adapter as load_echo_adapter
+        results["echo_adapter_import"] = "PASS"
+    except Exception as exc:
+        results["echo_adapter_import"] = f"FAIL: {exc}"
+
     # --- module origin check (must NOT start with src.) ---
     try:
         from exo_adapter_openai import OpenAIAgentsRuntimeAdapter
@@ -90,6 +99,17 @@ ASSERTION_SCRIPT = textwrap.dedent(
         results["conformance_contract"] = "PASS"
     except Exception as exc:
         results["conformance_contract"] = f"FAIL: {exc}"
+
+    # --- echo adapter conformance ---
+    try:
+        from exo_adapter_echo import load_adapter as load_echo_adapter
+        from exo_brain_adapter_sdk import assert_runtime_adapter_contract
+        echo = load_echo_adapter(provider_id="echo-smoke")
+        assert_runtime_adapter_contract(echo)
+        assert echo.get_capabilities().provider_id == "echo-smoke"
+        results["echo_conformance_contract"] = "PASS"
+    except Exception as exc:
+        results["echo_conformance_contract"] = f"FAIL: {exc}"
 
     # --- async run_turn event shape ---
     try:

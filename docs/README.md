@@ -18,14 +18,16 @@ Notes:
 
 1. `README.md` (repository entry)
 2. `docs/strategy/goal.md` + `docs/strategy/next-directions.md` (direction)
-3. `docs/architecture/mvp.md` + `docs/architecture/workspace-architecture.md` (shape)
-4. `docs/plans/tenant-tool-execution-architecture.md` (implementation status)
-5. `docs/operations/workflow-complete.md` (maintainer path)
-6. `docs/operations/local-workspace-layout.md` (gitignored `.local/` contract)
+3. `docs/architecture/beginner-workflow.md` (plain-language walkthrough)
+4. `docs/architecture/mvp.md` + `docs/architecture/workspace-architecture.md` (shape)
+5. `docs/plans/tenant-tool-execution-architecture.md` (implementation status)
+6. `docs/operations/workflow-complete.md` (maintainer path)
+7. `docs/operations/local-workspace-layout.md` (gitignored `.local/` contract)
 
 ## Strategy (`docs/strategy/`)
 
 - `docs/strategy/README.md` — index and reading order
+- `docs/strategy/governed-execution-positioning.md` — product boundary, ICP, and monetization direction
 - `docs/strategy/next-directions.md` — prioritized tiers
 - `docs/strategy/entitlement-matrix.md`, `docs/strategy/traceability-matrix.md`, etc.
 
@@ -34,6 +36,7 @@ Notes:
 ## Architecture (`docs/architecture/`)
 
 - `docs/architecture/README.md`
+- `docs/architecture/beginner-workflow.md` — beginner-friendly workflow and analogy guide
 - `docs/architecture/mvp.md` — layers and flows
 - `docs/architecture/workspace-architecture.md` — workspace doctrine
 

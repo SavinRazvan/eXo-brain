@@ -86,6 +86,23 @@ uvicorn src.api.app:create_app --factory --reload --port 8000
 # API docs: http://localhost:8000/docs
 ```
 
+### Docker (optional)
+
+```bash
+docker compose up --build
+# Liveness: http://localhost:8000/health
+# Readiness (SQLite PRAGMA quick_check): http://localhost:8000/ready
+```
+
+**Operations-oriented environment variables** (non-exhaustive):
+
+| Variable | Purpose |
+|----------|---------|
+| `EXO_ENABLE_PROMETHEUS_METRICS` | When `1`, exposes `GET /metrics` (Prometheus text). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base URL for OTLP HTTP export (traces + metrics); optional per-signal overrides in `telemetry_export.py`. |
+| `EXO_CORS_ORIGINS` | Comma-separated allowed origins; unset + non-dev `EXO_ENV` disables wildcard CORS. |
+| `EXO_ENABLE_OPENAPI` | When `0`, disables `/docs`, `/redoc`, and `/openapi.json`. |
+
 ---
 
 ## Beginner quick map (2-minute view)
