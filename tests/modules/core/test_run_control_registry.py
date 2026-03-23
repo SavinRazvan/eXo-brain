@@ -12,6 +12,7 @@ Notes:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -306,3 +307,81 @@ def test_sqlite_registry_count_active_runs_returns_zero_when_fetchone_is_none(tm
         assert db.count_active_runs(tenant_id="t1") == 0
     finally:
         db._conn = original_conn  # type: ignore[method-assign]
+
+
+def test_sqlite_registry_list_runs_falls_back_to_legacy_call_ids_json(tmp_path: Path) -> None:
+    db = SQLiteRunControlRegistry(str(tmp_path / "rc.db"))
+    db.start_run(
+        tenant_id="t1",
+        session_id="s1",
+        run_id="rleg",
+        correlation_id="c1",
+        transport="sse",
+    )
+    with db._conn() as conn:
+        conn.execute(
+            "UPDATE run_control SET call_ids_json = ? WHERE tenant_id = ? AND run_id = ?",
+            (json.dumps(["legacy-a", "legacy-b"]), "t1", "rleg"),
+        )
+        conn.execute("DELETE FROM run_control_tool_calls WHERE tenant_id = ? AND run_id = ?", ("t1", "rleg"))
+        conn.commit()
+    rows = db.list_runs(tenant_id="t1", limit=10)
+    match = next(r for r in rows if r["run_id"] == "rleg")
+    assert match["call_ids"] == ["legacy-a", "legacy-b"]
+
+
+def test_sqlite_registry_list_runs_legacy_non_list_json_keeps_empty_call_ids(tmp_path: Path) -> None:
+    db = SQLiteRunControlRegistry(str(tmp_path / "rc.db"))
+    db.start_run(
+        tenant_id="t1",
+        session_id="s1",
+        run_id="rjson",
+        correlation_id="c1",
+        transport="sse",
+    )
+    with db._conn() as conn:
+        conn.execute(
+            "UPDATE run_control SET call_ids_json = ? WHERE tenant_id = ? AND run_id = ?",
+            (json.dumps({"not": "list"}), "t1", "rjson"),
+        )
+        conn.commit()
+    rows = db.list_runs(tenant_id="t1", limit=10)
+    match = next(r for r in rows if r["run_id"] == "rjson")
+    assert match["call_ids"] == []
+
+
+def test_sqlite_registry_call_ids_for_run_falls_back_to_sorted_legacy_json(tmp_path: Path) -> None:
+    db = SQLiteRunControlRegistry(str(tmp_path / "rc.db"))
+    db.start_run(
+        tenant_id="t1",
+        session_id="s1",
+        run_id="rleg2",
+        correlation_id="c1",
+        transport="sse",
+    )
+    with db._conn() as conn:
+        conn.execute(
+            "UPDATE run_control SET call_ids_json = ? WHERE tenant_id = ? AND run_id = ?",
+            (json.dumps(["z", "a"]), "t1", "rleg2"),
+        )
+        conn.execute("DELETE FROM run_control_tool_calls WHERE tenant_id = ? AND run_id = ?", ("t1", "rleg2"))
+        conn.commit()
+    assert db.call_ids_for_run(tenant_id="t1", run_id="rleg2") == ["a", "z"]
+
+
+def test_sqlite_registry_call_ids_for_run_non_list_legacy_returns_empty(tmp_path: Path) -> None:
+    db = SQLiteRunControlRegistry(str(tmp_path / "rc.db"))
+    db.start_run(
+        tenant_id="t1",
+        session_id="s1",
+        run_id="rnull",
+        correlation_id="c1",
+        transport="sse",
+    )
+    with db._conn() as conn:
+        conn.execute(
+            "UPDATE run_control SET call_ids_json = ? WHERE tenant_id = ? AND run_id = ?",
+            ("42", "t1", "rnull"),
+        )
+        conn.commit()
+    assert db.call_ids_for_run(tenant_id="t1", run_id="rnull") == []

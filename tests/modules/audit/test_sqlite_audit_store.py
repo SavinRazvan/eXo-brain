@@ -92,3 +92,21 @@ async def test_sqlite_audit_store_memory_backend_reuses_shared_connection_and_no
 
     assert store._connect() is store._shared_conn
     assert await store.cleanup_audit_events(tenant_id="tenant-a", max_records=5) == 0
+
+
+@pytest.mark.asyncio
+async def test_sqlite_audit_memory_backend_query_and_list_use_shared_connection() -> None:
+    store = SQLiteAuditStore(":memory:")
+    await store.append_audit_event(
+        AuditRecord(
+            event_id="evt-q1",
+            correlation_id="corr-q",
+            tenant_id="tenant-a",
+            event_type="audit",
+            payload={"n": 1},
+        )
+    )
+    queried = await store.query_audit_events(correlation_id="corr-q", tenant_id="tenant-a")
+    assert [r.event_id for r in queried] == ["evt-q1"]
+    listed = await store.list_audit_events(tenant_id="tenant-a", limit=10)
+    assert [r.event_id for r in listed] == ["evt-q1"]

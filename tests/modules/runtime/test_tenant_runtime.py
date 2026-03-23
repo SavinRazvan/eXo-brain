@@ -18,6 +18,7 @@ Depends On:
 from __future__ import annotations
 
 import asyncio
+import time
 
 import pytest
 
@@ -783,3 +784,59 @@ def test_session_adapter_falls_back_to_registered_adapter_when_load_fails(monkey
     monkeypatch.setattr("src.runtime.adapter_factory.load_adapter", _boom)
     resolved = factory._instantiate_session_adapter(ctx, "openai-test")
     assert isinstance(resolved, OpenAIAgentsRuntimeAdapter)
+
+
+def test_tenant_runtime_factory_evicts_idle_sessions_when_ttl_configured() -> None:
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+            session_runtime_idle_ttl_seconds=30,
+        ),
+    )
+    factory = TenantRuntimeFactory(
+        provider_registry=_make_provider_registry(),
+        settings=settings,
+    )
+    factory.get_or_create("t-evict-idle")
+    factory._session_runtimes["sess-old"] = object()
+    factory._session_adapters["sess-old"] = object()
+    factory._session_tenant["sess-old"] = "t-evict-idle"
+    factory._session_last_access["sess-old"] = time.monotonic() - 9999.0
+    factory._evict_idle_sessions_only()
+    assert "sess-old" not in factory._session_runtimes
+    assert "sess-old" not in factory._session_adapters
+
+
+def test_tenant_runtime_factory_evicts_lru_when_over_max_cached_sessions() -> None:
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+            session_runtime_max_cached_sessions=2,
+        ),
+    )
+    factory = TenantRuntimeFactory(
+        provider_registry=_make_provider_registry(),
+        settings=settings,
+    )
+    factory.get_or_create("t-lru")
+    t_old = time.monotonic() - 200.0
+    t_mid = time.monotonic() - 100.0
+    t_new = time.monotonic() - 10.0
+    for sid, ts in (("a", t_old), ("b", t_mid), ("c", t_new)):
+        factory._session_runtimes[sid] = object()
+        factory._session_adapters[sid] = object()
+        factory._session_tenant[sid] = "t-lru"
+        factory._session_last_access[sid] = ts
+    factory._evict_lru_until_under_cap()
+    assert len(factory._session_runtimes) == 1
+    assert "c" in factory._session_runtimes
+    assert "a" not in factory._session_runtimes
+    assert "b" not in factory._session_runtimes

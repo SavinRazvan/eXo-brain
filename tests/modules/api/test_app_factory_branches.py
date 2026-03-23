@@ -37,3 +37,29 @@ def test_default_settings_invalid_json_falls_back_to_empty_maps(monkeypatch) -> 
     settings = app_module._default_settings()
     assert settings.limits.audit_bundle_signing_secrets_by_version == {}
     assert settings.runtime.byoc_budget_partition_limits_microunits == {}
+
+
+def test_cors_origins_from_env_splits_and_trims(monkeypatch) -> None:
+    monkeypatch.setenv("EXO_CORS_ORIGINS", " https://a.example ,https://b.example ")
+    assert app_module._cors_origins_for_environment("production") == [
+        "https://a.example",
+        "https://b.example",
+    ]
+
+
+def test_cors_origins_empty_env_uses_wildcard_only_in_dev_like(monkeypatch) -> None:
+    monkeypatch.delenv("EXO_CORS_ORIGINS", raising=False)
+    assert app_module._cors_origins_for_environment("development") == ["*"]
+    assert app_module._cors_origins_for_environment("production") == []
+
+
+def test_prometheus_metrics_router_registered_when_env_enabled(monkeypatch, tmp_path) -> None:
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("EXO_ENABLE_PROMETHEUS_METRICS", "1")
+    monkeypatch.setenv("EXO_DB_PATH", str(tmp_path / "exo.db"))
+    app = app_module.create_app()
+    with TestClient(app) as client:
+        response = client.get("/metrics")
+    assert response.status_code == 200
+    assert "exo_build_info" in response.text
