@@ -20,7 +20,7 @@ import time
 import jwt
 import pytest
 
-from src.identity.contracts import TokenValidationState
+from src.identity.contracts import IdentityContext, TokenValidationState
 from src.identity.jwt_resolver import decode_jwt
 
 
@@ -319,6 +319,99 @@ def test_extract_identity_accepts_valid_bearer_jwt_when_configured() -> None:
     assert identity is not None
     assert identity.subject == "jwt-ok"
     assert identity.token_validation_state == TokenValidationState.VALID
+
+
+def test_decode_jwt_from_jwks_blank_url_returns_none() -> None:
+    from src.identity.jwt_resolver import decode_jwt_from_jwks
+
+    assert decode_jwt_from_jwks("tok", "") is None
+    assert decode_jwt_from_jwks("tok", "   ") is None
+
+
+def test_decode_jwt_from_jwks_success_with_mocked_client() -> None:
+    from unittest.mock import MagicMock, patch
+
+    from src.identity.jwt_resolver import decode_jwt_from_jwks
+
+    signing_key = MagicMock()
+    signing_key.algorithm_name = "RS256"
+    signing_key.key = MagicMock()
+    payload = {
+        "sub": "jwks-user",
+        "exp": int(time.time()) + 3600,
+        "tenant_id": "t-jwks",
+        "roles": ["viewer"],
+    }
+    with patch("src.identity.jwt_resolver.PyJWKClient") as mock_cls:
+        mock_cls.return_value.get_signing_key_from_jwt.return_value = signing_key
+        with patch("src.identity.jwt_resolver.jwt.decode", return_value=payload):
+            identity = decode_jwt_from_jwks("header.payload.sig", "https://issuer/jwks.json")
+    assert identity is not None
+    assert identity.subject == "jwks-user"
+    assert identity.tenant_id == "t-jwks"
+    assert identity.roles == ["viewer"]
+    assert identity.token_validation_state == TokenValidationState.VALID
+
+
+def test_decode_jwt_from_jwks_expired_returns_expired_identity() -> None:
+    from unittest.mock import MagicMock, patch
+
+    from src.identity.jwt_resolver import decode_jwt_from_jwks
+
+    signing_key = MagicMock()
+    signing_key.algorithm_name = "RS256"
+    signing_key.key = MagicMock()
+    with patch("src.identity.jwt_resolver.PyJWKClient") as mock_cls:
+        mock_cls.return_value.get_signing_key_from_jwt.return_value = signing_key
+        with patch(
+            "src.identity.jwt_resolver.jwt.decode",
+            side_effect=jwt.ExpiredSignatureError("expired"),
+        ):
+            identity = decode_jwt_from_jwks("tok", "https://issuer/jwks.json")
+    assert identity is not None
+    assert identity.token_validation_state == TokenValidationState.EXPIRED
+
+
+def test_decode_jwt_from_jwks_client_failure_returns_none() -> None:
+    from unittest.mock import patch
+
+    from src.identity.jwt_resolver import decode_jwt_from_jwks
+
+    with patch("src.identity.jwt_resolver.PyJWKClient", side_effect=RuntimeError("jwks down")):
+        assert decode_jwt_from_jwks("tok", "https://issuer/jwks.json") is None
+
+
+def test_extract_identity_uses_jwks_when_configured() -> None:
+    import asyncio
+    from unittest.mock import MagicMock, patch
+
+    from src.api.app import create_app
+    from src.api.middleware.auth import extract_identity
+    from src.config.settings import AppSettings, AuthSettings, RuntimeSettings
+
+    mock_req = MagicMock()
+    mock_req.headers = {"Authorization": "Bearer any-token"}
+    mock_req.app = create_app()
+    mock_req.app.state.settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id="openai-test",
+            allowed_provider_ids=["openai-test"],
+            require_provider_healthcheck_on_start=False,
+        ),
+        auth=AuthSettings(jwt_secret="", jwks_url="https://issuer/jwks.json", algorithm="RS256"),
+    )
+    stub = IdentityContext(
+        subject="from-jwks",
+        tenant_id="t1",
+        roles=[],
+        token_validation_state=TokenValidationState.VALID,
+    )
+    with patch("src.identity.jwt_resolver.decode_jwt_from_jwks", return_value=stub):
+        identity = asyncio.run(extract_identity(mock_req))
+    assert identity is not None
+    assert identity.subject == "from-jwks"
 
 
 def test_jwt_and_x_identity_precedence() -> None:
