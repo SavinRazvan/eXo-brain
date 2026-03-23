@@ -44,6 +44,7 @@ Notes:
 | `generated-data/coverage/` | `coverage.json` and similar machine output |
 | `generated-data/validation/`, `ui/`, `governance/` | Other generated snapshots |
 
-## `architecture-goals/` (transitional)
+## `architecture-goals/` (retired)
 
-- Thin **redirect stubs** only; canonical strategy content lives in **`docs/strategy/`**.
+- Removed from the repo; canonical strategy content lives in **`docs/strategy/`** only.
+- Optional: `scripts/dev/write_architecture_goals_redirect_stubs.py` can recreate thin local stubs if external links still point at old paths.

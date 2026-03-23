@@ -31,7 +31,7 @@ Notes:
 - `docs/strategy/next-directions.md` — prioritized tiers
 - `docs/strategy/entitlement-matrix.md`, `docs/strategy/traceability-matrix.md`, etc.
 
-> `architecture-goals/` at repo root holds **redirect stubs** only; edit `docs/strategy/*`.
+> Root `architecture-goals/` was retired; **edit `docs/strategy/*`** for all strategy content.
 
 ## Architecture (`docs/architecture/`)
 

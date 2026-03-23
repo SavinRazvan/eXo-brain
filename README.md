@@ -29,7 +29,7 @@ Provider-neutral AI orchestration platform with deterministic tool execution, mu
 
 - API-first Option C is the active delivery path (no required UI/dashboard mount).
 - Tool-level deterministic policy enforcement is implemented; turn-level **governance ingress** (pre-model gate chain) is advanced in code and docs—see the canonical plan for **implemented vs planned** detail.
-- Prioritized roadmap tiers: `docs/strategy/next-directions.md` (strategy package; `architecture-goals/` holds redirect stubs only).
+- Prioritized roadmap tiers: `docs/strategy/next-directions.md` (strategy package; canonical strategy lives under `docs/strategy/` only).
 - Canonical implementation status + queued slices: `docs/plans/tenant-tool-execution-architecture.md`.
 - Documentation authority, lifecycle, and archive pointers: `docs/plans/docs-authority-map.md`, `docs/plans/docs-inventory-master.md`, `docs/plans/docs-archive-index.md`.
 - Top-level doc index: `docs/README.md`.

@@ -17,7 +17,7 @@ Notes:
 | From | To |
 |------|-----|
 | `architecture-goals/*.md` (full content) | `docs/strategy/<kebab-name>.md` |
-| `architecture-goals/*.md` (after migration) | Redirect stub → `../docs/strategy/...` |
+| `architecture-goals/*.md` (after migration) | **Retired** from repo; optional local stubs via `scripts/dev/write_architecture_goals_redirect_stubs.py` |
 
 ## Durable docs (from `.local/index-and-planning/` → `docs/`)
 
