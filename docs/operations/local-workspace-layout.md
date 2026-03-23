@@ -70,7 +70,7 @@ Canonical workflow and doctrine live under **`docs/`**:
 - `docs/operations/logging-and-errors.md`
 - `docs/plans/archive-agents-research.md`
 - `docs/architecture/workspace-architecture.md`
-- `docs/strategy/*` (strategy package; `architecture-goals/` holds redirect stubs only)
+- `docs/strategy/*` (strategy package; root `architecture-goals/` retired)
 
 ## Script alignment
 
