@@ -427,6 +427,29 @@ def test_evict_sessions_for_provider_removes_matching_sessions() -> None:
         factory.get_session_runtime("sess-evict-1")
 
 
+def test_session_runtime_max_cached_sessions_evicts_lru_before_add() -> None:
+    provider_id = "openai-test"
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id=provider_id,
+            allowed_provider_ids=[provider_id],
+            require_provider_healthcheck_on_start=False,
+            session_runtime_max_cached_sessions=1,
+        ),
+    )
+    registry = _make_provider_registry(provider_id)
+    factory = TenantRuntimeFactory(provider_registry=registry, settings=settings)
+    ctx = factory.get_or_create("tenant-cap")
+    ctx.agent_registry.register(AgentSpec(agent_id="agent-cap", role="assistant"))
+    factory.create_session_runtime(ctx, "agent-cap", provider_id, "sess-cap-1")
+    factory.create_session_runtime(ctx, "agent-cap", provider_id, "sess-cap-2")
+    with pytest.raises(KeyError):
+        factory.get_session_runtime("sess-cap-1")
+    assert factory.get_session_runtime("sess-cap-2") is not None
+
+
 def test_create_session_runtime_schedules_start_session_when_loop_running() -> None:
     provider_id = "async-loop-provider"
     settings = _make_settings(provider_id)

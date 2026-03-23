@@ -65,3 +65,4 @@ def test_adapter_contract_optional_hooks_default_values() -> None:
     assert adapter.control_stats() == {}
     assert adapter.cleanup_events(limit=5) == []
     assert adapter.drain_progress_events("tc_progress") == []
+    assert adapter.manages_progress_events() is False

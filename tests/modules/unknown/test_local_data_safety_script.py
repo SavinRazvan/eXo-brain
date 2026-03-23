@@ -52,6 +52,9 @@ def test_local_data_safety_backup_restore_validate_flow(tmp_path: Path, monkeypa
     SQLiteByocResultStore(str(db_path))
     SQLiteReplayGuard(str(db_path))
 
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
     monkeypatch.setattr(
         sys,
         "argv",

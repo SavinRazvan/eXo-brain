@@ -223,6 +223,70 @@ def test_sqlite_registry_record_tool_call_rejects_blank_call_id(tmp_path: Path) 
     assert db.call_ids_for_run(tenant_id="t1", run_id="r1") == ["c99"]
 
 
+def test_memory_registry_prunes_oldest_terminal_runs_per_cap() -> None:
+    reg = RunControlRegistry(max_terminal_records_per_tenant=1)
+    reg.start_run(
+        tenant_id="t1",
+        session_id="s1",
+        run_id="r1",
+        correlation_id="c1",
+        transport="sse",
+    )
+    reg.start_run(
+        tenant_id="t1",
+        session_id="s1",
+        run_id="r2",
+        correlation_id="c2",
+        transport="sse",
+    )
+    assert reg.mark_terminal(
+        tenant_id="t1",
+        run_id="r1",
+        status="completed",
+        terminal_event="a",
+    )
+    assert reg.mark_terminal(
+        tenant_id="t1",
+        run_id="r2",
+        status="completed",
+        terminal_event="b",
+    )
+    assert reg.get_run(tenant_id="t1", run_id="r1") is None
+    assert reg.get_run(tenant_id="t1", run_id="r2") is not None
+
+
+def test_sqlite_registry_prunes_oldest_terminal_runs_per_cap(tmp_path: Path) -> None:
+    db = SQLiteRunControlRegistry(str(tmp_path / "rc.db"), max_terminal_records_per_tenant=1)
+    db.start_run(
+        tenant_id="t1",
+        session_id="s1",
+        run_id="r1",
+        correlation_id="c1",
+        transport="sse",
+    )
+    db.start_run(
+        tenant_id="t1",
+        session_id="s1",
+        run_id="r2",
+        correlation_id="c2",
+        transport="sse",
+    )
+    assert db.mark_terminal(
+        tenant_id="t1",
+        run_id="r1",
+        status="completed",
+        terminal_event="a",
+    )
+    assert db.mark_terminal(
+        tenant_id="t1",
+        run_id="r2",
+        status="completed",
+        terminal_event="b",
+    )
+    assert db.get_run(tenant_id="t1", run_id="r1") is None
+    assert db.get_run(tenant_id="t1", run_id="r2") is not None
+
+
 def test_sqlite_registry_count_active_runs_returns_zero_when_fetchone_is_none(tmp_path: Path) -> None:
     db = SQLiteRunControlRegistry(str(tmp_path / "rc.db"))
     mock_conn = MagicMock()

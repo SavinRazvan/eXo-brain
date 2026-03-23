@@ -34,7 +34,7 @@ def _x_identity(tenant_id: str = "t1", subject: str = "admin@test") -> dict:
     return {
         "X-Identity": json.dumps({
             "subject": subject,
-            "roles": ["admin"],
+            "roles": ["platform_admin"],
             "tenant_id": tenant_id,
             "token_validation_state": "valid",
         })
@@ -169,7 +169,7 @@ def test_delete_api_key(tmp_path: Path) -> None:
     with TestClient(app) as client:
         create_resp = client.post(
             "/admin/keys",
-            json={"tenant_id": "t1", "subject": "svc@t1.com", "roles": ["user"]},
+            json={"tenant_id": "t1", "subject": "svc@t1.com", "roles": ["platform_admin"]},
             headers=_x_identity(),
         )
         raw_key = create_resp.json()["key"]
@@ -200,7 +200,7 @@ def test_api_key_authenticates_successfully(tmp_path: Path) -> None:
     with TestClient(app) as client:
         create_resp = client.post(
             "/admin/keys",
-            json={"tenant_id": "t1", "subject": "svc@t1.com", "roles": ["user"]},
+            json={"tenant_id": "t1", "subject": "svc@t1.com", "roles": ["platform_admin"]},
             headers=_x_identity(),
         )
         raw_key = create_resp.json()["key"]
@@ -218,7 +218,7 @@ def test_api_key_via_x_api_key_header(tmp_path: Path) -> None:
     with TestClient(app) as client:
         create_resp = client.post(
             "/admin/keys",
-            json={"tenant_id": "t1", "subject": "svc@t1.com", "roles": ["user"]},
+            json={"tenant_id": "t1", "subject": "svc@t1.com", "roles": ["platform_admin"]},
             headers=_x_identity(),
         )
         raw_key = create_resp.json()["key"]
@@ -250,7 +250,7 @@ def test_x_identity_blocked_in_production_environment(tmp_path: Path) -> None:
         AuthConfig, EndpointApiType, EndpointConfig, ModelDefaults,
         ProviderProfile, ProviderRecord, ProviderRegistry,
     )
-    from src.config.settings import AppSettings, RuntimeSettings
+    from src.config.settings import AppSettings, LimitsSettings, RuntimeSettings
     from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 
     settings = AppSettings(
@@ -260,6 +260,11 @@ def test_x_identity_blocked_in_production_environment(tmp_path: Path) -> None:
             default_provider_id="openai-test",
             allowed_provider_ids=["openai-test"],
             require_provider_healthcheck_on_start=False,
+            byoc_worker_jwt_secret="prod-worker-secret",
+        ),
+        limits=LimitsSettings(
+            tool_artifact_signing_secret="prod-tool-artifact-secret",
+            audit_bundle_signing_secret="prod-audit-bundle-secret",
         ),
     )
     adapter = OpenAIAgentsRuntimeAdapter(provider_id="openai-test")

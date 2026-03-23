@@ -26,7 +26,7 @@ def _x_identity() -> dict:
     return {
         "X-Identity": json.dumps({
             "subject": "admin@test",
-            "roles": ["admin"],
+            "roles": ["platform_admin"],
             "tenant_id": "t1",
             "token_validation_state": "valid",
         })
@@ -118,6 +118,7 @@ def test_post_providers_creates_dynamic_provider(tmp_path: Path) -> None:
                 "provider_id": "dynamic-openai",
                 "display_name": "Dynamic OpenAI",
                 "adapter_class_ref": OPENAI_ADAPTER_CANONICAL_CLASS_REF,
+                "api_type": "openai_native",
                 "api_key_env_var": "OPENAI_API_KEY",
                 "base_url": "https://api.openai.com",
                 "model": "gpt-4o-mini",
@@ -386,7 +387,7 @@ def test_delete_provider_force_drain_succeeds_when_feature_enabled(tmp_path: Pat
         )
         del_resp = client.delete(
             "/providers/busy-provider?force_drain=true",
-            headers=_x_identity_with_roles("admin"),
+            headers=_x_identity_with_roles("platform_admin"),
         )
         assert del_resp.status_code == 204
         list_resp = client.get("/providers", headers=_x_identity())
@@ -445,10 +446,11 @@ def test_delete_provider_force_drain_returns_422_when_store_lacks_deactivate(tmp
             return 2
 
     app.state.session_store = _SessionStoreWithoutDrain()
+    app.state.modules.session_runtime.session_store = app.state.session_store
     with TestClient(app) as client:
         resp = client.delete(
             "/providers/openai-test?force_drain=true",
-            headers=_x_identity_with_roles("admin"),
+            headers=_x_identity_with_roles("platform_admin"),
         )
     assert resp.status_code == 422
     assert "does not support provider-drain" in resp.json()["detail"].lower()
@@ -465,10 +467,11 @@ def test_delete_provider_force_drain_returns_409_when_sessions_remain_after_drai
             return 0
 
     app.state.session_store = _SessionStoreStuckActive()
+    app.state.modules.session_runtime.session_store = app.state.session_store
     with TestClient(app) as client:
         resp = client.delete(
             "/providers/openai-test?force_drain=true",
-            headers=_x_identity_with_roles("admin"),
+            headers=_x_identity_with_roles("platform_admin"),
         )
     assert resp.status_code == 409
     assert "remain after attempted drain" in resp.json()["detail"].lower()
