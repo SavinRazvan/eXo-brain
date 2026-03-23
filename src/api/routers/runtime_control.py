@@ -20,7 +20,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from src.api.dependencies import get_tenant_context, require_valid_identity
+from src.api.dependencies import get_app_modules, get_tenant_context, require_valid_identity
 from src.api.middleware.entitlements import (
     EntitlementDecision,
     emit_entitlement_decision_event,
@@ -99,8 +99,12 @@ async def _enforce_feature_entitlement(
 ) -> None:
     decision = evaluate_feature_entitlement(identity=identity, feature=feature)
     correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Application modules are not configured.")
+    audit_pipeline = modules.audit_observability.tool_audit_pipeline
     await emit_entitlement_decision_event(
-        audit_pipeline=getattr(request.app.state, "tool_audit_pipeline", None),
+        audit_pipeline=audit_pipeline,
         correlation_id=correlation_id,
         tenant_id=tenant_id,
         surface=surface,
@@ -152,14 +156,18 @@ def _resolve_runtime_adapter(ctx: TenantRuntimeContext):
 
 
 def _resolve_run_registry(request: Request) -> RunControlRegistry:
-    registry = getattr(request.app.state, "run_control_registry", None)
+    modules = get_app_modules(request)
+    registry = modules.session_runtime.run_control_registry if modules is not None else None
     if registry is None:
         raise HTTPException(status_code=503, detail="Run control registry is not configured on this server.")
     return registry
 
 
 def _resolve_ingress_budget_recorder(request: Request):
-    return getattr(request.app.state, "ingress_budget_recorder", None)
+    modules = get_app_modules(request)
+    if modules is None:
+        return None
+    return modules.audit_observability.ingress_budget_recorder
 
 
 def _resolve_byoc_adapter(ctx: TenantRuntimeContext):
@@ -667,7 +675,10 @@ async def get_byoc_governance_metrics(
                 )
             )
 
-    settings = request.app.state.settings
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Application modules are not configured.")
+    settings = modules.platform_bootstrap.settings
     anomaly_enabled = bool(settings.runtime.byoc_anomaly_detection_enabled)
     anomaly_thresholds = GovernanceAnomalyThresholds(
         cost_utilization_threshold=float(settings.runtime.byoc_anomaly_cost_utilization_threshold),

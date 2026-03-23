@@ -26,6 +26,7 @@ from typing import Any
 from starlette.requests import HTTPConnection
 
 from src.identity.contracts import IdentityContext, TokenValidationState
+from src.modules.platform_bootstrap.service import app_modules_from_requestlike
 from src.identity.resolver import resolve_identity
 
 _X_IDENTITY_HEADER = "X-Identity"
@@ -41,7 +42,8 @@ async def _resolve_from_api_key(raw_key: str, request: HTTPConnection) -> Identi
     """Look up raw_key in the ApiKeyStore and return an IdentityContext, or None."""
     from src.persistence.contracts import ApiKeyStore
 
-    api_key_store = getattr(request.app.state, "api_key_store", None)
+    modules = app_modules_from_requestlike(request)
+    api_key_store = modules.identity_access.service.api_key_store if modules is not None else None
     if not isinstance(api_key_store, ApiKeyStore):
         return None
     record = await api_key_store.lookup_by_hash(_hash_key(raw_key))
@@ -58,7 +60,8 @@ async def _resolve_from_api_key(raw_key: str, request: HTTPConnection) -> Identi
 
 def _resolve_from_jwt(token: str, request: HTTPConnection) -> IdentityContext | None:
     """Try to decode token as a JWT using configured AuthSettings."""
-    settings = getattr(request.app.state, "settings", None)
+    modules = app_modules_from_requestlike(request)
+    settings = modules.platform_bootstrap.settings if modules is not None else None
     if settings is None:
         return None
     auth_cfg = getattr(settings, "auth", None)
@@ -67,8 +70,11 @@ def _resolve_from_jwt(token: str, request: HTTPConnection) -> IdentityContext | 
     if not auth_cfg.jwt_secret and not auth_cfg.jwks_url:
         return None
 
-    from src.identity.jwt_resolver import decode_jwt
+    from src.identity.jwt_resolver import decode_jwt, decode_jwt_from_jwks
 
+    jwks_url = str(getattr(auth_cfg, "jwks_url", "") or "").strip()
+    if jwks_url:
+        return decode_jwt_from_jwks(token, jwks_url)
     return decode_jwt(token, secret=auth_cfg.jwt_secret, algorithm=auth_cfg.algorithm)
 
 
@@ -80,7 +86,8 @@ async def extract_identity(request: HTTPConnection) -> IdentityContext | None:
     2. X-API-Key: <key>               — API-key lookup
     3. X-Identity: <json>             — plain-JSON (test/development environment only)
     """
-    settings = getattr(request.app.state, "settings", None)
+    modules = app_modules_from_requestlike(request)
+    settings = modules.platform_bootstrap.settings if modules is not None else None
     environment = getattr(settings, "environment", "test") if settings else "test"
 
     # -- 1. Authorization: Bearer -------------------------------------------

@@ -85,6 +85,11 @@ class RuntimeSettings:
     byoc_non_blocking_execute: bool = False
     control_state_backend: str = "memory"
     control_state_sqlite_db_path: str = ".exo_data/exo_control_state.db"
+    # Session runtime caches (process-local); 0 disables that limit/TTL.
+    session_runtime_idle_ttl_seconds: int = 0
+    session_runtime_max_cached_sessions: int = 0
+    # Terminal run-control rows retained per tenant (0 = unlimited automatic pruning).
+    run_control_max_terminal_records_per_tenant: int = 0
 
 
 @dataclass(slots=True)

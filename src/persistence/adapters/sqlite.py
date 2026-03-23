@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Callable, TypeVar
 
 from src.core.session_context import SessionContext
+from src.persistence.migrations import SQLiteMigration, apply_sqlite_migrations
 from src.persistence.contracts import (
     AgentStore,
     ApiKeyRecord,
@@ -182,25 +183,32 @@ class SQLiteSessionStore(SessionStore):
 
     def _ensure_schema(self) -> None:
         with sqlite3.connect(self._db_path) as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS sessions (
-                    tenant_id TEXT NOT NULL,
-                    session_id TEXT NOT NULL,
-                    run_id TEXT NOT NULL,
-                    job_id TEXT NOT NULL,
-                    task_id TEXT NOT NULL,
-                    agent_id TEXT NOT NULL,
-                    provider_id TEXT NOT NULL,
-                    correlation_id TEXT NOT NULL,
-                    metadata_json TEXT NOT NULL,
-                    state TEXT NOT NULL,
-                    data_json TEXT NOT NULL,
-                    PRIMARY KEY (tenant_id, session_id)
-                )
-                """
+            apply_sqlite_migrations(
+                conn,
+                [
+                    SQLiteMigration(
+                        migration_id="sessions.v1",
+                        statements=(
+                            """
+                            CREATE TABLE IF NOT EXISTS sessions (
+                                tenant_id TEXT NOT NULL,
+                                session_id TEXT NOT NULL,
+                                run_id TEXT NOT NULL,
+                                job_id TEXT NOT NULL,
+                                task_id TEXT NOT NULL,
+                                agent_id TEXT NOT NULL,
+                                provider_id TEXT NOT NULL,
+                                correlation_id TEXT NOT NULL,
+                                metadata_json TEXT NOT NULL,
+                                state TEXT NOT NULL,
+                                data_json TEXT NOT NULL,
+                                PRIMARY KEY (tenant_id, session_id)
+                            )
+                            """,
+                        ),
+                    )
+                ],
             )
-            conn.commit()
 
 
 class SQLiteCheckpointStore(CheckpointStoreContract):
@@ -298,21 +306,28 @@ class SQLiteCheckpointStore(CheckpointStoreContract):
 
     def _ensure_schema(self) -> None:
         with sqlite3.connect(self._db_path) as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS checkpoints (
-                    tenant_id TEXT NOT NULL,
-                    job_id TEXT NOT NULL,
-                    node_id TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    attempt INTEGER NOT NULL,
-                    reason_code TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    PRIMARY KEY (tenant_id, job_id, node_id)
-                )
-                """
+            apply_sqlite_migrations(
+                conn,
+                [
+                    SQLiteMigration(
+                        migration_id="checkpoints.v1",
+                        statements=(
+                            """
+                            CREATE TABLE IF NOT EXISTS checkpoints (
+                                tenant_id TEXT NOT NULL,
+                                job_id TEXT NOT NULL,
+                                node_id TEXT NOT NULL,
+                                status TEXT NOT NULL,
+                                attempt INTEGER NOT NULL,
+                                reason_code TEXT NOT NULL,
+                                payload_json TEXT NOT NULL,
+                                PRIMARY KEY (tenant_id, job_id, node_id)
+                            )
+                            """,
+                        ),
+                    )
+                ],
             )
-            conn.commit()
 
     def _row_to_checkpoint(self, row: tuple[str, str, str, str, int, str, str]) -> CheckpointRecord:
         return CheckpointRecord(
@@ -418,18 +433,25 @@ class SQLiteToolStore(ToolStore):
 
     def _ensure_schema(self) -> None:
         conn = self._connect()
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS tools (
-                tenant_id TEXT NOT NULL,
-                tool_name TEXT NOT NULL,
-                handler_ref TEXT NOT NULL,
-                data_json TEXT NOT NULL,
-                PRIMARY KEY (tenant_id, tool_name)
-            )
-            """
+        apply_sqlite_migrations(
+            conn,
+            [
+                SQLiteMigration(
+                    migration_id="tools.v1",
+                    statements=(
+                        """
+                        CREATE TABLE IF NOT EXISTS tools (
+                            tenant_id TEXT NOT NULL,
+                            tool_name TEXT NOT NULL,
+                            handler_ref TEXT NOT NULL,
+                            data_json TEXT NOT NULL,
+                            PRIMARY KEY (tenant_id, tool_name)
+                        )
+                        """,
+                    ),
+                )
+            ],
         )
-        conn.commit()
 
 
 class SQLiteAgentStore(AgentStore):
@@ -517,18 +539,25 @@ class SQLiteAgentStore(AgentStore):
 
     def _ensure_schema(self) -> None:
         conn = self._connect()
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS agents (
-                tenant_id TEXT NOT NULL,
-                agent_id TEXT NOT NULL,
-                role TEXT NOT NULL,
-                data_json TEXT NOT NULL,
-                PRIMARY KEY (tenant_id, agent_id)
-            )
-            """
+        apply_sqlite_migrations(
+            conn,
+            [
+                SQLiteMigration(
+                    migration_id="agents.v1",
+                    statements=(
+                        """
+                        CREATE TABLE IF NOT EXISTS agents (
+                            tenant_id TEXT NOT NULL,
+                            agent_id TEXT NOT NULL,
+                            role TEXT NOT NULL,
+                            data_json TEXT NOT NULL,
+                            PRIMARY KEY (tenant_id, agent_id)
+                        )
+                        """,
+                    ),
+                )
+            ],
         )
-        conn.commit()
 
 
 class SQLiteApiKeyStore(ApiKeyStore):
@@ -635,21 +664,28 @@ class SQLiteApiKeyStore(ApiKeyStore):
 
     def _ensure_schema(self) -> None:
         conn = self._connect()
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS api_keys (
-                key_id TEXT NOT NULL PRIMARY KEY,
-                tenant_id TEXT NOT NULL,
-                subject TEXT NOT NULL,
-                key_hash TEXT NOT NULL UNIQUE,
-                roles_csv TEXT NOT NULL DEFAULT '',
-                description TEXT NOT NULL DEFAULT '',
-                enabled INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT NOT NULL DEFAULT ''
-            )
-            """
+        apply_sqlite_migrations(
+            conn,
+            [
+                SQLiteMigration(
+                    migration_id="api_keys.v1",
+                    statements=(
+                        """
+                        CREATE TABLE IF NOT EXISTS api_keys (
+                            key_id TEXT NOT NULL PRIMARY KEY,
+                            tenant_id TEXT NOT NULL,
+                            subject TEXT NOT NULL,
+                            key_hash TEXT NOT NULL UNIQUE,
+                            roles_csv TEXT NOT NULL DEFAULT '',
+                            description TEXT NOT NULL DEFAULT '',
+                            enabled INTEGER NOT NULL DEFAULT 1,
+                            created_at TEXT NOT NULL DEFAULT ''
+                        )
+                        """,
+                    ),
+                )
+            ],
         )
-        conn.commit()
 
 
 class SQLiteProviderStore(ProviderStore):
@@ -757,26 +793,33 @@ class SQLiteProviderStore(ProviderStore):
 
     def _ensure_schema(self) -> None:
         conn = self._connect()
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS providers (
-                provider_id TEXT NOT NULL PRIMARY KEY,
-                display_name TEXT NOT NULL,
-                adapter_class TEXT NOT NULL,
-                enabled INTEGER NOT NULL DEFAULT 1,
-                profile TEXT NOT NULL,
-                priority INTEGER NOT NULL,
-                endpoint_base_url TEXT NOT NULL,
-                endpoint_api_type TEXT NOT NULL,
-                auth_type TEXT NOT NULL,
-                auth_api_key_env_var TEXT NOT NULL,
-                model TEXT NOT NULL,
-                temperature REAL NOT NULL DEFAULT 0.2,
-                max_output_tokens INTEGER NOT NULL DEFAULT 1500
-            )
-            """
+        apply_sqlite_migrations(
+            conn,
+            [
+                SQLiteMigration(
+                    migration_id="providers.v1",
+                    statements=(
+                        """
+                        CREATE TABLE IF NOT EXISTS providers (
+                            provider_id TEXT NOT NULL PRIMARY KEY,
+                            display_name TEXT NOT NULL,
+                            adapter_class TEXT NOT NULL,
+                            enabled INTEGER NOT NULL DEFAULT 1,
+                            profile TEXT NOT NULL,
+                            priority INTEGER NOT NULL,
+                            endpoint_base_url TEXT NOT NULL,
+                            endpoint_api_type TEXT NOT NULL,
+                            auth_type TEXT NOT NULL,
+                            auth_api_key_env_var TEXT NOT NULL,
+                            model TEXT NOT NULL,
+                            temperature REAL NOT NULL DEFAULT 0.2,
+                            max_output_tokens INTEGER NOT NULL DEFAULT 1500
+                        )
+                        """,
+                    ),
+                )
+            ],
         )
-        conn.commit()
 
 
 
@@ -979,21 +1022,28 @@ class SQLiteToolVersionStore(ToolVersionStore):
 
     def _ensure_schema(self) -> None:
         conn = self._connect()
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS tool_versions (
-                tenant_id TEXT NOT NULL,
-                tool_name TEXT NOT NULL,
-                version TEXT NOT NULL,
-                manifest_json TEXT NOT NULL,
-                validation_json TEXT NOT NULL,
-                package_ref TEXT NOT NULL DEFAULT '',
-                active INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL DEFAULT '',
-                PRIMARY KEY (tenant_id, tool_name, version)
-            )
-            """
+        apply_sqlite_migrations(
+            conn,
+            [
+                SQLiteMigration(
+                    migration_id="tool_versions.v1",
+                    statements=(
+                        """
+                        CREATE TABLE IF NOT EXISTS tool_versions (
+                            tenant_id TEXT NOT NULL,
+                            tool_name TEXT NOT NULL,
+                            version TEXT NOT NULL,
+                            manifest_json TEXT NOT NULL,
+                            validation_json TEXT NOT NULL,
+                            package_ref TEXT NOT NULL DEFAULT '',
+                            active INTEGER NOT NULL DEFAULT 0,
+                            created_at TEXT NOT NULL DEFAULT '',
+                            PRIMARY KEY (tenant_id, tool_name, version)
+                        )
+                        """,
+                    ),
+                )
+            ],
         )
-        conn.commit()
 
 
