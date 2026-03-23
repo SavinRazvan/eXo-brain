@@ -10,12 +10,19 @@ Depends On:
  - src/modules/contracts.py
 Notes:
  - Boundary checks are strict for `src/modules/*` and selected global guardrails.
+ - Prepends repo root to `sys.path` so `src.*` imports work in CI without `PYTHONPATH`.
 """
 
 from __future__ import annotations
 
 import ast
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = str(ROOT)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
 from src.modules.contracts import (
     allowed_dependencies_for_module,
@@ -23,8 +30,6 @@ from src.modules.contracts import (
     module_name_for_import,
     module_name_for_path,
 )
-
-ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
 ALLOWED_APP_STATE_FILES = {
     "src/api/app.py",
