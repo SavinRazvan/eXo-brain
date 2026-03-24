@@ -24,8 +24,9 @@ Notes:
 - **Phase 2 — Stock factory env wiring:** `_default_settings()` in [`src/api/app.py`](../../src/api/app.py) parses `EXO_CONTROL_STATE_BACKEND`, `EXO_CONTROL_STATE_SQLITE_DB_PATH`, `EXO_SESSION_RUNTIME_IDLE_TTL_SECONDS`, `EXO_SESSION_RUNTIME_MAX_CACHED_SESSIONS`, `EXO_RUN_CONTROL_MAX_TERMINAL_RECORDS_PER_TENANT`; documented in [`README.md`](../../README.md); compose comments in [`docker-compose.yml`](../../docker-compose.yml); tests in [`tests/modules/api/test_app_factory_branches.py`](../../tests/modules/api/test_app_factory_branches.py).
 - **Phase 3 — CI/deploy evidence:** [`architecture-fitness.yml`](../../.github/workflows/architecture-fitness.yml) honest job results + fail step; [`progressive-deploy.yml`](../../.github/workflows/progressive-deploy.yml) template labels; [`rollback_release.py`](../../scripts/release/rollback_release.py) `manual_automation_required`.
 - **Phase 4 — Boundary guards:** [`ast_app_state_guard.py`](../../scripts/architecture/ast_app_state_guard.py) + [`validate_layers.py`](../../scripts/architecture/validate_layers.py); [`readiness.py`](../../src/api/readiness.py) in `ALLOWED_APP_STATE_FILES`; deps/startup `getattr(st, …)` pattern; [`test_validate_layers_app_state_getattr.py`](../../tests/modules/unknown/test_validate_layers_app_state_getattr.py).
+- **Phase 5 — Tenant runtime lifecycle:** `RuntimeSettings.tenant_runtime_max_cached_contexts` + `EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS` in [`src/api/app.py`](../../src/api/app.py); LRU eviction before adding a new tenant context in [`src/runtime/tenant_runtime.py`](../../src/runtime/tenant_runtime.py); `_log_adapter_start_session_done` for background `start_session` task failures; README env table; tests in [`tests/modules/runtime/test_tenant_runtime.py`](../../tests/modules/runtime/test_tenant_runtime.py) and [`test_app_factory_branches.py`](../../tests/modules/api/test_app_factory_branches.py).
 
-**Still open (after Phase 4 merge):** tenant-context / session-start hardening (Phase 5), prod compose warnings depth (Phase 6), docs/telemetry alignment (Phase 7), optional SQLite perf (Phase 8). **Phase 4** (getattr-on-`app.state` guard + readiness direct state access + `st = … .state` + `getattr(st, …)` in deps/startup) is on branch `fix/boundary-guard-readiness`. **Phase 3** merged from `fix/ci-evidence-honesty`.
+**Still open (after Phase 5 merge):** prod compose warnings depth (Phase 6), docs/telemetry alignment (Phase 7), optional SQLite perf (Phase 8). **Phase 5** is on branch `fix/tenant-runtime-lifecycle`. **Phase 4** landed from `fix/boundary-guard-readiness`. **Phase 3** merged from `fix/ci-evidence-honesty`.
 
 ---
 
@@ -57,7 +58,7 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 - `scripts/release/rollback_release.py`: JSON uses **`manual_automation_required`** / **`evidence_only`** instead of implying a rollback ran — **Phase 3 done** after merge.
 - `src/modules/platform_bootstrap/service.py`: `_sync_modules_from_state` / `_build_compat_modules_from_state` still present — Phase 4 follow-up still applies.
 - `src/api/dependencies.py`: compat path uses **`getattr(st, …)`** with **`st = request.app.state`** (allowed); not `getattr(request.app.state, …)`.
-- `src/runtime/tenant_runtime.py`: `self._contexts` dict and `loop.create_task(...)` for async work still present — Phase 5 still applies.
+- `src/runtime/tenant_runtime.py`: optional **max cached tenant contexts** (LRU eviction) + **logged** background `start_session` failures — **Phase 5 done** after merge (`EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS`, default `0` = unlimited).
 - `packages/exo-adapter-echo/` and `tests/packages/test_echo_adapter_conformance.py` exist — “second adapter” claim in **What improved** is accurate.
 - `docs/api/customer-api-integration-guide.md` still states standard telemetry export is **planned** (file header Notes and **§9.2**) while `telemetry_export.py` / `prometheus_metrics.py` exist — Phase 7 still applies.
 - Identity tests live under **`tests/modules/identity_access/`** (there is no `tests/modules/identity/` tree today).
@@ -80,7 +81,7 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 - **Resolved — stock deploy path env:** `create_app()` → `_default_settings()` now wires control state + session cache + run-control retention from env (see README operations table).
 - **Resolved — synthetic / misleading evidence (honesty slice):** architecture-fitness summary lists **actual** job results and fails when any stage is not `success`; progressive-deploy artifact text distinguishes **template** vs **local image smoke**; rollback evidence uses **`manual_automation_required`** (integrators still replace with real automation).
 - **Partial — boundary debt:** `getattr` on **`app.state` / `application.state` as first argument** is blocked repo-wide. **Follow-up (time-box):** `platform_bootstrap` `_sync_modules_from_state` / `_build_compat_modules_from_state` and any remaining compat shortcuts.
-- **Medium — lifecycle:** `tenant_runtime.py` has session LRU/idle controls and provider eviction, but tenant `_contexts` remain unbounded and `start_session` can be fire-and-forget — OK for controlled rollout, weak story for very high tenant/tool volume.
+- **Improved — lifecycle:** Session LRU/idle + provider eviction unchanged; **tenant** contexts can be capped via `EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS` (LRU eviction); fire-and-forget `start_session` still applies but **failures are logged** (operators still need metrics/alerts for sustained error rates at very high volume).
 - **Medium — dev defaults:** `docker-compose.yml` uses `EXO_ENV=development`; wildcard CORS in dev/test when `EXO_CORS_ORIGINS` unset — fine locally, risky as a prod template.
 - **Low — neutrality + docs drift:** e.g. `provider_schemas.py` default registration URLs/models; `providers.py` `recommended_runtime_mode="hybrid"` in list responses; telemetry code exists but customer guide / traceability matrix still describe interoperability as “planned” in places.
 
@@ -227,15 +228,17 @@ Close gaps from the **enterprise-style architecture audit**: restore blocking qu
 
 ## Phase 5 — Runtime lifecycle hardening (P1–P2) (~2–4 days)
 
-**Tasks**
+**Status:** Implemented on `fix/tenant-runtime-lifecycle` — max tenant contexts + LRU eviction; `start_session` still scheduled asynchronously but failures are **logged** (`_log_adapter_start_session_done`). Further hardening (await init, surface error on first `run_turn`) remains optional.
 
-1. **Tenant `_contexts` strategy** (choose one, document): LRU+TTL, explicit destroy + sweeper, or max tenants per process + metrics.
-2. **Session start:** replace fire-and-forget `create_task` with `await` where safe **or** structured background work with **deterministic client error** on first `run_turn` if init failed.
-3. Tests: idle eviction, tenant eviction safety, failed `start_session` behavior.
+**Tasks (done for this slice)**
+
+1. **Tenant `_contexts` cap:** `tenant_runtime_max_cached_contexts` / `EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS` (`0` = unlimited); LRU eviction via `_tenant_last_touch` before inserting a new tenant.
+2. **Session start:** keep `create_task` under running loop; add done-callback logging for exceptions (no silent asyncio failures).
+3. **Tests:** tenant LRU eviction; cancelled-task noop; failed `start_session` log path; `_default_settings` env wiring.
 
 **Acceptance criteria**
 
-- No silent “session will appear later” failures on happy path; bounded growth under documented defaults for bounded workload.
+- Bounded tenant context growth when env cap is set; no silent background failures for `start_session` (logged at ERROR). Optional follow-up: stricter client-visible init contract.
 
 ---
 

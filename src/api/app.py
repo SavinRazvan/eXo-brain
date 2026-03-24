@@ -249,6 +249,9 @@ def _default_settings() -> AppSettings:
             run_control_max_terminal_records_per_tenant=_env_int_non_negative(
                 "EXO_RUN_CONTROL_MAX_TERMINAL_RECORDS_PER_TENANT", 0
             ),
+            tenant_runtime_max_cached_contexts=_env_int_non_negative(
+                "EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS", 0
+            ),
         ),
         auth=AuthSettings(
             jwt_secret=jwt_secret,

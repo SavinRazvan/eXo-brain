@@ -106,12 +106,14 @@ def test_default_settings_reads_control_plane_scale_env(monkeypatch) -> None:
     monkeypatch.setenv("EXO_CONTROL_STATE_SQLITE_DB_PATH", "/custom/control.db")
     monkeypatch.setenv("EXO_SESSION_RUNTIME_IDLE_TTL_SECONDS", "90")
     monkeypatch.setenv("EXO_SESSION_RUNTIME_MAX_CACHED_SESSIONS", "16")
+    monkeypatch.setenv("EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS", "32")
     monkeypatch.setenv("EXO_RUN_CONTROL_MAX_TERMINAL_RECORDS_PER_TENANT", "200")
     settings = app_module._default_settings()
     assert settings.runtime.control_state_backend == "sqlite"
     assert settings.runtime.control_state_sqlite_db_path == "/custom/control.db"
     assert settings.runtime.session_runtime_idle_ttl_seconds == 90
     assert settings.runtime.session_runtime_max_cached_sessions == 16
+    assert settings.runtime.tenant_runtime_max_cached_contexts == 32
     assert settings.runtime.run_control_max_terminal_records_per_tenant == 200
 
 
