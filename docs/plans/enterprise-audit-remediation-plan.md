@@ -28,7 +28,9 @@ Notes:
 - **Phase 6 — Compose / prod clarity:** prominent **not-for-prod** banner on [`docker-compose.yml`](../../docker-compose.yml); [`docker-compose.override.example.yml`](../../docker-compose.override.example.yml) + gitignored `docker-compose.override.yml`; README Docker subsection + observability pointers (Prometheus/OTLP rows + code refs).
 - **Phase 7 — Docs / telemetry alignment:** [`customer-api-integration-guide.md`](../../docs/api/customer-api-integration-guide.md) §9.2 and header Notes describe **partial** OTLP + Prometheus baseline with code/test anchors; [`traceability-matrix.md`](../../docs/strategy/traceability-matrix.md) rows + gap table updated; [`docs/modules/api.md`](../../docs/modules/api.md) **AppModules** / composition-root narrative (**FIND-007**).
 
-**Still open (after Phase 7 merge):** optional SQLite perf (Phase 8). Phases **2–5** merged via PR **#112**; Phases **6–7** on branch `fix/enterprise-phase7-telemetry-docs` until merged.
+**Merge status (read this before editing “done”):** Phases **1–5** are on **`main`** (stacked audit work landed with PR **#112**; workflow-efficiency PR **#113** also on `main`). Phases **6–7** are **not** on `main` until **[PR #114](https://github.com/SavinRazvan/eXo-brain/pull/114)** merges (branch `fix/enterprise-phase7-telemetry-docs`, includes Phase 6 compose commits + Phase 7 doc commits).
+
+**Still open (after PR #114 merge):** optional SQLite perf (**Phase 8**). **Next slice after merge:** Phase 8 decision note in this file + `src/persistence/adapters/sqlite.py` evaluation per Phase 8 tasks.
 
 ---
 
@@ -41,7 +43,7 @@ Use these together so work does not scatter:
 | **This file** (`docs/plans/enterprise-audit-remediation-plan.md`) | Single canonical **phase plan**, acceptance criteria, PR split A–G, tracker ID mapping |
 | [`.local/index-and-planning/current/work-tracker.md`](../../.local/index-and-planning/current/work-tracker.md) | Exactly one **in_progress** slice; link to this plan when executing |
 | [`.local/index-and-planning/current/plan.md`](../../.local/index-and-planning/current/plan.md) | Slice scope, rollback, acceptance (per implementation governance) |
-| [`history/updates-log.md`](../../history/updates-log.md) | Substantive slice summaries after merge or milestone |
+| [`.local/index-and-planning/history/updates-log.md`](../../.local/index-and-planning/history/updates-log.md) | Substantive slice summaries after merge or milestone (gitignored clone state) |
 | **GitHub Issues** (optional) | One epic **Enterprise audit remediation** + children per phase or per PR A–G; IDs like `COV-100-002`, `FIND-007` if you use an external tracker |
 | **PR descriptions** | Baseline metrics (coverage %, commit SHA), Phase 0 telemetry choice **A vs B** |
 
