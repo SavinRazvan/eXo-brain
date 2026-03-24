@@ -61,10 +61,16 @@ See:
 
 ---
 
+## Supported Python
+
+**Minimum Python 3.12** — matches GitHub Actions `python-version: "3.12"` and the `Dockerfile` base image (`python:3.12-slim`). Use the same major.minor locally for parity with CI and coverage runs. Newer CPython (for example 3.13+) is expected to work unless documented otherwise.
+
+---
+
 ## Quick start
 
 ```bash
-# 1. Create and activate a virtual environment
+# 1. Create and activate a virtual environment (Python 3.12+ recommended; see "Supported Python" above)
 python -m venv .exo_env && source .exo_env/bin/activate
 
 # 2. Install dependencies
@@ -74,12 +80,14 @@ pip install -r requirements.txt
 cp .env.template .env
 # Edit .env and set OPENAI_API_KEY=sk-...
 
-# 4. Local quality gates — same **order** as scripts/pr/prepare.py GATES (then CI governance when relevant)
+# 4. Local quality gates — same **order** as scripts/pr/prepare.py GATES (four commands; canonical merge prep)
 python scripts/pr/check_testing_artifacts.py
 python -m pytest -q
 python scripts/architecture/validate_layers.py
 python scripts/architecture/scan_forbidden_imports.py
-python scripts/architecture/check_governance_consistency.py
+
+# 4b. When you change governance, workflows, or tracked policy docs, also run (CI mirrors path filters):
+# python scripts/architecture/check_governance_consistency.py
 
 # 5. Start the API server
 uvicorn src.api.app:create_app --factory --reload --port 8000
@@ -486,12 +494,12 @@ Tracked automation lives under `scripts/pr/` and `.github/workflows/`. Use **PR-
    - `python scripts/pr/prepare.py --pr <id|url> --actor "…" --agents "review-pr | prepare-pr"` (runs gates unless `--skip-gates`)
    - `python scripts/pr/merge.py --pr … --check-only` then merge via `gh`, then `merge.py` again with `--merge-sha <oid>`
 3. **Local artifacts** (scripts write under **`.local/workflow-artifacts/pr/`**): `review.md`, `prep.md`, `merge.md`. For **architecture-impacting** changes, produce `alignment-audit.md` and `alignment-todos.md` under **`.local/workflow-artifacts/alignment/`** using **`enterprise-auditor`** (`.cursor/agents/enterprise-auditor.md` + `.cursor/skills/enterprise-architecture-audit/SKILL.md`), and pass `--arch-impacting` to `merge.py` so both files are enforced.
-4. **Merge gates** — must match `scripts/pr/prepare.py` `GATES` (canonical order):
+4. **Merge gates** — default **`prepare.py` order** is exactly the four commands in `scripts/pr/prepare.py` `GATES` (canonical):
    - `python scripts/pr/check_testing_artifacts.py`
    - `python -m pytest -q` (CI also enforces coverage thresholds on PRs)
    - `python scripts/architecture/validate_layers.py`
    - `python scripts/architecture/scan_forbidden_imports.py`
-   - `python scripts/architecture/check_governance_consistency.py` (run locally when touching governance/workflows; CI runs it in `architecture-fitness`)
+   - **Also** run `python scripts/architecture/check_governance_consistency.py` locally when changing governance, workflows, `.cursor/`, `.agents/`, or tracked policy docs (CI runs it in `architecture-fitness` on relevant paths — not part of the default four-gate `prepare.py` run).
 5. **Docs** — on architecture/workflow changes, follow `docs/operations/documentation-maintenance-checklist.md`; optional `python scripts/docs/check_docs_metadata.py`.
 6. **After merge** — sync `main`, then `python scripts/pr/finalize.py --branch <feature-branch>` (optional `--delete-merged-local`); confirm remote branch deletion per team policy.
 

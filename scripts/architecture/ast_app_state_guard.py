@@ -4,7 +4,7 @@ Path: scripts/architecture/ast_app_state_guard.py
 Role: Pure AST helpers for detecting app.state access patterns in validate_layers.
 Used By:
  - scripts/architecture/validate_layers.py
- - tests/modules/unknown/test_validate_layers_app_state_getattr.py
+ - tests/modules/architecture_scripts/test_validate_layers_app_state_getattr.py
 Depends On:
  - ast
 Notes:

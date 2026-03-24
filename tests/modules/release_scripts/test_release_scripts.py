@@ -1,6 +1,6 @@
 """
 File: test_release_scripts.py
-Path: tests/modules/unknown/test_release_scripts.py
+Path: tests/modules/release_scripts/test_release_scripts.py
 Role: Validates release governance scripts used by CI/CD workflows.
 Used By:
  - .github/workflows/release-candidate.yml

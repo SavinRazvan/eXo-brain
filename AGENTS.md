@@ -42,8 +42,8 @@ Full handoff checklist: `docs/operations/workflow-complete.md` (esp. §F).
 
 ## Quality gates (single source of truth)
 
-**Default merge gate order** is the `GATES` list in **`scripts/pr/prepare.py`** (today: `check_testing_artifacts.py`, `pytest -q`, `validate_layers.py`, `scan_forbidden_imports.py`).  
-Add **`python scripts/architecture/check_governance_consistency.py`** when changing governance, workflows, or tracked policy docs (CI mirrors this).  
+**Default merge gate order** is the `GATES` list in **`scripts/pr/prepare.py`** — exactly **four** subprocesses today (`check_testing_artifacts.py`, `pytest -q`, `validate_layers.py`, `scan_forbidden_imports.py`). `prepare.py` does **not** run governance consistency by default.  
+**Additionally** run **`python scripts/architecture/check_governance_consistency.py`** when changing governance, workflows, `.cursor/`, `.agents/`, or tracked policy docs (CI mirrors path-scoped runs).  
 Substantive `src/**` work in this repo: use **`pytest --cov=src --cov-fail-under=100`** (or project CI parity) before merge.
 
 RC helpers: `make rc-signoff`, `make rc-signoff-json`.

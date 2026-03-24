@@ -1,6 +1,6 @@
 """
 File: test_option_c_load_profiles.py
-Path: tests/modules/unknown/test_option_c_load_profiles.py
+Path: tests/modules/perf_scripts/test_option_c_load_profiles.py
 Role: Validate Option C load profile script enforcement output path.
 Used By:
  - CI test suite

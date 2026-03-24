@@ -1,6 +1,6 @@
 """
 File: test_local_data_safety_script.py
-Path: tests/modules/unknown/test_local_data_safety_script.py
+Path: tests/modules/release_scripts/test_local_data_safety_script.py
 Role: Validates local SQLite backup/restore/validate release helper script.
 Used By:
  - pytest

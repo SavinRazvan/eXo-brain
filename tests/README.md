@@ -9,7 +9,7 @@ Tests are physically organized by source module under `tests/modules/<module>/`.
 - `tests/modules/mcp/`
 - `tests/modules/policies/`
 - `tests/modules/...`
-- `tests/modules/unknown/` for script and cross-cutting tests that do not map to one `src` module.
+- `tests/modules/pr_workflow/`, `tests/modules/architecture_scripts/`, `tests/modules/release_scripts/`, `tests/modules/perf_scripts/` for **repository script** tests (`scripts/pr`, `scripts/architecture`, `scripts/release`, `scripts/perf`) that do not map to a single `src` module (pytest may still mark them `module_unknown` when no `src.*` import is inferred).
 
 ## Run all tests
 
@@ -42,4 +42,4 @@ pytest -q --enforce-unique-test-names-per-module
 ## Notes
 
 - Module markers are inferred from `src.<module>` imports in each test file.
-- Tests with no clear module mapping are marked as `module_unknown`.
+- Tests with no `src.*` import inferred from the file are marked as `module_unknown` (common for script-only tests under `*_scripts/` / `pr_workflow/`).
