@@ -19,8 +19,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.app import create_app
 from src.api import readiness as readiness_mod
+from src.api.app import create_app
 from src.persistence.adapters.sqlite_audit import SQLiteAuditStore
 
 
