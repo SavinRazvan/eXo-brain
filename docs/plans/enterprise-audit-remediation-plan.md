@@ -29,7 +29,7 @@ Notes:
 - **Phase 7 — Docs / telemetry alignment:** [`customer-api-integration-guide.md`](../../docs/api/customer-api-integration-guide.md) §9.2 and header Notes describe **partial** OTLP + Prometheus baseline with code/test anchors; [`traceability-matrix.md`](../../docs/strategy/traceability-matrix.md) rows + gap table updated; [`docs/modules/api.md`](../../docs/modules/api.md) **AppModules** / composition-root narrative (**FIND-007**).
 - **Phase 8 — SQLite connection posture (audit closure):** **Defer** long-lived file-backed connection unification; rationale + connection-model summary in [`sqlite.py`](../../src/persistence/adapters/sqlite.py) module **Notes**; no micro-benchmark gate in-repo (perf note recorded).
 
-**Merge status:** Phases **1–5** audit stack on **`main`** via PR **#112**; maintainer workflow doc refresh PR **#113**; **Phases 6–7** on **`main`** via **[PR #114](https://github.com/SavinRazvan/eXo-brain/pull/114)** (merge `ea9a10b`). **Phase 8** lands via maintainer PR after review (doc + module header only unless scope expands).
+**Merge status:** Phases **1–5** audit stack on **`main`** via PR **#112**; maintainer workflow doc refresh PR **#113**; **Phases 6–7** on **`main`** via **[PR #114](https://github.com/SavinRazvan/eXo-brain/pull/114)** (merge `ea9a10b`); **Phase 8** on **`main`** via **[PR #116](https://github.com/SavinRazvan/eXo-brain/pull/116)** (squash `26da43d`).
 
 **Still open (outside this plan’s phased closure):** module-hygiene / test-ownership backlog (**`COV-100-002`**, **`FIND-*`** in `work-tracker.md`); optional future SQLite perf work only if measured production need appears.
 
@@ -68,7 +68,7 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 - `docs/api/customer-api-integration-guide.md` §9.2 documents telemetry as **partial** with anchors to `telemetry_export.py`, `prometheus_metrics.py`, `bootstrap.py`, and tests — **Phase 7 done** after merge.
 - `docker-compose.yml`: top-of-file **not-for-prod** banner + override example — **Phase 6 done** after merge.
 - Identity tests live under **`tests/modules/identity_access/`** (there is no `tests/modules/identity/` tree today).
-- `src/persistence/adapters/sqlite.py`: Phase **8** **defer** + connection-model summary in module **Notes** — **done** after merge of Phase 8 PR.
+- `src/persistence/adapters/sqlite.py`: Phase **8** **defer** + connection-model summary in module **Notes** — **merged** via **PR #116** (`26da43d`).
 
 ---
 
@@ -349,3 +349,4 @@ For GitHub: one **epic** + child issues per phase **or** one issue per PR **A–
 | 2026-03-24 | Phase 7: customer guide + traceability matrix **partial** telemetry; `docs/modules/api.md` `AppModules` composition narrative. |
 | 2026-03-24 | PR **#114** merged to `main` — Phases 6–7; plan merge-status paragraph synced post-merge. |
 | 2026-03-24 | Phase 8: **defer** file-backed SQLite connection unification; documented in `sqlite.py` Notes + this plan (no code-path change). |
+| 2026-03-24 | PR **#116** merged to `main` — Phase 8; plan merge-status + spot-check lines synced. |
