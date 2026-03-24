@@ -10,7 +10,7 @@ Depends On:
  - pathlib
 Notes:
  - Writes structured rollback evidence (JSON + human-readable) for incident/audit workflows.
- - Integrators should replace the stub hook with environment-specific automation.
+ - Default output states `manual_automation_required` / `evidence_only` until real rollback hooks are wired.
 """
 
 from __future__ import annotations
@@ -56,12 +56,16 @@ def main() -> int:
             readiness_status = f"error:{exc}"
 
     record = {
-        "rollback_status": "stub_executed",
+        "rollback_status": "manual_automation_required",
+        "automation_level": "evidence_only",
         "environment": args.environment,
         "release_ref": args.release_ref,
         "executed_at_utc": executed_at,
         "readiness_probe": readiness_status,
-        "note": "Replace rollback_status stub with environment-specific automation when available.",
+        "note": (
+            "No environment rollback command was executed; this file is audit evidence only. "
+            "Wire kubectl/helm/API rollback when operational automation is available."
+        ),
     }
 
     out_path = Path(args.out)
@@ -69,7 +73,8 @@ def main() -> int:
     out_path.write_text(
         "\n".join(
             [
-                "rollback-status: executed",
+                "rollback-status: manual_automation_required",
+                "automation_level: evidence_only",
                 f"environment: {args.environment}",
                 f"release-ref: {args.release_ref}",
                 f"executed_at_utc: {executed_at}",

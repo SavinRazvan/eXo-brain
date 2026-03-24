@@ -8,6 +8,8 @@
 #  - configs/release/rollout_policies.yaml
 # Notes:
 #  - Production deployment should use protected environment approvals.
+#  - Real deploy/post-deploy automation is not wired here: only image build + local container smoke are executed.
+#    Replace placeholder steps with kubectl/helm/terraform (or your CD system) before treating this as production deploy evidence.
 
 name: progressive-deploy
 
@@ -60,19 +62,19 @@ jobs:
           curl -sf "http://127.0.0.1:18000/ready"
           docker stop exo-smoke
 
-      - name: Deploy release (placeholder)
+      - name: Deploy release (template placeholder — no external target invoked)
         run: |
-          echo "Deploying ${{ inputs.release_ref }} to ${{ inputs.environment }}"
+          echo "Recording template-only deploy step for ${{ inputs.release_ref }} -> ${{ inputs.environment }}"
           mkdir -p artifacts/evidence
-          echo "deploy-status: executed" > artifacts/evidence/deploy.txt
+          echo "deploy_automation: template_placeholder_no_external_target" > artifacts/evidence/deploy.txt
           echo "environment: ${{ inputs.environment }}" >> artifacts/evidence/deploy.txt
           echo "release-ref: ${{ inputs.release_ref }}" >> artifacts/evidence/deploy.txt
-          echo "container-smoke: passed" >> artifacts/evidence/deploy.txt
+          echo "container_image_smoke_local: passed" >> artifacts/evidence/deploy.txt
 
-      - name: Health check (placeholder)
+      - name: Post-deploy health (template placeholder — not hitting a live deployment)
         run: |
-          echo "Running post-deploy health checks"
-          python -c "print('healthcheck: pass')"
+          echo "Post-deploy health automation not configured; no live deployment URL was probed."
+          python -c "print('post_deploy_health_automation: not_invoked')"
 
       - name: Rollback on deploy failure
         if: failure()
