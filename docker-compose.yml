@@ -1,3 +1,20 @@
+# =============================================================================
+# NOT A PRODUCTION / ENTERPRISE TEMPLATE
+# =============================================================================
+# Default service uses EXO_ENV=development. In that mode, unset EXO_CORS_ORIGINS
+# may allow wildcard browser CORS — fine for local hacking, unsafe for prod.
+#
+# Before any production-like or shared deployment:
+#   - Set EXO_ENV=production (or staging) and EXO_CORS_ORIGINS to real origins.
+#   - Consider EXO_CONTROL_STATE_BACKEND=sqlite + EXO_CONTROL_STATE_SQLITE_DB_PATH
+#     when multiple replicas need consistent run-control (see README table).
+#   - Set secrets via env_file or orchestrator secrets — never commit real keys.
+#
+# Optional: copy docker-compose.override.example.yml → docker-compose.override.yml
+# (gitignored) for machine-local ports, env, or volumes. Compose merges it
+# automatically next to this file.
+# =============================================================================
+#
 # File: docker-compose.yml
 # Path: docker-compose.yml
 # Role: Local single-node API + durable volume for SQLite and artifacts.
@@ -6,11 +23,7 @@
 # Depends On:
 #  - Dockerfile
 # Notes:
-#  - Override secrets via environment or an env_file not committed to git.
-#  - Dev-only posture: EXO_ENV=development allows wildcard CORS when EXO_CORS_ORIGINS is unset.
-#    For production-like compose, set EXO_ENV=production (or staging), EXO_CORS_ORIGINS to real origins,
-#    and optionally EXO_CONTROL_STATE_BACKEND=sqlite + EXO_CONTROL_STATE_SQLITE_DB_PATH for multi-replica
-#    run-control consistency (see README operations env table).
+#  - See banner above — default stack is dev-oriented, not hardened prod.
 
 services:
   api:

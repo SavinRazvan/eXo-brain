@@ -94,7 +94,9 @@ docker compose up --build
 # Readiness (SQLite PRAGMA quick_check): http://localhost:8000/ready
 ```
 
-**Operations-oriented environment variables** (non-exhaustive):
+**Compose safety:** The repo `docker-compose.yml` defaults to **`EXO_ENV=development`** and is **not** an enterprise production template — read the banner at the top of that file. Wildcard CORS can apply when `EXO_CORS_ORIGINS` is unset in development; for production-like deployments set **`EXO_ENV=production`** (or `staging`) and **`EXO_CORS_ORIGINS`** to real origins. For local-only tweaks, copy **`docker-compose.override.example.yml`** → **`docker-compose.override.yml`** (gitignored); Compose merges it automatically.
+
+**Operations-oriented environment variables** (non-exhaustive; **observability**: Prometheus and OTLP are listed here — wiring details in `src/observability/telemetry_export.py` and `src/api/routers/prometheus_metrics.py`):
 
 | Variable | Purpose |
 |----------|---------|

@@ -25,8 +25,12 @@ Notes:
 - **Phase 3 — CI/deploy evidence:** [`architecture-fitness.yml`](../../.github/workflows/architecture-fitness.yml) honest job results + fail step; [`progressive-deploy.yml`](../../.github/workflows/progressive-deploy.yml) template labels; [`rollback_release.py`](../../scripts/release/rollback_release.py) `manual_automation_required`.
 - **Phase 4 — Boundary guards:** [`ast_app_state_guard.py`](../../scripts/architecture/ast_app_state_guard.py) + [`validate_layers.py`](../../scripts/architecture/validate_layers.py); [`readiness.py`](../../src/api/readiness.py) in `ALLOWED_APP_STATE_FILES`; deps/startup `getattr(st, …)` pattern; [`test_validate_layers_app_state_getattr.py`](../../tests/modules/unknown/test_validate_layers_app_state_getattr.py).
 - **Phase 5 — Tenant runtime lifecycle:** `RuntimeSettings.tenant_runtime_max_cached_contexts` + `EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS` in [`src/api/app.py`](../../src/api/app.py); LRU eviction before adding a new tenant context in [`src/runtime/tenant_runtime.py`](../../src/runtime/tenant_runtime.py); `_log_adapter_start_session_done` for background `start_session` task failures; README env table; tests in [`tests/modules/runtime/test_tenant_runtime.py`](../../tests/modules/runtime/test_tenant_runtime.py) and [`test_app_factory_branches.py`](../../tests/modules/api/test_app_factory_branches.py).
+- **Phase 6 — Compose / prod clarity:** prominent **not-for-prod** banner on [`docker-compose.yml`](../../docker-compose.yml); [`docker-compose.override.example.yml`](../../docker-compose.override.example.yml) + gitignored `docker-compose.override.yml`; README Docker subsection + observability pointers (Prometheus/OTLP rows + code refs).
+- **Phase 7 — Docs / telemetry alignment:** [`customer-api-integration-guide.md`](../../docs/api/customer-api-integration-guide.md) §9.2 and header Notes describe **partial** OTLP + Prometheus baseline with code/test anchors; [`traceability-matrix.md`](../../docs/strategy/traceability-matrix.md) rows + gap table updated; [`docs/modules/api.md`](../../docs/modules/api.md) **AppModules** / composition-root narrative (**FIND-007**).
 
-**Still open (after Phase 5 merge):** prod compose warnings depth (Phase 6), docs/telemetry alignment (Phase 7), optional SQLite perf (Phase 8). **Phase 5** is on branch `fix/tenant-runtime-lifecycle`. **Phase 4** landed from `fix/boundary-guard-readiness`. **Phase 3** merged from `fix/ci-evidence-honesty`.
+**Merge status (read this before editing “done”):** Phases **1–5** are on **`main`** (stacked audit work landed with PR **#112**; workflow-efficiency PR **#113** also on `main`). Phases **6–7** are **not** on `main` until **[PR #114](https://github.com/SavinRazvan/eXo-brain/pull/114)** merges (branch `fix/enterprise-phase7-telemetry-docs`, includes Phase 6 compose commits + Phase 7 doc commits).
+
+**Still open (after PR #114 merge):** optional SQLite perf (**Phase 8**). **Next slice after merge:** Phase 8 decision note in this file + `src/persistence/adapters/sqlite.py` evaluation per Phase 8 tasks.
 
 ---
 
@@ -39,7 +43,7 @@ Use these together so work does not scatter:
 | **This file** (`docs/plans/enterprise-audit-remediation-plan.md`) | Single canonical **phase plan**, acceptance criteria, PR split A–G, tracker ID mapping |
 | [`.local/index-and-planning/current/work-tracker.md`](../../.local/index-and-planning/current/work-tracker.md) | Exactly one **in_progress** slice; link to this plan when executing |
 | [`.local/index-and-planning/current/plan.md`](../../.local/index-and-planning/current/plan.md) | Slice scope, rollback, acceptance (per implementation governance) |
-| [`history/updates-log.md`](../../history/updates-log.md) | Substantive slice summaries after merge or milestone |
+| [`.local/index-and-planning/history/updates-log.md`](../../.local/index-and-planning/history/updates-log.md) | Substantive slice summaries after merge or milestone (gitignored clone state) |
 | **GitHub Issues** (optional) | One epic **Enterprise audit remediation** + children per phase or per PR A–G; IDs like `COV-100-002`, `FIND-007` if you use an external tracker |
 | **PR descriptions** | Baseline metrics (coverage %, commit SHA), Phase 0 telemetry choice **A vs B** |
 
@@ -60,7 +64,8 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 - `src/api/dependencies.py`: compat path uses **`getattr(st, …)`** with **`st = request.app.state`** (allowed); not `getattr(request.app.state, …)`.
 - `src/runtime/tenant_runtime.py`: optional **max cached tenant contexts** (LRU eviction) + **logged** background `start_session` failures — **Phase 5 done** after merge (`EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS`, default `0` = unlimited).
 - `packages/exo-adapter-echo/` and `tests/packages/test_echo_adapter_conformance.py` exist — “second adapter” claim in **What improved** is accurate.
-- `docs/api/customer-api-integration-guide.md` still states standard telemetry export is **planned** (file header Notes and **§9.2**) while `telemetry_export.py` / `prometheus_metrics.py` exist — Phase 7 still applies.
+- `docs/api/customer-api-integration-guide.md` §9.2 documents telemetry as **partial** with anchors to `telemetry_export.py`, `prometheus_metrics.py`, `bootstrap.py`, and tests — **Phase 7 done** after merge.
+- `docker-compose.yml`: top-of-file **not-for-prod** banner + override example — **Phase 6 done** after merge.
 - Identity tests live under **`tests/modules/identity_access/`** (there is no `tests/modules/identity/` tree today).
 
 ---
@@ -82,8 +87,8 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 - **Resolved — synthetic / misleading evidence (honesty slice):** architecture-fitness summary lists **actual** job results and fails when any stage is not `success`; progressive-deploy artifact text distinguishes **template** vs **local image smoke**; rollback evidence uses **`manual_automation_required`** (integrators still replace with real automation).
 - **Partial — boundary debt:** `getattr` on **`app.state` / `application.state` as first argument** is blocked repo-wide. **Follow-up (time-box):** `platform_bootstrap` `_sync_modules_from_state` / `_build_compat_modules_from_state` and any remaining compat shortcuts.
 - **Improved — lifecycle:** Session LRU/idle + provider eviction unchanged; **tenant** contexts can be capped via `EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS` (LRU eviction); fire-and-forget `start_session` still applies but **failures are logged** (operators still need metrics/alerts for sustained error rates at very high volume).
-- **Medium — dev defaults:** `docker-compose.yml` uses `EXO_ENV=development`; wildcard CORS in dev/test when `EXO_CORS_ORIGINS` unset — fine locally, risky as a prod template.
-- **Low — neutrality + docs drift:** e.g. `provider_schemas.py` default registration URLs/models; `providers.py` `recommended_runtime_mode="hybrid"` in list responses; telemetry code exists but customer guide / traceability matrix still describe interoperability as “planned” in places.
+- **Improved — dev defaults:** `docker-compose.yml` still uses `EXO_ENV=development` by default, but ships an explicit **not-for-prod** banner, override example, and README warning so it is harder to mistake for an enterprise template.
+- **Low — neutrality + docs drift:** e.g. `provider_schemas.py` default registration URLs/models; `providers.py` `recommended_runtime_mode="hybrid"` in list responses. **Telemetry docs:** customer guide + traceability matrix now label OTLP/Prometheus baseline as **partial** with file/test anchors; remaining gap is collector E2E / expanded catalog per roadmap.
 
 ### Missing evidence (explicit non-claims)
 
@@ -244,10 +249,12 @@ Close gaps from the **enterprise-style architecture audit**: restore blocking qu
 
 ## Phase 6 — Security / edge defaults (P1) (~0.5 day)
 
-**Tasks**
+**Status:** Implemented on `fix/enterprise-phase6-compose-readme` — banner + `docker-compose.override.example.yml` + `.gitignore` for `docker-compose.override.yml`; README Docker + observability pointers.
 
-1. `docker-compose.yml`: prominent warnings; optional `compose.override.yml` for dev-only wildcard CORS.
-2. `README.md` operations env table (control state + session cache + Prometheus/OTLP pointers).
+**Tasks (done for this slice)**
+
+1. `docker-compose.yml`: prominent warnings; optional merge via `docker-compose.override.yml` (example committed as `docker-compose.override.example.yml`).
+2. `README.md`: Docker safety paragraph; operations table already includes control state, session/tenant cache, Prometheus, OTLP — added code pointers in the table intro.
 
 **Acceptance criteria**
 
@@ -257,9 +264,11 @@ Close gaps from the **enterprise-style architecture audit**: restore blocking qu
 
 ## Phase 7 — Docs + traceability alignment (P1) (~1 day)
 
-**Tasks**
+**Status:** Implemented on `fix/enterprise-phase7-telemetry-docs` — customer guide §9.2 + Notes; traceability matrix runtime/telemetry rows + OTel/Prometheus gap row; `docs/modules/api.md` composition / `AppModules` section.
 
-1. [`docs/api/customer-api-integration-guide.md`](../../docs/api/customer-api-integration-guide.md) and [`docs/strategy/traceability-matrix.md`](../../docs/strategy/traceability-matrix.md): match Phase 0 **A vs B** (partial vs productized).
+**Tasks (done for this slice)**
+
+1. [`docs/api/customer-api-integration-guide.md`](../../docs/api/customer-api-integration-guide.md) and [`docs/strategy/traceability-matrix.md`](../../docs/strategy/traceability-matrix.md): **partial** baseline for OTLP + Prometheus with code/test anchors; roadmap items explicit.
 2. [`docs/modules/api.md`](../../docs/modules/api.md): `AppModules` / composition-root narrative (**FIND-007**).
 
 **Low (optional same PR or later):** provider schema defaults / list `recommended_runtime_mode` copy — neutrality polish, not coverage-blocking.
@@ -331,3 +340,6 @@ For GitHub: one **epic** + child issues per phase **or** one issue per PR **A–
 | 2026-03-24 | Phase 1–2 marked complete: 100% coverage baseline, `EXO_CONTROL_STATE_*` and related env wiring in `app.py`, README/compose, tests. |
 | 2026-03-24 | Phase 3: architecture-fitness evidence from job results + fail on non-success; progressive-deploy honest placeholder labels; rollback `manual_automation_required` / `evidence_only`. |
 | 2026-03-24 | Phase 4: `ast_app_state_guard` + getattr-on-app.state ban; readiness direct `state`; deps/startup `getattr(st,…)`; tests load guard module only for coverage safety. |
+| 2026-03-24 | Phase 5: tenant runtime LRU cap + `start_session` error logging; env `EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS`. |
+| 2026-03-24 | Phase 6: compose not-for-prod banner, `docker-compose.override.example.yml`, README Docker safety. |
+| 2026-03-24 | Phase 7: customer guide + traceability matrix **partial** telemetry; `docs/modules/api.md` `AppModules` composition narrative. |
