@@ -18,7 +18,7 @@ Notes:
 
 ## What is done vs not done (important)
 
-**Done in code (merge when PR lands):**
+**Done on `main` (phases 1–7):**
 
 - **Phase 1 — Coverage:** `pytest --cov=src --cov-fail-under=100` green (**100%** `src/**`); full suite on the order of **~1160+ passed**, **1 skipped** (soak).
 - **Phase 2 — Stock factory env wiring:** `_default_settings()` in [`src/api/app.py`](../../src/api/app.py) parses `EXO_CONTROL_STATE_BACKEND`, `EXO_CONTROL_STATE_SQLITE_DB_PATH`, `EXO_SESSION_RUNTIME_IDLE_TTL_SECONDS`, `EXO_SESSION_RUNTIME_MAX_CACHED_SESSIONS`, `EXO_RUN_CONTROL_MAX_TERMINAL_RECORDS_PER_TENANT`; documented in [`README.md`](../../README.md); compose comments in [`docker-compose.yml`](../../docker-compose.yml); tests in [`tests/modules/api/test_app_factory_branches.py`](../../tests/modules/api/test_app_factory_branches.py).
@@ -28,9 +28,9 @@ Notes:
 - **Phase 6 — Compose / prod clarity:** prominent **not-for-prod** banner on [`docker-compose.yml`](../../docker-compose.yml); [`docker-compose.override.example.yml`](../../docker-compose.override.example.yml) + gitignored `docker-compose.override.yml`; README Docker subsection + observability pointers (Prometheus/OTLP rows + code refs).
 - **Phase 7 — Docs / telemetry alignment:** [`customer-api-integration-guide.md`](../../docs/api/customer-api-integration-guide.md) §9.2 and header Notes describe **partial** OTLP + Prometheus baseline with code/test anchors; [`traceability-matrix.md`](../../docs/strategy/traceability-matrix.md) rows + gap table updated; [`docs/modules/api.md`](../../docs/modules/api.md) **AppModules** / composition-root narrative (**FIND-007**).
 
-**Merge status (read this before editing “done”):** Phases **1–5** are on **`main`** (stacked audit work landed with PR **#112**; workflow-efficiency PR **#113** also on `main`). Phases **6–7** are **not** on `main` until **[PR #114](https://github.com/SavinRazvan/eXo-brain/pull/114)** merges (branch `fix/enterprise-phase7-telemetry-docs`, includes Phase 6 compose commits + Phase 7 doc commits).
+**Merge status:** Phases **1–5** audit stack on **`main`** via PR **#112**; maintainer workflow doc refresh PR **#113**; **Phases 6–7** on **`main`** via **[PR #114](https://github.com/SavinRazvan/eXo-brain/pull/114)** (merge `ea9a10b`).
 
-**Still open (after PR #114 merge):** optional SQLite perf (**Phase 8**). **Next slice after merge:** Phase 8 decision note in this file + `src/persistence/adapters/sqlite.py` evaluation per Phase 8 tasks.
+**Still open:** optional SQLite perf (**Phase 8** only). **Next slice:** Phase 8 tasks in this file — evaluate `src/persistence/adapters/sqlite.py` connection model vs risk; record unify vs defer.
 
 ---
 
@@ -233,7 +233,7 @@ Close gaps from the **enterprise-style architecture audit**: restore blocking qu
 
 ## Phase 5 — Runtime lifecycle hardening (P1–P2) (~2–4 days)
 
-**Status:** Implemented on `fix/tenant-runtime-lifecycle` — max tenant contexts + LRU eviction; `start_session` still scheduled asynchronously but failures are **logged** (`_log_adapter_start_session_done`). Further hardening (await init, surface error on first `run_turn`) remains optional.
+**Status:** **Merged** — PR **#112** (stacked audit). Max tenant contexts + LRU eviction; `start_session` still scheduled asynchronously but failures are **logged** (`_log_adapter_start_session_done`). Further hardening (await init, surface error on first `run_turn`) remains optional.
 
 **Tasks (done for this slice)**
 
@@ -249,7 +249,7 @@ Close gaps from the **enterprise-style architecture audit**: restore blocking qu
 
 ## Phase 6 — Security / edge defaults (P1) (~0.5 day)
 
-**Status:** Implemented on `fix/enterprise-phase6-compose-readme` — banner + `docker-compose.override.example.yml` + `.gitignore` for `docker-compose.override.yml`; README Docker + observability pointers.
+**Status:** **Merged** — PR **#114** (with Phase 7). Banner + `docker-compose.override.example.yml` + `.gitignore` for `docker-compose.override.yml`; README Docker + observability pointers.
 
 **Tasks (done for this slice)**
 
@@ -264,7 +264,7 @@ Close gaps from the **enterprise-style architecture audit**: restore blocking qu
 
 ## Phase 7 — Docs + traceability alignment (P1) (~1 day)
 
-**Status:** Implemented on `fix/enterprise-phase7-telemetry-docs` — customer guide §9.2 + Notes; traceability matrix runtime/telemetry rows + OTel/Prometheus gap row; `docs/modules/api.md` composition / `AppModules` section.
+**Status:** **Merged** — PR **#114**; customer guide §9.2 + Notes; traceability matrix runtime/telemetry rows + OTel/Prometheus gap row; `docs/modules/api.md` composition / `AppModules` section.
 
 **Tasks (done for this slice)**
 
@@ -343,3 +343,4 @@ For GitHub: one **epic** + child issues per phase **or** one issue per PR **A–
 | 2026-03-24 | Phase 5: tenant runtime LRU cap + `start_session` error logging; env `EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS`. |
 | 2026-03-24 | Phase 6: compose not-for-prod banner, `docker-compose.override.example.yml`, README Docker safety. |
 | 2026-03-24 | Phase 7: customer guide + traceability matrix **partial** telemetry; `docs/modules/api.md` `AppModules` composition narrative. |
+| 2026-03-24 | PR **#114** merged to `main` — Phases 6–7; plan merge-status paragraph synced post-merge. |
