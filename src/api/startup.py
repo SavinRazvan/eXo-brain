@@ -145,10 +145,11 @@ async def hydrate_tenant_registries(app: "FastAPI") -> None:
 
     Called once at app startup. Safe to call when stores are None (no-op).
     """
-    tool_store = getattr(app.state, "tool_store", None)
-    tool_version_store = getattr(app.state, "tool_version_store", None)
-    agent_store = getattr(app.state, "agent_store", None)
-    factory = getattr(app.state, "tenant_factory", None)
+    st = app.state
+    tool_store = getattr(st, "tool_store", None)
+    tool_version_store = getattr(st, "tool_version_store", None)
+    agent_store = getattr(st, "agent_store", None)
+    factory = getattr(st, "tenant_factory", None)
 
     if factory is None:
         logger.warning("hydrate_tenant_registries: tenant_factory not on app.state — skipping")
@@ -221,8 +222,8 @@ async def hydrate_tenant_registries(app: "FastAPI") -> None:
                 logger.info("Hydrated %d agent(s) for tenant %r", hydrated_agents, tenant_id)
 
     # Hydrate providers (dynamic registration)
-    provider_store = getattr(app.state, "provider_store", None)
-    provider_registry = getattr(app.state, "provider_registry", None)
+    provider_store = getattr(st, "provider_store", None)
+    provider_registry = getattr(st, "provider_registry", None)
     if provider_store is not None and provider_registry is not None:
         persisted = await provider_store.list_providers()
         hydrated_providers = 0
