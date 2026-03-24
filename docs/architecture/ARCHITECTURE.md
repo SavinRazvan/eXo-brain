@@ -15,6 +15,7 @@ Depends On:
 Notes:
  - Canonical implementation status and slice queue: docs/plans/tenant-tool-execution-architecture.md
  - Enforcement: scripts/architecture/validate_layers.py, scan_forbidden_imports.py
+ - Maintainer accuracy checklist: §14
 -->
 
 # System architecture (consolidated map)
@@ -60,7 +61,7 @@ Terms below come from [`docs/strategy/goal.md`](../strategy/goal.md), [`docs/str
 
 #### Diagram A — Option C workflow (who calls whom)
 
-Northbound request **enters** the control plane (Layer A / planes 1–6). The orchestrator path **uses** the adapter plane to reach external LLMs, and **dispatches** tool work to the **tool data plane** (sandbox/BYOC). This is the **operational** story; the next diagram lists all **ten numbered planes** in stack order.
+Northbound request **enters** the control plane (Layer A / planes 1–6). The orchestrator path **uses** the adapter plane to reach external LLMs, and **dispatches** tool work to the **tool data plane** (sandbox/BYOC). This is the **operational** story. **Diagram B** (below) shows how strategy terms nest; **Diagram C** lists all **ten numbered planes** in stack order.
 
 ```mermaid
 flowchart TB
@@ -192,6 +193,8 @@ flowchart TB
   P6 -.->|policy_and_tool_audit| P10
 ```
 
+**Layout note:** After plane 5, **plane 7→8** (model transport) and **plane 6** (policy + tools including sandbox/BYOC) are **parallel facets** of a turn, not a strict waterfall. The spine order is **notional** for readability; real execution interleaves adapter streaming and tool rounds.
+
 | # | Plane | What it is | Primary `src/` / `packages/` |
 |---|--------|------------|------------------------------|
 | **1** | **Northbound API** | Tenant-scoped HTTP, SSE, WebSocket; OpenAPI; no provider SDKs | `src/api/` |
@@ -203,7 +206,7 @@ flowchart TB
 | **7** | **Adapter plane** | Registry, factory loading, `RuntimeAdapter` implementations; portable packages | `src/config/provider_registry.py`, `src/runtime/adapter_factory.py`, `src/runtime/*adapter*`, `packages/exo-adapter-*`, contracts in `packages/exo-brain-core-contracts` |
 | **8** | **Southbound providers** | Customer-chosen model endpoints and protocols (outside your governance boundary) | Network egress from adapter implementations only |
 | **9** | **Persistence** | SQLite default stores, optional shared control-state SQLite, BYOC stores; memory in tests | `src/persistence/`, `src/api/bootstrap.py` |
-| **10** | **Evidence and observability** | Structured logs, metrics, traces, tool/turn audit, optional Prometheus/OTLP | `src/observability/`, `src/audit/`, `src/api/routers/prometheus_metrics.py`, `src/api/routers/audit.py` |
+| **10** | **Evidence and observability** | Structured logs, metrics, traces, tool/turn audit, optional Prometheus/OTLP, compliance evidence helpers | `src/observability/`, `src/audit/`, `src/compliance/` (bundle/evidence paths per `contracts.py`), `src/api/routers/prometheus_metrics.py`, `src/api/routers/audit.py` |
 
 **Note:** Plane **6** both **enforces** policy on tools and hosts **tool data-plane** execution (sandbox/BYOC). That is the **Option C “data plane”** in [`abbreviations-notepad.md`](../operations/abbreviations-notepad.md); do **not** confuse it with **`goal.md` Part 3** wording where **provider adapters** are called “data plane **connectors**” (here: **planes 7–8**). Option C worker contract: [`option-c-worker-isolation-contract.md`](../plans/option-c-worker-isolation-contract.md). Plane **10** is **emit / observe** relative to the request spine: exporters must not break governed execution ([`workspace-architecture.md`](workspace-architecture.md)).
 
@@ -307,8 +310,8 @@ Each row is a **named module** with a **public service** and **allowed dependenc
 
 | Module | Owns (doctrine) | Public entry | Typical `src/` homes (also mapped in contracts) |
 |--------|-----------------|--------------|--------------------------------------------------|
-| **shared_kernel** | Immutable schemas, shared reason codes | (types/schemas) | `src/schemas/` (as bounded) |
-| **adapter_contracts** | Runtime adapter interfaces only | contracts package + runtime ABC | `packages/exo-brain-core-contracts`, `src/runtime/runtime_adapter.py` |
+| **shared_kernel** | Immutable schemas, shared reason codes | `src.schemas` (+ identity contracts) | `src/schemas/`, `src/identity/contracts.py` (per `contracts.py`) |
+| **adapter_contracts** | Runtime + tool execution adapter interfaces | `RuntimeAdapter`, `ToolExecutionAdapter` surfaces | `packages/exo-brain-core-contracts`, `src/runtime/runtime_adapter.py`, `src/tools/execution_adapter.py` |
 | **identity_access** | Authn, API keys, RBAC, admin trust | `src.modules.identity_access.service` | `src/identity/`, `src/access_control/`, `src/api/middleware/auth.py` |
 | **tenant_governance** | Overlays, rate limits, quotas, entitlements, fairness | `src.modules.tenant_governance.service` | `src/tenancy/`, `src/policies/` |
 | **provider_management** | Provider registration, protocol typing, adapter lookup | `src.modules.provider_management.service` | `src/config/provider_registry.py`, `src/runtime/adapter_factory.py` |
@@ -467,5 +470,20 @@ Plans live under [`docs/plans/README.md`](../plans/README.md). This table maps *
 | [`workspace-architecture.md`](workspace-architecture.md) | Modular monolith doctrine and non-negotiables |
 | [`docs/runtime_contracts.md`](../runtime_contracts.md) | Runtime boundary contracts |
 | [`docs/plans/tenant-tool-execution-architecture.md`](../plans/tenant-tool-execution-architecture.md) | What is shipped vs next |
+| [`docs/strategy/deployment-models.md`](../strategy/deployment-models.md) | Data/control-plane boundary in managed vs self-hosted offerings |
 
 If this file and the root README diagram disagree on a **label** (e.g. historical “planned” wording), prefer **tenant-tool-execution-architecture.md** and **traceability-matrix.md** for current status.
+
+---
+
+## 14. Maintainer review checklist (accuracy)
+
+Use this when changing `src/` or strategy docs and you want this file to stay truthful.
+
+- [ ] **Planes 1–10** still match a quick pass over [`src/api/app.py`](../../src/api/app.py) router mounts and [`bootstrap.py`](../../src/api/bootstrap.py) persistence/control-state env vars.
+- [ ] **Module DAG (§6)** still matches [`src/modules/contracts.py`](../../src/modules/contracts.py) `MODULE_SPECS` `allowed_dependencies` (run [`validate_layers.py`](../../scripts/architecture/validate_layers.py)).
+- [ ] **Strategy table (§2)** still matches [`goal.md`](../strategy/goal.md) Part 1/3, [`interface-strategy.md`](../strategy/interface-strategy.md) §3, and [`abbreviations-notepad.md`](../operations/abbreviations-notepad.md) Option C row.
+- [ ] **Canonical plans table (§10)** still aligned with [`docs/plans/README.md`](../plans/README.md) and any new `docs/plans/*` canonical doc.
+- [ ] **Mermaid:** subgraph IDs stay alphanumeric/underscore; after edits, spot-render in GitHub or VS Code preview (broken mermaid fails silently in some viewers).
+
+**Known simplifications (not bugs):** Diagrams **A–C** omit MCP registry detail, background-only jobs, and some readiness/health routes; **§3** omits the orchestrator↔adapter tool loop edges on purpose (see §3 bullet 6).
