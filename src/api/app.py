@@ -46,6 +46,39 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _control_state_backend_from_env() -> str:
+    """Resolve EXO_CONTROL_STATE_BACKEND to memory|sqlite (unknown values → memory)."""
+    raw = os.environ.get("EXO_CONTROL_STATE_BACKEND", "memory")
+    normalized = str(raw or "").strip().lower()
+    if normalized == "sqlite":
+        return "sqlite"
+    return "memory"
+
+
+def _env_int_non_negative(name: str, default: int) -> int:
+    """Parse int from env; empty/invalid → default; negative values clamp to 0."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    text = str(raw).strip()
+    if not text:
+        return default
+    try:
+        value = int(text)
+    except ValueError:
+        return default
+    return max(0, value)
+
+
+def _control_state_sqlite_db_path_from_env() -> str:
+    """Default matches RuntimeSettings.control_state_sqlite_db_path when env unset or blank."""
+    raw = os.environ.get("EXO_CONTROL_STATE_SQLITE_DB_PATH")
+    if raw is None:
+        return ".exo_data/exo_control_state.db"
+    stripped = str(raw).strip()
+    return stripped if stripped else ".exo_data/exo_control_state.db"
+
+
 def _cors_origins_for_environment(exo_env: str) -> list[str]:
     raw = os.environ.get("EXO_CORS_ORIGINS", "").strip()
     if raw:
@@ -206,6 +239,15 @@ def _default_settings() -> AppSettings:
             ),
             byoc_fair_admission_wait_timeout_ms=int(
                 os.environ.get("EXO_BYOC_FAIR_ADMISSION_WAIT_TIMEOUT_MS", "1000")
+            ),
+            control_state_backend=_control_state_backend_from_env(),
+            control_state_sqlite_db_path=_control_state_sqlite_db_path_from_env(),
+            session_runtime_idle_ttl_seconds=_env_int_non_negative("EXO_SESSION_RUNTIME_IDLE_TTL_SECONDS", 0),
+            session_runtime_max_cached_sessions=_env_int_non_negative(
+                "EXO_SESSION_RUNTIME_MAX_CACHED_SESSIONS", 0
+            ),
+            run_control_max_terminal_records_per_tenant=_env_int_non_negative(
+                "EXO_RUN_CONTROL_MAX_TERMINAL_RECORDS_PER_TENANT", 0
             ),
         ),
         auth=AuthSettings(

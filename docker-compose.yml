@@ -7,6 +7,10 @@
 #  - Dockerfile
 # Notes:
 #  - Override secrets via environment or an env_file not committed to git.
+#  - Dev-only posture: EXO_ENV=development allows wildcard CORS when EXO_CORS_ORIGINS is unset.
+#    For production-like compose, set EXO_ENV=production (or staging), EXO_CORS_ORIGINS to real origins,
+#    and optionally EXO_CONTROL_STATE_BACKEND=sqlite + EXO_CONTROL_STATE_SQLITE_DB_PATH for multi-replica
+#    run-control consistency (see README operations env table).
 
 services:
   api:
@@ -15,6 +19,8 @@ services:
       - "8000:8000"
     environment:
       EXO_ENV: development
+      # EXO_CONTROL_STATE_BACKEND: sqlite
+      # EXO_CONTROL_STATE_SQLITE_DB_PATH: /app/.exo_data/exo_control_state.db
     volumes:
       - exo_data:/app/.exo_data
     healthcheck:

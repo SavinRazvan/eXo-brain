@@ -13,6 +13,8 @@ Notes:
 from __future__ import annotations
 
 from src.api import app as app_module
+from src.core.run_control_registry import RunControlRegistry, SQLiteRunControlRegistry
+from src.tenancy.rate_limiter import SQLiteTenantRateLimiter, TenantRateLimiter
 
 
 def test_env_bool_true_when_enabled_token(monkeypatch) -> None:
@@ -63,3 +65,79 @@ def test_prometheus_metrics_router_registered_when_env_enabled(monkeypatch, tmp_
         response = client.get("/metrics")
     assert response.status_code == 200
     assert "exo_build_info" in response.text
+
+
+def test_control_state_backend_from_env(monkeypatch) -> None:
+    monkeypatch.setenv("EXO_CONTROL_STATE_BACKEND", "sqlite")
+    assert app_module._control_state_backend_from_env() == "sqlite"
+    monkeypatch.setenv("EXO_CONTROL_STATE_BACKEND", "  SQLITE ")
+    assert app_module._control_state_backend_from_env() == "sqlite"
+    monkeypatch.setenv("EXO_CONTROL_STATE_BACKEND", "memory")
+    assert app_module._control_state_backend_from_env() == "memory"
+    monkeypatch.setenv("EXO_CONTROL_STATE_BACKEND", "postgres")
+    assert app_module._control_state_backend_from_env() == "memory"
+
+
+def test_env_int_non_negative(monkeypatch) -> None:
+    monkeypatch.delenv("EXO_INT_TEST", raising=False)
+    assert app_module._env_int_non_negative("EXO_INT_TEST", 7) == 7
+    monkeypatch.setenv("EXO_INT_TEST", "")
+    assert app_module._env_int_non_negative("EXO_INT_TEST", 7) == 7
+    monkeypatch.setenv("EXO_INT_TEST", "42")
+    assert app_module._env_int_non_negative("EXO_INT_TEST", 7) == 42
+    monkeypatch.setenv("EXO_INT_TEST", "-3")
+    assert app_module._env_int_non_negative("EXO_INT_TEST", 7) == 0
+    monkeypatch.setenv("EXO_INT_TEST", "bad")
+    assert app_module._env_int_non_negative("EXO_INT_TEST", 7) == 7
+
+
+def test_control_state_sqlite_db_path_from_env(monkeypatch) -> None:
+    monkeypatch.delenv("EXO_CONTROL_STATE_SQLITE_DB_PATH", raising=False)
+    assert app_module._control_state_sqlite_db_path_from_env() == ".exo_data/exo_control_state.db"
+    monkeypatch.setenv("EXO_CONTROL_STATE_SQLITE_DB_PATH", "  ")
+    assert app_module._control_state_sqlite_db_path_from_env() == ".exo_data/exo_control_state.db"
+    monkeypatch.setenv("EXO_CONTROL_STATE_SQLITE_DB_PATH", "/tmp/cs.db")
+    assert app_module._control_state_sqlite_db_path_from_env() == "/tmp/cs.db"
+
+
+def test_default_settings_reads_control_plane_scale_env(monkeypatch) -> None:
+    monkeypatch.setenv("EXO_ENV", "test")
+    monkeypatch.setenv("EXO_CONTROL_STATE_BACKEND", "sqlite")
+    monkeypatch.setenv("EXO_CONTROL_STATE_SQLITE_DB_PATH", "/custom/control.db")
+    monkeypatch.setenv("EXO_SESSION_RUNTIME_IDLE_TTL_SECONDS", "90")
+    monkeypatch.setenv("EXO_SESSION_RUNTIME_MAX_CACHED_SESSIONS", "16")
+    monkeypatch.setenv("EXO_RUN_CONTROL_MAX_TERMINAL_RECORDS_PER_TENANT", "200")
+    settings = app_module._default_settings()
+    assert settings.runtime.control_state_backend == "sqlite"
+    assert settings.runtime.control_state_sqlite_db_path == "/custom/control.db"
+    assert settings.runtime.session_runtime_idle_ttl_seconds == 90
+    assert settings.runtime.session_runtime_max_cached_sessions == 16
+    assert settings.runtime.run_control_max_terminal_records_per_tenant == 200
+
+
+def test_create_app_sqlite_control_state_from_env(monkeypatch, tmp_path) -> None:
+    from fastapi.testclient import TestClient
+
+    db = tmp_path / "exo.db"
+    control_db = tmp_path / "control.db"
+    monkeypatch.setenv("EXO_ENV", "test")
+    monkeypatch.setenv("EXO_DB_PATH", str(db))
+    monkeypatch.setenv("EXO_CONTROL_STATE_BACKEND", "sqlite")
+    monkeypatch.setenv("EXO_CONTROL_STATE_SQLITE_DB_PATH", str(control_db))
+    app = app_module.create_app()
+    assert isinstance(app.state.run_control_registry, SQLiteRunControlRegistry)
+    assert isinstance(app.state.turn_rate_limiter, SQLiteTenantRateLimiter)
+    assert isinstance(app.state.tool_upload_rate_limiter, SQLiteTenantRateLimiter)
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == 200
+
+
+def test_create_app_memory_control_state_when_env_default(monkeypatch, tmp_path) -> None:
+    db = tmp_path / "exo.db"
+    monkeypatch.setenv("EXO_ENV", "test")
+    monkeypatch.setenv("EXO_DB_PATH", str(db))
+    monkeypatch.delenv("EXO_CONTROL_STATE_BACKEND", raising=False)
+    app = app_module.create_app()
+    assert isinstance(app.state.run_control_registry, RunControlRegistry)
+    assert isinstance(app.state.turn_rate_limiter, TenantRateLimiter)
+    assert isinstance(app.state.tool_upload_rate_limiter, TenantRateLimiter)

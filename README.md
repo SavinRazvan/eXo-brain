@@ -98,6 +98,11 @@ docker compose up --build
 
 | Variable | Purpose |
 |----------|---------|
+| `EXO_CONTROL_STATE_BACKEND` | `memory` (default) or `sqlite` — shared SQLite run-control registry and per-tenant rate limiters for multi-worker/multi-process deployments (`src/api/bootstrap.py`). |
+| `EXO_CONTROL_STATE_SQLITE_DB_PATH` | SQLite file path when `EXO_CONTROL_STATE_BACKEND=sqlite` (default `.exo_data/exo_control_state.db`). |
+| `EXO_SESSION_RUNTIME_IDLE_TTL_SECONDS` | Process-local tenant session cache idle TTL in seconds; `0` disables idle eviction (`RuntimeSettings.session_runtime_idle_ttl_seconds`). |
+| `EXO_SESSION_RUNTIME_MAX_CACHED_SESSIONS` | Max cached sessions per tenant runtime; `0` means no cap (`RuntimeSettings.session_runtime_max_cached_sessions`). |
+| `EXO_RUN_CONTROL_MAX_TERMINAL_RECORDS_PER_TENANT` | Prune terminal run-control rows per tenant; `0` means unlimited automatic pruning (`RuntimeSettings.run_control_max_terminal_records_per_tenant`). |
 | `EXO_ENABLE_PROMETHEUS_METRICS` | When `1`, exposes `GET /metrics` (Prometheus text). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Base URL for OTLP HTTP export (traces + metrics); optional per-signal overrides in `telemetry_export.py`. |
 | `EXO_CORS_ORIGINS` | Comma-separated allowed origins; unset + non-dev `EXO_ENV` disables wildcard CORS. |
