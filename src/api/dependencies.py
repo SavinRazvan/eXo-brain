@@ -95,7 +95,8 @@ def _cross_tenant_admin_allowed(request: Request, identity: IdentityContext) -> 
     modules = get_app_modules(request)
     if modules is not None:
         return modules.identity_access.service.allow_cross_tenant_admin_access(identity)
-    settings = getattr(request.app.state, "settings", None)
+    st = request.app.state
+    settings = getattr(st, "settings", None)
     auth = getattr(settings, "auth", None)
     allow_bypass = bool(getattr(auth, "allow_cross_tenant_admin", False))
     if not allow_bypass:
@@ -161,7 +162,8 @@ def get_tool_store(request: Request) -> ToolStore | None:
     modules = get_app_modules(request)
     if modules is not None:
         return modules.tool_management.tool_store
-    return getattr(request.app.state, "tool_store", None)
+    st = request.app.state
+    return getattr(st, "tool_store", None)
 
 
 def get_agent_store(request: Request) -> AgentStore | None:
@@ -169,7 +171,8 @@ def get_agent_store(request: Request) -> AgentStore | None:
     modules = get_app_modules(request)
     if modules is not None:
         return modules.agent_management.agent_store
-    return getattr(request.app.state, "agent_store", None)
+    st = request.app.state
+    return getattr(st, "agent_store", None)
 
 
 def get_tool_version_store(request: Request) -> ToolVersionStore | None:
@@ -177,7 +180,8 @@ def get_tool_version_store(request: Request) -> ToolVersionStore | None:
     modules = get_app_modules(request)
     if modules is not None:
         return modules.tool_management.tool_version_store
-    return getattr(request.app.state, "tool_version_store", None)
+    st = request.app.state
+    return getattr(st, "tool_version_store", None)
 
 
 def get_run_control_registry(request: Request):
@@ -185,4 +189,5 @@ def get_run_control_registry(request: Request):
     modules = get_app_modules(request)
     if modules is not None:
         return modules.session_runtime.run_control_registry
-    return getattr(request.app.state, "run_control_registry", None)
+    st = request.app.state
+    return getattr(st, "run_control_registry", None)

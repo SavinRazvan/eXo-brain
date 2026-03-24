@@ -88,6 +88,8 @@ class RuntimeSettings:
     # Session runtime caches (process-local); 0 disables that limit/TTL.
     session_runtime_idle_ttl_seconds: int = 0
     session_runtime_max_cached_sessions: int = 0
+    # Max distinct tenant contexts cached in-process; 0 = unlimited (evict LRU when exceeded).
+    tenant_runtime_max_cached_contexts: int = 0
     # Terminal run-control rows retained per tenant (0 = unlimited automatic pruning).
     run_control_max_terminal_records_per_tenant: int = 0
 

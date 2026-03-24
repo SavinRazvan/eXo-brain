@@ -8,6 +8,7 @@ Depends On:
  - sqlite3
 Notes:
  - Liveness stays on /health; /ready fails closed when configured SQLite paths are unhealthy.
+ - Uses `application.state` directly; listed in `ALLOWED_APP_STATE_FILES` (see `validate_layers.py`).
 """
 
 from __future__ import annotations
@@ -39,8 +40,9 @@ def readiness_snapshot(application: Any) -> dict[str, object]:
     """Return structured readiness status for the fully bootstrapped application."""
     checks: dict[str, str] = {}
     all_ok = True
+    state = application.state
 
-    session_store = getattr(application.state, "session_store", None)
+    session_store = state.session_store
     if session_store is not None:
         cls_name = type(session_store).__name__
         if cls_name.startswith("SQLite"):
@@ -51,14 +53,14 @@ def readiness_snapshot(application: Any) -> dict[str, object]:
         else:
             checks["session_store"] = cls_name
 
-    registry = getattr(application.state, "run_control_registry", None)
+    registry = state.run_control_registry
     if registry is not None and type(registry).__name__ == "SQLiteRunControlRegistry":
         path = getattr(registry, "_db_path", "")
         ok, detail = _sqlite_quick_check(str(path))
         checks["control_state_sqlite"] = detail
         all_ok = all_ok and ok
 
-    audit_store = getattr(application.state, "audit_store", None)
+    audit_store = state.audit_store
     if audit_store is not None and type(audit_store).__name__ == "SQLiteAuditStore":
         path = getattr(audit_store, "_db_path", "")
         ok, detail = _sqlite_quick_check(str(path))

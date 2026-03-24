@@ -18,7 +18,9 @@ Depends On:
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
+from typing import Any
 
 import pytest
 
@@ -41,7 +43,11 @@ from src.runtime.capability_map import HealthState, HealthStatus, ProviderCapabi
 from src.runtime.custom_runtime import CustomRuntimeAdapter
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 from src.runtime.runtime_adapter import RuntimeAdapter, SessionHandle
-from src.runtime.tenant_runtime import TenantRuntimeContext, TenantRuntimeFactory
+from src.runtime.tenant_runtime import (
+    TenantRuntimeContext,
+    TenantRuntimeFactory,
+    _log_adapter_start_session_done,
+)
 from src.schemas.events import RuntimeEvent
 from src.runtime.tool_wiring import build_agent_tools
 from src.schemas.tool_io import RiskTier, ToolResult
@@ -92,6 +98,15 @@ def _make_factory(provider_id: str = "openai-test") -> TenantRuntimeFactory:
         provider_registry=_make_provider_registry(provider_id),
         settings=_make_settings(provider_id),
     )
+
+
+class _FailingStartSessionAdapter(CustomRuntimeAdapter):
+    async def start_session(
+        self,
+        session_id: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> SessionHandle:
+        raise RuntimeError("intentional start_session failure for tests")
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +464,95 @@ def test_session_runtime_max_cached_sessions_evicts_lru_before_add() -> None:
     with pytest.raises(KeyError):
         factory.get_session_runtime("sess-cap-1")
     assert factory.get_session_runtime("sess-cap-2") is not None
+
+
+def test_tenant_runtime_max_cached_contexts_evicts_lru_tenant() -> None:
+    provider_id = "openai-test"
+    settings = AppSettings(
+        schema_version="1.0",
+        environment="test",
+        runtime=RuntimeSettings(
+            default_provider_id=provider_id,
+            allowed_provider_ids=[provider_id],
+            require_provider_healthcheck_on_start=False,
+            tenant_runtime_max_cached_contexts=2,
+        ),
+    )
+    registry = _make_provider_registry(provider_id)
+    factory = TenantRuntimeFactory(provider_registry=registry, settings=settings)
+    ctx_a = factory.get_or_create("tenant-lru-a")
+    factory.get_or_create("tenant-lru-b")
+    assert factory.get_or_create("tenant-lru-a") is ctx_a
+    factory.get_or_create("tenant-lru-c")
+    assert "tenant-lru-b" not in factory.list_tenants()
+    assert "tenant-lru-a" in factory.list_tenants()
+    assert "tenant-lru-c" in factory.list_tenants()
+
+
+def test_log_adapter_start_session_done_noop_for_cancelled() -> None:
+    async def _run() -> None:
+        async def _slow() -> None:
+            await asyncio.sleep(10)
+
+        task = asyncio.create_task(_slow())
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        _log_adapter_start_session_done(task, session_id="sess-cancelled")
+
+    asyncio.run(_run())
+
+
+def test_log_adapter_start_session_done_logs_failed_task(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.ERROR)
+
+    async def _run() -> None:
+        async def _bad() -> None:
+            raise RuntimeError("boom")
+
+        task = asyncio.create_task(_bad())
+        await asyncio.sleep(0)
+        _log_adapter_start_session_done(task, session_id="sess-bad")
+
+    asyncio.run(_run())
+    assert any("adapter.start_session failed" in r.message for r in caplog.records)
+
+
+def test_start_session_background_failure_is_logged(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.ERROR)
+    provider_id = "fail-start-provider"
+    settings = _make_settings(provider_id)
+    record = ProviderRecord(
+        provider_id=provider_id,
+        display_name="Failing Start",
+        adapter_class="definitely_missing_module_xyz.NoSuchAdapter",
+        enabled=True,
+        profile=ProviderProfile.MANAGED_VENDOR,
+        priority=1,
+        endpoint=EndpointConfig(base_url="https://example.com", api_type=EndpointApiType.OPENAI_NATIVE),
+        auth=AuthConfig(type="api_key", api_key_env_var=""),
+        model_defaults=ModelDefaults(model="gpt-4o-mini"),
+    )
+    registry = ProviderRegistry(
+        settings=settings,
+        providers=[record],
+        adapters={provider_id: _FailingStartSessionAdapter(provider_id=provider_id)},
+    )
+    factory = TenantRuntimeFactory(provider_registry=registry, settings=settings)
+    ctx = factory.get_or_create("tenant-fail-bg")
+    ctx.agent_registry.register(AgentSpec(agent_id="agent-fail-bg", role="assistant"))
+
+    async def _run() -> None:
+        factory.create_session_runtime(
+            ctx,
+            agent_id="agent-fail-bg",
+            provider_id=provider_id,
+            session_id="sess-fail-bg",
+        )
+        await asyncio.sleep(0.05)
+
+    asyncio.run(_run())
+    assert any("adapter.start_session failed" in r.message for r in caplog.records)
 
 
 def test_create_session_runtime_schedules_start_session_when_loop_running() -> None:
