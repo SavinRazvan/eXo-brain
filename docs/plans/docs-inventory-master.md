@@ -20,10 +20,12 @@ Notes:
 |---|---|
 | `README.md` | Project entrypoint and developer quick-start |
 | `docs/api/customer-api-integration-guide.md` | Tier-aware API contract documentation for customer onboarding (chat/agents/workflow + governance ingress) |
+| `docs/architecture/beginner-workflow.md` | Beginner-friendly plain-language walkthrough of the platform workflow |
 | `docs/architecture/mvp.md` | Layer architecture and design intent (canonical) |
 | `docs/architecture_mvp.md` | Redirect stub → `docs/architecture/mvp.md` |
 | `docs/architecture/workspace-architecture.md` | Workspace doctrine (adapters, policy, enterprise controls) |
 | `docs/strategy/README.md` | Strategy package index (product direction, entitlements, traceability) |
+| `docs/strategy/governed-execution-positioning.md` | Product boundary, ICP, monetization posture, and messaging guardrails for governed execution |
 | `docs/operations/workflow-complete.md` | Maintainer workflow checklist (durable) |
 | `docs/operations/agent-workflow-procedures.md` | Audit/PR dedup procedures |
 | `docs/operations/logging-and-errors.md` | Logging rollout plan |
@@ -57,6 +59,7 @@ Notes:
 | `docs/plans/docs-governance-baseline-map.md` | Governance dependency baseline for archive migrations |
 | `docs/plans/docs-and-notebooks-cleanup-plan.md` | Notebook/doc cleanup execution history and references |
 | `docs/plans/notebook-standards.md` | Notebook standards and ownership |
+| `docs/plans/enterprise-audit-remediation-plan.md` | Phased remediation after enterprise-style architecture audit (coverage, wiring, CI, boundaries, lifecycle, docs) |
 
 ## Archived / Historical
 

@@ -24,13 +24,14 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
-- Last Reviewed: `2026-03-12`
+- Version: `1.1.0`
+- Last Reviewed: `2026-03-22`
 - Review Cadence: `monthly`
 - Decision Scope: `Core-layer invariants, responsibility boundaries, and non-bypassable governance model.`
 
 Companion strategy docs:
 - `goal.md`
+- `governed-execution-positioning.md`
 - `monetization-strategy.md`
 - `interface-strategy.md`
 - `traceability-matrix.md`
@@ -39,11 +40,14 @@ Companion strategy docs:
 
 Core is the trust and control plane of eXo-brain.
 
+Core is the governed execution boundary between customer-owned model/provider connectivity and customer-visible AI behavior.
+
 It must guarantee that:
 - provider choice does not change safety posture,
 - risky tool calls cannot bypass governance,
 - tenant boundaries remain isolated,
-- operational evidence is auditable and exportable.
+- operational evidence is auditable and exportable,
+- enterprise telemetry can be exported through standard sinks without weakening safety guarantees.
 
 Core is where platform reliability and governance value are created.
 
@@ -57,7 +61,7 @@ Core exists to deliver five platform outcomes:
 2. Deterministic execution for side-effecting/risky operations.
 3. Policy-governed decision points before and after tool execution.
 4. Multi-tenant fairness and admission control under contention.
-5. End-to-end traceability for compliance and incident response.
+5. End-to-end traceability for compliance, incident response, and enterprise telemetry interoperability.
 
 ---
 
@@ -124,6 +128,12 @@ Core exists to deliver five platform outcomes:
 - Exposes tenant/provider/policy/runtime/audit control planes.
 - Must not embed orchestration logic that belongs in core.
 
+## Observability and Telemetry Boundary (`src/observability`)
+
+- Correlation-aware logs, metrics, tracing, and audit continuity remain core-owned diagnostics.
+- Standard enterprise interoperability should be delivered through exporter adapters such as OpenTelemetry/Prometheus without replacing audit APIs.
+- Exporter failures must never block deterministic execution or hide required governance evidence.
+
 ---
 
 ## 5) Core Execution Model
@@ -156,6 +166,7 @@ Design target:
 1. Protect invariants (safety/governance) before throughput.
 2. Fail closed for ambiguous high-risk tool operations.
 3. Emit operationally useful telemetry for diagnosis and replay.
+4. Keep exporter failures non-fatal and policy-safe.
 
 ---
 
@@ -195,7 +206,7 @@ Core is the premium surface for:
 - signed audit evidence and compliance workflows,
 - reliability and fairness guarantees at scale.
 
-Adapter connectivity enables adoption; core governance creates durable revenue value.
+Adapter connectivity enables adoption; core governance, auditability, and telemetry interoperability create durable revenue value.
 
 ---
 
@@ -221,6 +232,8 @@ If a change weakens invariants, it must not merge without explicit redesign or a
    - Mitigation: capability + policy-driven deterministic fallback planner.
 4. **Operational blind spots**
    - Mitigation: mandatory correlation IDs and run/audit evidence checks.
+5. **Weak telemetry interoperability**
+   - Mitigation: add OpenTelemetry/Prometheus exporters behind the observability boundary without changing core contracts.
 
 ---
 

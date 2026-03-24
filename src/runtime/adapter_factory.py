@@ -17,28 +17,41 @@ from __future__ import annotations
 
 import importlib
 import logging
-from typing import Iterable
 
 from src.runtime.runtime_adapter import RuntimeAdapter
 
 logger = logging.getLogger(__name__)
 
 OPENAI_ADAPTER_CANONICAL_CLASS_REF = "exo_adapter_openai.runtime.OpenAIAgentsRuntimeAdapter"
+ECHO_ADAPTER_CANONICAL_CLASS_REF = "exo_adapter_echo.runtime.EchoRuntimeAdapter"
 
-_OPENAI_CLASS_REF_ALIASES = {
-    "OpenAIAgentsRuntimeAdapter",
-    "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
-    "exo_adapter_openai.OpenAIAgentsRuntimeAdapter",
-    OPENAI_ADAPTER_CANONICAL_CLASS_REF,
-}
-
-# Keep src/runtime implementation first while core contracts and package contracts
-# complete their runtime type unification.
-_OPENAI_LOAD_CANDIDATES = (
-    "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
-    OPENAI_ADAPTER_CANONICAL_CLASS_REF,
-    "exo_adapter_openai.OpenAIAgentsRuntimeAdapter",
+_OPENAI_ADAPTER_CLASS_REF_ALIASES = frozenset(
+    {
+        "OpenAIAgentsRuntimeAdapter",
+        "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
+        "exo_adapter_openai.OpenAIAgentsRuntimeAdapter",
+        OPENAI_ADAPTER_CANONICAL_CLASS_REF,
+    }
 )
+
+_ECHO_ADAPTER_CLASS_REF_ALIASES = frozenset(
+    {
+        "EchoRuntimeAdapter",
+        ECHO_ADAPTER_CANONICAL_CLASS_REF,
+    }
+)
+
+_ADAPTER_LOAD_FALLBACKS: dict[str, tuple[str, ...]] = {
+    OPENAI_ADAPTER_CANONICAL_CLASS_REF: (
+        OPENAI_ADAPTER_CANONICAL_CLASS_REF,
+        "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
+        "exo_adapter_openai.OpenAIAgentsRuntimeAdapter",
+    ),
+    ECHO_ADAPTER_CANONICAL_CLASS_REF: (
+        ECHO_ADAPTER_CANONICAL_CLASS_REF,
+        "src.runtime.openai_compatible_runtime.OpenAICompatibleRuntimeAdapter",
+    ),
+}
 
 
 def canonicalize_adapter_class_ref(adapter_class_ref: str) -> str:
@@ -46,15 +59,15 @@ def canonicalize_adapter_class_ref(adapter_class_ref: str) -> str:
     ref = adapter_class_ref.strip()
     if not ref:
         raise ValueError("adapter_class_ref cannot be empty")
-    if ref in _OPENAI_CLASS_REF_ALIASES:
+    if ref in _ECHO_ADAPTER_CLASS_REF_ALIASES:
+        return ECHO_ADAPTER_CANONICAL_CLASS_REF
+    if ref in _OPENAI_ADAPTER_CLASS_REF_ALIASES:
         return OPENAI_ADAPTER_CANONICAL_CLASS_REF
     return ref
 
 
-def _candidate_refs(canonical_ref: str) -> Iterable[str]:
-    if canonical_ref == OPENAI_ADAPTER_CANONICAL_CLASS_REF:
-        return _OPENAI_LOAD_CANDIDATES
-    return (canonical_ref,)
+def _candidate_refs(canonical_ref: str) -> tuple[str, ...]:
+    return _ADAPTER_LOAD_FALLBACKS.get(canonical_ref, (canonical_ref,))
 
 
 def _load_adapter_class(ref: str) -> type[RuntimeAdapter]:
@@ -89,7 +102,6 @@ def load_adapter(adapter_class_ref: str, provider_id: str, **kwargs) -> RuntimeA
         ImportError: If the module or class cannot be loaded.
     """
     canonical_ref = canonicalize_adapter_class_ref(adapter_class_ref)
-
     load_errors: list[Exception] = []
     for candidate_ref in _candidate_refs(canonical_ref):
         try:
@@ -98,10 +110,8 @@ def load_adapter(adapter_class_ref: str, provider_id: str, **kwargs) -> RuntimeA
             load_errors.append(exc)
             continue
         return cls(provider_id=provider_id, **kwargs)
-
-    if load_errors:
-        last_error = load_errors[-1]
-        raise ImportError(
-            f"Could not load adapter class for {adapter_class_ref!r} "
-            f"(canonical={canonical_ref!r}); last_error={last_error}"
-        ) from last_error
+    last_error = load_errors[-1] if load_errors else ValueError("unknown adapter load failure")
+    raise ImportError(
+        f"Could not load adapter class for {adapter_class_ref!r} "
+        f"(canonical={canonical_ref!r}); last_error={last_error}"
+    ) from last_error

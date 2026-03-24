@@ -26,12 +26,13 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.1.0`
-- Last Reviewed: `2026-03-14`
+- Version: `1.2.0`
+- Last Reviewed: `2026-03-22`
 - Review Cadence: `monthly`
 - Decision Scope: `Tier strategy, entitlement boundaries, and value-capture model for governance-first monetization.`
 
 Companion enforcement docs:
+- `governed-execution-positioning.md`
 - `entitlement-matrix.md`
 - `compliance-profile-matrix.md`
 - `deployment-models.md`
@@ -39,10 +40,18 @@ Companion enforcement docs:
 
 ## 1) Monetization Thesis
 
+eXo-brain is not a model reseller and not a generic LLM wrapper.
+
+eXo-brain should be sold as the governed execution boundary for tool-using AI systems:
+
+- customers keep their own model and provider connectivity,
+- eXo-brain governs risky or state-changing actions,
+- durable paid value comes from policy, deterministic execution, audit, and runtime control.
+
 Do not monetize raw provider connectivity alone.
 
 Monetize:
-- safety guarantees,
+- non-bypassable execution safety,
 - governance controls,
 - compliance evidence,
 - operational reliability at multi-tenant scale.
@@ -71,9 +80,42 @@ Goal:
 - keep adapter onboarding easy,
 - keep governance and reliability differentiated.
 
+Boundary rule:
+- provider credentials, provider-native settings, and customer business workflows remain customer-owned,
+- governance, deterministic execution, audit, runtime control, and entitlements remain eXo-brain-owned,
+- avoid split-brain configuration by keeping one source of truth per concern.
+
 ---
 
-## 3) Product Tiers (Proposed)
+## 3) Ideal Customer and Best Initial Use Cases
+
+## Best-fit buyers
+
+- B2B SaaS teams embedding AI into workflows with real tool side effects,
+- internal AI platform teams that need one governance model across providers,
+- security/compliance-sensitive teams that need auditability and operational control,
+- teams expecting provider churn, fallback requirements, or multi-provider strategy.
+
+## Weak-fit buyers
+
+- hobby builders,
+- simple single-provider chat applications,
+- prompt-only or playground-only use cases,
+- teams without risky tool execution or compliance pressure.
+
+## Best first use cases
+
+- CRM or ticket mutations,
+- internal operations automation,
+- support workflow automation,
+- approval-heavy business processes,
+- agent-assisted flows that call internal APIs, databases, or privileged tools.
+
+These use cases create the clearest willingness to pay for deterministic control, policy gates, and audit trails.
+
+---
+
+## 4) Product Tiers (Proposed)
 
 ## Foundation
 
@@ -114,7 +156,7 @@ Adds:
 
 ---
 
-## 4) Feature-to-Tier Boundary Rules
+## 5) Feature-to-Tier Boundary Rules
 
 Use these rules to avoid confusion:
 
@@ -125,7 +167,7 @@ Use these rules to avoid confusion:
 
 ---
 
-## 5) Entitlement and Packaging Strategy
+## 6) Entitlement and Packaging Strategy
 
 Entitlements should be enforced at API/config boundaries, not hidden in adapter internals.
 
@@ -144,7 +186,7 @@ Implementation principle:
 
 ---
 
-## 6) Revenue Metrics and Leading Indicators
+## 7) Revenue Metrics and Leading Indicators
 
 ## Adoption metrics
 
@@ -175,31 +217,46 @@ Implementation principle:
 
 ---
 
-## 7) Pricing Motion (Non-Numeric Framework)
+## 8) Pricing Motion (Non-Numeric Framework)
 
 Recommend blended model:
 - platform subscription by tier,
 - usage dimensions tied to tenant scale and governance workload,
-- add-on packages for enterprise governance/compliance features.
+- add-on packages for enterprise governance/compliance features,
+- early design-partner or assisted-production engagements while platform maturity is still being proven.
 
-Avoid billing model that incentivizes bypassing deterministic safety path.
+Avoid billing model that incentivizes bypassing deterministic safety path or over-rewarding raw tool volume before operational maturity is proven.
 
 ---
 
-## 8) Sales Narrative Anchors
+## 9) Sales Narrative Anchors
 
 Primary narrative:
-- "Bring any provider, keep one governance and reliability model."
+- "Keep your models and providers; use one governance and reliability model."
 
 Secondary anchors:
-- "Switch providers without rewriting orchestration."
+- "Stop unsafe AI actions from becoming unsafe system actions."
+- "Switch providers without rewriting governance."
 - "Enforce policy before side effects."
 - "Produce audit evidence by API, not manual operations."
 - "Scale tenants with fairness and controls, not best-effort chaos."
 
 ---
 
-## 9) Monetization Risks and Mitigations
+## 10) Current Go-to-Market Posture
+
+Recommended near-term posture:
+
+1. Start with design-partner or assisted-production pilots, not broad self-serve enterprise claims.
+2. Target workflows where agents can trigger real system side effects.
+3. Prove value with blocked unsafe actions, deterministic coverage, audit evidence, and reduced debugging/incident effort.
+4. Productize deployment, telemetry, and auth hardening before expanding commercial claims aggressively.
+
+This keeps messaging aligned with current platform maturity while building evidence for stronger monetization later.
+
+---
+
+## 11) Monetization Risks and Mitigations
 
 1. **Risk: Over-gating core trust features**
    - Mitigation: keep safety baseline in Foundation.
@@ -216,34 +273,44 @@ Secondary anchors:
 5. **Risk: Safety gate latency harms user experience**
    - Mitigation: enforce per-gate latency budgets, tiered gate ladders (rules first), and explicit fail-safe modes.
 
+6. **Risk: Product feels like an optional dashboard instead of a mandatory control boundary**
+   - Mitigation: sell governed execution for risky actions, not observability alone.
+
+7. **Risk: Split-brain config between customer adapters and eXo-brain**
+   - Mitigation: keep provider-native settings customer-owned and governance settings eXo-brain-owned.
+
 ---
 
-## 10) Alignment with Core and Adapter Strategy
+## 12) Alignment with Core and Adapter Strategy
 
 Monetization must not violate architecture:
 - no premium shortcut that bypasses policy/deterministic guards,
 - no adapter-specific private bypass inside core,
 - no paid feature that weakens tenant isolation or audit guarantees.
+- no monetization model that requires all customers to route raw data through a shared hosted deployment when dedicated/private deployment is the trust requirement.
 
 Premium value should reinforce, not compromise, platform invariants.
 
 ---
 
-## 11) Execution Plan (Business + Engineering)
+## 13) Execution Plan (Business + Engineering)
 
-1. Define entitlement matrix for Foundation/Pro/Enterprise.
-2. Define governance ingress product model (profiles, custom rules, optional plugin packs, performance SLOs).
-3. Bind entitlement checks to explicit API/config control points.
-4. Add entitlement + gate-decision observability in audit and runtime admin endpoints.
-5. Publish feature boundary documentation and onboarding playbooks.
-6. Review quarterly against adoption, governance usage, and retention metrics.
+1. Publish the governed-execution product boundary and ICP guidance alongside tier docs.
+2. Define entitlement matrix for Foundation/Pro/Enterprise.
+3. Define governance ingress product model (profiles, custom rules, optional plugin packs, performance SLOs).
+4. Bind entitlement checks to explicit API/config control points.
+5. Add entitlement + gate-decision observability in audit and runtime admin endpoints.
+6. Publish feature boundary documentation and onboarding playbooks.
+7. Review quarterly against adoption, governance usage, and retention metrics.
 
 ---
 
-## 12) Decision Checklist
+## 14) Decision Checklist
 
+- Does this strengthen eXo-brain as a mandatory governed execution boundary rather than an optional add-on?
 - Does this monetization decision preserve core trust guarantees?
 - Does it keep provider neutrality intact?
+- Does it keep provider/model connectivity customer-owned where possible?
 - Is entitlement enforcement explicit and testable?
 - Does the pricing boundary align with actual customer value?
 - Does this improve long-term retention rather than short-term lock-in?

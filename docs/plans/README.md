@@ -32,6 +32,7 @@ Notes:
 
 - `docs/plans/docs-and-notebooks-cleanup-plan.md`
 - `docs/plans/notebook-standards.md`
+- `docs/plans/enterprise-audit-remediation-plan.md` — post–enterprise audit closure (coverage, env wiring, CI honesty, boundaries, lifecycle, docs)
 
 ## Archived Plans
 

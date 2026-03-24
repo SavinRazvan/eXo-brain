@@ -22,13 +22,14 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.1.0`
-- Last Reviewed: `2026-03-14`
+- Version: `1.2.0`
+- Last Reviewed: `2026-03-22`
 - Review Cadence: `monthly`
 - Decision Scope: `API-first interface posture, UI roadmap constraints, and interface-level governance rules.`
 
 Companion strategy docs:
 - `goal.md`
+- `governed-execution-positioning.md`
 - `monetization-strategy.md`
 - `compliance-profile-matrix.md`
 - `deployment-models.md`
@@ -53,7 +54,8 @@ Current canonical mode:
 - UI is out of current delivery scope; optional API-driven console may be added later.
 
 Implication:
-- customer products can build their own UI and consume all control/observability via API.
+- customer products can build their own UI and consume all governed execution control/observability via API,
+- customer-owned provider connectivity can remain outside the UI boundary and outside required eXo-brain-hosted secrets ownership.
 
 ---
 
@@ -70,6 +72,9 @@ Responsibilities:
 - runtime control operations,
 - audit reporting/export/verification.
 
+Constraint:
+- the public API is the authoritative control boundary for governed execution, not the customer's provider credential store.
+
 ## Layer B: Customer UI/Platform (consumer of APIs)
 
 Responsibilities:
@@ -79,6 +84,7 @@ Responsibilities:
 
 Constraint:
 - UI cannot be trust boundary; all safety checks remain backend-enforced.
+- UI should not become the canonical owner of provider-native settings that belong to customer-controlled adapters or deployment configuration.
 
 ---
 
@@ -128,6 +134,7 @@ No interface (CLI/UI/SDK) may bypass these controls.
 - Prefer typed request/response schemas and stable event envelopes.
 - Expose reason codes for denies/escalations/fallback transitions.
 - Keep operational introspection endpoints for debugging and governance.
+- Keep standard telemetry export support additive to API contracts rather than replacing them.
 - Version breaking changes and provide migration guidance.
 
 ---
@@ -164,12 +171,14 @@ Decision contract requirements:
 ## 10) Customer Integration Patterns
 
 Primary pattern:
-1. Customer backend integrates with eXo-brain APIs.
-2. Customer UI reads/writes through customer backend or directly via secure API gateway.
-3. Governance and audit workflows are driven by API responses and events.
+1. Customer backend or deployment configuration manages provider credentials and adapter connectivity.
+2. Customer backend integrates with eXo-brain APIs for governed execution, policy, audit, and runtime control.
+3. Customer UI reads/writes through customer backend or directly via secure API gateway.
+4. Governance and audit workflows are driven by API responses and events.
 
 Secondary pattern:
 - internal operations teams consume runtime/audit APIs for incident response and compliance.
+- supported deployment profiles may additionally export telemetry to enterprise sinks such as OpenTelemetry/Prometheus.
 
 ---
 

@@ -29,7 +29,7 @@ Provider-neutral AI orchestration platform with deterministic tool execution, mu
 
 - API-first Option C is the active delivery path (no required UI/dashboard mount).
 - Tool-level deterministic policy enforcement is implemented; turn-level **governance ingress** (pre-model gate chain) is advanced in code and docs—see the canonical plan for **implemented vs planned** detail.
-- Prioritized roadmap tiers: `docs/strategy/next-directions.md` (strategy package; `architecture-goals/` holds redirect stubs only).
+- Prioritized roadmap tiers: `docs/strategy/next-directions.md` (strategy package; canonical strategy lives under `docs/strategy/` only).
 - Canonical implementation status + queued slices: `docs/plans/tenant-tool-execution-architecture.md`.
 - Documentation authority, lifecycle, and archive pointers: `docs/plans/docs-authority-map.md`, `docs/plans/docs-inventory-master.md`, `docs/plans/docs-archive-index.md`.
 - Top-level doc index: `docs/README.md`.
@@ -85,6 +85,23 @@ python scripts/architecture/check_governance_consistency.py
 uvicorn src.api.app:create_app --factory --reload --port 8000
 # API docs: http://localhost:8000/docs
 ```
+
+### Docker (optional)
+
+```bash
+docker compose up --build
+# Liveness: http://localhost:8000/health
+# Readiness (SQLite PRAGMA quick_check): http://localhost:8000/ready
+```
+
+**Operations-oriented environment variables** (non-exhaustive):
+
+| Variable | Purpose |
+|----------|---------|
+| `EXO_ENABLE_PROMETHEUS_METRICS` | When `1`, exposes `GET /metrics` (Prometheus text). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base URL for OTLP HTTP export (traces + metrics); optional per-signal overrides in `telemetry_export.py`. |
+| `EXO_CORS_ORIGINS` | Comma-separated allowed origins; unset + non-dev `EXO_ENV` disables wildcard CORS. |
+| `EXO_ENABLE_OPENAPI` | When `0`, disables `/docs`, `/redoc`, and `/openapi.json`. |
 
 ---
 

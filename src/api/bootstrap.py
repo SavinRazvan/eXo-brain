@@ -23,6 +23,7 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
 from typing import Literal
@@ -32,10 +33,14 @@ from fastapi import FastAPI
 from src.config.provider_registry import ProviderRegistry
 from src.config.settings import AppSettings
 from src.core.run_control_registry import RunControlRegistry, SQLiteRunControlRegistry
+from src.core.session_store import InMemorySessionStore
+from src.modules.platform_bootstrap.service import build_app_modules, validate_non_dev_secrets
 from src.observability.logging import StructuredLogger
+from src.observability.telemetry_export import configure_opentelemetry_exporters
 from src.observability.ingress_budget import IngressBudgetRecorder
 from src.observability.tool_audit import ToolAuditPipeline
 from src.persistence.audit_store import InMemoryAuditStore
+from src.persistence.adapters.sqlite_audit import SQLiteAuditStore
 from src.persistence.contracts import AgentStore, ApiKeyStore, ProviderStore, ToolStore, ToolVersionStore
 from src.runtime.tenant_runtime import TenantRuntimeFactory
 from src.tenancy.policy_overlay import TenantPolicyOverlayStore
@@ -54,12 +59,15 @@ def bootstrap(
 
     Returns the same app instance for chaining.
     """
+    validate_non_dev_secrets(settings)
+    configure_opentelemetry_exporters()
     tool_store: ToolStore | None = None
     agent_store: AgentStore | None = None
     api_key_store: ApiKeyStore | None = None
     provider_store: ProviderStore | None = None
     tool_version_store: ToolVersionStore | None = None
     session_store = None
+    audit_store = None
 
     if persistence_backend == "sqlite":
         from src.persistence.adapters.sqlite import (
@@ -81,6 +89,9 @@ def bootstrap(
         api_key_store = SQLiteApiKeyStore(db_path)
         provider_store = SQLiteProviderStore(db_path)
         tool_version_store = SQLiteToolVersionStore(db_path)
+        audit_store = SQLiteAuditStore(db_path)
+    else:
+        session_store = InMemorySessionStore()
 
     tenant_factory = TenantRuntimeFactory(
         provider_registry=provider_registry,
@@ -101,7 +112,10 @@ def bootstrap(
     if str(settings.runtime.control_state_backend).strip().lower() == "sqlite":
         control_db_path = Path(settings.runtime.control_state_sqlite_db_path)
         control_db_path.parent.mkdir(parents=True, exist_ok=True)
-        app.state.run_control_registry = SQLiteRunControlRegistry(str(control_db_path))
+        app.state.run_control_registry = SQLiteRunControlRegistry(
+            str(control_db_path),
+            max_terminal_records_per_tenant=settings.runtime.run_control_max_terminal_records_per_tenant,
+        )
         app.state.turn_rate_limiter = SQLiteTenantRateLimiter(
             db_path=str(control_db_path),
             max_requests=settings.limits.max_turn_requests_per_minute_per_tenant,
@@ -115,7 +129,9 @@ def bootstrap(
             limiter_id="tool_uploads",
         )
     else:
-        app.state.run_control_registry = RunControlRegistry()
+        app.state.run_control_registry = RunControlRegistry(
+            max_terminal_records_per_tenant=settings.runtime.run_control_max_terminal_records_per_tenant,
+        )
         app.state.turn_rate_limiter = TenantRateLimiter(
             max_requests=settings.limits.max_turn_requests_per_minute_per_tenant,
             window_seconds=60,
@@ -124,14 +140,41 @@ def bootstrap(
             max_requests=settings.limits.max_tool_uploads_per_minute_per_tenant,
             window_seconds=60,
         )
-    app.state.structured_logger = StructuredLogger()
-    app.state.audit_store = InMemoryAuditStore()
-    app.state.tool_audit_pipeline = ToolAuditPipeline(
-        logger=app.state.structured_logger,
-        audit_store=app.state.audit_store,
+    structured_logger = StructuredLogger()
+    if audit_store is None:
+        audit_store = InMemoryAuditStore()
+    tool_audit_pipeline = ToolAuditPipeline(
+        logger=structured_logger,
+        audit_store=audit_store,
     )
-    app.state.ingress_budget_recorder = IngressBudgetRecorder()
-    app.state.tool_artifact_store = FileSystemToolArtifactStore(settings.limits.tool_artifact_directory)
+    ingress_budget_recorder = IngressBudgetRecorder()
+    tool_artifact_store = FileSystemToolArtifactStore(settings.limits.tool_artifact_directory)
+    app.state.structured_logger = structured_logger
+    app.state.audit_store = audit_store
+    app.state.tool_audit_pipeline = tool_audit_pipeline
+    app.state.ingress_budget_recorder = ingress_budget_recorder
+    app.state.tool_artifact_store = tool_artifact_store
+    app.state.modules = build_app_modules(
+        settings=settings,
+        persistence_backend=persistence_backend,
+        provider_registry=provider_registry,
+        tenant_factory=tenant_factory,
+        policy_overlay_store=app.state.policy_overlay_store,
+        tool_store=tool_store,
+        agent_store=agent_store,
+        api_key_store=api_key_store,
+        provider_store=provider_store,
+        tool_version_store=tool_version_store,
+        session_store=session_store,
+        run_control_registry=app.state.run_control_registry,
+        turn_rate_limiter=app.state.turn_rate_limiter,
+        tool_upload_rate_limiter=app.state.tool_upload_rate_limiter,
+        structured_logger=structured_logger,
+        audit_store=audit_store,
+        tool_audit_pipeline=tool_audit_pipeline,
+        ingress_budget_recorder=ingress_budget_recorder,
+        tool_artifact_store=tool_artifact_store,
+    )
 
     if persistence_backend == "sqlite":
         from src.api.startup import hydrate_tenant_registries
@@ -139,7 +182,18 @@ def bootstrap(
         async def _hydrate_on_startup() -> None:
             await hydrate_tenant_registries(app)
 
-        app.add_event_handler("startup", _hydrate_on_startup)
+        if hasattr(app, "add_event_handler"):
+            app.add_event_handler("startup", _hydrate_on_startup)
+        else:
+            startup_handlers = getattr(app.router, "on_startup", None)
+            if isinstance(startup_handlers, list):
+                startup_handlers.append(_hydrate_on_startup)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(_hydrate_on_startup())
+        else:
+            loop.create_task(_hydrate_on_startup())
 
     return app
 

@@ -18,26 +18,18 @@ Notes:
 
 from __future__ import annotations
 
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from src.api.dependencies import get_tenant_context, require_valid_identity
+from src.api.dependencies import get_app_modules, require_valid_identity
 from src.api.schemas.session_schemas import (
     SessionCreateRequest,
     SessionCreateResponse,
     SessionStateResponse,
 )
-from src.core.session_context import SessionContext
 from src.identity.contracts import IdentityContext
-from src.persistence.contracts import SessionRecord
-from src.runtime.tenant_runtime import TenantRuntimeContext
+from src.modules.session_runtime.service import SessionRuntimeError
 
 router = APIRouter(tags=["sessions"])
-
-
-def _get_factory(request: Request):
-    return request.app.state.tenant_factory
 
 
 @router.post("/{tenant_id}/sessions", status_code=201, response_model=SessionCreateResponse)
@@ -45,7 +37,6 @@ async def create_session(
     tenant_id: str,
     body: SessionCreateRequest,
     request: Request,
-    ctx: TenantRuntimeContext = Depends(get_tenant_context),
     identity: IdentityContext = Depends(require_valid_identity),
 ) -> SessionCreateResponse:
     """Create a new agent session for a tenant.
@@ -53,53 +44,27 @@ async def create_session(
     Resolves agent spec and wires provider adapter. Returns 404 if agent_id or
     provider_id is not registered. Returns 404 if provider adapter is missing.
     """
-    session_id = f"sess_{uuid.uuid4().hex}"
-    correlation_id = body.correlation_id or session_id
-    factory = _get_factory(request)
-
+    modules = get_app_modules(request)
+    service = modules.session_runtime.service if modules is not None else None
+    if service is None:
+        raise HTTPException(status_code=503, detail="Session runtime module is not configured.")
     try:
-        factory.create_session_runtime(
-            tenant_context=ctx,
+        session_ctx = await service.create_session(
+            tenant_id=tenant_id,
             agent_id=body.agent_id,
             provider_id=body.provider_id,
-            session_id=session_id,
+            correlation_id=body.correlation_id,
+            identity=identity,
         )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    session_ctx = SessionContext(
-        session_id=session_id,
-        run_id=f"run_{uuid.uuid4().hex[:8]}",
-        job_id=f"job_{uuid.uuid4().hex[:8]}",
-        task_id=f"task_{uuid.uuid4().hex[:8]}",
-        agent_id=body.agent_id,
-        provider_id=body.provider_id,
-        correlation_id=correlation_id,
-        identity=identity,
-        metadata={
-            "agent_id": body.agent_id,
-            "provider_id": body.provider_id,
-            "correlation_id": correlation_id,
-        },
-    )
-    record = SessionRecord(
-        session=session_ctx,
-        tenant_id=tenant_id,
-        state="active",
-        data={
-            "agent_id": body.agent_id,
-            "provider_id": body.provider_id,
-            "correlation_id": correlation_id,
-        },
-    )
-    await ctx.session_store.save_session(record)
+    except SessionRuntimeError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
     return SessionCreateResponse(
-        session_id=session_id,
+        session_id=session_ctx.session_id,
         tenant_id=tenant_id,
         agent_id=body.agent_id,
         provider_id=body.provider_id,
-        correlation_id=correlation_id,
+        correlation_id=session_ctx.correlation_id,
     )
 
 
@@ -110,11 +75,18 @@ async def create_session(
 async def get_session(
     tenant_id: str,
     session_id: str,
-    ctx: TenantRuntimeContext = Depends(get_tenant_context),
+    request: Request,
     _identity: IdentityContext = Depends(require_valid_identity),
 ) -> SessionStateResponse:
     """Retrieve session state from the session store."""
-    record = await ctx.session_store.get_session(session_id, tenant_id=tenant_id)
+    modules = get_app_modules(request)
+    service = modules.session_runtime.service if modules is not None else None
+    if service is None:
+        raise HTTPException(status_code=503, detail="Session runtime module is not configured.")
+    try:
+        record = await service.get_session(tenant_id=tenant_id, session_id=session_id)
+    except SessionRuntimeError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     if record is None:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
     return SessionStateResponse(

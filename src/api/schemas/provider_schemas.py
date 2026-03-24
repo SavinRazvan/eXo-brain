@@ -22,6 +22,7 @@ class ProviderRegisterRequest(BaseModel):
     provider_id: str
     display_name: str
     adapter_class_ref: str
+    api_type: str = "openai_native"
     api_key_env_var: str = ""
     base_url: str = "https://api.openai.com"
     model: str = "gpt-4o-mini"
