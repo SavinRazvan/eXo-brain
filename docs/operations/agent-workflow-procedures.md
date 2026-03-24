@@ -1,12 +1,13 @@
 <!--
 File: agent-workflow-procedures.md
 Path: docs/operations/agent-workflow-procedures.md
-Role: Canonical procedures for audit/alignment agents and rules to avoid duplicating workflow text across README, rules, and skills.
+Role: Canonical procedures for architecture-impacting audits (enterprise-auditor) and rules to avoid duplicating workflow text across README, rules, and skills.
 Used By:
  - docs/operations/workflow-complete.md
  - Maintainers / agents updating governance or PR workflow docs
 Depends On:
- - .agents/skills/audit-alignment/SKILL.md
+ - .cursor/agents/enterprise-auditor.md
+ - .cursor/skills/enterprise-architecture-audit/SKILL.md
  - docs/roadmap/alignment-audit-schema.md
  - scripts/pr/prepare.py
 Notes:
@@ -15,21 +16,25 @@ Notes:
 
 # Agent workflow procedures (canonical)
 
-## 1) Advisory alignment audit (architecture-impacting PRs)
+## 1) Architecture-impacting advisory audit (alignment artifacts)
 
 **When:** Module boundaries, runtime/policy workflow changes, test/CI path moves, roadmap/rule updates, or maintainer calls for alignment before prepare/merge.
 
+**Canonical agent:** **`enterprise-auditor`** (`.cursor/agents/enterprise-auditor.md`) with **`.cursor/skills/enterprise-architecture-audit/SKILL.md`**.
+
 **Procedure (advisory-only — no auto-fix in audit phase):**
 
-1. Follow **`.agents/skills/audit-alignment/SKILL.md`**.
+1. Run a **focused alignment pass** (same skill; outputs limited to alignment files — see skill § “Focused alignment pass”) unless a **full** `enterprise-architecture-audit.md` is explicitly in scope.
 2. Use **`docs/roadmap/alignment-audit-schema.md`** for severity and finding shape.
-3. For deep module mapping first, use **`.cursor/skills/audit-module-map/SKILL.md`** when the audit skill instructs.
-4. Write outputs only to:
+3. For deep module mapping first, use **`.cursor/skills/audit-module-map/SKILL.md`** under **`enterprise-auditor`** when topology/HTML export is needed.
+4. Write merge-gate outputs only to:
    - **`.local/workflow-artifacts/alignment/alignment-audit.md`**
    - **`.local/workflow-artifacts/alignment/alignment-todos.md`**
 5. Block **`/prepare-pr`** on open **`P0`** findings unless explicitly **accepted** with rationale (per maintainer policy); carry **`P1`/`P2`** in todos with owner/slice.
 
 **Rule of law:** `.cursor/rules/advisory-audit-alignment-enforcement.mdc` + **`scripts/pr/merge.py --arch-impacting`** (presence of both alignment files).
+
+**Deprecated:** `.agents/skills/audit-alignment/SKILL.md` is a redirect stub only.
 
 ---
 

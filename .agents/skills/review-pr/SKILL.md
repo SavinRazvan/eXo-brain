@@ -15,6 +15,6 @@ disable-model-invocation: true
 3. **Stub artifact:**  
    `python scripts/pr/review.py --pr <id|url> --actor "Savin I. Razvan" --agents "review-pr"`  
    Then **replace** `.local/workflow-artifacts/pr/review.md` with real findings and **READY FOR /prepare-pr** | **NEEDS WORK** | **NEEDS DISCUSSION**.
-4. **Architecture-impacting:** write `.local/workflow-artifacts/alignment/alignment-audit.md` + `alignment-todos.md` per `docs/roadmap/alignment-audit-schema.md` (advisory only).
+4. **Architecture-impacting:** use **`enterprise-auditor`** + `.cursor/skills/enterprise-architecture-audit/SKILL.md` (focused alignment pass); write `.local/workflow-artifacts/alignment/alignment-audit.md` + `alignment-todos.md` per `docs/roadmap/alignment-audit-schema.md` (advisory only).
 
 **More context:** `.agents/skills/PR_WORKFLOW.md`.

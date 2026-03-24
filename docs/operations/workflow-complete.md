@@ -6,7 +6,7 @@ Used By:
  - Maintainers / local agents
 Depends On:
  - .agents/skills/PR_WORKFLOW.md (canonical narrative + skill order; local copy when present)
- - docs/operations/agent-workflow-procedures.md (audit + dedup contract)
+ - docs/operations/agent-workflow-procedures.md (enterprise-auditor + dedup contract)
  - scripts/pr/review.py, scripts/pr/prepare.py, scripts/pr/merge.py, scripts/pr/finalize.py, scripts/pr/verify_publish.py
  - scripts/pr/check_testing_artifacts.py
  - scripts/architecture/check_governance_consistency.py (CI parity)
@@ -45,7 +45,7 @@ Notes:
 
 Before `/prepare-pr` / final merge:
 
-1. Run **advisory** alignment audit (skill / process in `.agents/skills/PR_WORKFLOW.md` § Alignment).
+1. Run **`enterprise-auditor`** with a **focused alignment pass** (`.cursor/skills/enterprise-architecture-audit/SKILL.md`; see `.agents/skills/PR_WORKFLOW.md`).
 2. Ensure **both** exist (merge script enforces with `--arch-impacting`):
    - `.local/workflow-artifacts/alignment/alignment-audit.md`
    - `.local/workflow-artifacts/alignment/alignment-todos.md`

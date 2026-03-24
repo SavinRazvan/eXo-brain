@@ -12,7 +12,8 @@ Each skill: **`<skill-name>/SKILL.md`**.
 |------|--------|
 | Implementation loop | `.cursor/skills/implementation-execution-loop/`, `.cursor/agents/implementer.md`, `implementation-workflow-governance.mdc` |
 | Tests | `.cursor/skills/test-module-coverage/`, `.cursor/agents/test-runner.md` |
-| **Maintainer PR** | **`PR_WORKFLOW.md`** + `review-pr` / `prepare-pr` / `merge-pr` / `audit-alignment` here |
+| **Maintainer PR** | **`PR_WORKFLOW.md`** + `review-pr` / `prepare-pr` / `merge-pr`; audits via **`enterprise-auditor`** (see `.cursor/agents/enterprise-auditor.md`) |
+| **Enterprise architecture audit** | `.cursor/skills/enterprise-architecture-audit/SKILL.md` + entry stub `enterprise-architecture-audit/` here (`audit-alignment/` is a deprecated redirect) |
 | Scripts | `scripts/pr/review.py`, `prepare.py`, `merge.py`, `finalize.py`, `verify_publish.py` |
 
 Live trackers (gitignored): **`.local/index-and-planning/current/*.md`**. Full map: **`docs/operations/local-workspace-layout.md`**. Handoff checklist: **`docs/operations/workflow-complete.md`** §F (not a duplicate file under `.local/`).

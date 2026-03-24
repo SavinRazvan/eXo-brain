@@ -39,7 +39,7 @@ Notes:
 | `agents-control-center/config/` | `pages.json` and local UI config |
 | `agents-control-center/data/` | Generated summaries for dashboards |
 | `workflow-artifacts/pr/` | review / prep / merge markdown |
-| `workflow-artifacts/alignment/` | alignment audit + todos |
+| `workflow-artifacts/alignment/` | architecture-impacting audit outputs (`enterprise-auditor`) + todos |
 | `workflow-artifacts/release/` | RC signoff and release artifacts |
 | `generated-data/coverage/` | `coverage.json` and similar machine output |
 | `generated-data/validation/`, `ui/`, `governance/` | Other generated snapshots |

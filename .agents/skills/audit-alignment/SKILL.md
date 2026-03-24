@@ -1,35 +1,18 @@
 ---
 name: audit-alignment
-description: Maintainer advisory audit for cross-source alignment drift before preparation/merge on architecture-impacting PRs.
+description: DEPRECATED — use enterprise-auditor; alignment outputs unchanged for merge gates.
 disable-model-invocation: true
 ---
 
-# Audit Alignment (Maintainer)
+# Audit alignment (deprecated stub)
 
-## Goal
+**Do not use this file as the primary workflow.** The canonical audit agent is **`enterprise-auditor`**.
 
-Provide advisory findings that reconcile roadmap, research, code/tests, and workflow governance before merge preparation.
+- **Agent:** `.cursor/agents/enterprise-auditor.md`
+- **Protocol:** `.cursor/skills/enterprise-architecture-audit/SKILL.md`
+- **Merge-gate outputs (unchanged):** `.local/workflow-artifacts/alignment/alignment-audit.md`, `alignment-todos.md` per `docs/roadmap/alignment-audit-schema.md`
+- **Rule:** `.cursor/rules/advisory-audit-alignment-enforcement.mdc`
 
-## Instructions
+For architecture-impacting PRs, run a **focused alignment pass** (see enterprise skill) unless a **full** `enterprise-architecture-audit.md` report is explicitly requested.
 
-1. Run in advisory-only mode; do not apply direct edits in this phase.
-2. Use `docs/roadmap/alignment-audit-schema.md` for finding format and severity.
-3. When deep module understanding is requested, run `.cursor/skills/audit-module-map/SKILL.md` first and carry forward its evidence.
-4. Compare:
-   - roadmap docs
-   - research docs
-   - implementation (`src`) + tests (`tests/modules`)
-   - rules/skills/agents and `.local` artifact expectations
-5. Write outputs:
-   - `.local/workflow-artifacts/alignment/alignment-audit.md`
-   - `.local/workflow-artifacts/alignment/alignment-todos.md`
-6. Classify each finding:
-   - `open`
-   - `accepted_divergence`
-   - `fixed`
-   - `deferred`
-
-## Exit Criteria
-
-- Findings include file-based evidence and clear remediation.
-- P0/P1 findings are explicitly surfaced before `/prepare-pr`.
+This stub remains so old links and governance scans that mention `audit-alignment/` keep resolving to a clear redirect.

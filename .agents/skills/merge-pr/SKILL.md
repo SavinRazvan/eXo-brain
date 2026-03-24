@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 1. **Check:**  
    `python scripts/pr/merge.py --pr <id|url> --actor "Savin I. Razvan" --agents "review-pr | prepare-pr | merge-pr" --check-only`  
-   Add `--arch-impacting` if alignment artifacts are required (enforces both alignment files).
+   Add `--arch-impacting` if alignment artifacts are required (enforces both alignment files; produced by **`enterprise-auditor`** per `enterprise-architecture-audit` skill).
 2. No unresolved BLOCKER/IMPORTANT or alignment **P0** without documented acceptance.
 3. `python scripts/pr/verify_publish.py --branch <branch>` and `gh pr view --json headRefName,state`.
 4. `gh pr merge <n> --merge` (or repo policy).

@@ -22,7 +22,8 @@ The `.local/` directory is **gitignored**. This document is the **versioned cont
 
 - `index-and-planning/current/plan.md`, `work-tracker.md`, and (when relevant) `test-plan.md`, `test-index.md`, `coverage-index.md`, `architecture.md`
 - `workflow-artifacts/pr/review.md`, `prep.md`, `merge.md` during maintainer merge workflow
-- `workflow-artifacts/alignment/*` only when an alignment audit is active
+- `workflow-artifacts/alignment/*` when an architecture-impacting PR audit is active (authored via **`enterprise-auditor`**)
+- `workflow-artifacts/enterprise-architecture-audit/*` only when an enterprise audit is active or being consumed
 
 **Usually skip until the task needs them:**
 
@@ -45,6 +46,7 @@ Do **not** treat every file under `.local/` as mandatory context each turn — t
 | **`agents-control-center/data/`** | Optional `summary.json` for UI summaries |
 | **`workflow-artifacts/pr/`** | `review.md`, `prep.md`, `merge.md` from `scripts/pr/*` |
 | **`workflow-artifacts/alignment/`** | `alignment-audit.md`, `alignment-todos.md` |
+| **`workflow-artifacts/enterprise-architecture-audit/`** | `enterprise-architecture-audit.md` (full report), `enterprise-audit-actions.md` (prioritized backlog for implementers) |
 | **`workflow-artifacts/release/`** | RC signoff and release-local artifacts |
 | **`generated-data/coverage/`** | `coverage.json` from `coverage json` |
 | **`generated-data/validation/`**, **`ui/`**, **`governance/`** | Other generated JSON snapshots |
