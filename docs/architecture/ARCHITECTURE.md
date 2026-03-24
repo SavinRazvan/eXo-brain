@@ -1,7 +1,7 @@
 <!--
 File: ARCHITECTURE.md
 Path: docs/architecture/ARCHITECTURE.md
-Role: Consolidated system architecture map — layers, modular monolith, packages, data plane, and how canonical plans relate to each concern.
+Role: Consolidated system architecture map — all planes (stack), request path, layers, modular monolith, packages, persistence, and plans × concerns.
 Used By:
  - docs/README.md (reading spine)
  - docs/architecture/README.md
@@ -34,9 +34,184 @@ This document ties together **runtime layers** (`src/*`), the **modular monolith
 
 ---
 
-## 2. End-to-end request path (conceptual)
+## 2. All architecture planes (stack view)
 
-Primary **data and control flow** for a governed turn (northbound → control plane → southbound). This is a **runtime sequence**, not the static module import graph (that is §5).
+Single picture of **every major plane** inside the deployable monolith: request **spine** (top → bottom), **persistence** (orthogonal durable state), and **evidence** (telemetry and audit sinks). It extends the **three-part model** in [`docs/strategy/goal.md`](../strategy/goal.md) §5 (core / adapter SDK / provider adapters) into finer slices for navigation.
+
+**If you are looking for “control plane / user plane / data plane” language:** the repository does **not** use a formal **“user plane”** name. What people often mean is spelled out below under [Strategy vocabulary vs these planes](#strategy-vocabulary-vs-these-planes).
+
+### Strategy vocabulary vs these planes
+
+Terms below come from [`docs/strategy/goal.md`](../strategy/goal.md), [`docs/strategy/interface-strategy.md`](../strategy/interface-strategy.md), [`docs/plans/tenant-tool-execution-architecture.md`](../plans/tenant-tool-execution-architecture.md), and [`docs/operations/abbreviations-notepad.md`](../operations/abbreviations-notepad.md) (**Option C** row). Use this table to map **strategy speak** → **§2 numbered planes**.
+
+| Strategy term | Where it is defined | What it means | Maps to §2 planes |
+|---------------|---------------------|---------------|-------------------|
+| **Control plane** | [`goal.md`](../strategy/goal.md) Part 1 (“control plane and governance plane”), [`core.md`](../strategy/core.md), [`interface-strategy.md`](../strategy/interface-strategy.md) Layer A (“Public API … authoritative control plane”) | Non-bypassable **orchestration, policy, tenant/API surfaces, audit/observability contracts** — the trust boundary customers integrate with | **1–6** (API through tool/policy execution), plus **9–10** as supporting stores and evidence |
+| **Governance plane** | Same Part 1 heading in `goal.md` | **Ingress, policy gates, tenant governance** inside core (overlaps control plane) | **3** (ingress, entitlements, quotas, overlays), **6** (tool policy middleware / risk gates) |
+| **Governance ingress plane** | [`traceability-matrix.md`](../strategy/traceability-matrix.md), [`next-directions.md`](../strategy/next-directions.md) | **Pre-model** allow/deny/escalate + profiles/budgets before runtime/model work | **3** |
+| **Adapter plane** | [`abbreviations-notepad.md`](../operations/abbreviations-notepad.md) Option C; [`tenant-tool-execution-architecture.md`](../plans/tenant-tool-execution-architecture.md) (enterprise deployment bullets) | **Provider/runtime adapter packages** and registry/factory — southbound from neutral core | **7** (and **8** as external endpoints adapters call) |
+| **Data plane (tool execution)** | Option C + [`option-c-worker-isolation-contract.md`](../plans/option-c-worker-isolation-contract.md); tenant plan (“data-plane workers”) | **Hosted sandbox + BYOC** workers that run approved tool jobs; must not bypass policy | **6** (`P6c` sandbox/BYOC path) |
+| **Data plane connectors** (wording) | [`goal.md`](../strategy/goal.md) Part 3 title: “pluggable **data plane connectors**” | Here **data plane** means **provider adapters** as connectors to LLM/provider APIs (not tool workers) | **7 → 8** |
+| **Layer A — Public API** | [`interface-strategy.md`](../strategy/interface-strategy.md) §3 | **Authoritative** HTTP API for all governed operations | **1** exposes it; **2–6** implement it behind routers |
+| **Layer B — Customer UI/platform** | `interface-strategy.md` §3 | **Outside** eXo-brain trust boundary: customer-built UX consuming Layer A | **Not an internal plane** — clients of **plane 1** |
+| **“User plane”** | *(not a defined term in repo docs)* | Usually informal shorthand for **end users** hitting a **customer app** that calls Layer A, or confusion with **`docs/plans/*` planning docs** | Treat as **Layer B** + **plane 1** contract, or ignore if you meant **markdown plans** |
+
+**Option C shorthand** (abbreviations notepad): **control plane + adapter plane + data plane** means **core governance/API/orchestration** + **provider adapters** + **tool worker execution** (sandbox/BYOC) — i.e. roughly **planes 1–6 + 9–10**, **7**, and the **worker half of 6**, not persistence alone.
+
+#### Diagram A — Option C workflow (who calls whom)
+
+Northbound request **enters** the control plane (Layer A / planes 1–6). The orchestrator path **uses** the adapter plane to reach external LLMs, and **dispatches** tool work to the **tool data plane** (sandbox/BYOC). This is the **operational** story; the next diagram lists all **ten numbered planes** in stack order.
+
+```mermaid
+flowchart TB
+  LB[Layer_B_customer_UI_trust_outside]
+
+  subgraph CP [Control_plane_Layer_A_plus_core]
+    direction TB
+    Entry[Planes_1_to_6_API_identity_ingress_session_orchestration_policy_tools]
+  end
+
+  subgraph AP [Adapter_plane_plane_7]
+    AdPkgs[Registry_factory_RuntimeAdapter_packages]
+  end
+
+  subgraph DP [Data_plane_tool_execution_Option_C_sense]
+    Workers[Sandbox_BYOC_MCP_tool_surfaces_plane_6c]
+  end
+
+  subgraph South [Southbound]
+    LLM[External_LLM_provider_APIs_plane_8]
+  end
+
+  subgraph Cross [Cross_cutting]
+    PER[Persistence_plane_9]
+    EV[Evidence_plane_10]
+  end
+
+  LB -->|HTTPS_SSE_WS| Entry
+  Entry -->|model_turns| AdPkgs
+  AdPkgs --> LLM
+  Entry -->|approved_tool_jobs| Workers
+  PER -.->|read_write| Entry
+  PER -.->|job_store_when_enabled| Workers
+  Entry -.->|telemetry_audit| EV
+  Workers -.->|telemetry_audit| EV
+```
+
+**Naming reminder:** **`goal.md` Part 3** calls provider adapters “**data plane connectors**” (adapter-to-LLM hop). That is the **Adapter plane → plane 8** leg above, **not** the **tool worker** box (Option C “data plane”).
+
+#### Diagram B — Strategy terms: nesting and relationships
+
+Shows **containment** (governance and the rest of the core path are **both** inside **control plane** — no sequential edge between them), **external** Layer B, and **orthogonal** persistence/evidence. Other arrows are **logical** (invocation, storage, telemetry), not the full HTTP sequence (see Diagram A and §3).
+
+```mermaid
+flowchart TB
+  LB[Layer_B_customer_platform_not_in_repo]
+
+  subgraph mono [eXo_brain_monolith]
+    subgraph CP [Control_plane]
+      direction TB
+      Gov[Governance_plane_ingress_entitlements_quotas]
+      Rest[API_sessions_orchestration_tool_policy_planes_1_to_6]
+    end
+
+    AP[Adapter_plane_7]
+    DPT[Tool_data_plane_workers_6c]
+
+    subgraph ortho [Orthogonal_to_request_spine]
+      P9[Persistence_9]
+      P10[Evidence_10]
+    end
+  end
+
+  P8[External_providers_8_outside_governance]
+
+  LB -->|only_via_Layer_A| Rest
+  Rest --> AP
+  AP --> P8
+  Rest --> DPT
+  P9 -.-> Rest
+  P9 -.-> DPT
+  Rest -.-> P10
+  Gov -.-> P10
+  DPT -.-> P10
+```
+
+#### Diagram C — Ten numbered planes (full stack)
+
+```mermaid
+flowchart TB
+  subgraph plane1 ["Plane 1 - Northbound API"]
+    P1[Client_HTTP_SSE_WebSocket]
+    P1b[FastAPI_routers_middleware_schemas]
+  end
+  subgraph plane2 ["Plane 2 - Identity and access"]
+    P2[Authn_JWT_API_key_RBAC_admin_keys]
+  end
+  subgraph plane3 ["Plane 3 - Governance and ingress"]
+    P3[Ingress_gates_profiles_budgets]
+    P3b[Entitlements_quotas_fairness_overlays]
+  end
+  subgraph plane4 ["Plane 4 - Session and tenant runtime"]
+    P4[TenantRuntimeFactory_and_context]
+    P4b[Sessions_run_control_admission]
+  end
+  subgraph plane5 ["Plane 5 - Control plane orchestration"]
+    P5[HostAdapter_and_Orchestrator]
+    P5b[Mode_select_background_jobs]
+  end
+  subgraph plane6 ["Plane 6 - Policy and tool execution"]
+    P6[Policy_middleware_risk_gates]
+    P6b[Deterministic_executor]
+    P6c[Sandbox_BYOC_MCP_tool_surfaces]
+  end
+  subgraph plane7 ["Plane 7 - Adapter plane"]
+    P7[ProviderRegistry_and_factory]
+    P7b[RuntimeAdapter_impls_and_packages]
+  end
+  subgraph plane8 ["Plane 8 - Southbound providers"]
+    P8[External_LLM_and_provider_APIs]
+  end
+  subgraph plane9 ["Plane 9 - Persistence"]
+    P9[SQLite_stores_control_state_BYOC_optional]
+  end
+  subgraph plane10 ["Plane 10 - Evidence and observability"]
+    P10[Logs_metrics_traces_audit_signed_export]
+  end
+
+  P1 --> P1b --> P2 --> P3 --> P3b --> P4 --> P4b --> P5 --> P5b
+  P5b --> P7 --> P7b --> P8
+  P5b --> P6 --> P6b --> P6c
+  P9 -.->|durable_state| P4b
+  P9 -.->|policy_quota_audit_records| P3b
+  P9 -.->|tool_agent_provider_keys| P4
+  P9 -.->|BYOC_job_store_when_enabled| P6c
+  P1b -.->|HTTP_metrics_optional| P10
+  P3 -.->|ingress_decisions| P10
+  P5b -.->|turn_and_runtime_events| P10
+  P6 -.->|policy_and_tool_audit| P10
+```
+
+| # | Plane | What it is | Primary `src/` / `packages/` |
+|---|--------|------------|------------------------------|
+| **1** | **Northbound API** | Tenant-scoped HTTP, SSE, WebSocket; OpenAPI; no provider SDKs | `src/api/` |
+| **2** | **Identity and access** | Bearer/JWT/API key resolution, RBAC-style checks, admin key surfaces | `src/identity/`, `src/access_control/`, `src/api/middleware/auth.py` |
+| **3** | **Governance and ingress** | Pre-model gate chain, profiles, budgets, entitlements, quotas, fairness, tenant policy overlays | `src/policies/ingress_*`, `src/policies/entitlements.py`, `src/tenancy/` |
+| **4** | **Session and tenant runtime** | Per-tenant tool/agent/policy registries, session handles, run control, rate limits | `src/runtime/tenant_runtime.py`, `src/core/session_store.py`, `src/core/run_control_registry.py`, session routers |
+| **5** | **Control plane orchestration** | Provider-neutral turn pipeline, host adapter, orchestrator, background runtime / scheduler | `src/integration/`, `src/core/orchestrator.py`, `src/core/background_runtime.py` |
+| **6** | **Policy and tool execution** | Before/after tool policy, deterministic execution, sandbox, BYOC connector, MCP tools | `src/policies/middleware.py`, `src/tools/`, `src/mcp/` |
+| **7** | **Adapter plane** | Registry, factory loading, `RuntimeAdapter` implementations; portable packages | `src/config/provider_registry.py`, `src/runtime/adapter_factory.py`, `src/runtime/*adapter*`, `packages/exo-adapter-*`, contracts in `packages/exo-brain-core-contracts` |
+| **8** | **Southbound providers** | Customer-chosen model endpoints and protocols (outside your governance boundary) | Network egress from adapter implementations only |
+| **9** | **Persistence** | SQLite default stores, optional shared control-state SQLite, BYOC stores; memory in tests | `src/persistence/`, `src/api/bootstrap.py` |
+| **10** | **Evidence and observability** | Structured logs, metrics, traces, tool/turn audit, optional Prometheus/OTLP | `src/observability/`, `src/audit/`, `src/api/routers/prometheus_metrics.py`, `src/api/routers/audit.py` |
+
+**Note:** Plane **6** both **enforces** policy on tools and hosts **tool data-plane** execution (sandbox/BYOC). That is the **Option C “data plane”** in [`abbreviations-notepad.md`](../operations/abbreviations-notepad.md); do **not** confuse it with **`goal.md` Part 3** wording where **provider adapters** are called “data plane **connectors**” (here: **planes 7–8**). Option C worker contract: [`option-c-worker-isolation-contract.md`](../plans/option-c-worker-isolation-contract.md). Plane **10** is **emit / observe** relative to the request spine: exporters must not break governed execution ([`workspace-architecture.md`](workspace-architecture.md)).
+
+---
+
+## 3. End-to-end request path (conceptual)
+
+Primary **data and control flow** for a governed turn (northbound → control plane → southbound). This is a **runtime sequence**, not the static module import graph (that is §6).
 
 ```mermaid
 flowchart TB
@@ -95,13 +270,13 @@ flowchart TB
 6. **Tools plane** — Tool **intent** from the model is executed on the **deterministic** path with **policy before/after** ([`src/tools/executor.py`](../../src/tools/executor.py), [`src/policies/middleware.py`](../../src/policies/middleware.py)). Additional tool rounds and streaming are driven by the **orchestrator ↔ adapter** loop (not every edge is drawn).
 7. **Evidence plane** — Dashed edges: observability and audit **consume** events from the hot path; exporters must not weaken safety ([`workspace-architecture.md`](workspace-architecture.md) enterprise notes).
 
-**Modular names** for the same concerns: see §4 and [`src/modules/contracts.py`](../../src/modules/contracts.py).
+**Modular names** for the same concerns: see §5 and [`src/modules/contracts.py`](../../src/modules/contracts.py).
 
 ---
 
-## 3. Code layers vs `src/` trees
+## 4. Code layers vs `src/` trees
 
-These are the **technical layers** (MVP model). They overlap the **business modules** in §4 — same system, two views.
+These are the **technical layers** (MVP model). They overlap the **business modules** in §5 — same system, two views.
 
 | Layer | Role | Primary locations |
 |-------|------|-------------------|
@@ -120,13 +295,13 @@ These are the **technical layers** (MVP model). They overlap the **business modu
 | **config** | Settings and provider registry wiring | `src/config/` |
 | **modules** | Facade services per business capability; composition root | `src/modules/*/` |
 
-**Allowed dependency direction (summary):** `api → integration → core → runtime` (and siblings: `tools`, `policies`, `persistence`, `observability`) with **no** provider SDK imports outside adapter paths. Full module **DAG** is in §5.
+**Allowed dependency direction (summary):** `api → integration → core → runtime` (and siblings: `tools`, `policies`, `persistence`, `observability`) with **no** provider SDK imports outside adapter paths. Full module **DAG** is in §6.
 
 Detail: [`mvp.md`](mvp.md).
 
 ---
 
-## 4. Modular monolith (business capabilities)
+## 5. Modular monolith (business capabilities)
 
 Each row is a **named module** with a **public service** and **allowed dependencies**. CI validates imports against [`src/modules/contracts.py`](../../src/modules/contracts.py).
 
@@ -148,7 +323,7 @@ Doctrine and dependency edges: [`workspace-architecture.md`](workspace-architect
 
 ---
 
-## 5. Module dependency direction (enforced)
+## 6. Module dependency direction (enforced)
 
 Edges follow [`src/modules/contracts.py`](../../src/modules/contracts.py) `allowed_dependencies`: **A → B** means **B depends on A** (B may import or compose A; A sits on the inward side of the allowed edge).
 
@@ -206,7 +381,7 @@ flowchart BT
 
 ---
 
-## 6. Packages (repository layout)
+## 7. Packages (repository layout)
 
 | Package | Role | Boundary |
 |---------|------|----------|
@@ -219,7 +394,7 @@ External install smoke: [`scripts/packages/external_install_smoke.py`](../../scr
 
 ---
 
-## 7. Data and control state
+## 8. Data and control state
 
 | Concern | Default / options | Where |
 |---------|-------------------|--------|
@@ -233,7 +408,7 @@ SQLite connection posture (defer / honesty): [`docs/plans/enterprise-audit-remed
 
 ---
 
-## 8. Observability and audit
+## 9. Observability and audit
 
 | Concern | Location | Notes |
 |---------|----------|--------|
@@ -246,7 +421,7 @@ Enterprise posture (partial vs roadmap): [`docs/strategy/traceability-matrix.md`
 
 ---
 
-## 9. Canonical plans × architectural concerns
+## 10. Canonical plans × architectural concerns
 
 Plans live under [`docs/plans/README.md`](../plans/README.md). This table maps **which part of the architecture** each canonical plan governs.
 
@@ -263,7 +438,7 @@ Plans live under [`docs/plans/README.md`](../plans/README.md). This table maps *
 
 ---
 
-## 10. Enforcement and quality gates
+## 11. Enforcement and quality gates
 
 | Mechanism | Script / location |
 |-----------|-------------------|
@@ -275,15 +450,16 @@ Plans live under [`docs/plans/README.md`](../plans/README.md). This table maps *
 
 ---
 
-## 11. Deeper diagrams and walkthroughs
+## 12. Deeper diagrams and walkthroughs
 
+- **§2 in this file:** **Diagram A** (Option C workflow: control → adapter → providers + tool data plane), **Diagram B** (strategy terms: governance ⊂ control, Layer B external, persistence/evidence), **Diagram C** (ten numbered planes stack).
 - **Large component diagram** (API, tenant runtime, core, adapters, tools, policies, MCP, persistence): root [`README.md`](../../README.md) § Architecture.
 - **Request → tool execution** and **WebSocket** flows: same README section.
 - **Beginner narrative:** [`beginner-workflow.md`](beginner-workflow.md).
 
 ---
 
-## 12. Related documents
+## 13. Related documents
 
 | Document | Use when |
 |----------|----------|

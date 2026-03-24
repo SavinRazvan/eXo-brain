@@ -18,7 +18,7 @@ Notes:
 
 1. `README.md` (repository entry)
 2. `docs/strategy/goal.md` + `docs/strategy/next-directions.md` (direction)
-3. `docs/architecture/ARCHITECTURE.md` (full stack map: layers, modules, plans)
+3. `docs/architecture/ARCHITECTURE.md` (numbered planes + **control/adapter/data plane** vocabulary map in §2)
 4. `docs/architecture/beginner-workflow.md` (plain-language walkthrough)
 5. `docs/architecture/mvp.md` + `docs/architecture/workspace-architecture.md` (shape detail)
 6. `docs/plans/tenant-tool-execution-architecture.md` (implementation status)
@@ -37,7 +37,7 @@ Notes:
 ## Architecture (`docs/architecture/`)
 
 - `docs/architecture/README.md`
-- `docs/architecture/ARCHITECTURE.md` — consolidated layers, modular monolith, packages, data plane, plans map
+- `docs/architecture/ARCHITECTURE.md` — ten planes; **§2** maps strategy terms (control / governance / adapter / data plane, interface Layer A|B) to code
 - `docs/architecture/beginner-workflow.md` — beginner-friendly workflow and analogy guide
 - `docs/architecture/mvp.md` — layers and flows
 - `docs/architecture/workspace-architecture.md` — workspace doctrine
@@ -69,6 +69,7 @@ Notes:
 - `docs/operations/workflow-complete.md`
 - `docs/operations/agent-workflow-procedures.md`
 - `docs/operations/local-workspace-layout.md`
+- `docs/operations/abbreviations-notepad.md` — glossary (**Option C** = control + adapter + data plane); full mapping in `docs/architecture/ARCHITECTURE.md` §2
 
 ## Planning and cleanup governance
 

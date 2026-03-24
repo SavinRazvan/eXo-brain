@@ -14,7 +14,7 @@ Notes:
 
 # Plans Index
 
-For how these plans map to **runtime layers and modules**, see [`docs/architecture/ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) §9.
+For the **numbered architecture planes** (stack), see [`docs/architecture/ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) §2. For how **plans** map to runtime layers and modules, see the same file §10.
 
 ## Canonical Current-State Plans
 
