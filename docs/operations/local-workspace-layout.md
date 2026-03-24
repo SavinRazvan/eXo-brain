@@ -16,6 +16,22 @@ Notes:
 
 The `.local/` directory is **gitignored**. This document is the **versioned contract** for how it should be organized.
 
+## Agent efficiency (read order)
+
+**Usually read:**
+
+- `index-and-planning/current/plan.md`, `work-tracker.md`, and (when relevant) `test-plan.md`, `test-index.md`, `coverage-index.md`, `architecture.md`
+- `workflow-artifacts/pr/review.md`, `prep.md`, `merge.md` during maintainer merge workflow
+- `workflow-artifacts/alignment/*` only when an alignment audit is active
+
+**Usually skip until the task needs them:**
+
+- `generated-data/**` (coverage JSON, UI smoke snapshots, etc.) — open only for coverage-index regeneration or specific export tasks
+- `agents-control-center/audits/module-audit.html` unless refreshing a deliberate audit export
+- Long history under `index-and-planning/history/` unless investigating regressions
+
+Do **not** treat every file under `.local/` as mandatory context each turn — that amplifies noise and cost.
+
 ## Top-level buckets
 
 | Path | Purpose |

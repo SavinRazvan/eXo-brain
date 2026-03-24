@@ -1,119 +1,81 @@
 # AGENTS.md
 
-## Project Intent
+## Project intent
 
-`eXo-brain` is a provider-neutral AI orchestration platform for single-agent and multi-agent workflows.
-The core principle is **AI as a commodity**: model providers are pluggable adapters, not orchestration owners.
-Current delivery posture is API-first Option C (control plane + adapter plane + data plane), with UI/dashboard tracks deferred unless explicitly re-enabled.
+`eXo-brain` is a provider-neutral AI orchestration platform. **AI as a commodity**: providers are pluggable adapters, not orchestration owners. Delivery posture: API-first (control + adapter + data planes); UI/dashboard deferred unless re-enabled.
 
-## Beginner Orientation
+## First reads (onboarding)
 
-If you are new to the repository, read in this order:
-1. `README.md` (architecture map + request/turn workflows)
-2. `docs/strategy/next-directions.md` (current priority tiers)
-3. `docs/strategy/goal.md` (product boundary and non-negotiables)
-4. `docs/strategy/entitlement-matrix.md` (what is Foundation vs Pro vs Enterprise)
+1. `README.md` — architecture map, request/turn flows  
+2. `docs/strategy/next-directions.md` — priorities  
+3. `docs/strategy/goal.md` — boundary, non-negotiables  
+4. `docs/strategy/entitlement-matrix.md` — tiers  
 
-Abbreviation notepad:
-- `docs/operations/abbreviations-notepad.md`
+Abbreviations: `docs/operations/abbreviations-notepad.md`  
+Gitignored workspace map: **`docs/operations/local-workspace-layout.md`** (what lives under `.local/`, what to open vs ignore).
 
-Local workspace map (nested `.local/` — see `docs/operations/local-workspace-layout.md`):
-- `docs/operations/local-workspace-layout.md`
-- PR phase markdown from `scripts/pr/review.py` / `prepare.py` / `merge.py` lives under **`.local/workflow-artifacts/pr/`** (alignment under **`alignment/`**; paths in **`scripts/pr/local_workflow_paths.py`**).
+## Rules (always applied in Cursor)
 
-## Canonical Rules (Always Applied)
+| Rule | Topic |
+|------|--------|
+| `.cursor/rules/provider-neutral-adapter-wall.mdc` | Layers, adapters, policy |
+| `.cursor/rules/implementation-workflow-governance.mdc` | Slice lifecycle, `.local/.../current` trackers, tests |
+| `.cursor/rules/pr-workflow-enforcement.mdc` | PR-first, artifacts, branch safety |
+| `.cursor/rules/commit-trailer-format.mdc` | Commit trailers |
+| `.cursor/rules/file-docstring-header-relations.mdc` | File headers |
+| `.cursor/rules/local-artifact-protection.mdc` | `.exo_data/`, `.coverage` |
+| `.cursor/rules/advisory-audit-alignment-enforcement.mdc` | Alignment audits when scope warrants |
 
-- `.cursor/rules/provider-neutral-adapter-wall.mdc` — Architecture and layer boundaries
-- `.cursor/rules/implementation-workflow-governance.mdc` — Implementation slice lifecycle, `.local/index-and-planning/current` discipline, module-aligned testing
-- `.cursor/rules/pr-workflow-enforcement.mdc` — PR-first, merge gates, branch safety
-- `.cursor/rules/commit-trailer-format.mdc` — Commit trailers
-- `.cursor/rules/file-docstring-header-relations.mdc` — File header metadata
-- `.cursor/rules/local-artifact-protection.mdc` — Protect `.exo_data/`, `.coverage`
-- `.cursor/rules/advisory-audit-alignment-enforcement.mdc` — Audit for architecture-impacting PRs
+Architecture detail: same themes as the adapter-wall rule (provider SDK only in `src/runtime/*adapter*`, core provider-neutral, deterministic tool paths, typed boundaries). **Do not duplicate long gate lists** in chat or `updates-log.md` — say *prepare gates green* or paste failing command output only.
 
-## Architecture Guardrails
+## Execution workflow
 
-- Keep provider SDK code inside `src/runtime/*adapter*` only.
-- Keep core orchestration provider-neutral (`src/core/` must not branch on provider name).
-- Keep turn-ingress governance decisions server-side and non-bypassable (allow/deny/escalate with reason codes).
-- Route risky or state-changing tool calls through deterministic execution and policy gates.
-- Keep strict layer boundaries: `integration -> core -> runtime/tools/policies/persistence/observability`.
-- Use typed schemas/contracts for inter-module inputs/outputs.
+Sequence: `plan → interfaces → implementation → tests → evidence → docs update`.  
+Incremental slices; sync status with:
 
-## Execution Workflow
+- `docs/plans/tenant-tool-execution-architecture.md`
+- `.local/index-and-planning/current/plan.md`, `work-tracker.md`, `test-plan.md`, `test-index.md`
+- `docs/architecture/workspace-architecture.md` (stub: `.local/.../current/architecture.md`)
+- `docs/plans/docs-inventory-master.md` when doc lifecycle changes
 
-- Follow sequence: `plan -> interfaces -> implementation -> tests -> evidence -> docs update`.
-- Prefer incremental, reversible slices over big-bang rewrites.
-- Add rollback/fallback behavior for new runtime features.
-- Keep checklist/docs synchronized with implementation status:
-  - `docs/plans/tenant-tool-execution-architecture.md`
-  - `.local/index-and-planning/current/plan.md`
-  - `docs/architecture/workspace-architecture.md` (doctrine; local stub may exist under `.local/.../current/architecture.md`)
-  - `.local/index-and-planning/current/work-tracker.md`
-  - `.local/index-and-planning/current/test-plan.md`
-  - `.local/index-and-planning/current/test-index.md`
-  - `docs/plans/docs-inventory-master.md` (when doc lifecycle status changes)
+Full handoff checklist: `docs/operations/workflow-complete.md` (esp. §F).
 
-## Quality and Safety Gates
+## Quality gates (single source of truth)
 
-- Block merge for P0 architecture/safety failures.
-- Require tests for happy path, failure path, and replay/retry behavior when relevant.
-- Require correlation IDs in runtime paths for auditability.
-- Keep architecture fitness checks passing (match `scripts/pr/prepare.py` gate order):
-  - `python scripts/pr/check_testing_artifacts.py`
-  - `python -m pytest -q`
-  - `python scripts/architecture/validate_layers.py`
-  - `python scripts/architecture/scan_forbidden_imports.py`
-  - `python scripts/architecture/check_governance_consistency.py` (when changing governance/workflows; CI runs this on relevant paths)
-- Keep release-candidate signoff artifacts healthy:
-  - `make rc-signoff`
-  - `make rc-signoff-json`
+**Default merge gate order** is the `GATES` list in **`scripts/pr/prepare.py`** (today: `check_testing_artifacts.py`, `pytest -q`, `validate_layers.py`, `scan_forbidden_imports.py`).  
+Add **`python scripts/architecture/check_governance_consistency.py`** when changing governance, workflows, or tracked policy docs (CI mirrors this).  
+Substantive `src/**` work in this repo: use **`pytest --cov=src --cov-fail-under=100`** (or project CI parity) before merge.
 
-## Commit Message Policy
+RC helpers: `make rc-signoff`, `make rc-signoff-json`.
 
-- Commit messages must end with:
-  - `Author: Savin I. Razvan`
-  - `GitHub-User: @SavinRazvan`
-- This format is enforced by:
-  - `.cursor/rules/commit-trailer-format.mdc`
+## Commits
 
-## Branching and Release Safety
+End message body with:
 
-- Always create a dedicated working branch before coding:
-  - `feature/<scope>`, `fix/<scope>`, `chore/<scope>`
-- Keep `main` stable and merge-ready; avoid direct implementation commits on `main`.
-- Before merge, require:
-  - tests and architecture checks passing
-  - implementation status updates in `.local/index-and-planning/current/` (and `history/updates-log.md`) for implemented scope
-  - docs maintenance review for architecture/workflow changes (`docs/operations/documentation-maintenance-checklist.md`)
-- After merge, require workflow finalization:
-  - sync local `main` with `origin/main`
-  - clean local feature branch
-  - ensure remote feature branch is removed
-- Use `git push --force-with-lease` only for intentional history rewrites on your own branch.
+- `Author: Savin I. Razvan`
+- `GitHub-User: @SavinRazvan`
 
-## Skills and Agent Extensions
+(`.cursor/rules/commit-trailer-format.mdc`.)
 
-- Primary project skills location: `.cursor/skills/` (agent profiles and these skills are versioned in git; see `.gitignore` exceptions for `.cursor/rules`, `.cursor/agents`, `.cursor/skills/**/SKILL.md`)
-- Standards-friendly project skills location: `.agents/skills/` (typically local / not committed; mirror of maintainer PR workflow)
-- Keep skill names stable and use `SKILL.md` per skill directory.
-- For deep module-understanding audits, use `.cursor/skills/audit-module-map/SKILL.md` before alignment reconciliation.
-- For implementation execution discipline, use `.cursor/skills/implementation-execution-loop/SKILL.md`.
-- For module-focused testing and coverage depth, use `.cursor/skills/test-module-coverage/SKILL.md`.
-- Primary implementation agent profile: `.cursor/agents/implementer.md`.
-- Testing specialist agent profile: `.cursor/agents/test-runner.md`.
-- Validation specialist agent profile: `.cursor/agents/verifier.md`.
-- Maintainer PR workflow is defined in `.agents/skills/PR_WORKFLOW.md` and uses:
-  - `.agents/skills/review-pr/SKILL.md`
-  - `.agents/skills/prepare-pr/SKILL.md`
-  - `.agents/skills/merge-pr/SKILL.md`
-- PR artifact scripts require actor attribution:
-  - `python scripts/pr/review.py --pr <id/url> --actor "Savin I. Razvan" --agents "review-pr"`
-  - `python scripts/pr/prepare.py --pr <id/url> --actor "Savin I. Razvan" --agents "review-pr | prepare-pr"`
-  - `python scripts/pr/merge.py --pr <id/url> --actor "Savin I. Razvan" --agents "review-pr | prepare-pr | merge-pr"`
-- PR publish verification (before merge workflow):
-  - `python scripts/pr/verify_publish.py --branch <current_branch>`
+## Branching
 
-## Next Directions
+Use `feature/`, `fix/`, or `chore/` branches; keep `main` merge-ready. After merge: sync `main` with `origin/main`, remove local + remote feature branch. `git push --force-with-lease` only for intentional rewrites on your branch.
 
-Architecture-aligned implementation priorities are in `docs/strategy/next-directions.md` (Tier 1: adapter portability; Tier 2: entitlement/monetization + governance ingress safety controls; Tier 3: customer API guide and deployment certification). Use it when starting a slice or deciding what to work on next.
+## Skills and agents (where to look)
+
+| Role | Entry |
+|------|--------|
+| Implement | `.cursor/agents/implementer.md` + `.cursor/skills/implementation-execution-loop/SKILL.md` |
+| Tests / coverage | `.cursor/agents/test-runner.md` + `.cursor/skills/test-module-coverage/SKILL.md` |
+| Verify claims | `.cursor/agents/verifier.md` |
+| Deep module map | `.cursor/skills/audit-module-map/SKILL.md` |
+| Maintainer PR | `.agents/skills/PR_WORKFLOW.md` → `review-pr` → `prepare-pr` → `merge-pr` (versioned under `.agents/skills/`, same layout as Cursor skills) |
+
+Scripts (attribution use your name as today):
+
+- `python scripts/pr/verify_publish.py --branch <branch>`
+- `python scripts/pr/review.py|prepare.py|merge.py --pr <id|url> --actor "Savin I. Razvan" --agents "<pipeline>"`
+
+## Next work
+
+`docs/strategy/next-directions.md` (Tier 1–3 priorities).

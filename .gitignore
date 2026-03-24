@@ -28,8 +28,10 @@ _archive/
 .tmp_tools/*
 .tmp_tools
 
-# local agent metadata/config
-.agents/
+# local agent metadata/config (version `.agents/skills/**` like `.cursor/skills`)
+.agents/*
+!.agents/skills/
+!.agents/skills/**
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/**/*.mdc
