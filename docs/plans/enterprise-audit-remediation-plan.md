@@ -22,8 +22,10 @@ Notes:
 
 - **Phase 1 — Coverage:** `pytest --cov=src --cov-fail-under=100` green (**100%** `src/**`); full suite on the order of **~1160+ passed**, **1 skipped** (soak).
 - **Phase 2 — Stock factory env wiring:** `_default_settings()` in [`src/api/app.py`](../../src/api/app.py) parses `EXO_CONTROL_STATE_BACKEND`, `EXO_CONTROL_STATE_SQLITE_DB_PATH`, `EXO_SESSION_RUNTIME_IDLE_TTL_SECONDS`, `EXO_SESSION_RUNTIME_MAX_CACHED_SESSIONS`, `EXO_RUN_CONTROL_MAX_TERMINAL_RECORDS_PER_TENANT`; documented in [`README.md`](../../README.md); compose comments in [`docker-compose.yml`](../../docker-compose.yml); tests in [`tests/modules/api/test_app_factory_branches.py`](../../tests/modules/api/test_app_factory_branches.py).
+- **Phase 3 — CI/deploy evidence:** [`architecture-fitness.yml`](../../.github/workflows/architecture-fitness.yml) honest job results + fail step; [`progressive-deploy.yml`](../../.github/workflows/progressive-deploy.yml) template labels; [`rollback_release.py`](../../scripts/release/rollback_release.py) `manual_automation_required`.
+- **Phase 4 — Boundary guards:** [`ast_app_state_guard.py`](../../scripts/architecture/ast_app_state_guard.py) + [`validate_layers.py`](../../scripts/architecture/validate_layers.py); [`readiness.py`](../../src/api/readiness.py) in `ALLOWED_APP_STATE_FILES`; deps/startup `getattr(st, …)` pattern; [`test_validate_layers_app_state_getattr.py`](../../tests/modules/unknown/test_validate_layers_app_state_getattr.py).
 
-**Still open (after Phase 3 merge):** `validate_layers` + readiness bypass (Phase 4), tenant-context / session-start hardening (Phase 5), prod compose warnings depth (Phase 6), docs/telemetry alignment (Phase 7), optional SQLite perf (Phase 8). **Phase 3** (honest CI summaries, labeled deploy placeholders, rollback JSON/text) is implemented on branch `fix/ci-evidence-honesty`.
+**Still open (after Phase 4 merge):** tenant-context / session-start hardening (Phase 5), prod compose warnings depth (Phase 6), docs/telemetry alignment (Phase 7), optional SQLite perf (Phase 8). **Phase 4** (getattr-on-`app.state` guard + readiness direct state access + `st = … .state` + `getattr(st, …)` in deps/startup) is on branch `fix/boundary-guard-readiness`. **Phase 3** merged from `fix/ci-evidence-honesty`.
 
 ---
 
@@ -49,12 +51,12 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 **Checked against current tree (spot-check):**
 
 - `src/api/app.py` **parses** `EXO_CONTROL_STATE_*`, session-cache, and run-control retention env vars into `RuntimeSettings` — **Phase 2 done** on branch / after merge.
-- `src/api/readiness.py` still uses `getattr(application.state, ...)` for `session_store`, `run_control_registry`, `audit_store`. `readiness.py` is in `_EXTRA_BOUNDARY_FILES` in `validate_layers.py` for **module import** rules, but it is **not** in `ALLOWED_APP_STATE_FILES`, and **`getattr(..., "state", ...)` is not the same as `app.state` in the AST check** — so the guard is bypassed; Phase 4 still applies.
+- `src/api/readiness.py` uses **`state = application.state`** and direct attributes (listed in `ALLOWED_APP_STATE_FILES`). `validate_layers` rejects **`getattr(<…>.app.state, …)` / `getattr(application.state, …)`** via [`scripts/architecture/ast_app_state_guard.py`](../../scripts/architecture/ast_app_state_guard.py); deps/startup use **`st = request.app.state` / `st = app.state`** then **`getattr(st, …)`** for optional test doubles — **Phase 4 core done** after merge.
 - `.github/workflows/progressive-deploy.yml`: real **Docker build + container smoke**; deploy/post-deploy steps are **labeled template placeholders** with honest `deploy.txt` keys (no fake `deploy-status: executed`).
 - `.github/workflows/architecture-fitness.yml` `evidence_bundle_publish`: records **`needs.<job>.result`** per stage and **fails the job** if any required stage ≠ `success` — **Phase 3 done** after merge.
 - `scripts/release/rollback_release.py`: JSON uses **`manual_automation_required`** / **`evidence_only`** instead of implying a rollback ran — **Phase 3 done** after merge.
 - `src/modules/platform_bootstrap/service.py`: `_sync_modules_from_state` / `_build_compat_modules_from_state` still present — Phase 4 follow-up still applies.
-- `src/api/dependencies.py`: `request.app.state.*` and `getattr(request.app.state, ...)` fallbacks still present — Phase 4 still applies.
+- `src/api/dependencies.py`: compat path uses **`getattr(st, …)`** with **`st = request.app.state`** (allowed); not `getattr(request.app.state, …)`.
 - `src/runtime/tenant_runtime.py`: `self._contexts` dict and `loop.create_task(...)` for async work still present — Phase 5 still applies.
 - `packages/exo-adapter-echo/` and `tests/packages/test_echo_adapter_conformance.py` exist — “second adapter” claim in **What improved** is accurate.
 - `docs/api/customer-api-integration-guide.md` still states standard telemetry export is **planned** (file header Notes and **§9.2**) while `telemetry_export.py` / `prometheus_metrics.py` exist — Phase 7 still applies.
@@ -69,7 +71,7 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 ### What improved (evidence)
 
 - `scripts/pr/check_testing_artifacts.py`, `scripts/architecture/validate_layers.py`, `scripts/architecture/scan_forbidden_imports.py`, `scripts/architecture/check_governance_consistency.py`, `scripts/packages/external_install_smoke.py` pass.
-- Full suite: `pytest -q` green (e.g. **~1161 passed, 1 skipped**); residual warnings mostly test-only short-HMAC-key noise; strict **100%** `src/**` coverage gate green.
+- Full suite: `pytest -q` green (e.g. **~1166 passed, 1 skipped**); residual warnings mostly test-only short-HMAC-key noise; strict **100%** `src/**` coverage gate green.
 - Modular enforcement: `src/modules/contracts.py` + `validate_layers.py`; second adapter path via `packages/exo-adapter-echo` + conformance tests; `sqlite_audit.py` migrations + `asyncio.to_thread`; `app.py` / `readiness.py` / `Dockerfile` liveness-readiness-container basics.
 
 ### Findings still open (severity)
@@ -77,7 +79,7 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 - **Resolved — coverage gate:** **100%** `src/**` with `--cov-fail-under=100` (re-run after each substantive change).
 - **Resolved — stock deploy path env:** `create_app()` → `_default_settings()` now wires control state + session cache + run-control retention from env (see README operations table).
 - **Resolved — synthetic / misleading evidence (honesty slice):** architecture-fitness summary lists **actual** job results and fails when any stage is not `success`; progressive-deploy artifact text distinguishes **template** vs **local image smoke**; rollback evidence uses **`manual_automation_required`** (integrators still replace with real automation).
-- **Medium — boundary debt:** `src/modules/platform_bootstrap/service.py` keeps `_sync_modules_from_state` / `_build_compat_modules_from_state`; `src/api/dependencies.py` has raw `request.app.state` fallbacks; `readiness.py` uses `getattr(application.state, ...)`, bypassing `validate_layers.py` rules for explicit `app.state` access.
+- **Partial — boundary debt:** `getattr` on **`app.state` / `application.state` as first argument** is blocked repo-wide. **Follow-up (time-box):** `platform_bootstrap` `_sync_modules_from_state` / `_build_compat_modules_from_state` and any remaining compat shortcuts.
 - **Medium — lifecycle:** `tenant_runtime.py` has session LRU/idle controls and provider eviction, but tenant `_contexts` remain unbounded and `start_session` can be fire-and-forget — OK for controlled rollout, weak story for very high tenant/tool volume.
 - **Medium — dev defaults:** `docker-compose.yml` uses `EXO_ENV=development`; wildcard CORS in dev/test when `EXO_CORS_ORIGINS` unset — fine locally, risky as a prod template.
 - **Low — neutrality + docs drift:** e.g. `provider_schemas.py` default registration URLs/models; `providers.py` `recommended_runtime_mode="hybrid"` in list responses; telemetry code exists but customer guide / traceability matrix still describe interoperability as “planned” in places.
@@ -209,11 +211,13 @@ Close gaps from the **enterprise-style architecture audit**: restore blocking qu
 
 ## Phase 4 — Boundary guard completeness (P1) (~0.5–1 day)
 
+**Status:** **Complete** on branch `fix/boundary-guard-readiness` — `ast_app_state_guard.py`, `readiness.py` + allowlist, deps/startup `st` binding pattern, unit tests.
+
 **Tasks**
 
 1. Extend [`scripts/architecture/validate_layers.py`](../../scripts/architecture/validate_layers.py) to flag `getattr(..., "state", ...)` / `getattr(application.state, ...)` (pragmatic AST walk + allowlist if needed).
 2. Refactor [`src/api/readiness.py`](../../src/api/readiness.py) to approved patterns.
-3. **Follow-up (time-box):** trim `_sync_modules_from_state` / `_build_compat_modules_from_state` in [`platform_bootstrap/service.py`](../../src/modules/platform_bootstrap/service.py) and `request.app.state` fallbacks in [`dependencies.py`](../../src/api/dependencies.py) when safe.
+3. **Follow-up (time-box):** trim `_sync_modules_from_state` / `_build_compat_modules_from_state` in [`platform_bootstrap/service.py`](../../src/modules/platform_bootstrap/service.py) when safe (`dependencies.py` compat path already uses `st = request.app.state` + `getattr(st, …)`).
 
 **Acceptance criteria**
 
@@ -323,3 +327,4 @@ For GitHub: one **epic** + child issues per phase **or** one issue per PR **A–
 | 2026-03-24 | Plan↔codebase spot-check: alignment subsection, Phase 1 test path fixed to `identity_access` only, validator/readiness bypass clarified. |
 | 2026-03-24 | Phase 1–2 marked complete: 100% coverage baseline, `EXO_CONTROL_STATE_*` and related env wiring in `app.py`, README/compose, tests. |
 | 2026-03-24 | Phase 3: architecture-fitness evidence from job results + fail on non-success; progressive-deploy honest placeholder labels; rollback `manual_automation_required` / `evidence_only`. |
+| 2026-03-24 | Phase 4: `ast_app_state_guard` + getattr-on-app.state ban; readiness direct `state`; deps/startup `getattr(st,…)`; tests load guard module only for coverage safety. |
