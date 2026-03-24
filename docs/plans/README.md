@@ -36,6 +36,7 @@ For the **numbered architecture planes** (stack), see [`docs/architecture/ARCHIT
 - `docs/plans/notebook-standards.md`
 - `docs/plans/enterprise-audit-remediation-plan.md` — post–enterprise audit closure (coverage, env wiring, CI honesty, boundaries, lifecycle, docs)
 - `docs/plans/post-monolith-execution-roadmap.md` — execution streams after MOD-REF-001 + audit phase closure (hygiene, gateway, observability, entitlements, scale evidence)
+- `docs/plans/adapter-ecosystem-gateway-hygiene-plan.md` — **detailed** phased plan: adapter versioning + certification, northbound `/v1`, EA/FIND hygiene (extends roadmap Streams A/C)
 
 ## Archived Plans
 

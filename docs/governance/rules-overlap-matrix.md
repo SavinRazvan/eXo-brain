@@ -18,7 +18,7 @@ Notes:
 | `provider-neutral-adapter-wall.mdc` | Adapter wall, layer boundaries | `AGENTS.md`, `docs/architecture/*` | **Keep separate** (never merge into workflow rules) |
 | `pr-workflow-enforcement.mdc` | PR-first, artifacts, merge gates | `workflow-complete.md`, `PR_WORKFLOW.md` | **Short pointer** to `local_workflow_paths.py` + `prepare.py` |
 | `implementation-workflow-governance.mdc` | Slice lifecycle, planning discipline, testing | `finish-slice` skill, `implementer.md` | **Keep** (absorbed former test-implementation standard) |
-| `advisory-audit-alignment-enforcement.mdc` | Alignment audit outputs | `agent-workflow-procedures.md` | **Keep** |
+| `advisory-audit-alignment-enforcement.mdc` | Alignment artifacts (authored via `enterprise-auditor`) | `agent-workflow-procedures.md` | **Keep** |
 | `commit-trailer-format.mdc` | Commit trailers | `README` / contributor docs | **Keep separate** |
 | `file-docstring-header-relations.mdc` | File headers | All new source files | **Keep** |
 | `local-artifact-protection.mdc` | `.exo_data/`, `.coverage` | ops runbooks | **Keep** |

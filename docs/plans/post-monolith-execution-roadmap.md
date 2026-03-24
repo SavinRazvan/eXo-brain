@@ -186,6 +186,7 @@ When changing governance, workflow policy, or tracked doc indexes:
 | [`tenant-tool-execution-architecture.md`](tenant-tool-execution-architecture.md) | **Option C** execution / gateway sequencing |
 | [`next-directions.md`](../strategy/next-directions.md) | **Strategy tiers** — source of *what* matters commercially |
 | [`traceability-matrix.md`](../strategy/traceability-matrix.md) | **Gap ↔ code** mapping — update when streams close gaps |
+| [`adapter-ecosystem-gateway-hygiene-plan.md`](adapter-ecosystem-gateway-hygiene-plan.md) | **Detailed** breakdown: Python/CI alignment (EA-001), gate doc parity (EA-002), test layout (FIND-*), adapter platform + `/v1` gateway phases with acceptance criteria |
 
 ---
 
@@ -194,3 +195,4 @@ When changing governance, workflow policy, or tracked doc indexes:
 | Date | Change |
 |------|--------|
 | 2026-03-24 | Initial roadmap: streams A–F, sequencing, gates, tracker discipline after MOD-REF-001 + audit phase closure. |
+| 2026-03-24 | Linked detailed plan `adapter-ecosystem-gateway-hygiene-plan.md` for adapter versioning, gateway slices, and EA/FIND execution. |

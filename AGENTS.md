@@ -24,7 +24,7 @@ Gitignored workspace map: **`docs/operations/local-workspace-layout.md`** (what 
 | `.cursor/rules/commit-trailer-format.mdc` | Commit trailers |
 | `.cursor/rules/file-docstring-header-relations.mdc` | File headers |
 | `.cursor/rules/local-artifact-protection.mdc` | `.exo_data/`, `.coverage` |
-| `.cursor/rules/advisory-audit-alignment-enforcement.mdc` | Alignment audits when scope warrants |
+| `.cursor/rules/advisory-audit-alignment-enforcement.mdc` | Architecture-impacting audits → **`enterprise-auditor`** + alignment artifacts when scope warrants |
 
 Architecture detail: same themes as the adapter-wall rule (provider SDK only in `src/runtime/*adapter*`, core provider-neutral, deterministic tool paths, typed boundaries). **Do not duplicate long gate lists** in chat or `updates-log.md` — say *prepare gates green* or paste failing command output only.
 
@@ -68,13 +68,15 @@ Use `feature/`, `fix/`, or `chore/` branches; keep `main` merge-ready. After mer
 | Implement | `.cursor/agents/implementer.md` + `.cursor/skills/implementation-execution-loop/SKILL.md` |
 | Tests / coverage | `.cursor/agents/test-runner.md` + `.cursor/skills/test-module-coverage/SKILL.md` |
 | Verify claims | `.cursor/agents/verifier.md` |
-| Deep module map | `.cursor/skills/audit-module-map/SKILL.md` |
+| Audits (canonical) | **`enterprise-auditor`** — `.cursor/agents/enterprise-auditor.md` + `.cursor/skills/enterprise-architecture-audit/SKILL.md` (full report: `.local/workflow-artifacts/enterprise-architecture-audit/`; PR alignment: `.local/workflow-artifacts/alignment/`) |
+| Module map (depth tool) | `.cursor/skills/audit-module-map/SKILL.md` — use under **`enterprise-auditor`** when deep topology/HTML export is needed |
 | Maintainer PR | `.agents/skills/PR_WORKFLOW.md` → `review-pr` → `prepare-pr` → `merge-pr` (versioned under `.agents/skills/`, same layout as Cursor skills) |
 
 Scripts (attribution use your name as today):
 
 - `python scripts/pr/verify_publish.py --branch <branch>`
-- `python scripts/pr/review.py|prepare.py|merge.py --pr <id|url> --actor "Savin I. Razvan" --agents "<pipeline>"`
+- `python scripts/pr/review.py|prepare.py|merge.py --pr <id|url> --actor "Savin I. Razvan" --agents "<pipeline>"`  
+- Architecture-impacting PRs: run **`enterprise-auditor`** before `/prepare-pr` to refresh `alignment-audit.md` / `alignment-todos.md` when required
 
 ## Next work
 

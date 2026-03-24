@@ -11,7 +11,7 @@ disable-model-invocation: true
 ## Steps
 
 1. `review.md` exists; clear BLOCKER/IMPORTANT items first.
-2. Alignment files present when required (see `advisory-audit-alignment-enforcement.mdc`); no open **P0** unless explicitly accepted.
+2. Alignment files present when required (authored via **`enterprise-auditor`** / `enterprise-architecture-audit` skill; see `advisory-audit-alignment-enforcement.mdc`); no open **P0** unless explicitly accepted.
 3. Fixes **only** in PR scope.
 4. Run:  
    `python scripts/pr/prepare.py --pr <id|url> --actor "Savin I. Razvan" --agents "review-pr | prepare-pr"`  
