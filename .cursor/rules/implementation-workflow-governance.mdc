@@ -31,3 +31,8 @@ alwaysApply: true
 ## Merge gates
 
 - Full gate order: [`.cursor/rules/pr-workflow-enforcement.mdc`](pr-workflow-enforcement.mdc) and `scripts/pr/prepare.py` (`GATES`).
+
+## Efficiency (less noise)
+
+- Default read set under `.local/`: **`index-and-planning/current/*.md`** and PR artifacts under **`workflow-artifacts/`** when merging. Skip **`generated-data/**`** unless the slice is coverage, validation export, or UI smoke metadata.
+- In `updates-log.md` and chat handoffs, do **not** paste the full `GATES` block; state outcomes (*e.g.* “prepare.py gates green”) and only the failing command + stderr when something breaks.
