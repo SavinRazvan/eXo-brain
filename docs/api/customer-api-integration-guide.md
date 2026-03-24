@@ -14,12 +14,15 @@ Depends On:
  - src/api/routers/tools.py
  - src/api/routers/audit.py
  - src/api/routers/providers.py
+ - src/observability/telemetry_export.py
+ - src/api/routers/prometheus_metrics.py
+ - src/api/bootstrap.py
  - docs/strategy/entitlement-matrix.md
  - docs/strategy/interface-strategy.md
 Notes:
  - Keep tier labels in sync with docs/strategy/entitlement-matrix.md.
  - All safety and governance controls are server-side and non-bypassable regardless of tier.
-- Standard telemetry export is a planned interoperability path; do not present it as implemented until exporter modules ship.
+ - **Telemetry export — partial (productized baseline):** optional OTLP HTTP traces/metrics via env (`telemetry_export.py`, wired from `bootstrap.py`) and optional `GET /metrics` (Prometheus text, minimal `exo_build_info`) when `EXO_ENABLE_PROMETHEUS_METRICS=1` (`prometheus_metrics.py`). Not a full enterprise observability product: no guaranteed collector E2E in CI, limited metric catalog vs roadmap. See §9.2.
 -->
 
 # eXo-brain Customer API Integration Guide
@@ -28,8 +31,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.1.0`
-- Last Reviewed: `2026-03-22`
+- Version: `1.2.0`
+- Last Reviewed: `2026-03-24`
 - Review Cadence: `on architecture change`
 
 ---
@@ -287,16 +290,26 @@ Returns per-profile SLO observations for the tenant:
 }
 ```
 
-### 9.2) Standard Telemetry Export Direction (Planned)
+### 9.2) Standard telemetry export (**partial** — baseline shipped)
 
-Current runtime visibility is available through runtime-control APIs, audit APIs, and correlation-linked events.
+**Status:** *Partial.* Code exists and is covered by tests; treat rich operational telemetry (full metric catalog, collector certification, redaction SLOs) as **roadmap**, not a completed product surface.
 
-Planned enterprise interoperability path:
-- OpenTelemetry traces/logs for deployment-integrated observability,
-- Prometheus or OTel-compatible metrics export for runtime signals,
-- exporter health and redaction guarantees validated per supported deployment profile.
+**Already available**
 
-Telemetry exporters are additive to the API and audit model. They do not replace audit evidence or runtime admin APIs.
+| Mechanism | What it does | Configuration / code |
+|-----------|----------------|----------------------|
+| OTLP HTTP (traces + metrics) | When endpoints are set, `bootstrap_app()` configures OTLP span + metric exporters (OpenTelemetry SDK). | Env: `OTEL_EXPORTER_OTLP_ENDPOINT` and/or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`, optional `OTEL_SERVICE_NAME`, `OTEL_SERVICE_VERSION`, `OTEL_METRIC_EXPORT_INTERVAL_MS`. Implementation: `src/observability/telemetry_export.py` (`configure_opentelemetry_exporters`), invoked from `src/api/bootstrap.py`. |
+| Prometheus text | Optional scrape endpoint exposing minimal process metadata (`exo_build_info`). | Env: `EXO_ENABLE_PROMETHEUS_METRICS=1`. Route: `GET /metrics`. Implementation: `src/api/routers/prometheus_metrics.py`, registered from `src/api/app.py`. |
+
+**Tests (anchors):** `tests/modules/observability/test_telemetry_export.py`, `tests/modules/api/test_app_factory_branches.py` (`test_prometheus_metrics_router_registered_when_env_enabled`).
+
+**Still on the roadmap (not claimed as done here)**
+
+- End-to-end validation against a reference OTLP collector in CI / release gates.
+- Broader runtime signal coverage in Prometheus/OTel exports (beyond build metadata and SDK defaults).
+- Deployment-profile-specific redaction guarantees and exporter health checks as first-class certification artifacts.
+
+Runtime visibility **today** also remains available through runtime-control APIs, audit APIs, and correlation-linked events. Exporters are **additive**; they do not replace audit evidence or runtime admin APIs.
 
 ---
 
