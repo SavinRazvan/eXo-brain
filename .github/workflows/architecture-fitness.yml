@@ -9,6 +9,7 @@
 #  - tests/modules/
 # Notes:
 #  - Keep this workflow aligned with active governance scripts and `.local/index-and-planning/current` coverage index output.
+#  - evidence_bundle_publish records each job's GitHub Actions result (success|failure|skipped|cancelled) and fails the workflow if any stage did not succeed.
 
 name: architecture-fitness
 
@@ -120,19 +121,35 @@ jobs:
 
   evidence_bundle_publish:
     runs-on: ubuntu-latest
-    needs: [integration_architecture_fitness]
+    needs:
+      - architecture_lint
+      - forbidden_import_scan
+      - governance_consistency
+      - automated_test_suite
+      - contract_tests
+      - integration_architecture_fitness
     if: always()
     steps:
       - uses: actions/checkout@v6
       - name: Build architecture evidence bundle
         run: |
           mkdir -p artifacts/evidence
-          echo "architecture_lint=completed" > artifacts/evidence/architecture_fitness_summary.txt
-          echo "forbidden_import_scan=completed" >> artifacts/evidence/architecture_fitness_summary.txt
-          echo "contract_tests=completed" >> artifacts/evidence/architecture_fitness_summary.txt
-          echo "integration_architecture_fitness=completed" >> artifacts/evidence/architecture_fitness_summary.txt
+          {
+            echo "architecture_lint=${{ needs.architecture_lint.result }}"
+            echo "forbidden_import_scan=${{ needs.forbidden_import_scan.result }}"
+            echo "governance_consistency=${{ needs.governance_consistency.result }}"
+            echo "automated_test_suite=${{ needs.automated_test_suite.result }}"
+            echo "contract_tests=${{ needs.contract_tests.result }}"
+            echo "integration_architecture_fitness=${{ needs.integration_architecture_fitness.result }}"
+          } > artifacts/evidence/architecture_fitness_summary.txt
       - name: Upload evidence artifact
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: architecture-fitness-evidence
           path: artifacts/evidence
+      - name: Fail if any required stage did not succeed
+        if: ${{ needs.architecture_lint.result != 'success' || needs.forbidden_import_scan.result != 'success' || needs.governance_consistency.result != 'success' || needs.automated_test_suite.result != 'success' || needs.contract_tests.result != 'success' || needs.integration_architecture_fitness.result != 'success' }}
+        run: |
+          echo "::error::architecture-fitness evidence job: one or more upstream stages were not successful. See architecture_fitness_summary.txt in the uploaded artifact."
+          exit 1

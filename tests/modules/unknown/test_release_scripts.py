@@ -79,7 +79,8 @@ def test_rollback_release_writes_evidence(tmp_path: Path, monkeypatch) -> None:
     )
     assert module.main() == 0
     content = (tmp_path / "artifacts" / "evidence" / "rollback.txt").read_text(encoding="utf-8")
-    assert "rollback-status: executed" in content
+    assert "rollback-status: manual_automation_required" in content
+    assert "automation_level: evidence_only" in content
     assert "environment: stage" in content
 
 

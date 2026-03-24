@@ -7,10 +7,12 @@ Used By:
 Depends On:
  - ast
  - pathlib
+ - scripts/architecture/ast_app_state_guard.py
  - src/modules/contracts.py
 Notes:
  - Boundary checks are strict for `src/modules/*` and selected global guardrails.
  - Prepends repo root to `sys.path` so `src.*` imports work in CI without `PYTHONPATH`.
+ - Rejects getattr(<...>.app.state, ...) / getattr(application.state, ...) patterns that bypass the app.state rule.
 """
 
 from __future__ import annotations
@@ -24,6 +26,12 @@ _REPO_ROOT = str(ROOT)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+_ARCH_DIR = Path(__file__).resolve().parent
+if str(_ARCH_DIR) not in sys.path:
+    sys.path.insert(0, str(_ARCH_DIR))
+
+import ast_app_state_guard  # noqa: E402
+
 from src.modules.contracts import (
     allowed_dependencies_for_module,
     is_public_module_import,
@@ -35,6 +43,7 @@ ALLOWED_APP_STATE_FILES = {
     "src/api/app.py",
     "src/api/bootstrap.py",
     "src/api/dependencies.py",
+    "src/api/readiness.py",
     "src/api/startup.py",
     "src/modules/platform_bootstrap/service.py",
 }
@@ -60,30 +69,6 @@ def _imports_for_tree(tree: ast.AST) -> list[str]:
         elif isinstance(node, ast.ImportFrom) and node.module:
             imports.append(node.module)
     return imports
-
-
-def _attribute_chain(node: ast.AST) -> list[str]:
-    chain: list[str] = []
-    current = node
-    while isinstance(current, ast.Attribute):
-        chain.append(current.attr)
-        current = current.value
-    if isinstance(current, ast.Name):
-        chain.append(current.id)
-    chain.reverse()
-    return chain
-
-
-def _has_direct_app_state_access(tree: ast.AST) -> bool:
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Attribute):
-            continue
-        chain = _attribute_chain(node)
-        if chain[:2] == ["app", "state"]:
-            return True
-        if chain[:3] in (["request", "app", "state"], ["websocket", "app", "state"]):
-            return True
-    return False
 
 
 def _validate_module_imports(*, rel: str, imports: list[str], violations: list[str]) -> None:
@@ -126,8 +111,13 @@ def main() -> int:
                 if imp.startswith("src.runtime.openai_agents_runtime"):
                     violations.append(f"{rel}: core must depend on runtime_adapter interfaces, not concrete adapters ({imp})")
         _validate_module_imports(rel=rel, imports=imports, violations=violations)
-        if rel not in ALLOWED_APP_STATE_FILES and _has_direct_app_state_access(tree):
+        if rel not in ALLOWED_APP_STATE_FILES and ast_app_state_guard.has_direct_app_state_access(tree):
             violations.append(f"{rel}: direct app.state access is reserved for bootstrap/startup/dependency wiring")
+        if ast_app_state_guard.getattr_bypasses_app_state_guard(tree):
+            violations.append(
+                f"{rel}: getattr(..., on app.state / application.state) bypasses the app.state access guard; "
+                "bind `st = <...>.state` then use direct attributes or getattr(st, ...)"
+            )
 
     if violations:
         print("Layer validation failed:")
