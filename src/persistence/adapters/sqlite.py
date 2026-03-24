@@ -15,6 +15,18 @@ Notes:
  - Uses sqlite upsert semantics to keep contract behavior deterministic.
  - All stores share the same db_path; each uses a separate table.
  - In-memory (':memory:') stores keep a single shared connection to prevent per-call resets.
+ - **Connection model (file-backed):** `SQLiteSessionStore` / `SQLiteCheckpointStore` open a
+   short-lived connection per operation inside `asyncio.to_thread` workers. Other stores in this
+   module use `_connect()` (new file connection per call from the coroutine path, or the shared
+   in-memory handle). That split is historical; file-backed paths favor **process-safe** defaults
+   (multiple workers each own connections; no hidden global pool).
+ - **Phase 8 (enterprise audit) — unify vs defer:** **Deferred.** Replacing per-call file
+   connections with one long-lived shared connection per store would reduce syscall churn but
+   changes locking/timeout/writer contention behavior and is harder to reason about under
+   concurrent `to_thread` traffic and multi-tenant isolation tests. Revisit only after measured
+   hot-path evidence (see plan).
+ - **Perf:** There is no checked-in micro-benchmark gate; high-QPS connect overhead remains
+   **unmeasured** in this repo — see `docs/plans/enterprise-audit-remediation-plan.md` Phase 8.
 """
 
 from __future__ import annotations

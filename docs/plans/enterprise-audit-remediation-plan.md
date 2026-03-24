@@ -27,10 +27,11 @@ Notes:
 - **Phase 5 — Tenant runtime lifecycle:** `RuntimeSettings.tenant_runtime_max_cached_contexts` + `EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS` in [`src/api/app.py`](../../src/api/app.py); LRU eviction before adding a new tenant context in [`src/runtime/tenant_runtime.py`](../../src/runtime/tenant_runtime.py); `_log_adapter_start_session_done` for background `start_session` task failures; README env table; tests in [`tests/modules/runtime/test_tenant_runtime.py`](../../tests/modules/runtime/test_tenant_runtime.py) and [`test_app_factory_branches.py`](../../tests/modules/api/test_app_factory_branches.py).
 - **Phase 6 — Compose / prod clarity:** prominent **not-for-prod** banner on [`docker-compose.yml`](../../docker-compose.yml); [`docker-compose.override.example.yml`](../../docker-compose.override.example.yml) + gitignored `docker-compose.override.yml`; README Docker subsection + observability pointers (Prometheus/OTLP rows + code refs).
 - **Phase 7 — Docs / telemetry alignment:** [`customer-api-integration-guide.md`](../../docs/api/customer-api-integration-guide.md) §9.2 and header Notes describe **partial** OTLP + Prometheus baseline with code/test anchors; [`traceability-matrix.md`](../../docs/strategy/traceability-matrix.md) rows + gap table updated; [`docs/modules/api.md`](../../docs/modules/api.md) **AppModules** / composition-root narrative (**FIND-007**).
+- **Phase 8 — SQLite connection posture (audit closure):** **Defer** long-lived file-backed connection unification; rationale + connection-model summary in [`sqlite.py`](../../src/persistence/adapters/sqlite.py) module **Notes**; no micro-benchmark gate in-repo (perf note recorded).
 
-**Merge status:** Phases **1–5** audit stack on **`main`** via PR **#112**; maintainer workflow doc refresh PR **#113**; **Phases 6–7** on **`main`** via **[PR #114](https://github.com/SavinRazvan/eXo-brain/pull/114)** (merge `ea9a10b`).
+**Merge status:** Phases **1–5** audit stack on **`main`** via PR **#112**; maintainer workflow doc refresh PR **#113**; **Phases 6–7** on **`main`** via **[PR #114](https://github.com/SavinRazvan/eXo-brain/pull/114)** (merge `ea9a10b`). **Phase 8** lands via maintainer PR after review (doc + module header only unless scope expands).
 
-**Still open:** optional SQLite perf (**Phase 8** only). **Next slice:** Phase 8 tasks in this file — evaluate `src/persistence/adapters/sqlite.py` connection model vs risk; record unify vs defer.
+**Still open (outside this plan’s phased closure):** module-hygiene / test-ownership backlog (**`COV-100-002`**, **`FIND-*`** in `work-tracker.md`); optional future SQLite perf work only if measured production need appears.
 
 ---
 
@@ -67,6 +68,7 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 - `docs/api/customer-api-integration-guide.md` §9.2 documents telemetry as **partial** with anchors to `telemetry_export.py`, `prometheus_metrics.py`, `bootstrap.py`, and tests — **Phase 7 done** after merge.
 - `docker-compose.yml`: top-of-file **not-for-prod** banner + override example — **Phase 6 done** after merge.
 - Identity tests live under **`tests/modules/identity_access/`** (there is no `tests/modules/identity/` tree today).
+- `src/persistence/adapters/sqlite.py`: Phase **8** **defer** + connection-model summary in module **Notes** — **done** after merge of Phase 8 PR.
 
 ---
 
@@ -94,7 +96,7 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 
 - Load/SLO profiles and real multi-worker deployment not re-verified here.
 - OTLP collector integration not verified end-to-end; tests may only prove noop/minimal wiring.
-- `src/persistence/adapters/sqlite.py` per-operation connections: high-QPS behavior **plausible, not proven**.
+- `src/persistence/adapters/sqlite.py` per-operation / split connection patterns: high-QPS behavior **plausible, not proven**; **Phase 8** records **defer** on unifying file-backed connections — see module **Notes** in that file.
 
 ---
 
@@ -281,14 +283,16 @@ Close gaps from the **enterprise-style architecture audit**: restore blocking qu
 
 ## Phase 8 — Optional performance slice (P2)
 
-**Tasks**
+**Status:** **Complete (documented)** — decision **defer**; see [`sqlite.py`](../../src/persistence/adapters/sqlite.py) module docstring **Notes** (connection model, rationale, “no micro-benchmark gate” perf honesty).
 
-1. Evaluate unifying file-backed SQLite in [`sqlite.py`](../../src/persistence/adapters/sqlite.py) vs risk of behavior change.
-2. Short perf note or micro-benchmark record if gates exist.
+**Tasks (done)**
+
+1. Evaluated unifying file-backed SQLite (shared long-lived `Connection` per store vs today’s mix of `to_thread` + per-op connects and `_connect()` per call). **Outcome:** defer — behavior/locking changes outweigh unproven syscall savings at current scale targets.
+2. Recorded perf posture: no checked-in micro-benchmark gate; connect overhead remains an **unmeasured** hypothesis (aligned with “Missing evidence” honesty).
 
 **Acceptance criteria**
 
-- Decision recorded (unify vs defer).
+- Decision recorded (unify vs defer). **Met:** **defer**.
 
 ---
 
@@ -314,7 +318,7 @@ Close gaps from the **enterprise-style architecture audit**: restore blocking qu
 | **D** | Phase 4 — validator + readiness (+ compat time-box if included) |
 | **E** | Phase 5 — lifecycle |
 | **F** | Phases 6–7 — compose + docs |
-| **G** (optional) | Phase 8 — SQLite perf |
+| **G** (optional) | Phase 8 — SQLite connection decision + module Notes (defer documented) |
 
 ---
 
@@ -344,3 +348,4 @@ For GitHub: one **epic** + child issues per phase **or** one issue per PR **A–
 | 2026-03-24 | Phase 6: compose not-for-prod banner, `docker-compose.override.example.yml`, README Docker safety. |
 | 2026-03-24 | Phase 7: customer guide + traceability matrix **partial** telemetry; `docs/modules/api.md` `AppModules` composition narrative. |
 | 2026-03-24 | PR **#114** merged to `main` — Phases 6–7; plan merge-status paragraph synced post-merge. |
+| 2026-03-24 | Phase 8: **defer** file-backed SQLite connection unification; documented in `sqlite.py` Notes + this plan (no code-path change). |
