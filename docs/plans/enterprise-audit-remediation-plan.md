@@ -23,7 +23,7 @@ Notes:
 - **Phase 1 — Coverage:** `pytest --cov=src --cov-fail-under=100` green (**100%** `src/**`); full suite on the order of **~1160+ passed**, **1 skipped** (soak).
 - **Phase 2 — Stock factory env wiring:** `_default_settings()` in [`src/api/app.py`](../../src/api/app.py) parses `EXO_CONTROL_STATE_BACKEND`, `EXO_CONTROL_STATE_SQLITE_DB_PATH`, `EXO_SESSION_RUNTIME_IDLE_TTL_SECONDS`, `EXO_SESSION_RUNTIME_MAX_CACHED_SESSIONS`, `EXO_RUN_CONTROL_MAX_TERMINAL_RECORDS_PER_TENANT`; documented in [`README.md`](../../README.md); compose comments in [`docker-compose.yml`](../../docker-compose.yml); tests in [`tests/modules/api/test_app_factory_branches.py`](../../tests/modules/api/test_app_factory_branches.py).
 
-**Still open:** honest CI/deploy evidence (Phase 3), `validate_layers` + readiness bypass (Phase 4), tenant-context / session-start hardening (Phase 5), prod compose warnings depth (Phase 6), docs/telemetry alignment (Phase 7), optional SQLite perf (Phase 8).
+**Still open (after Phase 3 merge):** `validate_layers` + readiness bypass (Phase 4), tenant-context / session-start hardening (Phase 5), prod compose warnings depth (Phase 6), docs/telemetry alignment (Phase 7), optional SQLite perf (Phase 8). **Phase 3** (honest CI summaries, labeled deploy placeholders, rollback JSON/text) is implemented on branch `fix/ci-evidence-honesty`.
 
 ---
 
@@ -50,9 +50,9 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 
 - `src/api/app.py` **parses** `EXO_CONTROL_STATE_*`, session-cache, and run-control retention env vars into `RuntimeSettings` — **Phase 2 done** on branch / after merge.
 - `src/api/readiness.py` still uses `getattr(application.state, ...)` for `session_store`, `run_control_registry`, `audit_store`. `readiness.py` is in `_EXTRA_BOUNDARY_FILES` in `validate_layers.py` for **module import** rules, but it is **not** in `ALLOWED_APP_STATE_FILES`, and **`getattr(..., "state", ...)` is not the same as `app.state` in the AST check** — so the guard is bypassed; Phase 4 still applies.
-- `.github/workflows/progressive-deploy.yml`: real **Docker build + container smoke** (`/health`, `/ready`); **Deploy release** and **Health check** steps are still explicitly **placeholder**.
-- `.github/workflows/architecture-fitness.yml` `evidence_bundle_publish`: still `if: always()` with static `completed` lines — Phase 3 still applies.
-- `scripts/release/rollback_release.py` still documents stub / `stub_executed`-style evidence — Phase 3 still applies.
+- `.github/workflows/progressive-deploy.yml`: real **Docker build + container smoke**; deploy/post-deploy steps are **labeled template placeholders** with honest `deploy.txt` keys (no fake `deploy-status: executed`).
+- `.github/workflows/architecture-fitness.yml` `evidence_bundle_publish`: records **`needs.<job>.result`** per stage and **fails the job** if any required stage ≠ `success` — **Phase 3 done** after merge.
+- `scripts/release/rollback_release.py`: JSON uses **`manual_automation_required`** / **`evidence_only`** instead of implying a rollback ran — **Phase 3 done** after merge.
 - `src/modules/platform_bootstrap/service.py`: `_sync_modules_from_state` / `_build_compat_modules_from_state` still present — Phase 4 follow-up still applies.
 - `src/api/dependencies.py`: `request.app.state.*` and `getattr(request.app.state, ...)` fallbacks still present — Phase 4 still applies.
 - `src/runtime/tenant_runtime.py`: `self._contexts` dict and `loop.create_task(...)` for async work still present — Phase 5 still applies.
@@ -76,7 +76,7 @@ Re-verify **numbers** (`pytest` count, coverage %) on your branch before executi
 
 - **Resolved — coverage gate:** **100%** `src/**` with `--cov-fail-under=100` (re-run after each substantive change).
 - **Resolved — stock deploy path env:** `create_app()` → `_default_settings()` now wires control state + session cache + run-control retention from env (see README operations table).
-- **Medium — synthetic evidence:** `progressive-deploy.yml` may build image and probe `/health` / `/ready`, but deploy/post-deploy steps can remain placeholders; `rollback_release.py` still `rollback_status: stub_executed`; `architecture-fitness.yml` `evidence_bundle_publish` can still write unconditional `completed` lines.
+- **Resolved — synthetic / misleading evidence (honesty slice):** architecture-fitness summary lists **actual** job results and fails when any stage is not `success`; progressive-deploy artifact text distinguishes **template** vs **local image smoke**; rollback evidence uses **`manual_automation_required`** (integrators still replace with real automation).
 - **Medium — boundary debt:** `src/modules/platform_bootstrap/service.py` keeps `_sync_modules_from_state` / `_build_compat_modules_from_state`; `src/api/dependencies.py` has raw `request.app.state` fallbacks; `readiness.py` uses `getattr(application.state, ...)`, bypassing `validate_layers.py` rules for explicit `app.state` access.
 - **Medium — lifecycle:** `tenant_runtime.py` has session LRU/idle controls and provider eviction, but tenant `_contexts` remain unbounded and `start_session` can be fire-and-forget — OK for controlled rollout, weak story for very high tenant/tool volume.
 - **Medium — dev defaults:** `docker-compose.yml` uses `EXO_ENV=development`; wildcard CORS in dev/test when `EXO_CORS_ORIGINS` unset — fine locally, risky as a prod template.
@@ -192,6 +192,8 @@ Close gaps from the **enterprise-style architecture audit**: restore blocking qu
 ---
 
 ## Phase 3 — CI / deploy evidence honesty (P1) (~0.5–1.5 days)
+
+**Status:** **Complete** on branch `fix/ci-evidence-honesty` — architecture summary from `needs.*.result` + fail step; progressive-deploy notes and honest deploy artifact keys; rollback script JSON/text semantics.
 
 **Tasks**
 
@@ -320,3 +322,4 @@ For GitHub: one **epic** + child issues per phase **or** one issue per PR **A–
 | 2026-03-24 | Added done-vs-not-done, tracking table, updated verdict (99.19% gate, improved areas), Phase 0 A/B telemetry, ordered Phase 1 table, progressive-deploy nuance, compat debt, missing evidence, external_install_smoke in checklist, tracker IDs. |
 | 2026-03-24 | Plan↔codebase spot-check: alignment subsection, Phase 1 test path fixed to `identity_access` only, validator/readiness bypass clarified. |
 | 2026-03-24 | Phase 1–2 marked complete: 100% coverage baseline, `EXO_CONTROL_STATE_*` and related env wiring in `app.py`, README/compose, tests. |
+| 2026-03-24 | Phase 3: architecture-fitness evidence from job results + fail on non-success; progressive-deploy honest placeholder labels; rollback `manual_automation_required` / `evidence_only`. |
