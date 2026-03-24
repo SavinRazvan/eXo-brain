@@ -203,11 +203,11 @@ flowchart TB
         HA["OrchestratorHostAdapter\nsubmit_turn()"]
     end
 
-    subgraph governance_ingress [Governance Ingress Plane]
-        IG["IngressGateChain\nallow · deny · escalate\n(planned)"]
-        EP["EntitlementResolver\ntier checks for governance depth\n(planned)"]
-        GB["GateBudgetController\nlatency budget + fail-safe mode\n(planned)"]
-        GP["GateProfiles\npredefined + custom rules\n(planned)"]
+    subgraph governance_ingress ["Governance ingress plane"]
+        IG["IngressGateChain\nallow · deny · escalate"]
+        EP["Entitlements and tier gates\n(entitlement-matrix depth)"]
+        GB["Ingress budget + fail-safe\nper-profile SLO"]
+        GP["Profiles · custom rules · classifiers"]
     end
 
     subgraph core [Core Orchestration]
@@ -316,7 +316,7 @@ flowchart TB
 ```mermaid
 flowchart TD
     A["Client: POST /tenants/{id}/sessions/{id}/turns\n{input: 'What is 5 + 7?'}"] --> B["FastAPI Router\nresolve identity · get tenant context"]
-    B --> B1["Ingress safety gate chain (planned)\npredefined/custom profile + entitlement + budget"]
+    B --> B1["Ingress gate chain\nprofile · entitlement · budget"]
     B1 -->|deny/escalate| B2["Return policy decision event/error\nwith reason code and correlation_id"]
     B1 -->|allow| C["TenantRuntimeFactory\nget_session_runtime(session_id)"]
     C --> D["OrchestratorHostAdapter.submit_turn()"]
@@ -345,7 +345,7 @@ flowchart TD
     B -->|unknown| C["Close 4404 — session not found"]
     B -->|ok| D["Hold OrchestratorHostAdapter for connection lifetime"]
     D --> E{Client message?}
-    E -->|turn message| F["Ingress safety gate decision per turn\n(planned baseline)"]
+    E -->|turn message| F["Ingress gate decision\n(per turn)"]
     F -->|allow| G["Create asyncio.Task\nstore run_id → task"]
     F -->|deny/escalate| H["Return policy event/error with reason code"]
     G --> I["submit_turn → stream events back over WS\noutput_delta · tool_call · tool_result · run_complete"]

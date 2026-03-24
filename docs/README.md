@@ -18,11 +18,12 @@ Notes:
 
 1. `README.md` (repository entry)
 2. `docs/strategy/goal.md` + `docs/strategy/next-directions.md` (direction)
-3. `docs/architecture/beginner-workflow.md` (plain-language walkthrough)
-4. `docs/architecture/mvp.md` + `docs/architecture/workspace-architecture.md` (shape)
-5. `docs/plans/tenant-tool-execution-architecture.md` (implementation status)
-6. `docs/operations/workflow-complete.md` (maintainer path)
-7. `docs/operations/local-workspace-layout.md` (gitignored `.local/` contract)
+3. `docs/architecture/ARCHITECTURE.md` (full stack map: layers, modules, plans)
+4. `docs/architecture/beginner-workflow.md` (plain-language walkthrough)
+5. `docs/architecture/mvp.md` + `docs/architecture/workspace-architecture.md` (shape detail)
+6. `docs/plans/tenant-tool-execution-architecture.md` (implementation status)
+7. `docs/operations/workflow-complete.md` (maintainer path)
+8. `docs/operations/local-workspace-layout.md` (gitignored `.local/` contract)
 
 ## Strategy (`docs/strategy/`)
 
@@ -36,6 +37,7 @@ Notes:
 ## Architecture (`docs/architecture/`)
 
 - `docs/architecture/README.md`
+- `docs/architecture/ARCHITECTURE.md` — consolidated layers, modular monolith, packages, data plane, plans map
 - `docs/architecture/beginner-workflow.md` — beginner-friendly workflow and analogy guide
 - `docs/architecture/mvp.md` — layers and flows
 - `docs/architecture/workspace-architecture.md` — workspace doctrine
