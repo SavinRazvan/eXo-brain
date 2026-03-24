@@ -70,8 +70,8 @@ python -m pytest -q --cov=src --cov-report=term-missing --cov-fail-under=100
 
 **Acceptance:**
 
-- [ ] Single documented **minimum Python** in `requirements.txt`, `README.md`, and **CI workflow** `python-version` aligned (no silent mismatch).
-- [ ] `python -m pytest -q` and (for `src/**` changes) `--cov=src --cov-fail-under=100` green on the **chosen** CI version.
+- [x] Single documented **minimum Python** in `requirements.txt`, `README.md`, and **CI workflow** `python-version` aligned (no silent mismatch).
+- [x] `python -m pytest -q` and (for `src/**` changes) `--cov=src --cov-fail-under=100` green on the **chosen** CI version.
 
 **Tracker:** **EA-001** → close or move to `done` in `work-tracker.md` when merged.
 
@@ -92,8 +92,8 @@ python -m pytest -q --cov=src --cov-report=term-missing --cov-fail-under=100
 
 **Acceptance:**
 
-- [ ] No contradictory “these are the merge gates” lists; **single SoT** is `prepare.py` for default prepare order.
-- [ ] `AGENTS.md` and README match chosen option.
+- [x] No contradictory “these are the merge gates” lists; **single SoT** is `prepare.py` for default prepare order.
+- [x] `AGENTS.md` and README match chosen option.
 
 **Tracker:** **EA-002**
 
@@ -255,3 +255,10 @@ Deliverables:
 | Date | Change |
 |------|--------|
 | 2026-03-24 | Initial plan: evidence baseline from local pytest+coverage; phases 0–5; EA/FIND crosswalk. |
+| 2026-03-24 | §14: linked granular checklist `adapter-ecosystem-gateway-hygiene-todos.md`; Phase 0–1 acceptance checked after EA-001 (P0-A) + EA-002 (1b) doc alignment. |
+
+---
+
+## 14. Execution checklist (granular todos)
+
+Checkbox-style tasks (Phases 0–5 + optional hygiene), crosswalk to EA/FIND IDs: [`adapter-ecosystem-gateway-hygiene-todos.md`](adapter-ecosystem-gateway-hygiene-todos.md).

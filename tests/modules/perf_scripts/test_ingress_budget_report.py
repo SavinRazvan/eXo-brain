@@ -1,6 +1,6 @@
 """
 File: test_ingress_budget_report.py
-Path: tests/modules/unknown/test_ingress_budget_report.py
+Path: tests/modules/perf_scripts/test_ingress_budget_report.py
 Role: Validates ingress budget report script profile-aware output and threshold enforcement.
 Used By:
  - CI test suite

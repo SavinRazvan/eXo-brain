@@ -1,6 +1,6 @@
 """
 File: test_validate_layers_app_state_getattr.py
-Path: tests/modules/unknown/test_validate_layers_app_state_getattr.py
+Path: tests/modules/architecture_scripts/test_validate_layers_app_state_getattr.py
 Role: Unit tests for validate_layers getattr-on-app.state AST guard.
 Used By:
  - pytest

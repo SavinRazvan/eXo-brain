@@ -169,7 +169,7 @@ Each slice follows:
 - Harden release helper script error handling and output contracts.
 
 **Verification**
-- `pytest -q tests/modules/audit tests/modules/unknown`
+- `pytest -q tests/modules/audit tests/modules/pr_workflow tests/modules/architecture_scripts tests/modules/release_scripts tests/modules/perf_scripts`
 - `pytest -q tests/modules/observability/test_release_guardrails.py`
 - Full gates
 

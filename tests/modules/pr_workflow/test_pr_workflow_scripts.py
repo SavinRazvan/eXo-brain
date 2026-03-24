@@ -1,6 +1,6 @@
 """
 File: test_pr_workflow_scripts.py
-Path: tests/modules/unknown/test_pr_workflow_scripts.py
+Path: tests/modules/pr_workflow/test_pr_workflow_scripts.py
 Role: Verifies PR workflow scripts emit required actor attribution metadata.
 Used By:
  - .github/workflows/architecture-fitness.yml
