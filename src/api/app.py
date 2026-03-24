@@ -19,21 +19,15 @@ from __future__ import annotations
 import json
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Depends
+from fastapi.responses import JSONResponse
 
 from src.api.bootstrap import bootstrap
+from src.api.readiness import readiness_snapshot
 from src.api.dependencies import require_tenant_scope_identity
-from src.config.provider_registry import (
-    AuthConfig,
-    EndpointApiType,
-    EndpointConfig,
-    ModelDefaults,
-    ProviderProfile,
-    ProviderRecord,
-    ProviderRegistry,
-)
+from src.config.provider_registry import ProviderRegistry
 from src.config.settings import (
     AppSettings,
     AuthSettings,
@@ -42,7 +36,7 @@ from src.config.settings import (
     PolicySettings,
     RuntimeSettings,
 )
-from src.runtime.adapter_factory import OPENAI_ADAPTER_CANONICAL_CLASS_REF, load_adapter
+from src.modules.platform_bootstrap.service import build_default_provider_registry, validate_non_dev_secrets
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -50,6 +44,15 @@ def _env_bool(name: str, default: bool = False) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _cors_origins_for_environment(exo_env: str) -> list[str]:
+    raw = os.environ.get("EXO_CORS_ORIGINS", "").strip()
+    if raw:
+        return [part.strip() for part in raw.split(",") if part.strip()]
+    if exo_env in ("development", "test"):
+        return ["*"]
+    return []
 
 
 def _resolve_deployment_profile(raw: str) -> DeploymentProfile:
@@ -268,32 +271,16 @@ def _default_settings() -> AppSettings:
 
 
 def _default_provider_registry(settings: AppSettings) -> ProviderRegistry:
-    provider_id = settings.runtime.default_provider_id
-    adapter = load_adapter(OPENAI_ADAPTER_CANONICAL_CLASS_REF, provider_id=provider_id)
-    record = ProviderRecord(
-        provider_id=provider_id,
-        display_name=f"{provider_id} (default)",
-        adapter_class=OPENAI_ADAPTER_CANONICAL_CLASS_REF,
-        enabled=True,
-        profile=ProviderProfile.MANAGED_VENDOR,
-        priority=1,
-        endpoint=EndpointConfig(
-            base_url=os.environ.get("EXO_DEFAULT_PROVIDER_BASE_URL", "https://api.openai.com"),
-            api_type=EndpointApiType.OPENAI_NATIVE,
-        ),
-        auth=AuthConfig(
-            type="api_key",
-            api_key_env_var=os.environ.get("EXO_DEFAULT_PROVIDER_API_KEY_ENV_VAR", "OPENAI_API_KEY"),
-        ),
-        model_defaults=ModelDefaults(
-            model=os.environ.get("EXO_DEFAULT_PROVIDER_MODEL", "gpt-4o-mini"),
-        ),
-    )
-    return ProviderRegistry(settings=settings, providers=[record], adapters={provider_id: adapter})
+    return build_default_provider_registry(settings)
 
 
 def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
     """Create and return a configured FastAPI application instance."""
+    exo_env = os.environ.get("EXO_ENV", "development")
+    enable_openapi = _env_bool("EXO_ENABLE_OPENAPI", default=exo_env in ("development", "test"))
+    cors_origins = _cors_origins_for_environment(exo_env)
+    allow_credentials = False if cors_origins == ["*"] else True
+
     app = FastAPI(
         title=title,
         version=version,
@@ -302,21 +289,33 @@ def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
             "Deterministic tool execution, multi-tenant runtime isolation, "
             "SSE and WebSocket streaming."
         ),
-        docs_url="/docs",
-        redoc_url="/redoc",
-        openapi_url="/openapi.json",
+        docs_url="/docs" if enable_openapi else None,
+        redoc_url="/redoc" if enable_openapi else None,
+        openapi_url="/openapi.json" if enable_openapi else None,
     )
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
+        allow_origins=cors_origins,
+        allow_credentials=allow_credentials,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 
-    @app.get("/health", tags=["system"], summary="Platform health check")
+    @app.get("/health", tags=["system"], summary="Platform liveness probe")
     async def health() -> dict:
-        return {"status": "ok", "platform": "eXo-brain"}
+        return {"status": "ok", "platform": "eXo-brain", "probe": "liveness"}
+
+    @app.get("/ready", tags=["system"], summary="Readiness probe (persistence checks)", response_model=None)
+    async def ready(request: Request) -> JSONResponse:
+        snapshot = readiness_snapshot(request.app)
+        status_code = 200 if bool(snapshot.get("ready")) else 503
+        return JSONResponse(status_code=status_code, content=snapshot)
+
+    if _env_bool("EXO_ENABLE_PROMETHEUS_METRICS", default=False):
+        from src.api.routers.prometheus_metrics import router as prometheus_metrics_router
+
+        app.include_router(prometheus_metrics_router)
 
     # Slice 2 — Tool & Agent Management
     from src.api.routers.tools import router as tools_router
@@ -350,5 +349,6 @@ def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
     app.include_router(admin_keys_router)
 
     settings = _default_settings()
+    validate_non_dev_secrets(settings)
     provider_registry = _default_provider_registry(settings)
     return bootstrap(app, provider_registry=provider_registry, settings=settings, persistence_backend="sqlite")

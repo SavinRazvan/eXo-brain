@@ -1,0 +1,28 @@
+# File: docker-compose.yml
+# Path: docker-compose.yml
+# Role: Local single-node API + durable volume for SQLite and artifacts.
+# Used By:
+#  - developers / deployment certification smoke
+# Depends On:
+#  - Dockerfile
+# Notes:
+#  - Override secrets via environment or an env_file not committed to git.
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      EXO_ENV: development
+    volumes:
+      - exo_data:/app/.exo_data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8000/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  exo_data:

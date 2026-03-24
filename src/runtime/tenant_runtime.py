@@ -16,9 +16,10 @@ Depends On:
  - src/tenancy/quotas.py
  - src/tools/executor.py
  - src/tools/registry.py
-Notes:
+ Notes:
  - TenantRuntimeContext holds ONLY tenant-scoped state. Orchestrator and host_adapter
    are per-session, not per-tenant — they live in TenantRuntimeFactory._session_runtimes.
+ - Session adapter/runtime caches honor idle TTL and max entry limits when configured.
  - create_session_runtime resolves AgentSpec here so adapters never need agent_registry.
  - build_agent_tools is called inside run_turn (late binding) — not here.
  - If session_store is passed to TenantRuntimeFactory, all tenants share that store
@@ -29,6 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import time
 
 from src.agents.registry import AgentRegistry
 from src.config.provider_registry import ProviderRegistry
@@ -60,45 +62,47 @@ class TenantRuntimeContext:
     quota_manager: TenantQuotaManager
 
 
-class TenantRuntimeFactory:
-    """Creates and caches TenantRuntimeContext instances and per-session OrchestratorHostAdapters.
-
-    One factory instance is shared for the lifetime of the application process.
-    """
+class TenantContextBuilder:
+    """Build tenant-scoped registries and tool-runtime wiring."""
 
     def __init__(
         self,
-        provider_registry: ProviderRegistry,
+        *,
         settings: AppSettings,
-        session_store: SessionStore | None = None,
+        session_store: SessionStore | None,
+        sandbox_pool: TenantSandboxPool | None,
     ) -> None:
-        self._provider_registry = provider_registry
         self._settings = settings
         self._session_store = session_store
-        self._contexts: dict[str, TenantRuntimeContext] = {}
-        self._session_runtimes: dict[str, OrchestratorHostAdapter] = {}
-        self._session_adapters: dict[str, "RuntimeAdapter"] = {}
-        self._session_tenant: dict[str, str] = {}
-        self._sandbox_pool: TenantSandboxPool | None = (
-            TenantSandboxPool(max_workers_per_tenant=1)
-            if self._settings.runtime.enable_hosted_tool_runtime
-            else None
-        )
+        self._sandbox_pool = sandbox_pool
 
-    # ------------------------------------------------------------------
-    # Tenant context
-    # ------------------------------------------------------------------
-
-    def get_or_create(self, tenant_id: str) -> TenantRuntimeContext:
-        """Return cached context or build fresh tenant-scoped runtime state."""
-        if tenant_id not in self._contexts:
-            self._contexts[tenant_id] = self._build_context(tenant_id)
-        return self._contexts[tenant_id]
-
-    def _build_context(self, tenant_id: str) -> TenantRuntimeContext:
+    def build(self, tenant_id: str) -> TenantRuntimeContext:
         tool_registry = ToolRegistry()
         policy_middleware = DeterministicFirstPolicyMiddleware()
-        execution_adapter = None
+        execution_adapter = self._build_execution_adapter()
+        tool_executor = DeterministicToolExecutor(
+            registry=tool_registry,
+            policy=policy_middleware,
+            execution_adapter=execution_adapter,
+            enable_hosted_runtime=(
+                self._settings.runtime.enable_hosted_tool_runtime
+                or self._settings.runtime.enable_byoc_tool_runtime
+            ),
+        )
+        agent_registry = AgentRegistry()
+        session_store: SessionStore = self._session_store or InMemorySessionStore()
+        quota_manager = TenantQuotaManager()
+        return TenantRuntimeContext(
+            tenant_id=tenant_id,
+            tool_registry=tool_registry,
+            policy_middleware=policy_middleware,
+            tool_executor=tool_executor,
+            agent_registry=agent_registry,
+            session_store=session_store,
+            quota_manager=quota_manager,
+        )
+
+    def _build_execution_adapter(self):
         if self._settings.runtime.enable_byoc_tool_runtime:
             from src.tools.byoc import TenantByocConnectorRuntime
             from src.tools.byoc.result_store import (
@@ -113,28 +117,24 @@ class TenantRuntimeFactory:
                 SQLiteReplayGuard,
             )
 
+            strategy_raw = str(self._settings.runtime.byoc_result_conflict_strategy).strip().lower()
+            try:
+                conflict_strategy = ByocResultConflictStrategy(strategy_raw)
+            except ValueError:
+                conflict_strategy = ByocResultConflictStrategy.FIRST_WRITE_WINS
+
             if self._settings.runtime.byoc_store_backend == "sqlite":
                 db_path = Path(self._settings.runtime.byoc_sqlite_db_path)
                 db_path.parent.mkdir(parents=True, exist_ok=True)
-                strategy_raw = str(self._settings.runtime.byoc_result_conflict_strategy).strip().lower()
-                try:
-                    conflict_strategy = ByocResultConflictStrategy(strategy_raw)
-                except ValueError:
-                    conflict_strategy = ByocResultConflictStrategy.FIRST_WRITE_WINS
                 job_store = SQLiteByocJobQueueStore(str(db_path))
                 result_store = SQLiteByocResultStore(str(db_path), conflict_strategy=conflict_strategy)
                 replay_guard = SQLiteReplayGuard(str(db_path))
             else:
-                strategy_raw = str(self._settings.runtime.byoc_result_conflict_strategy).strip().lower()
-                try:
-                    conflict_strategy = ByocResultConflictStrategy(strategy_raw)
-                except ValueError:
-                    conflict_strategy = ByocResultConflictStrategy.FIRST_WRITE_WINS
                 job_store = InMemoryByocJobQueueStore()
                 result_store = InMemoryByocResultStore(conflict_strategy=conflict_strategy)
                 replay_guard = InMemoryReplayGuard()
 
-            execution_adapter = TenantByocConnectorRuntime(
+            return TenantByocConnectorRuntime(
                 worker_jwt_secret=self._settings.runtime.byoc_worker_jwt_secret,
                 worker_token_ttl_seconds=self._settings.runtime.byoc_worker_token_ttl_seconds,
                 lease_ttl_seconds=self._settings.runtime.byoc_lease_ttl_seconds,
@@ -168,50 +168,28 @@ class TenantRuntimeFactory:
                 result_store=result_store,
                 replay_guard=replay_guard,
             )
-        elif self._settings.runtime.enable_hosted_tool_runtime:
+        if self._settings.runtime.enable_hosted_tool_runtime:
             from src.tools.sandbox.runtime import TenantSandboxToolRuntime
 
-            execution_adapter = TenantSandboxToolRuntime(
+            return TenantSandboxToolRuntime(
                 runtime_pool=self._sandbox_pool,
                 enable_process_isolation=self._settings.runtime.enable_hosted_tool_process_isolation,
             )
-        tool_executor = DeterministicToolExecutor(
-            registry=tool_registry,
-            policy=policy_middleware,
-            execution_adapter=execution_adapter,
-            enable_hosted_runtime=(
-                self._settings.runtime.enable_hosted_tool_runtime
-                or self._settings.runtime.enable_byoc_tool_runtime
-            ),
-        )
-        agent_registry = AgentRegistry()
-        session_store: SessionStore = self._session_store or InMemorySessionStore()
-        quota_manager = TenantQuotaManager()
-        return TenantRuntimeContext(
-            tenant_id=tenant_id,
-            tool_registry=tool_registry,
-            policy_middleware=policy_middleware,
-            tool_executor=tool_executor,
-            agent_registry=agent_registry,
-            session_store=session_store,
-            quota_manager=quota_manager,
-        )
+        return None
 
-    # ------------------------------------------------------------------
-    # Session runtime
-    # ------------------------------------------------------------------
 
-    def _instantiate_session_adapter(
+class SessionAdapterResolver:
+    """Resolve a fresh session adapter from provider-management state."""
+
+    def __init__(self, provider_registry: ProviderRegistry) -> None:
+        self._provider_registry = provider_registry
+
+    def resolve(
         self,
+        *,
         tenant_context: TenantRuntimeContext,
         provider_id: str,
     ) -> "RuntimeAdapter":
-        """Resolve and instantiate a fresh adapter for a session.
-
-        Preferred path: use provider_record.adapter_class via adapter_factory.
-        Compatibility path: if adapter_class is legacy/non-dotted, instantiate from
-        the currently registered adapter type.
-        """
         from src.runtime.adapter_factory import load_adapter
 
         provider = self._provider_registry.get(provider_id)
@@ -224,16 +202,12 @@ class TenantRuntimeFactory:
         try:
             return load_adapter(adapter_class_ref, provider_id=provider_id, **init_kwargs)
         except TypeError:
-            # Not every adapter constructor accepts tool wiring kwargs.
             return load_adapter(adapter_class_ref, provider_id=provider_id)
         except (ImportError, ValueError):
-            # Compatibility fallback for legacy persisted records that may not be loadable
-            # through adapter_factory in the current environment.
             pass
 
         registered_adapter = self._provider_registry.get_adapter(provider_id)
         adapter_cls = type(registered_adapter)
-
         try:
             return adapter_cls(provider_id=provider_id, **init_kwargs)
         except TypeError:
@@ -242,20 +216,23 @@ class TenantRuntimeFactory:
             except TypeError:
                 return adapter_cls()
 
-    def create_session_runtime(
+
+class SessionRuntimeAssembler:
+    """Create per-session orchestrator/host-adapter pairs."""
+
+    def __init__(self, adapter_resolver: SessionAdapterResolver) -> None:
+        self._adapter_resolver = adapter_resolver
+
+    def create(
         self,
+        *,
         tenant_context: TenantRuntimeContext,
         agent_id: str,
         provider_id: str,
         session_id: str,
-    ) -> OrchestratorHostAdapter:
-        """Build and cache a per-session OrchestratorHostAdapter.
-
-        AgentSpec is resolved here so the adapter never needs agent_registry.
-        Raises KeyError if agent_id or provider_id is not registered.
-        """
+    ) -> tuple[OrchestratorHostAdapter, "RuntimeAdapter"]:
         spec = tenant_context.agent_registry.get(agent_id)
-        adapter = self._instantiate_session_adapter(
+        adapter = self._adapter_resolver.resolve(
             tenant_context=tenant_context,
             provider_id=provider_id,
         )
@@ -273,13 +250,8 @@ class TenantRuntimeFactory:
         )
         try:
             loop = asyncio.get_running_loop()
-            # If we're already inside a running event loop (async context), schedule
-            # start_session as a fire-and-forget task.  The metadata dict is written
-            # synchronously inside start_session before any await point, so the
-            # session is immediately usable.
             loop.create_task(coro)
         except RuntimeError:
-            # No running event loop — safe to run synchronously (e.g. in tests).
             asyncio.run(coro)
 
         orchestrator = Orchestrator(
@@ -288,24 +260,147 @@ class TenantRuntimeFactory:
             tool_executor=tenant_context.tool_executor,
             agent_registry=tenant_context.agent_registry,
         )
-        host_adapter = OrchestratorHostAdapter(orchestrator)
+        return OrchestratorHostAdapter(orchestrator), adapter
+
+
+class TenantRuntimeFactory:
+    """Creates and caches TenantRuntimeContext instances and per-session OrchestratorHostAdapters.
+
+    One factory instance is shared for the lifetime of the application process.
+    """
+
+    def __init__(
+        self,
+        provider_registry: ProviderRegistry,
+        settings: AppSettings,
+        session_store: SessionStore | None = None,
+    ) -> None:
+        self._provider_registry = provider_registry
+        self._settings = settings
+        self._session_store = session_store
+        self._contexts: dict[str, TenantRuntimeContext] = {}
+        self._session_runtimes: dict[str, OrchestratorHostAdapter] = {}
+        self._session_adapters: dict[str, "RuntimeAdapter"] = {}
+        self._session_tenant: dict[str, str] = {}
+        self._session_last_access: dict[str, float] = {}
+        self._sandbox_pool: TenantSandboxPool | None = (
+            TenantSandboxPool(max_workers_per_tenant=1)
+            if self._settings.runtime.enable_hosted_tool_runtime
+            else None
+        )
+        self._context_builder = TenantContextBuilder(
+            settings=self._settings,
+            session_store=self._session_store,
+            sandbox_pool=self._sandbox_pool,
+        )
+        self._adapter_resolver = SessionAdapterResolver(self._provider_registry)
+        self._session_runtime_assembler = SessionRuntimeAssembler(self._adapter_resolver)
+
+    # ------------------------------------------------------------------
+    # Tenant context
+    # ------------------------------------------------------------------
+
+    def _evict_idle_sessions_only(self) -> None:
+        ttl = int(self._settings.runtime.session_runtime_idle_ttl_seconds)
+        if ttl <= 0:
+            return
+        now = time.monotonic()
+        stale = [sid for sid, ts in self._session_last_access.items() if now - ts > ttl]
+        for sid in stale:
+            self._session_runtimes.pop(sid, None)
+            self._session_adapters.pop(sid, None)
+            self._session_tenant.pop(sid, None)
+            self._session_last_access.pop(sid, None)
+
+    def _evict_lru_until_under_cap(self) -> None:
+        max_sess = int(self._settings.runtime.session_runtime_max_cached_sessions)
+        if max_sess <= 0:
+            return
+        sorted_sids = sorted(self._session_last_access.items(), key=lambda item: item[1])
+        for sid, _ in sorted_sids:
+            if len(self._session_runtimes) < max_sess:
+                break
+            if sid in self._session_runtimes:
+                self._session_runtimes.pop(sid, None)
+                self._session_adapters.pop(sid, None)
+                self._session_tenant.pop(sid, None)
+                self._session_last_access.pop(sid, None)
+
+    def _touch_session(self, session_id: str) -> None:
+        self._session_last_access[session_id] = time.monotonic()
+
+    def get_or_create(self, tenant_id: str) -> TenantRuntimeContext:
+        """Return cached context or build fresh tenant-scoped runtime state."""
+        self._evict_idle_sessions_only()
+        if tenant_id not in self._contexts:
+            self._contexts[tenant_id] = self._build_context(tenant_id)
+        return self._contexts[tenant_id]
+
+    def _build_context(self, tenant_id: str) -> TenantRuntimeContext:
+        return self._context_builder.build(tenant_id)
+
+    # ------------------------------------------------------------------
+    # Session runtime
+    # ------------------------------------------------------------------
+
+    def _instantiate_session_adapter(
+        self,
+        tenant_context: TenantRuntimeContext,
+        provider_id: str,
+    ) -> "RuntimeAdapter":
+        """Resolve and instantiate a fresh adapter for a session.
+
+        Preferred path: use provider_record.adapter_class via adapter_factory.
+        Compatibility path: if adapter_class is legacy/non-dotted, instantiate from
+        the currently registered adapter type.
+        """
+        return self._adapter_resolver.resolve(
+            tenant_context=tenant_context,
+            provider_id=provider_id,
+        )
+
+    def create_session_runtime(
+        self,
+        tenant_context: TenantRuntimeContext,
+        agent_id: str,
+        provider_id: str,
+        session_id: str,
+    ) -> OrchestratorHostAdapter:
+        """Build and cache a per-session OrchestratorHostAdapter.
+
+        AgentSpec is resolved here so the adapter never needs agent_registry.
+        Raises KeyError if agent_id or provider_id is not registered.
+        """
+        self._evict_idle_sessions_only()
+        self._evict_lru_until_under_cap()
+        host_adapter, adapter = self._session_runtime_assembler.create(
+            tenant_context=tenant_context,
+            agent_id=agent_id,
+            provider_id=provider_id,
+            session_id=session_id,
+        )
         self._session_runtimes[session_id] = host_adapter
         self._session_adapters[session_id] = adapter
         self._session_tenant[session_id] = tenant_context.tenant_id
+        self._touch_session(session_id)
         return host_adapter
 
     def get_session_adapter(self, session_id: str) -> "RuntimeAdapter":
         """Return the runtime adapter for a session — used in tests and diagnostics."""
+        self._evict_idle_sessions_only()
         adapter = self._session_adapters.get(session_id)
         if adapter is None:
             raise KeyError(f"No session adapter found for session_id '{session_id}'")
+        self._touch_session(session_id)
         return adapter
 
     def get_session_runtime(self, session_id: str) -> OrchestratorHostAdapter:
         """Return cached session runtime or raise KeyError."""
+        self._evict_idle_sessions_only()
         runtime = self._session_runtimes.get(session_id)
         if runtime is None:
             raise KeyError(f"No session runtime found for session_id '{session_id}'")
+        self._touch_session(session_id)
         return runtime
 
     # ------------------------------------------------------------------
@@ -324,6 +419,7 @@ class TenantRuntimeFactory:
             del self._session_runtimes[sid]
             self._session_adapters.pop(sid, None)
             del self._session_tenant[sid]
+            self._session_last_access.pop(sid, None)
         self._contexts.pop(tenant_id, None)
 
     def evict_sessions_for_provider(self, provider_id: str) -> int:
@@ -338,5 +434,6 @@ class TenantRuntimeFactory:
             self._session_runtimes.pop(sid, None)
             self._session_adapters.pop(sid, None)
             self._session_tenant.pop(sid, None)
+            self._session_last_access.pop(sid, None)
             removed += 1
         return removed

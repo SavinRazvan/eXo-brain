@@ -29,7 +29,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from sse_starlette.sse import EventSourceResponse
 
-from src.api.dependencies import get_tenant_context, require_tenant_scope_identity
+from src.api.dependencies import get_app_modules, get_tenant_context, require_tenant_scope_identity
 from src.api.middleware.auth import extract_identity, is_identity_usable
 from src.api.middleware.entitlements import (
     EntitlementDecision,
@@ -54,23 +54,30 @@ from src.policies.ingress_gates import (
 from src.runtime.tenant_runtime import TenantRuntimeContext
 from src.schemas.events import RuntimeEvent, RuntimeEventType
 from src.schemas.tool_io import PolicyAction
+from src.modules.platform_bootstrap.service import app_modules_from_requestlike
 
 router = APIRouter(tags=["turns"])
 
 
 def _get_factory(request: Request):
-    return request.app.state.tenant_factory
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Session runtime module is not configured.")
+    return modules.session_runtime.tenant_factory
 
 
 def _get_run_registry(request: Request):
-    return request.app.state.run_control_registry
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Session runtime module is not configured.")
+    return modules.session_runtime.run_control_registry
 
 
 def _get_tenant_policy_overlay(app, tenant_id: str) -> dict[str, Any]:
-    store = getattr(app.state, "policy_overlay_store", None)
-    if store is None:
+    modules = app_modules_from_requestlike(app)
+    if modules is None:
         return {}
-    return dict(store.get_overlay(tenant_id))
+    return modules.tenant_governance.overlay_for_tenant(tenant_id)
 
 
 def _build_ingress_gate_chain(overlay: dict[str, Any]):
@@ -254,16 +261,10 @@ def _websocket_cross_tenant_admin_allowed(websocket: WebSocket, identity: Identi
     path = str(getattr(websocket.url, "path", "")).strip()
     if "/tenants/" not in path or "/admin/" not in path:
         return False
-    settings = getattr(websocket.app.state, "settings", None)
-    auth = getattr(settings, "auth", None)
-    allow_bypass = bool(getattr(auth, "allow_cross_tenant_admin", False))
-    if not allow_bypass:
+    modules = app_modules_from_requestlike(websocket)
+    if modules is None:
         return False
-    configured_roles = getattr(auth, "cross_tenant_admin_roles", ["super_admin"])
-    allowed_roles = {str(role).strip() for role in configured_roles if str(role).strip()}
-    if not allowed_roles:
-        return False
-    return any(role in allowed_roles for role in identity.roles)
+    return modules.identity_access.service.allow_cross_tenant_admin_access(identity)
 
 
 def _forward_runtime_cancellations(
@@ -452,10 +453,14 @@ async def submit_turn_sse(
     execution_adapter = ctx.tool_executor.execution_adapter()
     run_id = correlation_id
     run_registry = _get_run_registry(request)
-    turn_rate_limiter = getattr(request.app.state, "turn_rate_limiter", None)
-    audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
-    budget_recorder = getattr(request.app.state, "ingress_budget_recorder", None)
-    budget_config = budget_config_from_policy_settings(request.app.state.settings.policy)
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Application modules are not configured.")
+    turn_rate_limiter = modules.tenant_governance.turn_rate_limiter
+    audit_pipeline = modules.audit_observability.tool_audit_pipeline
+    budget_recorder = modules.audit_observability.ingress_budget_recorder
+    settings = modules.platform_bootstrap.settings
+    budget_config = budget_config_from_policy_settings(settings.policy)
     policy_overlay = _get_tenant_policy_overlay(request.app, tenant_id)
     entitlement_decision = await _evaluate_governance_entitlement(
         tenant_id=tenant_id,
@@ -533,7 +538,7 @@ async def submit_turn_sse(
                     f"(retry_after_seconds={retry_after_seconds})"
                 ),
             )
-    max_active_runs = max(int(request.app.state.settings.limits.max_active_runs_per_tenant), 0)
+    max_active_runs = max(int(settings.limits.max_active_runs_per_tenant), 0)
     if max_active_runs > 0 and run_registry.count_active_runs(tenant_id=tenant_id) >= max_active_runs:
         if audit_pipeline is not None:
             await audit_pipeline.emit(
@@ -671,7 +676,11 @@ async def websocket_turn(
     Cancellation: send {"type": "cancel", "run_id": "..."} to cancel a running turn.
     On disconnect: any in-flight turn task is automatically cancelled.
     """
-    factory = websocket.app.state.tenant_factory
+    modules = app_modules_from_requestlike(websocket)
+    if modules is None:
+        await websocket.close(code=1011, reason="Application modules are not configured.")
+        return
+    factory = modules.session_runtime.tenant_factory
     ctx = factory.get_or_create(tenant_id)
 
     identity = await extract_identity(websocket)
@@ -698,11 +707,12 @@ async def websocket_turn(
     # Map run_id → tool call_ids observed during stream for runtime cancellation forwarding.
     active_run_tool_calls: dict[str, dict[str, str]] = {}
     execution_adapter = ctx.tool_executor.execution_adapter()
-    run_registry = websocket.app.state.run_control_registry
-    turn_rate_limiter = getattr(websocket.app.state, "turn_rate_limiter", None)
-    audit_pipeline = getattr(websocket.app.state, "tool_audit_pipeline", None)
-    budget_recorder = getattr(websocket.app.state, "ingress_budget_recorder", None)
-    budget_config = budget_config_from_policy_settings(websocket.app.state.settings.policy)
+    run_registry = modules.session_runtime.run_control_registry
+    turn_rate_limiter = modules.tenant_governance.turn_rate_limiter
+    audit_pipeline = modules.audit_observability.tool_audit_pipeline
+    budget_recorder = modules.audit_observability.ingress_budget_recorder
+    websocket_settings = modules.platform_bootstrap.settings
+    budget_config = budget_config_from_policy_settings(websocket_settings.policy)
 
     async def run_turn_task(
         run_id: str,
@@ -885,7 +895,7 @@ async def websocket_turn(
                             }
                         )
                         continue
-                max_active_runs = max(int(websocket.app.state.settings.limits.max_active_runs_per_tenant), 0)
+                max_active_runs = max(int(websocket_settings.limits.max_active_runs_per_tenant), 0)
                 if max_active_runs > 0 and run_registry.count_active_runs(tenant_id=tenant_id) >= max_active_runs:
                     if audit_pipeline is not None:
                         await audit_pipeline.emit(

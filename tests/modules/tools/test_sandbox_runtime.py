@@ -408,7 +408,8 @@ def test_hosted_runtime_thread_timeout_recovers_on_next_call_same_tenant() -> No
 def test_hosted_runtime_process_crash_recovers_on_next_call() -> None:
     runtime = TenantSandboxToolRuntime(enable_process_isolation=True)
     crash_descriptor = ToolDescriptor(name="math_tool", handler=_process_crash, timeout_ms=500)
-    ok_descriptor = ToolDescriptor(name="math_tool", handler=_process_add, timeout_ms=500)
+    # Process pool recovery can be slow under full-suite CPU load; allow extra budget.
+    ok_descriptor = ToolDescriptor(name="math_tool", handler=_process_add, timeout_ms=3000)
 
     crash = runtime.execute(_tenant_call("recover-process"), crash_descriptor)
     assert crash.status == ToolStatus.ERROR

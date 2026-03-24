@@ -13,7 +13,7 @@ Notes:
 # Rollout phases (completed in this slice)
 
 1. **Docs taxonomy** — `docs/strategy/`, `docs/architecture/` expansion, `docs/governance/` charters.
-2. **Strategy migration** — `architecture-goals/` → redirect stubs; canonical under `docs/strategy/`.
+2. **Strategy migration** — root `architecture-goals/` retired; canonical under `docs/strategy/` only.
 3. **Durable local prose** — procedures/workflows/logging/archive research under `docs/`.
 4. **Nested `.local` contract** — paths documented; `scripts/pr/local_workflow_paths.py` + scripts updated; migration helper added.
 5. **Dashboard contract** — versioned `pages.json` + template HTML under `docs/templates/local-workspace/`.

@@ -7,6 +7,7 @@ Used By:
  - core.md
  - adapter-strategy.md
  - monetization-strategy.md
+ - governed-execution-positioning.md
  - entitlement-matrix.md
  - compliance-profile-matrix.md
  - deployment-models.md
@@ -27,8 +28,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.3.0`
-- Last Reviewed: `2026-03-15`
+- Version: `1.4.0`
+- Last Reviewed: `2026-03-22`
 - Review Cadence: `monthly`
 - Decision Scope: `Folder-level indexing, reading order, and strategy document governance for docs/strategy.`
 
@@ -48,19 +49,21 @@ These documents are intended to prevent direction drift while implementation evo
    Adapter ecosystem strategy, packaging, certification, and fallback behavior.
 4. `monetization-strategy.md`  
    Monetization model, tier boundaries, and value capture strategy.
-5. `entitlement-matrix.md`  
+5. `governed-execution-positioning.md`
+   Product definition, ICP focus, monetization boundary, and messaging guardrails.
+6. `entitlement-matrix.md`  
    Feature-to-tier enforcement and evidence matrix for monetization operability.
-6. `compliance-profile-matrix.md`  
+7. `compliance-profile-matrix.md`  
    Phased compliance-readiness profiles and control/evidence mapping.
-7. `deployment-models.md`  
+8. `deployment-models.md`  
    Deployment packaging and support boundaries by model and tier.
-8. `interface-strategy.md`  
+9. `interface-strategy.md`  
    API-first experience strategy and UI roadmap constraints.
-9. `traceability-matrix.md`  
+10. `traceability-matrix.md`  
    Decision-to-code and decision-to-test mapping for drift detection.
-10. `next-directions.md`  
+11. `next-directions.md`  
     Architecture-aligned priorities and next implementation slices.
-11. `execution-board-12-gaps.md`
+12. `execution-board-12-gaps.md`
     Execution-ready implementation board for the 12 agreed priority gaps (phases, epics, tests, rollback).
 
 ## Update Policy

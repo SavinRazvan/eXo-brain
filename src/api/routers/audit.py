@@ -21,7 +21,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from src.api.dependencies import require_valid_identity
+from src.api.dependencies import get_app_modules, require_valid_identity
 from src.api.middleware.entitlements import (
     EntitlementDecision,
     emit_entitlement_decision_event,
@@ -47,10 +47,18 @@ from src.compliance.evidence_bundle import (
     verify_signed_bundle_with_keyring,
 )
 from src.identity.contracts import IdentityContext
+from src.modules.audit_observability.service import AuditObservabilityError
 from src.policies.entitlements import EntitledFeature
 from src.schemas.tool_io import PolicyAction
 
 router = APIRouter(tags=["audit"])
+
+
+def _audit_module(request: Request):
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Audit observability module is not configured.")
+    return modules.audit_observability
 
 
 def _entitlement_http_exception(decision: EntitlementDecision) -> HTTPException:
@@ -76,8 +84,9 @@ async def _require_signed_audit_entitlement(
         feature=EntitledFeature.GOVERNANCE_AUDIT_SIGNED_EXPORT_VERIFY,
     )
     correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
+    audit_pipeline = _audit_module(request).tool_audit_pipeline
     await emit_entitlement_decision_event(
-        audit_pipeline=getattr(request.app.state, "tool_audit_pipeline", None),
+        audit_pipeline=audit_pipeline,
         correlation_id=correlation_id,
         tenant_id=tenant_id,
         surface="audit_signed_export_verify",
@@ -90,10 +99,10 @@ async def _require_signed_audit_entitlement(
 
 
 def _audit_store_or_503(request: Request):
-    store = getattr(request.app.state, "audit_store", None)
-    if store is None:
-        raise HTTPException(status_code=503, detail="Audit store is not configured.")
-    return store
+    try:
+        return _audit_module(request).require_audit_store()
+    except AuditObservabilityError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
 def _record_to_response(record) -> AuditEventResponse:
@@ -107,9 +116,7 @@ def _record_to_response(record) -> AuditEventResponse:
 
 
 def _export_directory(request: Request) -> Path:
-    root = Path(str(getattr(request.app.state.settings.limits, "audit_export_directory", ".exo_data/audit_exports")))
-    root.mkdir(parents=True, exist_ok=True)
-    return root.resolve()
+    return _audit_module(request).ensure_export_directory()
 
 
 def _build_signed_export_bundle(*, tenant_id: str, records: list, request: Request) -> dict:
@@ -135,13 +142,13 @@ def _build_signed_export_bundle(*, tenant_id: str, records: list, request: Reque
         "records": event_rows,
         "exported_at_utc": datetime.now(timezone.utc).isoformat(),
     }
-    limits = request.app.state.settings.limits
+    audit_module = _audit_module(request)
     keyring = build_signing_keyring(
-        legacy_secret=str(getattr(limits, "audit_bundle_signing_secret", "exo-audit-dev-secret")),
-        versioned_secrets=dict(getattr(limits, "audit_bundle_signing_secrets_by_version", {})),
+        legacy_secret=audit_module.audit_bundle_signing_secret,
+        versioned_secrets=dict(audit_module.audit_bundle_signing_secrets_by_version),
     )
     signature_version, secret = resolve_signing_secret(
-        active_version=str(getattr(limits, "audit_bundle_signing_active_version", "v1")),
+        active_version=audit_module.audit_bundle_signing_active_version,
         keyring=keyring,
     )
     payload["signature_version"] = signature_version
@@ -199,7 +206,7 @@ async def cleanup_audit_events(
     _identity: IdentityContext = Depends(require_valid_identity),
 ) -> AuditCleanupResponse:
     store = _audit_store_or_503(request)
-    configured_cap = int(getattr(request.app.state.settings.limits, "max_audit_records_per_tenant", 10_000))
+    configured_cap = _audit_module(request).max_audit_records_per_tenant
     retained_cap = int(body.max_records) if int(body.max_records) > 0 else configured_cap
     pruned = await store.cleanup_audit_events(tenant_id=tenant_id, max_records=retained_cap)
     return AuditCleanupResponse(
@@ -217,7 +224,7 @@ async def export_audit_bundle(
     _identity: IdentityContext = Depends(require_valid_identity),
 ) -> AuditExportBundleResponse:
     store = _audit_store_or_503(request)
-    configured_max = int(getattr(request.app.state.settings.limits, "max_audit_export_records", 2_000))
+    configured_max = _audit_module(request).max_audit_export_records
     bounded = min(max(int(limit), 1), max(configured_max, 1))
     records = await store.list_audit_events(tenant_id=tenant_id, limit=bounded)
     bundle = _build_signed_export_bundle(tenant_id=tenant_id, records=records, request=request)
@@ -232,7 +239,7 @@ async def export_audit_bundle_to_file(
     _identity: IdentityContext = Depends(_require_signed_audit_entitlement),
 ) -> AuditExportFileResponse:
     store = _audit_store_or_503(request)
-    configured_max = int(getattr(request.app.state.settings.limits, "max_audit_export_records", 2_000))
+    configured_max = _audit_module(request).max_audit_export_records
     bounded = min(max(int(body.limit), 1), max(configured_max, 1))
     records = await store.list_audit_events(tenant_id=tenant_id, limit=bounded)
     bundle = _build_signed_export_bundle(tenant_id=tenant_id, records=records, request=request)
@@ -290,10 +297,10 @@ async def verify_audit_bundle(
     declared_signature_version = str(bundle_data.get("signature_version", "")).strip()
     payload_without_signature = dict(bundle_data)
     payload_without_signature.pop("signature", None)
-    limits = request.app.state.settings.limits
+    audit_module = _audit_module(request)
     keyring = build_signing_keyring(
-        legacy_secret=str(getattr(limits, "audit_bundle_signing_secret", "exo-audit-dev-secret")),
-        versioned_secrets=dict(getattr(limits, "audit_bundle_signing_secrets_by_version", {})),
+        legacy_secret=audit_module.audit_bundle_signing_secret,
+        versioned_secrets=dict(audit_module.audit_bundle_signing_secrets_by_version),
     )
     signature_valid, verified_with_version = verify_signed_bundle_with_keyring(
         payload=payload_without_signature,

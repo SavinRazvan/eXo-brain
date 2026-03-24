@@ -19,6 +19,8 @@ import threading
 import time
 import sqlite3
 
+from src.persistence.sqlite_connection import open_sqlite_file
+
 
 class TenantRateLimiter:
     def __init__(self, *, max_requests: int, window_seconds: int = 60) -> None:
@@ -63,9 +65,7 @@ class SQLiteTenantRateLimiter:
         self._init_db()
 
     def _conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self._db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+        return open_sqlite_file(self._db_path)
 
     def _init_db(self) -> None:
         with self._conn() as conn:

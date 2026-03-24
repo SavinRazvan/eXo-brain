@@ -77,6 +77,7 @@ async def test_sqlite_api_key_store_file_path_uses_disk_connection(tmp_path: Pat
     loaded = await store.get_key("k1")
     assert loaded is not None
     assert loaded.subject == "u1"
+    assert [record.key_id for record in await store.list_keys()] == ["k1"]
 
 
 @pytest.mark.asyncio

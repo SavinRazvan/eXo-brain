@@ -23,6 +23,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.api.dependencies import (
+    get_app_modules,
     get_policy_overlay_store,
     get_tenant_context,
     require_valid_identity,
@@ -59,6 +60,20 @@ from src.tenancy.policy_overlay import TenantPolicyOverlayStore
 router = APIRouter(tags=["tenants"])
 
 
+def _audit_pipeline(request: Request):
+    modules = get_app_modules(request)
+    if modules is None:
+        return None
+    return modules.audit_observability.tool_audit_pipeline
+
+
+def _run_registry(request: Request):
+    modules = get_app_modules(request)
+    if modules is None:
+        return None
+    return modules.session_runtime.run_control_registry
+
+
 def _policy_entitlement_http_exception(decision: EntitlementDecision) -> HTTPException:
     return HTTPException(
         status_code=403,
@@ -81,7 +96,7 @@ def _policy_conflict_http_exception(message: str) -> HTTPException:
 
 
 def _active_run_count(request: Request, tenant_id: str) -> int:
-    run_registry = getattr(request.app.state, "run_control_registry", None)
+    run_registry = _run_registry(request)
     if run_registry is None:
         return 0
     return int(run_registry.count_active_runs(tenant_id=tenant_id))
@@ -100,7 +115,7 @@ async def _emit_ingress_profile_audit_events(
     new_plugin_ref: str,
     active_run_count: int,
 ) -> None:
-    audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    audit_pipeline = _audit_pipeline(request)
     if audit_pipeline is None:
         return
     await audit_pipeline.emit(
@@ -170,7 +185,7 @@ async def list_policy_templates(
         feature=EntitledFeature.GOVERNANCE_POLICY_TEMPLATES,
     )
     await emit_entitlement_decision_event(
-        audit_pipeline=getattr(request.app.state, "tool_audit_pipeline", None),
+        audit_pipeline=_audit_pipeline(request),
         correlation_id=correlation_id,
         tenant_id=tenant_id,
         surface="tenant_policy_template_catalog",
@@ -212,7 +227,7 @@ async def apply_policy_template(
 
     correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
     route = "POST /tenants/{tenant_id}/policy/templates/{template_id}/apply"
-    audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    audit_pipeline = _audit_pipeline(request)
 
     template_access_decision = evaluate_feature_entitlement(
         identity=identity,
@@ -339,7 +354,7 @@ async def set_policy(
     entitlement_decision = evaluate_feature_entitlement(identity=identity, feature=feature)
     correlation_id = f"entitlement_{uuid.uuid4().hex[:8]}"
     await emit_entitlement_decision_event(
-        audit_pipeline=getattr(request.app.state, "tool_audit_pipeline", None),
+        audit_pipeline=_audit_pipeline(request),
         correlation_id=correlation_id,
         tenant_id=tenant_id,
         surface="tenant_policy_overlay",
@@ -351,7 +366,7 @@ async def set_policy(
 
     previous_plugin_ref = str(previous_overlay.get("signed_gate_plugin_ref", "")).strip()
     next_plugin_ref = str(normalized_ingress_patch.get("signed_gate_plugin_ref", "")).strip()
-    run_registry = getattr(request.app.state, "run_control_registry", None)
+    run_registry = _run_registry(request)
     active_run_count = 0
     if run_registry is not None:
         active_run_count = int(run_registry.count_active_runs(tenant_id=tenant_id))
@@ -366,7 +381,7 @@ async def set_policy(
 
     overlay.update(normalized_ingress_patch)
     store.set_overlay(tenant_id, overlay)
-    audit_pipeline = getattr(request.app.state, "tool_audit_pipeline", None)
+    audit_pipeline = _audit_pipeline(request)
     if audit_pipeline is not None:
         await audit_pipeline.emit(
             event_type="tenant_policy_ingress_profile_configured",

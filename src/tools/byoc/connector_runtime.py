@@ -624,6 +624,9 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
         with self._lock:
             return list(self._progress_events_by_call_id.pop(normalized, []))
 
+    def manages_progress_events(self) -> bool:
+        return True
+
     def _requeue_expired_leases(self, *, tenant_id: str | None = None) -> None:
         normalized_tenant = str(tenant_id or "").strip()
         before_dlq = self._job_store.dead_letter_count(tenant_id=normalized_tenant) if normalized_tenant else 0

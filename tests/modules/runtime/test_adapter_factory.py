@@ -16,6 +16,7 @@ from __future__ import annotations
 import pytest
 
 from src.runtime.adapter_factory import (
+    ECHO_ADAPTER_CANONICAL_CLASS_REF,
     OPENAI_ADAPTER_CANONICAL_CLASS_REF,
     canonicalize_adapter_class_ref,
     load_adapter,
@@ -36,6 +37,15 @@ def test_load_adapter_accepts_legacy_short_alias() -> None:
 def test_canonicalize_adapter_class_ref_maps_legacy_to_canonical() -> None:
     canonical = canonicalize_adapter_class_ref("src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter")
     assert canonical == OPENAI_ADAPTER_CANONICAL_CLASS_REF
+
+
+def test_canonicalize_adapter_class_ref_maps_echo_alias() -> None:
+    assert canonicalize_adapter_class_ref("EchoRuntimeAdapter") == ECHO_ADAPTER_CANONICAL_CLASS_REF
+
+
+def test_load_adapter_accepts_echo_canonical_or_fallback() -> None:
+    adapter = load_adapter(ECHO_ADAPTER_CANONICAL_CLASS_REF, provider_id="echo-load-test")
+    assert adapter.get_capabilities().provider_id == "echo-load-test"
 
 
 def test_load_adapter_rejects_non_dotted_unknown_alias() -> None:

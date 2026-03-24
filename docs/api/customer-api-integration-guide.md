@@ -19,6 +19,7 @@ Depends On:
 Notes:
  - Keep tier labels in sync with docs/strategy/entitlement-matrix.md.
  - All safety and governance controls are server-side and non-bypassable regardless of tier.
+- Standard telemetry export is a planned interoperability path; do not present it as implemented until exporter modules ship.
 -->
 
 # eXo-brain Customer API Integration Guide
@@ -27,17 +28,21 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
-- Last Reviewed: `2026-03-15`
+- Version: `1.1.0`
+- Last Reviewed: `2026-03-22`
 - Review Cadence: `on architecture change`
 
 ---
 
 ## 1) Overview
 
-eXo-brain is an API-first AI orchestration platform. All capabilities are available via REST, SSE, and WebSocket endpoints. There is no required backend-served UI; customers build their own interfaces on top of these APIs.
+eXo-brain is an API-first governed execution platform for tool-using AI systems. All capabilities are available via REST, SSE, and WebSocket endpoints. There is no required backend-served UI; customers build their own interfaces on top of these APIs.
 
 Every turn request passes through a mandatory server-side governance ingress path before model or tool execution. This path cannot be bypassed by any client.
+
+Integration boundary:
+- customers can keep provider credentials and provider-native adapter configuration in their own deployment environment,
+- eXo-brain owns the governed execution boundary: policy, deterministic tool execution, audit, runtime control, and operational visibility.
 
 ---
 
@@ -142,6 +147,8 @@ GET    /providers/{provider_id}/capabilities
 ```
 
 Provider registration is required before turns can be executed against a given provider.
+
+Provider registration is metadata for governed execution and routing. In production profiles, provider credentials and provider-native adapter configuration may remain customer-owned or deployment-owned rather than being treated as a required eXo-brain-hosted secret surface.
 
 ---
 
@@ -280,6 +287,17 @@ Returns per-profile SLO observations for the tenant:
 }
 ```
 
+### 9.2) Standard Telemetry Export Direction (Planned)
+
+Current runtime visibility is available through runtime-control APIs, audit APIs, and correlation-linked events.
+
+Planned enterprise interoperability path:
+- OpenTelemetry traces/logs for deployment-integrated observability,
+- Prometheus or OTel-compatible metrics export for runtime signals,
+- exporter health and redaction guarantees validated per supported deployment profile.
+
+Telemetry exporters are additive to the API and audit model. They do not replace audit evidence or runtime admin APIs.
+
 ---
 
 ## 10) Audit and Compliance (Foundation + Enterprise)
@@ -388,6 +406,8 @@ curl -X POST https://<host>/providers \
   -d '{"provider_id": "openai-gpt4o", "backend_id": "openai", "model": "gpt-4o"}'
 ```
 
+This step registers the provider surface for governed execution. Keep provider credentials and provider-native connectivity in your adapter/deployment configuration according to your deployment model.
+
 ### Step 2: Register a tool
 
 ```bash
@@ -422,6 +442,7 @@ curl -X PUT https://<host>/tenant-123/policy \
 
 - `docs/strategy/entitlement-matrix.md` — authoritative tier-to-feature mapping
 - `docs/strategy/interface-strategy.md` — API-first design rules and safety constraints
+- `docs/strategy/governed-execution-positioning.md` — product boundary and customer/deployment ownership model
 - `docs/strategy/traceability-matrix.md` — strategy-to-code-to-test anchors
 - `src/api/routers/` — canonical endpoint implementations
 - `docs/operations/release-candidate-signoff-checklist.md` — release evidence requirements
