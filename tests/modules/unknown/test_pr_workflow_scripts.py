@@ -166,3 +166,41 @@ def test_verify_publish_script_fails_when_upstream_missing(monkeypatch) -> None:
         sys, "argv", ["verify_publish.py", "--branch", "fix/test"]
     )
     assert module.main() == 1
+
+
+def test_verify_publish_script_defaults_branch_from_git(monkeypatch) -> None:
+    module = _load_module(
+        "verify_publish_script_default_branch", SCRIPTS_DIR / "verify_publish.py"
+    )
+
+    def _fake_run(cmd: list[str]):
+        if cmd == ["git", "branch", "--show-current"]:
+            return 0, "fix/test"
+        if cmd[:4] == ["git", "rev-parse", "--abbrev-ref", "fix/test@{upstream}"]:
+            return 0, "origin/fix/test"
+        if cmd == ["git", "ls-remote", "--heads", "origin", "fix/test"]:
+            return 0, "deadbeef\trefs/heads/fix/test"
+        return 1, "unexpected command"
+
+    monkeypatch.setattr(module, "_run", _fake_run)
+    monkeypatch.setattr(sys, "argv", ["verify_publish.py"])
+    assert module.main() == 0
+
+
+def test_verify_publish_script_fails_when_default_branch_unresolvable(
+    monkeypatch, capsys
+) -> None:
+    module = _load_module(
+        "verify_publish_script_no_branch", SCRIPTS_DIR / "verify_publish.py"
+    )
+
+    def _fake_run(cmd: list[str]):
+        if cmd == ["git", "branch", "--show-current"]:
+            return 1, "fatal: not a git repository"
+        return 1, "unexpected command"
+
+    monkeypatch.setattr(module, "_run", _fake_run)
+    monkeypatch.setattr(sys, "argv", ["verify_publish.py"])
+    assert module.main() == 1
+    err = capsys.readouterr().out
+    assert "Could not determine current branch" in err
