@@ -14,3 +14,4 @@ alwaysApply: true
 - **Tracking docs** when architecture/runtime scope shifts: `docs/plans/tenant-tool-execution-architecture.md`, `.local/index-and-planning/current/plan.md`, `docs/architecture/workspace-architecture.md`.
 - `git push --force-with-lease` only for intentional rewrites on branches you own.
 - **Stop and report** if required artifacts or gates are missing, or post-merge sync/cleanup is incomplete.
+- **Efficiency:** gate order and commands live in `scripts/pr/prepare.py` (`GATES`). Link or summarize *pass/fail* in chat and PR artifacts — avoid pasting the full command list repeatedly.
