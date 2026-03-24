@@ -14,6 +14,8 @@ Notes:
 
 # Plans Index
 
+For how these plans map to **runtime layers and modules**, see [`docs/architecture/ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) §9.
+
 ## Canonical Current-State Plans
 
 - `docs/plans/tenant-tool-execution-architecture.md`
