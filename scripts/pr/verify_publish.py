@@ -9,6 +9,7 @@ Depends On:
  - subprocess
 Notes:
  - Read-only verification script; does not modify git state.
+ - When `--branch` is omitted, the current branch is read from `git branch --show-current`.
 """
 
 from __future__ import annotations
@@ -27,10 +28,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Verify current branch publish state and upstream linkage."
     )
-    parser.add_argument("--branch", required=True, help="Current branch name")
+    parser.add_argument(
+        "--branch",
+        default=None,
+        help="Branch to verify (default: current branch from git)",
+    )
     args = parser.parse_args()
 
-    branch = args.branch.strip()
+    branch = (args.branch or "").strip()
+    if not branch:
+        code, output = _run(["git", "branch", "--show-current"])
+        if code != 0 or not output:
+            print("Could not determine current branch; pass --branch explicitly.")
+            if output:
+                print(f"  detail: {output}")
+            return 1
+        branch = output.strip()
     if not branch:
         print("Branch name must not be empty.")
         return 1
