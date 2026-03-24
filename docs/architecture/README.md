@@ -15,7 +15,7 @@ Notes:
 
 # Architecture documentation
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** — consolidated system map: layers, modules, packages, data plane, plans × concerns, enforcement.
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — all planes (§2), request path, layers, modules, packages, plans map (§10), enforcement.
 - **[beginner-workflow.md](beginner-workflow.md)** — plain-language workflow guide with beginner analogies.
 - **[mvp.md](mvp.md)** — layer model, flows, guardrails (MVP architecture).
 - **[workspace-architecture.md](workspace-architecture.md)** — workspace doctrine (adapters, policy, enterprise controls).

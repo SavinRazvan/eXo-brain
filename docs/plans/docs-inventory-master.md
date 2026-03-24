@@ -24,7 +24,7 @@ Notes:
 | `docs/architecture/mvp.md` | Layer architecture and design intent (canonical) |
 | `docs/architecture_mvp.md` | Redirect stub → `docs/architecture/mvp.md` |
 | `docs/architecture/workspace-architecture.md` | Workspace doctrine (adapters, policy, enterprise controls) |
-| `docs/architecture/ARCHITECTURE.md` | Consolidated stack map: code layers, modular monolith, packages, data plane, plans × concerns |
+| `docs/architecture/ARCHITECTURE.md` | Consolidated map: ten architecture planes (stack), request path, layers, modules, packages, persistence, plans × concerns |
 | `docs/strategy/README.md` | Strategy package index (product direction, entitlements, traceability) |
 | `docs/strategy/governed-execution-positioning.md` | Product boundary, ICP, monetization posture, and messaging guardrails for governed execution |
 | `docs/operations/workflow-complete.md` | Maintainer workflow checklist (durable) |

@@ -50,7 +50,7 @@ This is a quick notepad for reading `README.md`, `AGENTS.md`, and architecture d
 | SLO | Service Level Objective | Reliability/latency target (for example p95 turn latency). |
 | SLA | Service Level Agreement | Contractual reliability commitment to customers. |
 | p95 | 95th Percentile | 95% of requests are faster than this latency value. |
-| Option C | API-first operating mode | Current delivery posture: control plane + adapter plane + data plane. |
+| Option C | API-first operating mode | Current delivery posture: **control plane** + **adapter plane** + **data plane** (tool workers). See [`docs/architecture/ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) §2 for how those terms map to numbered planes and how they differ from `goal.md` Part 3 “data plane **connectors**” (provider adapters). |
 
 ## Security and governance abbreviations
 
