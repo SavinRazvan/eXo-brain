@@ -20,6 +20,8 @@ Depends On:
  - TenantRuntimeContext holds ONLY tenant-scoped state. Orchestrator and host_adapter
    are per-session, not per-tenant — they live in TenantRuntimeFactory._session_runtimes.
  - Session adapter/runtime caches honor idle TTL and max entry limits when configured.
+ - Optional cap on cached tenant contexts (`tenant_runtime_max_cached_contexts`) evicts LRU tenants.
+ - Background `start_session` tasks log failures via done-callback (no silent asyncio failures).
  - create_session_runtime resolves AgentSpec here so adapters never need agent_registry.
  - build_agent_tools is called inside run_turn (late binding) — not here.
  - If session_store is passed to TenantRuntimeFactory, all tenants share that store
@@ -30,6 +32,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Coroutine
+from typing import Any
+import asyncio
+import logging
 import time
 
 from src.agents.registry import AgentRegistry
@@ -217,11 +223,45 @@ class SessionAdapterResolver:
                 return adapter_cls()
 
 
+_LOGGER = logging.getLogger(__name__)
+
+
+def _log_adapter_start_session_done(task: asyncio.Task[Any], *, session_id: str) -> None:
+    """Log exceptions from background `start_session` tasks; ignore cancellation."""
+
+    try:
+        exc = task.exception()
+    except asyncio.CancelledError:
+        return
+    if exc is not None:
+        _LOGGER.error(
+            "adapter.start_session failed session_id=%s: %s",
+            session_id,
+            exc,
+            exc_info=exc,
+        )
+
+
 class SessionRuntimeAssembler:
     """Create per-session orchestrator/host-adapter pairs."""
 
     def __init__(self, adapter_resolver: SessionAdapterResolver) -> None:
         self._adapter_resolver = adapter_resolver
+
+    @staticmethod
+    def _schedule_start_session(coro: Coroutine[Any, Any, Any], *, session_id: str) -> None:
+        """Run start_session; schedule under running loop with error logging, or block with asyncio.run."""
+
+        def _on_done(t: asyncio.Task[Any]) -> None:
+            _log_adapter_start_session_done(t, session_id=session_id)
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(coro)
+            return
+        task = loop.create_task(coro)
+        task.add_done_callback(_on_done)
 
     def create(
         self,
@@ -237,8 +277,6 @@ class SessionRuntimeAssembler:
             provider_id=provider_id,
         )
 
-        import asyncio
-
         coro = adapter.start_session(
             session_id=session_id,
             metadata={
@@ -248,11 +286,7 @@ class SessionRuntimeAssembler:
                 "tenant_id": tenant_context.tenant_id,
             },
         )
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(coro)
-        except RuntimeError:
-            asyncio.run(coro)
+        self._schedule_start_session(coro, session_id=session_id)
 
         orchestrator = Orchestrator(
             runtime_adapter=adapter,
@@ -279,6 +313,7 @@ class TenantRuntimeFactory:
         self._settings = settings
         self._session_store = session_store
         self._contexts: dict[str, TenantRuntimeContext] = {}
+        self._tenant_last_touch: dict[str, float] = {}
         self._session_runtimes: dict[str, OrchestratorHostAdapter] = {}
         self._session_adapters: dict[str, "RuntimeAdapter"] = {}
         self._session_tenant: dict[str, str] = {}
@@ -329,11 +364,23 @@ class TenantRuntimeFactory:
     def _touch_session(self, session_id: str) -> None:
         self._session_last_access[session_id] = time.monotonic()
 
+    def _evict_tenant_contexts_over_capacity(self, incoming_tenant_id: str) -> None:
+        cap = int(self._settings.runtime.tenant_runtime_max_cached_contexts)
+        if cap <= 0:
+            return
+        if incoming_tenant_id in self._contexts:
+            return
+        while len(self._contexts) >= cap and self._contexts:
+            victim = min(self._contexts.keys(), key=lambda tid: self._tenant_last_touch.get(tid, 0.0))
+            self.destroy(victim)
+
     def get_or_create(self, tenant_id: str) -> TenantRuntimeContext:
         """Return cached context or build fresh tenant-scoped runtime state."""
         self._evict_idle_sessions_only()
+        self._evict_tenant_contexts_over_capacity(tenant_id)
         if tenant_id not in self._contexts:
             self._contexts[tenant_id] = self._build_context(tenant_id)
+        self._tenant_last_touch[tenant_id] = time.monotonic()
         return self._contexts[tenant_id]
 
     def _build_context(self, tenant_id: str) -> TenantRuntimeContext:
@@ -421,6 +468,7 @@ class TenantRuntimeFactory:
             del self._session_tenant[sid]
             self._session_last_access.pop(sid, None)
         self._contexts.pop(tenant_id, None)
+        self._tenant_last_touch.pop(tenant_id, None)
 
     def evict_sessions_for_provider(self, provider_id: str) -> int:
         """Remove cached session runtimes currently bound to provider_id."""
