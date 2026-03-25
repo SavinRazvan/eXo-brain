@@ -28,8 +28,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.4.0`
-- Last Reviewed: `2026-03-22`
+- Version: `1.5.0`
+- Last Reviewed: `2026-03-24`
 - Review Cadence: `monthly`
 - Decision Scope: `Folder-level indexing, reading order, and strategy document governance for docs/strategy.`
 
@@ -46,7 +46,8 @@ These documents are intended to prevent direction drift while implementation evo
 2. `core.md`  
    Core invariants, governance enforcement, and safety-critical architecture decisions.
 3. `adapter-strategy.md`  
-   Adapter ecosystem strategy, packaging, certification, and fallback behavior.
+   Adapter ecosystem strategy, packaging, certification, and fallback behavior.  
+   **Companion:** `adapter-compatibility-matrix.md` (semver, published package versions, M0/Lane A status).
 4. `monetization-strategy.md`  
    Monetization model, tier boundaries, and value capture strategy.
 5. `governed-execution-positioning.md`

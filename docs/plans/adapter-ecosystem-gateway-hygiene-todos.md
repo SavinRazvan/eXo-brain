@@ -45,45 +45,45 @@ Follow the ordered phases in [adapter-ecosystem-gateway-hygiene-plan.md §11](ad
 - [x] **AGE-P2-02** — `rg unknown` on `.github/`, `docs/`, `scripts/pr/check_testing_artifacts.py` if applicable; update stale paths.
 - [x] **AGE-P2-03** — Update `.local/index-and-planning/test-index.md` and `test-plan.md` (paths may be gitignored locally).
 - [x] **AGE-P2-04** — `check_testing_artifacts.py` + `pytest -q` (+ coverage if `src/**` touched).
-- [ ] **AGE-P2-05 (FIND-004)** — Add `tests/modules/integration/` package; move host-adapter / cross-layer tests per tracker; re-run gates.
-- [ ] **AGE-P2-06 (FIND-005)** — Resolve compliance vs audit test home per tracker; move `evidence_bundle` (or related) suites; update indexes.
-- [ ] **AGE-P2-07 (FIND-006)** — Docstring-only clarification for `plugin_contract.py` split (`src/agents/` vs `src/tools/plugins/`); no behavior change unless required.
+- [x] **AGE-P2-05 (FIND-004)** — Add `tests/modules/integration/` package; move host-adapter / cross-layer tests per tracker; re-run gates.
+- [x] **AGE-P2-06 (FIND-005)** — Resolve compliance vs audit test home per tracker; move `evidence_bundle` (or related) suites; update indexes.
+- [x] **AGE-P2-07 (FIND-006)** — Docstring-only clarification for `plugin_contract.py` split (`src/agents/` vs `src/tools/plugins/`); no behavior change unless required.
 
 ---
 
 ## Phase 3 — Adapter platform (EA-006 / EA-007)
 
-- [ ] **AGE-P3-01** — Add **compatibility matrix** (per package: `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-openai`, `exo-adapter-echo`) in `docs/strategy/adapter-strategy.md` or linked `docs/strategy/adapter-compatibility-matrix.md`.
-- [ ] **AGE-P3-02** — Document **semver rules** for contracts (major/minor/patch) consistent with `packages/exo-brain-core-contracts/.../runtime_adapter.py` “v1 compatibility” note.
-- [ ] **AGE-P3-03** — Ops/runbook snippet: recommended log dimensions (`provider_id`, adapter package version, contracts version, `api_type`) in `docs/operations/` or strategy cross-link.
-- [ ] **AGE-P3-04** — **M0 gap check:** compare `docs/strategy/adapter-strategy.md` M0 acceptance to current code; document **done** vs **remaining** with test anchors.
-- [ ] **AGE-P3-05** — **Lane A (optional slice):** spike HTTP OpenAI-compatible adapter package **or** explicit defer note in matrix with owner.
-- [ ] **AGE-P3-06** — **Conformance / CI:** ensure `tests/packages/` (and/or new job) runs on `packages/**` changes; pin contracts version in doc or lockfile story.
-- [ ] **AGE-P3-07 (EA-007)** — Contributor doc: run `scripts/packages/external_install_smoke.py` when touching `packages/**`; verify CI path filters.
+- [x] **AGE-P3-01** — Add **compatibility matrix** (per package: `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-openai`, `exo-adapter-echo`) in `docs/strategy/adapter-strategy.md` or linked `docs/strategy/adapter-compatibility-matrix.md`.
+- [x] **AGE-P3-02** — Document **semver rules** for contracts (major/minor/patch) consistent with `packages/exo-brain-core-contracts/.../runtime_adapter.py` “v1 compatibility” note.
+- [x] **AGE-P3-03** — Ops/runbook snippet: recommended log dimensions (`provider_id`, adapter package version, contracts version, `api_type`) in `docs/operations/` or strategy cross-link.
+- [x] **AGE-P3-04** — **M0 gap check:** compare `docs/strategy/adapter-strategy.md` M0 acceptance to current code; document **done** vs **remaining** with test anchors.
+- [x] **AGE-P3-05** — **Lane A (optional slice):** spike HTTP OpenAI-compatible adapter package **or** explicit defer note in matrix with owner.
+- [x] **AGE-P3-06** — **Conformance / CI:** ensure `tests/packages/` (and/or new job) runs on `packages/**` changes; pin contracts version in doc or lockfile story.
+- [x] **AGE-P3-07 (EA-007)** — Contributor doc: run `scripts/packages/external_install_smoke.py` when touching `packages/**`; verify CI path filters.
 
 ---
 
 ## Phase 4 — Northbound `/v1` (EA-005)
 
-- [ ] **AGE-P4-01** — Design PR: addendum (in `docs/plans/tenant-tool-execution-architecture.md` Slice 5 or `docs/plans/northbound-v1-gateway.md`): URL map, auth→tenant binding, middleware/gate order (reference `src/api/routers/turns.py`), explicit non-goals (no raw upstream proxy).
-- [ ] **AGE-P4-02** — Link design from `docs/architecture/ARCHITECTURE.md` and/or `docs/api/customer-api-integration-guide.md`.
-- [ ] **AGE-P4-03** — Implement FastAPI router under `src/api/` with **feature flag** / env gate.
-- [ ] **AGE-P4-04** — Tests: success, **401/403**, **policy denial** (prove no governance bypass).
-- [ ] **AGE-P4-05** — Reuse existing turn/orchestration pipeline (no second tool-execution path).
-- [ ] **AGE-P4-06** — Customer guide: supported endpoints + limitations; update `docs/strategy/traceability-matrix.md` when slice closes.
+- [x] **AGE-P4-01** — Design PR: addendum (in `docs/plans/tenant-tool-execution-architecture.md` Slice 5 or `docs/plans/northbound-v1-gateway.md`): URL map, auth→tenant binding, middleware/gate order (reference `src/api/routers/turns.py`), explicit non-goals (no raw upstream proxy).
+- [x] **AGE-P4-02** — Link design from `docs/architecture/ARCHITECTURE.md` and/or `docs/api/customer-api-integration-guide.md`.
+- [x] **AGE-P4-03** — Implement FastAPI router under `src/api/` with **feature flag** / env gate.
+- [x] **AGE-P4-04** — Tests: success, **401/403**, **policy denial** (prove no governance bypass).
+- [x] **AGE-P4-05** — Reuse existing turn/orchestration pipeline (no second tool-execution path).
+- [x] **AGE-P4-06** — Customer guide: supported endpoints + limitations; update `docs/strategy/traceability-matrix.md` when slice closes.
 
 ---
 
 ## Phase 5 — Portfolio (after 3 + 4 MVP)
 
-- [ ] **AGE-P5-01** — Prove Lane A with **two** distinct `base_url` configs in tests.
-- [ ] **AGE-P5-02** — Add matrix row + certification evidence before “GA” claims per provider.
+- [x] **AGE-P5-01** — Prove Lane A with **two** distinct `base_url` configs in tests.
+- [x] **AGE-P5-02** — Add matrix row + certification evidence before “GA” claims per provider.
 
 ---
 
 ## Optional hygiene
 
-- [ ] **AGE-OPT-01** — Reduce PyJWT `InsecureKeyLengthWarning` noise: ≥32-byte secrets in JWT tests or scoped `pytest.mark.filterwarnings`.
+- [x] **AGE-OPT-01** — Reduce PyJWT `InsecureKeyLengthWarning` noise: ≥32-byte secrets in JWT tests or scoped `pytest.mark.filterwarnings`.
 
 ---
 

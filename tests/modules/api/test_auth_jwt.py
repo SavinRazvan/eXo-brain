@@ -24,7 +24,8 @@ from src.identity.contracts import IdentityContext, TokenValidationState
 from src.identity.jwt_resolver import decode_jwt
 
 
-_SECRET = "test-secret-key-for-slice1"
+# ≥32 bytes for HS256 per PyJWT recommendation (avoids InsecureKeyLengthWarning noise).
+_SECRET = "0123456789abcdef0123456789abcdef0123456789ab"
 _ALG = "HS256"
 
 
@@ -72,7 +73,7 @@ def test_decode_jwt_expired_token() -> None:
 
 def test_decode_jwt_wrong_secret_returns_none() -> None:
     token = _make_token()
-    identity = decode_jwt(token, secret="wrong-secret", algorithm=_ALG)
+    identity = decode_jwt(token, secret="fedcba9876543210fedcba9876543210", algorithm=_ALG)
     assert identity is None
 
 
@@ -224,8 +225,11 @@ def test_bearer_jwt_wrong_secret_returns_401() -> None:
     app = _build_jwt_app(_SECRET)
     bad_token = _make_token(sub="eve")
     # Re-encode with a different secret
-    bad_token = jwt.encode({"sub": "eve", "exp": int(time.time()) + 3600},
-                           "wrong-secret", algorithm=_ALG)
+    bad_token = jwt.encode(
+        {"sub": "eve", "exp": int(time.time()) + 3600},
+        "fedcba9876543210fedcba9876543210",
+        algorithm=_ALG,
+    )
     with TestClient(app) as client:
         resp = client.get(
             "/tenants/t1/tools",

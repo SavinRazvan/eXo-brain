@@ -265,7 +265,7 @@ flowchart TB
 
 **How to read it (aligned with product goals):**
 
-1. **Northbound** — HTTP/SSE/WebSocket only; no provider SDKs here ([`src/api/*`](../../src/api/)).
+1. **Northbound** — HTTP/SSE/WebSocket only; no provider SDKs here ([`src/api/*`](../../src/api/)). Optional **OpenAI-shaped** `POST /v1/chat/completions` (feature flag `EXO_ENABLE_OPENAI_COMPAT_GATEWAY`) reuses the same ingress/entitlement/run-control spine as tenant turn routes — see [`docs/plans/northbound-v1-gateway.md`](../plans/northbound-v1-gateway.md).
 2. **Trust + tenant scope** — Authentication / API keys ([`identity_access`](../../src/modules/contracts.py)); **pre-model ingress** + quotas + entitlement-aware surfaces live under **tenant_governance** mapping ([`src/policies/ingress_*`](../../src/policies/), [`src/tenancy/`](../../src/tenancy/)).
 3. **Session plane** — Per-tenant cached runtime context, sessions, run control ([`src/runtime/tenant_runtime.py`](../../src/runtime/tenant_runtime.py), session routers).
 4. **Orchestration** — [`OrchestratorHostAdapter`](../../src/integration/host_adapter.py) → [`Orchestrator`](../../src/core/orchestrator.py); **mode and capability selection stay provider-neutral** ([`src/runtime/mode_selector.py`](../../src/runtime/mode_selector.py)).

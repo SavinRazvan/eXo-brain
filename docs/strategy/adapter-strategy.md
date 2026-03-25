@@ -25,8 +25,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.3.0`
-- Last Reviewed: `2026-03-15`
+- Version: `1.4.0`
+- Last Reviewed: `2026-03-24`
 - Review Cadence: `monthly`
 - Decision Scope: `Provider adapter ecosystem boundaries, packaging policy, conformance, and rollout strategy.`
 
@@ -315,6 +315,8 @@ Release block:
   - core-contract version range,
   - adapter-sdk version range,
   - provider SDK version range.
+
+**Canonical table:** [`adapter-compatibility-matrix.md`](adapter-compatibility-matrix.md) (published versions, semver interpretation, **M0** status, Lane A defer).
 
 Publishing rule:
 - never publish adapter versions that require undocumented core internals.

@@ -1,6 +1,6 @@
 """
 File: test_host_adapter_input_flow.py
-Path: tests/modules/core/test_host_adapter_input_flow.py
+Path: tests/modules/integration/test_host_adapter_input_flow.py
 Role: Integration test for host adapter input handoff into orchestration core.
 Used By:
  - pytest

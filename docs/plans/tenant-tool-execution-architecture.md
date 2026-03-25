@@ -73,6 +73,8 @@ This section supersedes conflicting historical wording in this document.
 
 ### Option C Next-Phase Slice 5 (planned): Gateway surface + interaction-mode split
 
+**Design addendum (MVP, feature-flagged):** [`northbound-v1-gateway.md`](northbound-v1-gateway.md) — `EXO_ENABLE_OPENAI_COMPAT_GATEWAY`, `POST /v1/chat/completions`, `X-eXo-Session-Id`, shared governance iterator with SSE turns.
+
 Goal:
 - expose a public OpenAI-compatible API surface without collapsing provider-neutral adapter boundaries.
 

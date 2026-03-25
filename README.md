@@ -67,6 +67,14 @@ See:
 
 ---
 
+## Packages / adapter development (`packages/`)
+
+- **Compatibility matrix and semver:** `docs/strategy/adapter-compatibility-matrix.md`
+- **Operational log dimensions:** `docs/operations/adapter-telemetry-dimensions.md`
+- **Before merging changes under `packages/`:** run `python scripts/packages/external_install_smoke.py` (isolated venv install smoke) and `python -m pytest tests/packages -q`. Pull requests that touch `packages/**` trigger **`architecture-fitness`** (including `tests/packages`).
+
+---
+
 ## Quick start
 
 ```bash

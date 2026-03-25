@@ -9,6 +9,8 @@ Tests are physically organized by source module under `tests/modules/<module>/`.
 - `tests/modules/mcp/`
 - `tests/modules/policies/`
 - `tests/modules/...`
+- `tests/modules/integration/` for **cross-layer** flows (host adapter, orchestration + runtime + tools) that are not owned by a single `tests/modules/<src-module>/` bucket.
+- `tests/modules/compliance/README.md` — evidence-bundle vs audit-suite ownership (**FIND-005**).
 - `tests/modules/pr_workflow/`, `tests/modules/architecture_scripts/`, `tests/modules/release_scripts/`, `tests/modules/perf_scripts/` for **repository script** tests (`scripts/pr`, `scripts/architecture`, `scripts/release`, `scripts/perf`) that do not map to a single `src` module (pytest may still mark them `module_unknown` when no `src.*` import is inferred).
 
 ## Run all tests
