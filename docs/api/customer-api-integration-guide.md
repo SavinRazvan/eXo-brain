@@ -14,6 +14,7 @@ Depends On:
  - src/api/routers/tools.py
  - src/api/routers/audit.py
  - src/api/routers/providers.py
+ - src/api/routers/openai_gateway.py
  - src/observability/telemetry_export.py
  - src/api/routers/prometheus_metrics.py
  - src/api/bootstrap.py
@@ -31,7 +32,7 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.2.0`
+- Version: `1.3.0`
 - Last Reviewed: `2026-03-24`
 - Review Cadence: `on architecture change`
 
@@ -79,6 +80,20 @@ Tier enforcement is applied at the API layer via `src/api/middleware/entitlement
 ---
 
 ## 4) Turn Execution (Chat / Agents / Workflow)
+
+### 4.0) Optional OpenAI-compatible `POST /v1/chat/completions` (feature-flagged)
+
+When **`EXO_ENABLE_OPENAI_COMPAT_GATEWAY=1`**, the platform exposes a **non-streaming** subset of the OpenAI Chat Completions API for clients that want familiar JSON shapes. Execution still uses the **same governance path** as SSE turns (entitlements, ingress, rate limits, run registry, host adapter).
+
+| Item | Detail |
+|------|--------|
+| Endpoint | `POST /v1/chat/completions` |
+| Auth | Same as §2 (Bearer JWT, Bearer API key, `X-API-Key`, or dev `X-Identity`) |
+| Tenant | Taken from the authenticated identity’s `tenant_id` (no `{tenant_id}` in the path) |
+| Session | Required header **`X-eXo-Session-Id`** — must be a session created under that tenant via `POST /tenants/{tenant_id}/sessions` |
+| Streaming | `stream: true` is **not** supported in this MVP (returns **400**) |
+
+Full URL map, middleware order, and non-goals: [`docs/plans/northbound-v1-gateway.md`](../plans/northbound-v1-gateway.md).
 
 ### 4.1) SSE Turn
 

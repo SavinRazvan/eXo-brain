@@ -422,6 +422,218 @@ async def _stream_turn(
         }
 
 
+async def iter_governed_turn_dicts_for_transport(
+    *,
+    tenant_id: str,
+    session_id: str,
+    user_input: str,
+    body_correlation_id: str,
+    request: Request,
+    identity: IdentityContext,
+    ctx: TenantRuntimeContext,
+    transport: str,
+) -> AsyncIterator[dict[str, Any]]:
+    """Yield turn event dicts using the same governance path as SSE (entitlement, ingress, limits).
+
+    Intended for non-streaming northbound adapters (for example OpenAI-compatible ``/v1``). Does not
+    implement mid-stream SSE cancellation branches; run-registry cleanup still mirrors SSE ``finally``.
+    """
+    factory = _get_factory(request)
+
+    try:
+        factory.get_session_runtime(session_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+
+    correlation_id = body_correlation_id or f"corr_{uuid.uuid4().hex[:8]}"
+    execution_adapter = ctx.tool_executor.execution_adapter()
+    run_id = correlation_id
+    run_registry = _get_run_registry(request)
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Application modules are not configured.")
+    turn_rate_limiter = modules.tenant_governance.turn_rate_limiter
+    audit_pipeline = modules.audit_observability.tool_audit_pipeline
+    budget_recorder = modules.audit_observability.ingress_budget_recorder
+    settings = modules.platform_bootstrap.settings
+    budget_config = budget_config_from_policy_settings(settings.policy)
+    policy_overlay = _get_tenant_policy_overlay(request.app, tenant_id)
+    entitlement_decision = await _evaluate_governance_entitlement(
+        tenant_id=tenant_id,
+        session_id=session_id,
+        correlation_id=correlation_id,
+        transport=transport,
+        identity=identity,
+        overlay=policy_overlay,
+        audit_pipeline=audit_pipeline,
+    )
+    if entitlement_decision.decision != PolicyAction.ALLOW:
+        raise _entitlement_http_exception(entitlement_decision)
+    try:
+        ingress_gate_chain = _build_ingress_gate_chain(policy_overlay)
+    except ValueError as exc:
+        ingress_decision = _ingress_config_invalid_decision(str(exc))
+        if audit_pipeline is not None:
+            await audit_pipeline.emit(
+                event_type="turn_ingress_decision",
+                correlation_id=correlation_id,
+                tenant_id=tenant_id,
+                payload={
+                    "session_id": session_id,
+                    "transport": transport,
+                    "input_chars": len(user_input),
+                    "ingress_profile": "invalid",
+                    "ingress_custom_rule_count": 0,
+                    "ingress_custom_rule_ids": [],
+                    "ingress_profile_compatibility_mode": "strict",
+                    "ingress_classifier_mode": "off",
+                    "ingress_classifier_threshold": 0.0,
+                    "ingress_classifier_model_version": "",
+                    "ingress_classifier_signal_count": 0,
+                    "signed_gate_plugin_ref": "",
+                    "signed_gate_plugin_version": "",
+                    "signed_gate_plugin_signer": "",
+                    "signed_gate_plugin_sandbox_mode": "",
+                    "signed_gate_plugin_rule_count": 0,
+                    **ingress_decision.to_payload(),
+                },
+            )
+        raise _ingress_http_exception(ingress_decision) from exc
+    ingress_decision = await _evaluate_ingress_turn(
+        gate_chain=ingress_gate_chain,
+        budget_config=budget_config,
+        tenant_id=tenant_id,
+        session_id=session_id,
+        correlation_id=correlation_id,
+        transport=transport,
+        user_input=user_input,
+        identity=identity,
+        budget_recorder=budget_recorder,
+        audit_pipeline=audit_pipeline,
+    )
+    if ingress_decision.decision != PolicyAction.ALLOW:
+        raise _ingress_http_exception(ingress_decision)
+    if turn_rate_limiter is not None:
+        allowed, retry_after_seconds = turn_rate_limiter.allow(tenant_id)
+        if not allowed:
+            if audit_pipeline is not None:
+                await audit_pipeline.emit(
+                    event_type="turn_rejected_rate_limit",
+                    correlation_id=correlation_id,
+                    tenant_id=tenant_id,
+                    payload={
+                        "runtime_id": transport,
+                        "session_id": session_id,
+                        "retry_after_seconds": retry_after_seconds,
+                    },
+                )
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "TENANT_TURN_RATE_LIMIT_EXCEEDED: too many turn requests in the current window "
+                    f"(retry_after_seconds={retry_after_seconds})"
+                ),
+            )
+    max_active_runs = max(int(settings.limits.max_active_runs_per_tenant), 0)
+    if max_active_runs > 0 and run_registry.count_active_runs(tenant_id=tenant_id) >= max_active_runs:
+        if audit_pipeline is not None:
+            await audit_pipeline.emit(
+                event_type="turn_rejected_concurrency_limit",
+                correlation_id=correlation_id,
+                tenant_id=tenant_id,
+                payload={"runtime_id": transport, "session_id": session_id},
+            )
+        raise HTTPException(
+            status_code=429,
+            detail="TENANT_CONCURRENCY_LIMIT_EXCEEDED: too many active runs for this tenant",
+        )
+    run_registry.start_run(
+        tenant_id=tenant_id,
+        session_id=session_id,
+        run_id=run_id,
+        correlation_id=correlation_id,
+        transport=transport,
+    )
+
+    seen_call_id_to_tool_name: dict[str, str] = {}
+    terminal_event_seen = False
+    terminal_status = ""
+    terminal_event = ""
+    terminal_message = ""
+
+    try:
+        async for event_dict in _stream_turn(
+            tenant_id=tenant_id,
+            session_id=session_id,
+            user_input=user_input,
+            correlation_id=correlation_id,
+            ingress_decision=ingress_decision,
+            factory=factory,
+            ctx=ctx,
+            identity=identity,
+        ):
+            if event_dict.get("event") in {"tool_call", "tool_progress"}:
+                call_id = str(event_dict.get("call_id", "")).strip()
+                if call_id:
+                    seen_call_id_to_tool_name[call_id] = str(event_dict.get("tool_name", ""))
+                    run_registry.record_tool_call(tenant_id=tenant_id, run_id=run_id, call_id=call_id)
+            # Record terminal state before yield so consumers may break early (northbound /v1) without
+            # skipping run-registry bookkeeping in the finally block below.
+            if event_dict.get("event") in {"run_complete", "error"}:
+                terminal_event_seen = True
+                if event_dict.get("event") == "run_complete":
+                    terminal_status = "completed"
+                    terminal_event = "run_complete"
+                else:
+                    terminal_status = "errored"
+                    terminal_event = "error"
+                    terminal_message = str(event_dict.get("message", ""))
+            yield event_dict
+    finally:
+        forwarded = _forward_runtime_cancellations(
+            execution_adapter=execution_adapter,
+            call_ids=set(seen_call_id_to_tool_name.keys()),
+            terminal_event_seen=terminal_event_seen,
+        )
+        run_record = run_registry.get_run(tenant_id=tenant_id, run_id=run_id) or {}
+        cancel_requested = bool(run_record.get("cancel_requested", False))
+        if forwarded > 0:
+            run_registry.request_cancel(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                reason=f"{transport}_stream_ended_before_terminal_event",
+            )
+        if terminal_event_seen:
+            run_registry.mark_terminal(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                status=terminal_status or "completed",
+                terminal_event=terminal_event or "run_complete",
+                terminal_message=terminal_message,
+            )
+        elif cancel_requested:
+            run_registry.mark_terminal(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                status="cancelled",
+                terminal_event="cancel_requested_stream_closed",
+            )
+        elif forwarded > 0:
+            run_registry.mark_terminal(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                status="cancelled",
+                terminal_event="cancel_forwarded",
+            )
+        else:
+            run_registry.mark_terminal(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                status="interrupted",
+                terminal_event="stream_closed",
+            )
+
+
 # ---------------------------------------------------------------------------
 # SSE turn endpoint
 # ---------------------------------------------------------------------------

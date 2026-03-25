@@ -191,3 +191,21 @@ def get_run_control_registry(request: Request):
         return modules.session_runtime.run_control_registry
     st = request.app.state
     return getattr(st, "run_control_registry", None)
+
+
+def get_openai_gateway_runtime_context(
+    request: Request,
+    identity: IdentityContext = Depends(require_valid_identity),
+) -> TenantRuntimeContext:
+    """Resolve tenant runtime using ``identity.tenant_id`` (northbound ``/v1`` has no ``{tenant_id}`` path)."""
+    tid = str(identity.tenant_id or "").strip()
+    if not tid:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "OPENAI_GATEWAY_TENANT_REQUIRED: identity must include tenant_id for "
+                "OpenAI-compatible gateway calls."
+            ),
+        )
+    factory = _get_tenant_factory(request)
+    return factory.get_or_create(tid)

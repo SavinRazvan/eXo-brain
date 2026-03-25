@@ -475,3 +475,48 @@ def test_delete_provider_force_drain_returns_409_when_sessions_remain_after_drai
         )
     assert resp.status_code == 409
     assert "remain after attempted drain" in resp.json()["detail"].lower()
+
+
+def test_post_providers_two_distinct_openai_compatible_base_urls(tmp_path: Path) -> None:
+    """Lane A readiness: two providers may differ only by base_url + api_type (certification matrix)."""
+    import asyncio
+
+    app = _build_sqlite_provider_app(tmp_path / "exo_two_base.db")
+    with TestClient(app) as client:
+        east = client.post(
+            "/providers",
+            json={
+                "provider_id": "lane-a-east",
+                "display_name": "East compatible",
+                "adapter_class_ref": "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
+                "api_type": "openai_compatible",
+                "api_key_env_var": "OPENAI_API_KEY",
+                "base_url": "https://east-compatible.example/v1",
+                "model": "gpt-4o-mini",
+                "profile": "managed_vendor",
+            },
+            headers=_x_identity(),
+        )
+        west = client.post(
+            "/providers",
+            json={
+                "provider_id": "lane-a-west",
+                "display_name": "West compatible",
+                "adapter_class_ref": "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
+                "api_type": "openai_compatible",
+                "api_key_env_var": "OPENAI_API_KEY",
+                "base_url": "https://west-compatible.example/v1",
+                "model": "gpt-4o-mini",
+                "profile": "managed_vendor",
+            },
+            headers=_x_identity(),
+        )
+    assert east.status_code == 201, east.text
+    assert west.status_code == 201, west.text
+    rec_e = asyncio.run(app.state.provider_store.get_provider("lane-a-east"))
+    rec_w = asyncio.run(app.state.provider_store.get_provider("lane-a-west"))
+    assert rec_e is not None and rec_w is not None
+    assert rec_e.endpoint_base_url == "https://east-compatible.example/v1"
+    assert rec_w.endpoint_base_url == "https://west-compatible.example/v1"
+    assert rec_e.endpoint_api_type == "openai_compatible"
+    assert rec_w.endpoint_api_type == "openai_compatible"

@@ -17,6 +17,7 @@ Notes:
 
 ## Active Runbooks
 
+- `docs/operations/adapter-telemetry-dimensions.md` — log/metric dimensions for provider adapters
 - `docs/operations/release-candidate-signoff-checklist.md`
 - `docs/operations/byoc-failure-injection-playbook.md`
 - `docs/operations/byoc-artifact-integrity-dashboard.md`

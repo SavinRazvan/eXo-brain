@@ -393,6 +393,11 @@ def create_app(title: str = "eXo-brain API", version: str = "0.1.0") -> FastAPI:
 
     app.include_router(admin_keys_router)
 
+    if _env_bool("EXO_ENABLE_OPENAI_COMPAT_GATEWAY", default=False):
+        from src.api.routers.openai_gateway import router as openai_gateway_router
+
+        app.include_router(openai_gateway_router, prefix="/v1")
+
     settings = _default_settings()
     validate_non_dev_secrets(settings)
     provider_registry = _default_provider_registry(settings)
