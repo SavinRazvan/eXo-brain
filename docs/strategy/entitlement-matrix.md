@@ -22,14 +22,16 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.10.0`
-- Last Reviewed: `2026-03-15`
+- Version: `1.10.1`
+- Last Reviewed: `2026-03-24`
 - Review Cadence: `monthly`
 - Decision Scope: `Feature-to-tier packaging, enforcement surfaces, and evidence requirements for commercial operations.`
 
 ## 1) Purpose
 
 Translate tier strategy into enforceable product controls.
+
+Tier claims must attach to the **control plane** surfaces (policy, audit, deterministic execution, runtime control) documented in `monetization-strategy.md` and `governed-execution-positioning.md` — not to commodity provider transport.
 
 Each row maps:
 - tiered capability,

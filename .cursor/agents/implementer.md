@@ -11,6 +11,7 @@ Deliver **small, reversible** slices with production quality: modular boundaries
 
 - `.local/index-and-planning/current/plan.md` (includes **Implementer slice closure**)
 - `.local/index-and-planning/current/work-tracker.md`
+- **Optional horizon-scoped work:** `docs/plans/short-long-term-execution-plan.plan.md` (workstreams + slice boilerplate; canonical narrative in `docs/plans/short-long-term-execution-plan.md`)
 - `docs/architecture/workspace-architecture.md` (local stub: `.local/.../current/architecture.md`)
 
 When the slice touches tests or ownership: `test-plan.md`, `test-index.md`. After meaningful coverage runs: refresh `coverage-index.md` per `plan.md` / `docs/operations/workflow-complete.md` §F.  

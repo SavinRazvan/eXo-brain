@@ -1,6 +1,23 @@
+<!--
+File: api-platform.md
+Path: docs/archive/plans/api-platform.md
+Role: Historical API platform implementation plan (slices 0–4); retained for traceability.
+Used By:
+ - docs/plans/docs-archive-index.md
+Depends On:
+ - N/A (historical)
+Notes:
+ - Not an active execution authority.
+-->
+
 # eXo-brain API Platform Plan
 
-> Status: **Fully implemented — all 4 slices merged to main**
+> Status: **Archived** — fully implemented; historical snapshot only.
+> Canonical replacement: `docs/plans/tenant-tool-execution-architecture.md`, `docs/architecture/ARCHITECTURE.md`
+> Archived on: 2026-03-25
+> Archive reason: superseded
+>
+> Originally: **Fully implemented — all 4 slices merged to main**
 > Last updated: Mar 2, 2026
 > Merged via: PR #27 (Slices 0–3), PR #28 (Slice 4), PR #29 (CI fix)
 > Test coverage: 253 tests passing — architecture gates green

@@ -1,11 +1,10 @@
 <!--
 File: documentation-cleanup-master-plan.md
-Path: docs/plans/documentation-cleanup-master-plan.md
-Role: Canonical execution plan for documentation cleanup and anti-drift governance.
+Path: docs/archive/plans/documentation-cleanup-master-plan.md
+Role: Historical documentation cleanup execution plan (archived); anti-drift posture lives in inventory + authority + drift-prevention.
 Used By:
- - docs/README.md
- - docs/plans/README.md
- - Maintainer documentation cleanup slices
+ - docs/plans/docs-archive-index.md
+ - Historical reference only
 Depends On:
  - docs/plans/docs-inventory-master.md
  - docs/plans/docs-authority-map.md
@@ -18,9 +17,11 @@ Notes:
 
 ## Status
 
-- `active`
+- **`archived`** (superseded for active execution)
 - Owner: Savin I. Razvan
 - Last reviewed: 2026-03-11
+- Archived on: 2026-03-25
+- Canonical replacement: `docs/plans/docs-inventory-master.md`, `docs/plans/docs-authority-map.md`, `docs/governance/drift-prevention.md`
 - Canonical current-state doc reference: `docs/plans/tenant-tool-execution-architecture.md`
 
 ## Goal

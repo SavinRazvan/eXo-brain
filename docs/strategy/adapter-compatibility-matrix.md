@@ -10,13 +10,18 @@ Depends On:
  - docs/strategy/adapter-strategy.md §13, §19.6
 Notes:
  - Update this file when bumping package versions or certifying new adapter releases.
+ - Strategic home for adapter **source** is a **separate repository** (e.g. `ai-adapters-sdk`); eXo-brain `packages/` is **transitional** until extraction — see [`docs/plans/adapter-packages-extraction-handoff.md`](../plans/adapter-packages-extraction-handoff.md).
 -->
 
 # Adapter compatibility matrix
 
 Companion to [`adapter-strategy.md`](adapter-strategy.md) (packaging, certification, lanes). This document is the **single table** for **what is published today** and **what must stay compatible**.
 
-## 1) Published packages (monorepo)
+**Scope note:** these packages are **provider runtime adapters** (and contracts/SDK for building them) — **outbound** from eXo-brain to model providers. They are **not** the **customer bridge** (HTTP/SDK customers use to call the control plane); see `governed-execution-positioning.md` and [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
+
+**Source location (2026-03-24):** distribution names and versions below are authoritative for **pip install** targets. **Authoring** is moving to **`ai-adapters-sdk`** (or equivalent); copies under `packages/` in eXo-brain remain **only until extraction** completes (`governed-execution-positioning.md` **Repository boundary**, [`adapter-packages-extraction-handoff.md`](../plans/adapter-packages-extraction-handoff.md)).
+
+## 1) Published packages (distributions)
 
 | Package | PyPI name (target) | Version (pyproject) | Python (package) | Depends on |
 |--------|-------------------|---------------------|------------------|------------|
@@ -37,7 +42,7 @@ Companion to [`adapter-strategy.md`](adapter-strategy.md) (packaging, certificat
 
 **Runtime code comment anchor:** `packages/exo-brain-core-contracts/.../runtime_adapter.py` — keep public method signatures stable for **v1** consumers; use semver + matrix rows when intentionally breaking.
 
-**Publishing rule:** never ship an adapter version that depends on undocumented `src/**` internals (see [`adapter-strategy.md`](adapter-strategy.md) §14).
+**Publishing rule:** never ship an adapter version that depends on undocumented `src/**` internals (see [`adapter-strategy.md`](adapter-strategy.md) section 14).
 
 ## 3) M0 milestone status (`api_type` explicitness)
 
@@ -50,7 +55,7 @@ M0 is defined in [`adapter-strategy.md` §19.6](adapter-strategy.md#196-incremen
 | Persisted and hydrated | **Done** | `src/persistence/adapters/sqlite.py` (`endpoint_api_type` column); `src/api/startup.py` hydration |
 | API coverage | **Done** | `tests/modules/api/test_slice_provider_registration.py` |
 
-**Remaining (not M0):** universal **Lane A** adapter **package** (M1) — separate from registration explicitness. Northbound **`POST /v1/chat/completions`** is implemented behind **`EXO_ENABLE_OPENAI_COMPAT_GATEWAY`** (see `docs/plans/northbound-v1-gateway.md`).
+**Remaining (not M0):** universal **Lane A** adapter **package** (M1) — separate from registration explicitness. Northbound **`POST /v1/chat/completions`** is implemented behind **`EXO_ENABLE_OPENAI_COMPAT_GATEWAY`** (see `docs/archive/plans/northbound-v1-gateway.md`).
 
 ## 4) Lane A (universal OpenAI-compatible adapter package)
 
@@ -61,12 +66,12 @@ M0 is defined in [`adapter-strategy.md` §19.6](adapter-strategy.md#196-incremen
 | As-of | 2026-03-24 |
 | Note | Universal **package** spike still deferred; two distinct **`base_url`** registrations are covered in API tests. See [`adapter-strategy.md` §19.4–19.6](adapter-strategy.md#194-three-lane-expansion-model). |
 
-## 5) Certification status (in-repo adapters)
+## 5) Certification status (adapter packages)
 
 | Adapter package | Version | Conformance tests | External install smoke | Notes |
 |-----------------|---------|-------------------|-------------------------|-------|
-| `exo-adapter-echo` | 0.1.0 | `tests/packages/test_echo_adapter_conformance.py` | Run `scripts/packages/external_install_smoke.py` before release | Reference deterministic adapter for multi-adapter parity |
-| `exo-adapter-openai` | 0.1.0 | `tests/packages/test_openai_adapter_conformance.py` | Run `scripts/packages/external_install_smoke.py` before release | Requires OpenAI SDK deps in env |
+| `exo-adapter-echo` | 0.1.0 | `tests/packages/test_echo_adapter_conformance.py` (move with `ai-adapters-sdk`) | `scripts/packages/external_install_smoke.py` (same) | Reference deterministic adapter for multi-adapter parity |
+| `exo-adapter-openai` | 0.1.0 | `tests/packages/test_openai_adapter_conformance.py` (move with `ai-adapters-sdk`) | `scripts/packages/external_install_smoke.py` (same) | Requires OpenAI SDK deps in env |
 
 **Lane A (two `base_url` configs):** API persistence + registration coverage — `tests/modules/api/test_slice_provider_registration.py::test_post_providers_two_distinct_openai_compatible_base_urls`.
 
@@ -75,8 +80,8 @@ M0 is defined in [`adapter-strategy.md` §19.6](adapter-strategy.md#196-incremen
 Minimum evidence before claiming **GA** for a **new** provider adapter (aligns with [`adapter-strategy.md` §12](adapter-strategy.md#12-adapter-certification-pipeline)):
 
 1. Conformance: `RuntimeAdapter` async contract + error envelopes.
-2. In-repo: `tests/packages/test_*_adapter_conformance.py` (and full `pytest` green).
-3. Isolated install: `python scripts/packages/external_install_smoke.py` from a clean intent.
+2. Package repo: `tests/packages/test_*_adapter_conformance.py` (and full `pytest` green) — today under eXo-brain; **after extraction**, under `ai-adapters-sdk`.
+3. Isolated install: `python scripts/packages/external_install_smoke.py` (path updates post-move; see extraction handoff).
 4. Matrix row updated in §1 with version + supported contracts/SDK range.
 
 ## Revision
@@ -85,3 +90,4 @@ Minimum evidence before claiming **GA** for a **new** provider adapter (aligns w
 |------|--------|
 | 2026-03-24 | Initial matrix: package versions, semver, M0 done, Lane A deferred. |
 | 2026-03-24 | §5 certification rows (echo/openai); §6 checklist rename; Lane A two-`base_url` test anchor. |
+| 2026-03-24 | §1 retitled (distributions); source-location note + `ai-adapters-sdk` / extraction handoff; §5–§6 aligned with move. |

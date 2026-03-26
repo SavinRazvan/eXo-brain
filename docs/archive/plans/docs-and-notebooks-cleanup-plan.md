@@ -1,5 +1,7 @@
 # Docs and Notebooks Cleanup Plan
 
+> **Archived.** Canonical replacement: `docs/plans/notebook-standards.md`, `notebooks/README.md`, `docs/plans/docs-inventory-master.md`. Archived on: 2026-03-25.
+
 ## Goal
 
 Create one canonical idea-validation notebook (Notebook 3 style) and a clean notebook suite for module-level validation, while aligning documentation with current Option C API-first architecture.
@@ -33,8 +35,8 @@ Create one canonical idea-validation notebook (Notebook 3 style) and a clean not
 
 ### Deliverables
 
-- `docs/plans/notebooks-inventory.md`
-- `docs/plans/docs-inventory.md`
+- `docs/archive/plans/notebooks-inventory.md` (archived)
+- `docs/archive/plans/docs-inventory.md` (archived)
 
 ### Acceptance
 

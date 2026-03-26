@@ -28,8 +28,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.5.0`
-- Last Reviewed: `2026-03-24`
+- Version: `1.8.1`
+- Last Reviewed: `2026-03-25`
 - Review Cadence: `monthly`
 - Decision Scope: `Folder-level indexing, reading order, and strategy document governance for docs/strategy.`
 
@@ -38,6 +38,8 @@ Notes:
 This folder contains strategic documents that define product direction, non-negotiable boundaries, monetization posture, and operational traceability.
 
 These documents are intended to prevent direction drift while implementation evolves.
+
+**Canonical product model (2026-03-24):** eXo-brain is the **control plane** for governed execution; **monetization targets safety and governance**, not raw model resale. **Repository boundary:** the **eXo-brain repository** is **control plane only** (non-monorepo for adapters); adapter packages/SDK target **separate repos** — see **Repository boundary** in `governed-execution-positioning.md`. **North star** (AI as governed infrastructure; startups/orgs ship faster with API-enforced policy and audit) and the **enterprise four-layer separation of concerns** live in the same file. Unambiguous **integration surfaces** (provider runtime adapter outbound, control plane API, customer bridge including optional `/v1` and a future thin SDK) are defined there and in `goal.md` (section 5a). Executable cross-cutting plan: [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 
 ## Reading Order
 
@@ -63,7 +65,7 @@ These documents are intended to prevent direction drift while implementation evo
 10. `traceability-matrix.md`  
    Decision-to-code and decision-to-test mapping for drift detection.
 11. `next-directions.md`  
-    Architecture-aligned priorities and next implementation slices.
+    Architecture-aligned priorities and next implementation slices. **Companion:** [`docs/plans/short-long-term-execution-plan.md`](../plans/short-long-term-execution-plan.md) — short vs long horizons, main UI as API consumer, diagrams (mirrored in root `README.md`).
 12. `execution-board-12-gaps.md`
     Execution-ready implementation board for the 12 agreed priority gaps (phases, epics, tests, rollback).
 
@@ -87,7 +89,7 @@ These documents are intended to prevent direction drift while implementation evo
 - Detailed implementation contracts remain in module docs under `docs/modules/`.
 - Operational runbooks remain under `docs/operations/`.
 
-## Closure Snapshot (2026-03-12)
+## Closure Snapshot (2026-03-12; product vocabulary 2026-03-24)
 
 Now enforceable in strategy package:
 - governance metadata standardization across all docs/strategy docs,
@@ -95,6 +97,7 @@ Now enforceable in strategy package:
 - compliance profile matrix with phased wave model,
 - deployment model strategy with support and tier posture,
 - cross-document traceability anchors.
+- **2026-03-24:** Canonical **control plane** + **integration surfaces** (provider runtime adapter, control plane API, customer bridge) documented across `docs/strategy/*`, `docs/plans/control-plane-product-alignment-plan.md`, `docs/architecture/ARCHITECTURE.md`, and `docs/architecture/workspace-architecture.md`.
 
 Still planned (not yet fully implemented in product controls):
 - adapter portfolio expansion execution across universal/native/service lanes with certification evidence automation,

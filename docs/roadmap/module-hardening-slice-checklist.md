@@ -1,6 +1,14 @@
+<!--
+File: module-hardening-slice-checklist.md
+Path: docs/roadmap/module-hardening-slice-checklist.md
+Role: Per-PR checklist for module hardening slices.
+Depends On:
+ - docs/roadmap/enterprise-module-hardening-integration-plan.md
+-->
+
 # Module Hardening Slice Checklist
 
-Use this checklist in each module-hardening PR to keep execution consistent and auditable.
+Use this checklist in each module-hardening PR to keep execution consistent and auditable. Preserve **control plane** enforcement (no policy bypass); **provider runtime adapters** stay southbound only per `docs/architecture/workspace-architecture.md`.
 
 ## Slice Header
 - Slice name:

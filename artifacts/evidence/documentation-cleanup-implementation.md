@@ -5,7 +5,7 @@ Role: Evidence summary for documentation cleanup and canonicalization slices.
 Used By:
  - PR preparation and review artifacts
 Depends On:
- - docs/plans/documentation-cleanup-master-plan.md
+ - docs/archive/plans/documentation-cleanup-master-plan.md
  - docs/plans/docs-inventory-master.md
  - scripts/docs/check_docs_metadata.py
 Notes:
@@ -26,7 +26,7 @@ Notes:
 ## Key Outputs
 
 - Added canonical docs governance files:
-  - `docs/plans/documentation-cleanup-master-plan.md`
+  - `docs/archive/plans/documentation-cleanup-master-plan.md`
   - `docs/plans/docs-inventory-master.md`
   - `docs/plans/docs-authority-map.md`
   - `docs/plans/docs-archive-index.md`

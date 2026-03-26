@@ -37,3 +37,4 @@ Notes:
 ## Quarterly
 
 - Skim **`docs/strategy/next-directions.md`** vs **`docs/plans/tenant-tool-execution-architecture.md`** for obvious stale claims.
+- Skim **`docs/strategy/governed-execution-positioning.md`**, **`docs/plans/control-plane-product-alignment-plan.md`**, and **`docs/strategy/traceability-matrix.md`** against **`docs/api/customer-api-integration-guide.md`** and **`docs/architecture/ARCHITECTURE.md`** so **control plane** / **customer bridge** / **provider runtime adapter** language does not drift.

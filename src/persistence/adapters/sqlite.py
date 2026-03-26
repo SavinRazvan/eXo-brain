@@ -26,7 +26,7 @@ Notes:
    concurrent `to_thread` traffic and multi-tenant isolation tests. Revisit only after measured
    hot-path evidence (see plan).
  - **Perf:** There is no checked-in micro-benchmark gate; high-QPS connect overhead remains
-   **unmeasured** in this repo — see `docs/plans/enterprise-audit-remediation-plan.md` Phase 8.
+   **unmeasured** in this repo — see `docs/archive/plans/enterprise-audit-remediation-plan.md` Phase 8.
 """
 
 from __future__ import annotations

@@ -19,10 +19,12 @@ Notes:
 
 ## Structure
 
-- `docs/archive/plans/`
+- `docs/archive/plans/` — superseded roadmaps, completed platform plans, historical inventories, research snapshots
 - `docs/archive/operations/`
 - `docs/archive/results/`
 - `docs/archive/roadmap/` (only when roadmap snapshots are explicitly archived)
+
+Index and replacement pointers: `docs/plans/docs-archive-index.md`.
 
 ## Required Archive Metadata
 

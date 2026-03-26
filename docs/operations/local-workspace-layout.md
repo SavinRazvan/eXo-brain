@@ -86,7 +86,7 @@ Canonical workflow and doctrine live under **`docs/`**:
 - `docs/operations/workflow-complete.md`
 - `docs/operations/agent-workflow-procedures.md`
 - `docs/operations/logging-and-errors.md`
-- `docs/plans/archive-agents-research.md`
+- `docs/archive/plans/archive-agents-research.md` (archived research snapshot)
 - `docs/architecture/workspace-architecture.md`
 - `docs/strategy/*` (strategy package; root `architecture-goals/` retired)
 

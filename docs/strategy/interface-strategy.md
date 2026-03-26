@@ -22,8 +22,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.2.0`
-- Last Reviewed: `2026-03-22`
+- Version: `1.3.0`
+- Last Reviewed: `2026-03-24`
 - Review Cadence: `monthly`
 - Decision Scope: `API-first interface posture, UI roadmap constraints, and interface-level governance rules.`
 
@@ -74,6 +74,22 @@ Responsibilities:
 
 Constraint:
 - the public API is the authoritative control boundary for governed execution, not the customer's provider credential store.
+
+## Layer A2: Customer bridge (optional ergonomics, same spine)
+
+**Purpose:** reduce friction for customer applications that already speak OpenAI client protocols or that will use a **future thin SDK**.
+
+**Today:**
+- Optional **`POST /v1/chat/completions`** when `EXO_ENABLE_OPENAI_COMPAT_GATEWAY` is enabled — same governed turn path as native streaming APIs (see `docs/archive/plans/northbound-v1-gateway.md`).
+
+**Planned:**
+- Thin **client SDK** (language TBD) that wraps auth, session/run identity, streaming, and tool callbacks **without** introducing a second execution or policy bypass path.
+
+**Rules:**
+- Bridge surfaces must call the **same** server-side ingress, entitlement, and orchestration paths as Layer A.
+- No bridge may embed provider SDK calls that skip policy middleware for governed work.
+
+**Product vocabulary:** see `governed-execution-positioning.md` (integration surfaces) and [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 
 ## Layer B: Customer UI/Platform (consumer of APIs)
 
@@ -171,8 +187,8 @@ Decision contract requirements:
 ## 10) Customer Integration Patterns
 
 Primary pattern:
-1. Customer backend or deployment configuration manages provider credentials and adapter connectivity.
-2. Customer backend integrates with eXo-brain APIs for governed execution, policy, audit, and runtime control.
+1. Customer backend or deployment configuration manages provider credentials and **provider runtime adapter** connectivity (outbound to models).
+2. Customer backend integrates with eXo-brain **control plane APIs** (and optionally **customer bridge** `/v1` or a future SDK) for governed execution, policy, audit, and runtime control.
 3. Customer UI reads/writes through customer backend or directly via secure API gateway.
 4. Governance and audit workflows are driven by API responses and events.
 

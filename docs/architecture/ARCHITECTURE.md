@@ -10,6 +10,8 @@ Depends On:
  - docs/architecture/mvp.md
  - docs/architecture/workspace-architecture.md
  - docs/plans/README.md
+ - docs/plans/control-plane-product-alignment-plan.md
+ - docs/plans/short-long-term-execution-plan.md
  - docs/strategy/traceability-matrix.md
  - README.md (repository diagrams)
 Notes:
@@ -30,8 +32,30 @@ This document ties together **runtime layers** (`src/*`), the **modular monolith
 |----------------|----------|
 | **Modular monolith** | Single deployable (FastAPI app); module boundaries and import rules in [`workspace-architecture.md`](workspace-architecture.md), enforced via [`src/modules/contracts.py`](../../src/modules/contracts.py) and [`scripts/architecture/validate_layers.py`](../../scripts/architecture/validate_layers.py). |
 | **Provider-neutral core** | Orchestration and policy avoid provider SDKs; adapters implement [`RuntimeAdapter`](../../src/runtime/runtime_adapter.py). See [`scan_forbidden_imports.py`](../../scripts/architecture/scan_forbidden_imports.py). |
-| **Northbound vs southbound** | **Northbound:** HTTP API (`src/api/*`). **Southbound:** provider/runtime adapters (`src/runtime/*`, packages under `packages/exo-adapter-*`). See root [`README.md`](../../README.md) “Adapter vs gateway boundary”. |
+| **Northbound vs southbound** | **Northbound:** HTTP API (`src/api/*`) — **control plane** ingress plus optional **customer bridge** `/v1` (OpenAI-shaped, feature flag). **Southbound:** **provider runtime adapters** (`src/runtime/*`, `packages/exo-adapter-*`). Product vocabulary: [`governed-execution-positioning.md`](../strategy/governed-execution-positioning.md), [`control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md). See root [`README.md`](../../README.md) “Adapter vs gateway boundary”. |
 | **Deterministic-first tools** | Model emits tool intent; side effects run through policy-wrapped deterministic execution ([`src/tools/executor.py`](../../src/tools/executor.py), [`src/policies/middleware.py`](../../src/policies/middleware.py)). |
+
+### 1.1 Execution horizons (short vs long term)
+
+Product execution is split into **near-term pilot proof** and **long-term platform maturity** without changing the modular monolith or adapter wall. Full text, rules, and tier emphasis: [`short-long-term-execution-plan.md`](../plans/short-long-term-execution-plan.md). Root [`README.md`](../../README.md) carries the same diagrams for onboarding.
+
+```mermaid
+flowchart LR
+  subgraph pilot[Short term — pilot]
+    direction TB
+    p1[Pilot-complete core]
+    p2[Governance audit observability APIs]
+    p3[SDK + OpenAI reference]
+    p4[Main UI Layer B\nnorthbound API only]
+  end
+  subgraph mature[Long term — scale]
+    direction TB
+    m1[Adapter ecosystem]
+    m2[Commercial + metering]
+    m3[Enterprise compliance deploy]
+  end
+  pilot --> mature
+```
 
 ---
 
@@ -265,7 +289,7 @@ flowchart TB
 
 **How to read it (aligned with product goals):**
 
-1. **Northbound** — HTTP/SSE/WebSocket only; no provider SDKs here ([`src/api/*`](../../src/api/)). Optional **OpenAI-shaped** `POST /v1/chat/completions` (feature flag `EXO_ENABLE_OPENAI_COMPAT_GATEWAY`) reuses the same ingress/entitlement/run-control spine as tenant turn routes — see [`docs/plans/northbound-v1-gateway.md`](../plans/northbound-v1-gateway.md).
+1. **Northbound** — HTTP/SSE/WebSocket only; no provider SDKs here ([`src/api/*`](../../src/api/)). Optional **OpenAI-shaped** `POST /v1/chat/completions` (feature flag `EXO_ENABLE_OPENAI_COMPAT_GATEWAY`) reuses the same ingress/entitlement/run-control spine as tenant turn routes — see [`docs/archive/plans/northbound-v1-gateway.md`](../archive/plans/northbound-v1-gateway.md). **Naming** (control plane vs customer bridge vs provider adapter): [`docs/strategy/governed-execution-positioning.md`](../strategy/governed-execution-positioning.md), [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 2. **Trust + tenant scope** — Authentication / API keys ([`identity_access`](../../src/modules/contracts.py)); **pre-model ingress** + quotas + entitlement-aware surfaces live under **tenant_governance** mapping ([`src/policies/ingress_*`](../../src/policies/), [`src/tenancy/`](../../src/tenancy/)).
 3. **Session plane** — Per-tenant cached runtime context, sessions, run control ([`src/runtime/tenant_runtime.py`](../../src/runtime/tenant_runtime.py), session routers).
 4. **Orchestration** — [`OrchestratorHostAdapter`](../../src/integration/host_adapter.py) → [`Orchestrator`](../../src/core/orchestrator.py); **mode and capability selection stay provider-neutral** ([`src/runtime/mode_selector.py`](../../src/runtime/mode_selector.py)).
@@ -407,7 +431,7 @@ External install smoke: [`scripts/packages/external_install_smoke.py`](../../scr
 | **Shared run control / rate limits** | `memory` or `sqlite` via `EXO_CONTROL_STATE_*` | [`README.md`](../../README.md), `RuntimeSettings` |
 | **BYOC job stores** | Configurable backends (e.g. memory, sqlite paths) | `RuntimeSettings` in [`src/config/settings.py`](../../src/config/settings.py), `src/tools/byoc/` |
 
-SQLite connection posture (defer / honesty): [`docs/plans/enterprise-audit-remediation-plan.md`](../plans/enterprise-audit-remediation-plan.md).
+SQLite connection posture (defer / honesty): [`docs/archive/plans/enterprise-audit-remediation-plan.md`](../archive/plans/enterprise-audit-remediation-plan.md).
 
 ---
 
@@ -434,8 +458,8 @@ Plans live under [`docs/plans/README.md`](../plans/README.md). This table maps *
 | [**option-c-contract-freeze.md**](../plans/option-c-contract-freeze.md) | **Frozen seams:** `RuntimeAdapter`, tool execution adapter, policy/tool IO schemas, runtime event envelopes — stability between control plane and adapters/data plane. |
 | [**option-c-worker-isolation-contract.md**](../plans/option-c-worker-isolation-contract.md) | **Control vs data plane:** hosted sandbox + BYOC worker responsibilities, isolation, timeouts, no policy bypass. |
 | [**option-c-performance-gates.md**](../plans/option-c-performance-gates.md) | **Scale and SLO:** latency/error targets, admission/fairness, load/ingress budget scripts (`scripts/perf/`). |
-| [**enterprise-audit-remediation-plan.md**](../plans/enterprise-audit-remediation-plan.md) | **Engineering quality + ops honesty:** coverage gates, CI evidence, boundary guards, compose/prod clarity, external EA reconciliation notes. |
-| **Documentation governance plans** (e.g. `docs-authority-map.md`, `docs-inventory-master.md`, `documentation-cleanup-master-plan.md`) | **Docs system** and lifecycle — not runtime code paths. |
+| [**enterprise-audit-remediation-plan.md**](../archive/plans/enterprise-audit-remediation-plan.md) | **Engineering quality + ops honesty:** coverage gates, CI evidence, boundary guards, compose/prod clarity, external EA reconciliation notes. |
+| **Documentation governance plans** (e.g. `docs-authority-map.md`, `docs-inventory-master.md`, `docs-archive-index.md`; historical: `docs/archive/plans/documentation-cleanup-master-plan.md`) | **Docs system** and lifecycle — not runtime code paths. |
 
 **Strategy (not “plans” folder only):** product north star and tiered roadmap — [`docs/strategy/goal.md`](../strategy/goal.md), [`next-directions.md`](../strategy/next-directions.md); decision-to-code mapping — [`traceability-matrix.md`](../strategy/traceability-matrix.md).
 

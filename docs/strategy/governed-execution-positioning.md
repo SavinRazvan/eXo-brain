@@ -12,6 +12,7 @@ Depends On:
  - entitlement-matrix.md
  - compliance-profile-matrix.md
  - deployment-models.md
+ - docs/plans/control-plane-product-alignment-plan.md
 Notes:
  - Keep claims aligned with actual platform maturity; do not market planned controls as delivered capabilities.
 -->
@@ -22,8 +23,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
-- Last Reviewed: `2026-03-22`
+- Version: `1.3.0`
+- Last Reviewed: `2026-03-24`
 - Review Cadence: `monthly`
 - Decision Scope: `Product definition, ICP focus, monetization posture, and messaging guardrails for eXo-brain.`
 
@@ -36,6 +37,42 @@ It turns the platform from a broad "AI infrastructure" description into a narrow
 - customers keep their own model/provider stack,
 - eXo-brain becomes the governed execution boundary for risky AI behavior,
 - monetization comes from control depth, auditability, and operational assurance.
+
+## North star: AI as governed infrastructure
+
+**Context (intent, not a maturity claim):** As AI becomes default infrastructure inside products, the failure mode shifts from “model quality” to **uncontrolled actions**: tool side effects, policy bypass, weak audit, and tenant bleed. eXo-brain’s role is to make **governed execution** a **first-class, API-enforced layer** so organizations and startups do not have to rebuild the same safety spine in every stack.
+
+- **Safety (qualified):** We sell **enforceable** ingress, policy, deterministic tool execution, audit evidence, and operational controls — not a promise to “make AI safe” in the abstract (see Messaging Guardrails).
+- **Speed for builders:** Startups and product teams ship faster when governance is **subscription-scoped configuration and APIs** instead of bespoke middleware before every launch.
+- **Monetization and sustainability:** Revenue from **governance depth and assurance** funds continued investment in controls, certification, telemetry, and enterprise operations — aligned with the customer outcome (reduced blast radius, audit-ready behavior), not commodity token resale.
+
+This north star is **compatible with** honest stage-gating: narrow commercial claims until evidence (tests, deployment profiles, telemetry) supports them (see Commercial Risks and Prerequisites).
+
+## Enterprise separation of concerns
+
+Use this **four-layer** view in architecture reviews, security questionnaires, and pricing discussions. It maps cleanly to the three **integration surfaces** in the next section.
+
+| Layer | Owns | Must not own |
+| ----- | ---- | ------------ |
+| **1. Value / subscription** | Tier entitlements, packaging, what is *enforceable* per plan | Provider SDK internals; customer domain business logic |
+| **2. Trust / control plane** | Ingress gates, policy, deterministic tool execution, audit, tenancy, quotas, runtime control | Raw model transport (that stays behind adapters) |
+| **3. Connectivity / portability** | Provider runtime adapters, contracts, conformance, versioned packages | Governance authority or policy bypass paths |
+| **4. Customer attach** | How customer apps enter the loop (control plane API, optional `/v1` bridge, future thin SDK) | A second “shadow” execution path that skips Layer 2 |
+
+**Enterprise rule:** If a new feature does not clearly sit in **one** primary row, split it or defer it — overloaded components break monetization clarity and auditability.
+
+## Repository boundary (control plane only, non-monorepo)
+
+**Strategic direction:** The **eXo-brain repository** is the **control-plane product codebase**: API, orchestration core, policies, tools execution, tenancy, audit, observability hooks, and conformance tests for **that** boundary.
+
+**Not in scope for this repository (long term):**
+
+- **Provider runtime adapter packages** (per-provider pip/installable artifacts)
+- **Adapter SDK** and **published core contracts** as a **monorepo sibling** under the same repo root
+
+Those artifacts belong in **separate adapter-ecosystem repositories** (true multi-repo boundary). Customers and partners install adapters **against** the control plane’s **stable contracts** and registry/factory loading — they do not fork the control plane to ship an adapter.
+
+**Transitional note:** A `packages/` tree may remain **temporarily** in this repository only for **migration, CI conformance, and extraction sequencing**. Treat it as **not** part of the stated product boundary; new adapter portfolio work should assume **out-of-repo** packages. When extraction completes, this repository should contain **no** adapter product source trees.
 
 ## Product Definition
 
@@ -50,6 +87,22 @@ eXo-brain is:
 Core positioning sentence:
 
 > Keep your models and providers. Route governed agent execution through eXo-brain so risky actions become policy-enforced, deterministic, observable, and auditable.
+
+## Control plane and integration surfaces (canonical vocabulary)
+
+**Control plane** means the **productized governance boundary**: configuration for tools, policy gates, ingress profiles, audit, guardrails, MCP registration, deterministic tool execution, tenancy, quotas, and runtime control — enforced **server-side** and mapped to subscription tier through entitlements.
+
+Do **not** conflate these three **integration surfaces** (all may appear in RFPs and architecture reviews):
+
+| Surface | Role | Monetization note |
+|--------|------|-------------------|
+| **Provider runtime adapter** | Lets the **hosted eXo-brain runtime** call a specific provider/model implementation **outbound**, behind the adapter wall (`src/runtime/*` + **separate** adapter repos; any in-tree `packages/` is **transitional**). Keeps core **provider-neutral**. | Adoption and portability; **not** the primary paid differentiator. |
+| **Control plane API** | **Authoritative** customer-facing surface (REST, SSE, WebSocket) for sessions, turns, policy, tools, agents, audit, providers. | **Primary** subscription-scoped enforcement locus for governance depth. |
+| **Customer bridge** | How **customer applications** insert eXo-brain into **their** AI loop: integrate via control plane APIs today; optionally use OpenAI-shaped **`POST /v1/chat/completions`** when `EXO_ENABLE_OPENAI_COMPAT_GATEWAY` is enabled; **planned** thin client SDK that uses the **same** turn/policy/audit spine as HTTP (no parallel “shadow” execution path). | Same trust boundary as Layer B; bridge is **transport ergonomics**, not a safety bypass. |
+
+**BYOC / connector** patterns (customer workers, data-plane hooks) are **additional** integration styles. They must preserve the same non-bypassable policy and deterministic execution rules as any other path.
+
+**Executable plan:** phased doc, SDK, and evidence work is tracked in [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 
 ## Strategic Thesis
 

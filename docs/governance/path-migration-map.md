@@ -27,7 +27,7 @@ Notes:
 | `agent-workflow-procedures.md` | `docs/operations/agent-workflow-procedures.md` |
 | `workflow-complete.md` | `docs/operations/workflow-complete.md` |
 | `logging-and-errors.md` | `docs/operations/logging-and-errors.md` |
-| `archive-agents.md` | `docs/plans/archive-agents-research.md` |
+| `archive-agents.md` | `docs/archive/plans/archive-agents-research.md` |
 
 ## `.local` layout (flat / legacy → nested)
 

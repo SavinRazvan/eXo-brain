@@ -7,11 +7,58 @@ Used By:
 Depends On:
  - AGENTS.md
  - .cursor/rules/provider-neutral-adapter-wall.mdc
+ - docs/plans/short-long-term-execution-plan.md
 Notes:
  - Live execution trackers stay under `.local/index-and-planning/current/`; edit this file for enduring doctrine.
 -->
 
 # Workspace architecture notes
+
+## Product model (strategy link)
+
+Enduring vocabulary for **control plane** monetization and **integration surfaces** (provider runtime adapter vs control plane API vs customer bridge) lives in `docs/strategy/governed-execution-positioning.md`, `docs/strategy/goal.md` (section 5a), and the cross-cutting plan [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md). Use that language in module boundaries and PR discussions so “adapter” is not overloaded.
+
+**Repository scope:** This workspace is the **control-plane** codebase. **Adapter package source** belongs in **separate repositories**; any in-tree `packages/` is **transitional** per `governed-execution-positioning.md` (**Repository boundary**).
+
+## Enterprise separation of concerns (engineering view)
+
+- **Subscription / entitlements (commercial layer):** Maps to tier-enforced API and middleware behavior; must not leak into provider adapters as “special SDK paths.”
+- **Trust boundary (control plane):** Module responsibilities below (`tenant_governance`, `turn_execution`, `audit_observability`, etc.) implement **non-bypassable** governance — the layer you **monetize for safety**.
+- **Connectivity (provider runtime adapters):** `adapter_contracts`, `provider_management`, and **out-of-repo** adapter artifacts loaded at runtime — **portability**, not pricing moat by itself. (Transitional: `packages/` until extraction.)
+- **Customer attach (northbound):** `src/api/*` and optional customer bridge; same policy spine as any other entrypoint.
+
+Full four-layer table and messaging guardrails: `docs/strategy/governed-execution-positioning.md`.
+
+## Execution horizons (short vs long term)
+
+Canonical plan: [`docs/plans/short-long-term-execution-plan.md`](../plans/short-long-term-execution-plan.md). **Short term** stresses pilot-complete core, governance/observability/audit **via APIs**, adapter SDK + OpenAI reference, and a **main UI platform** that attaches only through **northbound** APIs (Layer B). **Long term** stresses full adapter ecosystem, commercial operability, and enterprise procurement depth.
+
+```mermaid
+flowchart LR
+  subgraph ST[Short term]
+    direction TB
+    a[Core reference workflow]
+    b[APIs for policy audit traces]
+    c[SDK + OpenAI ref]
+    d[Main UI consumer]
+  end
+  subgraph LT[Long term]
+    direction TB
+    w[Ecosystem + certification]
+    x[Plan + metering]
+    y[Enterprise + compliance]
+  end
+  ST --> LT
+```
+
+```mermaid
+flowchart TB
+  MUI[Main UI\nLayer B]
+  CP[Control plane repo]
+  ADP[Adapter packages\nSDK + OpenAI first]
+  MUI -->|no bypass| CP
+  CP --> ADP
+```
 
 ## Non-negotiable boundaries
 - Core orchestration stays provider-neutral.

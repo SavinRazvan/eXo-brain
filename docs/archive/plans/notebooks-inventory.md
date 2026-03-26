@@ -1,4 +1,21 @@
+<!--
+File: notebooks-inventory.md
+Path: docs/archive/plans/notebooks-inventory.md
+Role: Historical notebook migration inventory snapshot.
+Used By:
+ - docs/plans/docs-archive-index.md
+Depends On:
+ - N/A (historical)
+Notes:
+ - Superseded by `notebooks/README.md` and `docs/plans/notebook-standards.md` for current guidance.
+-->
+
 # Notebooks Inventory
+
+> Status: **Archived**
+> Canonical replacement: `notebooks/README.md`, `docs/plans/notebook-standards.md`
+> Archived on: 2026-03-25
+> Archive reason: superseded
 
 ## Current Notebook State
 

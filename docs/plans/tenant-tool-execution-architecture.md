@@ -51,6 +51,10 @@ This section supersedes conflicting historical wording in this document.
   - `.local/index-and-planning/current/plan.md`
   - `.local/index-and-planning/current/work-tracker.md`
 
+### Short-term execution horizon (W1 pilot-complete)
+
+This file stays the **implementation status source** for tenant tools and the governed execution path around tools. The product **short vs long** horizon (pilot proof vs platform maturity) and implementer workstreams **W1–W4** are defined in [`short-long-term-execution-plan.md`](short-long-term-execution-plan.md); copy the slice boilerplate into `.local/index-and-planning/current/plan.md` from [`short-long-term-execution-plan.plan.md`](short-long-term-execution-plan.plan.md). **W1** expects a stable ingress → orchestration → policy → deterministic-tools path for the **reference workflow**, with **no documented bypass** for side effects—when changing those layers, keep regression coverage in `tests/modules/api/`, `tests/modules/policies/`, and `tests/modules/core/` aligned with this document.
+
 ### Reconciled Backlog Status (post-delivery)
 
 - Closed/delivered:
@@ -65,21 +69,21 @@ This section supersedes conflicting historical wording in this document.
     - adapter packaging execution (`packages/exo-brain-core-contracts`, `packages/exo-brain-adapter-sdk`, `packages/exo-adapter-openai`)
     - shared control-state backend patterns (`SQLiteRunControlRegistry`, `SQLiteTenantRateLimiter`, sqlite fairness backend)
     - blocking SLO gate enforcement for release promotion (`scripts/perf/option_c_load_profiles.py --enforce`)
-  - Next queued slice after current Option C closures:
-    - add northbound OpenAI-compatible gateway endpoints (chat/completions-compatible request/stream envelopes)
+  - Next queued slice after current Option C closures (aligned with `docs/strategy/next-directions.md` Tier 1 gateway row):
+    - **Northbound `/v1` MVP:** shipped behind `EXO_ENABLE_OPENAI_COMPAT_GATEWAY` (`src/api/routers/openai_gateway.py`); remaining work is **hardening** and broader OpenAI client parity, not greenfield routing.
     - split interaction modes explicitly into `chat`, `agents`, and `workflow`
     - keep `workflow` ownership in orchestration (`src/core/*`) while runtime adapters remain provider execution boundaries
     - preserve deterministic tool governance and policy middleware wrappers across all interaction modes
 
-### Option C Next-Phase Slice 5 (planned): Gateway surface + interaction-mode split
+### Option C Next-Phase Slice 5: Gateway surface + interaction-mode split
 
-**Design addendum (MVP, feature-flagged):** [`northbound-v1-gateway.md`](northbound-v1-gateway.md) — `EXO_ENABLE_OPENAI_COMPAT_GATEWAY`, `POST /v1/chat/completions`, `X-eXo-Session-Id`, shared governance iterator with SSE turns.
+**Status:** Northbound **`/v1` chat/completions MVP** is **shipped** (feature-flagged); archived design addendum: [`northbound-v1-gateway.md`](../archive/plans/northbound-v1-gateway.md). Operator summary: `docs/api/customer-api-integration-guide.md` (§4.0). **Remaining** scope below is **hardening + explicit mode split**, consistent with `docs/strategy/next-directions.md` (gateway row).
 
 Goal:
-- expose a public OpenAI-compatible API surface without collapsing provider-neutral adapter boundaries.
+- harden and extend the public OpenAI-compatible API surface without collapsing provider-neutral adapter boundaries.
 
 Scope:
-- add northbound OpenAI-compatible gateway routing for external client compatibility.
+- harden and extend the existing northbound OpenAI-compatible gateway (`openai_gateway.py`) for external client compatibility (parity, error surfaces, streaming edge cases — not greenfield routing).
 - separate OpenAI runtime execution paths for:
   - chat-completions style turns
   - Agents SDK style turns

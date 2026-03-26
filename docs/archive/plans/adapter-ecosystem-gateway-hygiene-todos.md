@@ -1,18 +1,20 @@
 <!--
 File: adapter-ecosystem-gateway-hygiene-todos.md
-Path: docs/plans/adapter-ecosystem-gateway-hygiene-todos.md
+Path: docs/archive/plans/adapter-ecosystem-gateway-hygiene-todos.md
 Role: Checkbox execution checklist for adapter ecosystem, northbound gateway, and hygiene phases (maps to EA/FIND IDs).
 Used By:
  - Maintainers executing slices from adapter-ecosystem-gateway-hygiene-plan.md
 Depends On:
- - docs/plans/adapter-ecosystem-gateway-hygiene-plan.md
- - docs/plans/post-monolith-execution-roadmap.md
+ - docs/archive/plans/adapter-ecosystem-gateway-hygiene-plan.md
+ - docs/archive/plans/post-monolith-execution-roadmap.md
  - .local/index-and-planning/current/work-tracker.md
 Notes:
  - Decisions: EA-001 = P0-A (Python 3.12+); EA-002 = 1b (four GATES in prepare.py; conditional governance documented).
 -->
 
 # Adapter ecosystem / gateway / hygiene — execution checklist
+
+> **Archived** (checkbox snapshot). Canonical replacement: same as `adapter-ecosystem-gateway-hygiene-plan.md`. Archived on: 2026-03-25.
 
 ## 0. Sequencing
 
@@ -65,7 +67,7 @@ Follow the ordered phases in [adapter-ecosystem-gateway-hygiene-plan.md §11](ad
 
 ## Phase 4 — Northbound `/v1` (EA-005)
 
-- [x] **AGE-P4-01** — Design PR: addendum (in `docs/plans/tenant-tool-execution-architecture.md` Slice 5 or `docs/plans/northbound-v1-gateway.md`): URL map, auth→tenant binding, middleware/gate order (reference `src/api/routers/turns.py`), explicit non-goals (no raw upstream proxy).
+- [x] **AGE-P4-01** — Design PR: addendum (in `docs/plans/tenant-tool-execution-architecture.md` Slice 5 or `docs/archive/plans/northbound-v1-gateway.md`): URL map, auth→tenant binding, middleware/gate order (reference `src/api/routers/turns.py`), explicit non-goals (no raw upstream proxy).
 - [x] **AGE-P4-02** — Link design from `docs/architecture/ARCHITECTURE.md` and/or `docs/api/customer-api-integration-guide.md`.
 - [x] **AGE-P4-03** — Implement FastAPI router under `src/api/` with **feature flag** / env gate.
 - [x] **AGE-P4-04** — Tests: success, **401/403**, **policy denial** (prove no governance bypass).

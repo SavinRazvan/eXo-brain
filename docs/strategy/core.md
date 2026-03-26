@@ -24,8 +24,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.1.0`
-- Last Reviewed: `2026-03-22`
+- Version: `1.2.0`
+- Last Reviewed: `2026-03-24`
 - Review Cadence: `monthly`
 - Decision Scope: `Core-layer invariants, responsibility boundaries, and non-bypassable governance model.`
 
@@ -40,7 +40,7 @@ Companion strategy docs:
 
 Core is the trust and control plane of eXo-brain.
 
-Core is the governed execution boundary between customer-owned model/provider connectivity and customer-visible AI behavior.
+Core is the governed execution boundary between customer-owned model/provider connectivity (via **provider runtime adapters**) and customer-visible AI behavior. **Monetization and enforcement** attach to this control plane (policy, audit, deterministic execution, entitlements), not to reselling raw model APIs.
 
 It must guarantee that:
 - provider choice does not change safety posture,

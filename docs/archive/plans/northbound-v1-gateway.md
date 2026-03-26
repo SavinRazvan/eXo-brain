@@ -1,6 +1,6 @@
 <!--
 File: northbound-v1-gateway.md
-Path: docs/plans/northbound-v1-gateway.md
+Path: docs/archive/plans/northbound-v1-gateway.md
 Role: Design addendum for OpenAI-compatible northbound /v1 surface (Option C next-phase).
 Used By:
  - docs/plans/tenant-tool-execution-architecture.md
@@ -9,10 +9,12 @@ Depends On:
  - src/api/routers/turns.py
  - src/api/routers/openai_gateway.py
 Notes:
- - Advisory design; implementation is feature-flagged until enabled in deployment.
+ - **Archived** 2026-03-25. Operational contract: `docs/api/customer-api-integration-guide.md` §4.0 + `tenant-tool-execution-architecture.md` + `openai_gateway.py`.
 -->
 
 # Northbound OpenAI-compatible `/v1` gateway
+
+> **Archived** (design addendum). Canonical replacement: `docs/api/customer-api-integration-guide.md` (§4.0), `docs/plans/tenant-tool-execution-architecture.md`, `src/api/routers/openai_gateway.py`. Archived on: 2026-03-25.
 
 ## Intent
 

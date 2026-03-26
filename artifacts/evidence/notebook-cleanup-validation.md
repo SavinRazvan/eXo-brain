@@ -11,8 +11,8 @@ Validation evidence for the docs/notebooks cleanup slice:
   - `notebooks/12_runtime_adapter_checks.ipynb`
   - `notebooks/13_tenant_and_limits_checks.ipynb`
 - inventory/standards docs added:
-  - `docs/plans/notebooks-inventory.md`
-  - `docs/plans/docs-inventory.md`
+  - `docs/archive/plans/notebooks-inventory.md`
+  - `docs/archive/plans/docs-inventory.md`
   - `docs/plans/notebook-standards.md`
 
 ## Notebook Generation

@@ -1,6 +1,6 @@
 <!--
 File: enterprise-audit-remediation-plan.md
-Path: docs/plans/enterprise-audit-remediation-plan.md
+Path: docs/archive/plans/enterprise-audit-remediation-plan.md
 Role: Phased remediation plan for enterprise-style architecture audit findings (coverage, wiring, CI honesty, boundaries, lifecycle, docs).
 Used By:
  - Maintainers executing post-audit hardening slices
@@ -15,6 +15,8 @@ Notes:
 -->
 
 # Enterprise audit remediation plan
+
+> **Archived** (phases 1–8 closed on `main`). Canonical replacement: `docs/strategy/traceability-matrix.md`, `docs/plans/tenant-tool-execution-architecture.md`, CI in `.github/workflows/architecture-fitness.yml`. Archived on: 2026-03-25.
 
 ## What is done vs not done (important)
 
@@ -41,7 +43,7 @@ Use these together so work does not scatter:
 
 | Location | Use for |
 |----------|---------|
-| **This file** (`docs/plans/enterprise-audit-remediation-plan.md`) | Single canonical **phase plan**, acceptance criteria, PR split A–G, tracker ID mapping |
+| **This file** (`docs/archive/plans/enterprise-audit-remediation-plan.md`) | Single canonical **phase plan**, acceptance criteria, PR split A–G, tracker ID mapping |
 | [`.local/index-and-planning/current/work-tracker.md`](../../.local/index-and-planning/current/work-tracker.md) | Exactly one **in_progress** slice; link to this plan when executing |
 | [`.local/index-and-planning/current/plan.md`](../../.local/index-and-planning/current/plan.md) | Slice scope, rollback, acceptance (per implementation governance) |
 | [`.local/index-and-planning/history/updates-log.md`](../../.local/index-and-planning/history/updates-log.md) | Substantive slice summaries after merge or milestone (gitignored clone state) |

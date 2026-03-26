@@ -3,8 +3,8 @@ File: docs-inventory-master.md
 Path: docs/plans/docs-inventory-master.md
 Role: Master inventory of repository documentation with lifecycle status and canonical pointers.
 Used By:
- - docs/plans/documentation-cleanup-master-plan.md
  - docs/plans/docs-authority-map.md
+ - docs/plans/docs-archive-index.md
 Depends On:
  - docs/README.md
  - docs/plans/README.md
@@ -30,7 +30,6 @@ Notes:
 | `docs/operations/workflow-complete.md` | Maintainer workflow checklist (durable) |
 | `docs/operations/agent-workflow-procedures.md` | Audit/PR dedup procedures |
 | `docs/operations/logging-and-errors.md` | Logging rollout plan |
-| `docs/plans/archive-agents-research.md` | Archive agent reuse research |
 | `docs/governance/folder-charter.md` | `docs/` vs `.local/` charter |
 | `docs/governance/path-migration-map.md` | Old → new path map |
 | `docs/governance/workflow-source-owners.md` | Script-first ownership map |
@@ -48,19 +47,19 @@ Notes:
 | `docs/operations/release-candidate-signoff-checklist.md` | Canonical release signoff process |
 | `docs/operations/byoc-failure-injection-playbook.md` | BYOC failure drills |
 | `docs/operations/byoc-artifact-integrity-dashboard.md` | BYOC integrity operations guidance |
+| `docs/plans/short-long-term-execution-plan.md` | Short vs long execution horizons; companion to `next-directions.md` Tier emphasis |
+| `docs/plans/short-long-term-execution-plan.plan.md` | Implementer companion (W1–W4+S4, checklists, slice boilerplate) |
 
 ## Planned / Working
 
 | Path | Role |
 |---|---|
-| `docs/plans/documentation-cleanup-master-plan.md` | Canonical documentation cleanup execution plan |
 | `docs/plans/docs-inventory-master.md` | Lifecycle inventory and classification table |
 | `docs/plans/docs-authority-map.md` | Authority and precedence map for docs |
 | `docs/plans/docs-archive-index.md` | Archive index and replacement mapping |
-| `docs/plans/docs-governance-baseline-map.md` | Governance dependency baseline for archive migrations |
-| `docs/plans/docs-and-notebooks-cleanup-plan.md` | Notebook/doc cleanup execution history and references |
 | `docs/plans/notebook-standards.md` | Notebook standards and ownership |
-| `docs/plans/enterprise-audit-remediation-plan.md` | Phased remediation after enterprise-style architecture audit (coverage, wiring, CI, boundaries, lifecycle, docs) |
+| `docs/plans/control-plane-product-alignment-plan.md` | Control plane vs adapter vs customer bridge narrative |
+| `docs/plans/adapter-packages-extraction-handoff.md` | Adapter packages extraction checklist (separate repos) |
 
 ## Archived / Historical
 
@@ -74,6 +73,20 @@ Notes:
 | `docs/archive/operations/local-ui-readiness-smoke.md` | `docs/operations/release-candidate-signoff-checklist.md` |
 | `docs/archive/results/audit_alignment_results.md` | `.local/workflow-artifacts/alignment/alignment-audit.md` |
 | `docs/archive/results/audit_alignment_action_plan.md` | `.local/workflow-artifacts/alignment/alignment-todos.md` |
+| `docs/archive/plans/api-platform.md` | `docs/plans/tenant-tool-execution-architecture.md`, `docs/architecture/ARCHITECTURE.md` |
+| `docs/archive/plans/platform-extensions.md` | `docs/plans/tenant-tool-execution-architecture.md`, `docs/plans/option-c-contract-freeze.md`, `docs/plans/option-c-worker-isolation-contract.md`, `docs/plans/option-c-performance-gates.md` |
+| `docs/archive/plans/archive-agents-research.md` | N/A — use `.cursor/agents`, `.cursor/skills`, `.agents/skills` for current automation assets |
+| `docs/archive/plans/docs-inventory.md` | `docs/plans/docs-inventory-master.md` |
+| `docs/archive/plans/notebooks-inventory.md` | `notebooks/README.md`, `docs/plans/notebook-standards.md` |
+| `docs/archive/plans/docs-governance-baseline-map.md` | `docs/plans/docs-authority-map.md`, `docs/plans/docs-archive-index.md` |
+| `docs/archive/plans/northbound-v1-gateway.md` | `docs/api/customer-api-integration-guide.md` (§4.0), `docs/plans/tenant-tool-execution-architecture.md`, `src/api/routers/openai_gateway.py` |
+| `docs/archive/plans/enterprise-audit-remediation-plan.md` | `docs/strategy/traceability-matrix.md`, `docs/plans/tenant-tool-execution-architecture.md`, `.github/workflows/architecture-fitness.yml` |
+| `docs/archive/plans/documentation-cleanup-master-plan.md` | `docs/plans/docs-inventory-master.md`, `docs/plans/docs-authority-map.md`, `docs/governance/drift-prevention.md` |
+| `docs/archive/plans/docs-and-notebooks-cleanup-plan.md` | `docs/plans/notebook-standards.md`, `notebooks/README.md`, `docs/plans/docs-inventory-master.md` |
+| `docs/archive/plans/post-monolith-execution-roadmap.md` | `docs/strategy/next-directions.md`, `docs/plans/short-long-term-execution-plan.md`, `docs/strategy/traceability-matrix.md`, `docs/plans/tenant-tool-execution-architecture.md` |
+| `docs/archive/plans/adapter-ecosystem-gateway-hygiene-plan.md` | `docs/strategy/adapter-strategy.md`, `docs/strategy/next-directions.md`, `docs/plans/adapter-packages-extraction-handoff.md`, `docs/plans/short-long-term-execution-plan.md` |
+| `docs/archive/plans/adapter-ecosystem-gateway-hygiene-todos.md` | Same as hygiene plan (checkbox snapshot) |
+| `docs/archive/plans/control-plane-product-alignment-baseline-slice-closed.md` | `docs/plans/control-plane-product-alignment-plan.md` (ongoing L1–L4) |
 
 ## Notes
 

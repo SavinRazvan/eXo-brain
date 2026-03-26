@@ -13,6 +13,7 @@ New or continued `feature/` | `fix/` | `chore/` work; recovery from blocked slic
 
 - `.local/index-and-planning/current/plan.md` (**Implementer slice closure**)
 - `.local/index-and-planning/current/work-tracker.md`
+- Optional: `docs/plans/short-long-term-execution-plan.plan.md` when the slice tracks short/long horizon goals (narrative: `docs/plans/short-long-term-execution-plan.md`)
 - `docs/architecture/workspace-architecture.md` (stub under `.local/.../current/` if present)
 - Test trackers when tests change: `test-plan.md`, `test-index.md`
 - Closure detail: `docs/operations/workflow-complete.md` §F

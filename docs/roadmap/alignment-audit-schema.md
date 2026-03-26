@@ -1,7 +1,22 @@
+<!--
+File: alignment-audit-schema.md
+Path: docs/roadmap/alignment-audit-schema.md
+Role: Required fields and taxonomy for advisory alignment audit findings (.local/workflow-artifacts/alignment/).
+Used By:
+ - .cursor/skills/enterprise-architecture-audit/SKILL.md
+ - enterprise-auditor alignment passes
+Depends On:
+ - docs/strategy/traceability-matrix.md
+Notes:
+ - For product-boundary drift (control plane, customer bridge, provider runtime adapter), cite governed-execution-positioning + control-plane-product-alignment-plan as target paths.
+-->
+
 # Alignment Audit Schema
 
 ## Purpose
 Standardize advisory audit findings so outputs from skills, rules checks, and manual review can be merged into one deterministic report.
+
+**Product vocabulary:** When findings involve customer integration or monetization claims, reconcile with [`docs/strategy/governed-execution-positioning.md`](../strategy/governed-execution-positioning.md), [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md), and [`docs/api/customer-api-integration-guide.md`](../api/customer-api-integration-guide.md) as well as `traceability-matrix.md`.
 
 ## Finding Object (Required Fields)
 
@@ -33,6 +48,7 @@ Standardize advisory audit findings so outputs from skills, rules checks, and ma
 - `module_traceability_gap`
 - `ci_path_drift`
 - `naming_or_precedence_drift`
+- `strategy_product_boundary_drift` — conflicts with control plane / integration-surface definitions in `docs/strategy/*` or `control-plane-product-alignment-plan.md`
 - `test_coverage_mapping_gap`
 - `rule_parser_or_format_risk`
 

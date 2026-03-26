@@ -23,8 +23,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
-- Last Reviewed: `2026-03-12`
+- Version: `1.0.1`
+- Last Reviewed: `2026-03-24`
 - Review Cadence: `monthly`
 - Decision Scope: `Phased compliance-readiness profiles and enterprise control mapping for go-to-market sequencing.`
 
@@ -32,6 +32,7 @@ Notes:
 
 - This matrix defines compliance-readiness expectations for product strategy.
 - This matrix is not legal advice and is not a substitute for formal certification or legal review.
+- Product narrative for the **control plane** safety boundary and customer integration surfaces is aligned with [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md); compliance **claims** must still map row-by-row to controls and evidence below.
 - Terminology used:
   - `Readiness`: product controls and evidence are designed and operationally testable.
   - `Certification`: an external audit/attestation process completed by qualified assessors.

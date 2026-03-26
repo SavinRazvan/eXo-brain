@@ -1,6 +1,23 @@
+<!--
+File: platform-extensions.md
+Path: docs/archive/plans/platform-extensions.md
+Role: Historical platform extensions plan (Option C baseline slice); retained for traceability.
+Used By:
+ - docs/plans/docs-archive-index.md
+Depends On:
+ - N/A (historical)
+Notes:
+ - Not an active execution authority.
+-->
+
 # eXo-brain Platform Extensions Plan
 
-> Status: **Completed — Slices 0–3 merged**
+> Status: **Archived** — completed plan; historical snapshot only.
+> Canonical replacement: `docs/plans/tenant-tool-execution-architecture.md`, `docs/plans/option-c-contract-freeze.md`, `docs/plans/option-c-worker-isolation-contract.md`, `docs/plans/option-c-performance-gates.md`
+> Archived on: 2026-03-25
+> Archive reason: superseded
+>
+> Originally: **Completed — Slices 0–3 merged**
 > Created: Mar 2026
 > Scope: Four deferred items from the API Platform build
 > Prerequisite: API Platform fully merged (PRs #27–#30, 253 tests passing)

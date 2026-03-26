@@ -26,8 +26,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.2.0`
-- Last Reviewed: `2026-03-22`
+- Version: `1.3.0`
+- Last Reviewed: `2026-03-24`
 - Review Cadence: `monthly`
 - Decision Scope: `Tier strategy, entitlement boundaries, and value-capture model for governance-first monetization.`
 
@@ -41,6 +41,8 @@ Companion enforcement docs:
 ## 1) Monetization Thesis
 
 eXo-brain is not a model reseller and not a generic LLM wrapper.
+
+**Control plane framing:** the paid product is the **governed execution and safety boundary** — policy, ingress gates, deterministic tool execution, audit evidence, entitlements, runtime control, and tenant governance — delivered primarily through the **control plane API** (with optional **customer bridge** surfaces for integration ergonomics). Provider runtime adapters enable customer-owned model connectivity but are **not** the primary margin story.
 
 eXo-brain should be sold as the governed execution boundary for tool-using AI systems:
 

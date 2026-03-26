@@ -20,6 +20,8 @@ Depends On:
  - src/api/bootstrap.py
  - docs/strategy/entitlement-matrix.md
  - docs/strategy/interface-strategy.md
+ - docs/strategy/governed-execution-positioning.md
+ - docs/plans/control-plane-product-alignment-plan.md
 Notes:
  - Keep tier labels in sync with docs/strategy/entitlement-matrix.md.
  - All safety and governance controls are server-side and non-bypassable regardless of tier.
@@ -32,8 +34,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.3.0`
-- Last Reviewed: `2026-03-24`
+- Version: `1.6.0`
+- Last Reviewed: `2026-03-27`
 - Review Cadence: `on architecture change`
 
 ---
@@ -45,8 +47,10 @@ eXo-brain is an API-first governed execution platform for tool-using AI systems.
 Every turn request passes through a mandatory server-side governance ingress path before model or tool execution. This path cannot be bypassed by any client.
 
 Integration boundary:
-- customers can keep provider credentials and provider-native adapter configuration in their own deployment environment,
-- eXo-brain owns the governed execution boundary: policy, deterministic tool execution, audit, runtime control, and operational visibility.
+- customers can keep provider credentials and **provider runtime adapter** configuration in their own deployment environment (outbound connectivity to models),
+- eXo-brain owns the **control plane** governed execution boundary: policy, deterministic tool execution, audit, runtime control, and operational visibility.
+
+**Vocabulary (enterprise / partner conversations):** Do not overload “adapter.” **Provider runtime adapters** are how the *platform* reaches providers (`packages/*`, `src/runtime/*`). **Customer bridge** surfaces are how *your* apps call the control plane with less integration friction — today optional **`POST /v1/chat/completions`** (§4.0); a future thin SDK must share the same governance spine. Canonical definitions: [`docs/strategy/governed-execution-positioning.md`](../strategy/governed-execution-positioning.md), [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 
 ---
 
@@ -83,7 +87,7 @@ Tier enforcement is applied at the API layer via `src/api/middleware/entitlement
 
 ### 4.0) Optional OpenAI-compatible `POST /v1/chat/completions` (feature-flagged)
 
-When **`EXO_ENABLE_OPENAI_COMPAT_GATEWAY=1`**, the platform exposes a **non-streaming** subset of the OpenAI Chat Completions API for clients that want familiar JSON shapes. Execution still uses the **same governance path** as SSE turns (entitlements, ingress, rate limits, run registry, host adapter).
+When **`EXO_ENABLE_OPENAI_COMPAT_GATEWAY=1`**, the platform exposes a **non-streaming** subset of the OpenAI Chat Completions API for clients that want familiar JSON shapes. This is a **customer bridge** convenience surface ([`interface-strategy.md`](../strategy/interface-strategy.md) Layer A2), not a second execution path: it uses the **same governance path** as SSE turns (entitlements, ingress, rate limits, run registry, host adapter).
 
 | Item | Detail |
 |------|--------|
@@ -93,7 +97,7 @@ When **`EXO_ENABLE_OPENAI_COMPAT_GATEWAY=1`**, the platform exposes a **non-stre
 | Session | Required header **`X-eXo-Session-Id`** — must be a session created under that tenant via `POST /tenants/{tenant_id}/sessions` |
 | Streaming | `stream: true` is **not** supported in this MVP (returns **400**) |
 
-Full URL map, middleware order, and non-goals: [`docs/plans/northbound-v1-gateway.md`](../plans/northbound-v1-gateway.md).
+Full URL map, middleware order, and non-goals: [`docs/archive/plans/northbound-v1-gateway.md`](../archive/plans/northbound-v1-gateway.md).
 
 ### 4.1) SSE Turn
 
@@ -330,23 +334,54 @@ Runtime visibility **today** also remains available through runtime-control APIs
 
 ## 10) Audit and Compliance (Foundation + Enterprise)
 
+### 10.0) Correlating turns, ingress, and audit (Foundation)
+
+Integrators should carry **one correlation identifier per logical turn** from the client through streams and into audit queries:
+
+1. **SSE turns** — Optional `correlation_id` in the JSON body of `POST /{tenant_id}/sessions/{session_id}/turns`. If omitted, the server generates a short id. Streamed `data:` JSON events repeat `correlation_id` on payloads where the field applies (errors, tool progress, completion). Implementation: `src/api/routers/turns.py`, `src/api/schemas/turn_schemas.py`.
+2. **WebSocket turns** — For `{"type":"turn", ...}` messages, the server uses `run_id` from the message (or a generated id) as the correlation id for governance and audit on that turn (same router module).
+3. **Audit lookup** — `GET /{tenant_id}/admin/audit/events?correlation_id=<id>` returns tenant-scoped rows whose `correlation_id` matches, including ingress decisions (`turn_ingress_decision`), rate-limit and concurrency outcomes where emitted, and tool lifecycle events that reused the same id. Foundation tier; no alternate “shadow” audit path.
+
+**Regression anchors (do not remove without replacement coverage):**
+
+- `tests/modules/api/test_slice3_playground.py` — `test_sse_turn_writes_ingress_allow_decision_audit`, `test_sse_turn_returns_403_when_ingress_gate_denies_empty_input` (audit store queried by the same `correlation_id` passed on the turn).
+- `tests/modules/api/test_audit_api.py` — `test_audit_events_and_report_endpoints` (`?correlation_id=` filter on the HTTP audit API).
+
+For optional OTLP/Prometheus export (additive, partial product surface), see §9.2.
+
 ### 10.1) Audit Events and Reports (Foundation)
+
+Authoritative row: **Core audit events/report access** (Foundation, **Enforceable**) in [`docs/strategy/entitlement-matrix.md`](../strategy/entitlement-matrix.md).
 
 ```
 GET  /{tenant_id}/admin/audit/events     # list audit events (filterable)
 GET  /{tenant_id}/admin/audit/report     # summary audit report
 POST /{tenant_id}/admin/audit/cleanup    # cleanup old events
+GET  /{tenant_id}/admin/audit/export     # JSON audit bundle (limit query param; includes chain fingerprint + server signature fields)
 ```
 
-### 10.2) Signed Audit Export and Verification (Enterprise)
+The **`GET .../export`** response includes `records`, `chain_valid`, `last_record_hash`, `signature_version`, and `signature` (server-computed over the bundle). It uses the same **authenticated** access pattern as events/report in the shipping API (not the Enterprise-only entitlement middleware used by §10.2). **Commercial tier labeling** for this route must stay consistent with your packaging; the matrix explicitly maps the **compliance-grade file export + verify workflow** to **Enterprise** in §10.2 — do not conflate the two rows when making enforceability claims.
+
+**Regression anchors:** `tests/modules/api/test_audit_api.py` (`test_audit_events_and_report_endpoints`, `test_audit_verify_supports_key_rotation_and_legacy_signature_version` uses `GET .../export` to build verify input).
+
+### 10.2) Signed audit file export and verification (Enterprise)
+
+Authoritative row: **Signed audit export and verification workflow** — **Enterprise**, **Enforceable (tier-gated)**, endpoints **`POST /{tenant_id}/admin/audit/export-file`** and **`POST /{tenant_id}/admin/audit/verify`**, with entitlement checks in `src/api/routers/audit.py` and feature key `governance.audit.signed_export_verify` (`EntitledFeature.GOVERNANCE_AUDIT_SIGNED_EXPORT_VERIFY`). Source of truth: [`docs/strategy/entitlement-matrix.md`](../strategy/entitlement-matrix.md).
 
 ```
-GET  /{tenant_id}/admin/audit/export            # export audit bundle (JSON)
-POST /{tenant_id}/admin/audit/export-file       # export signed bundle to file
-POST /{tenant_id}/admin/audit/verify            # verify signed audit bundle
+POST /{tenant_id}/admin/audit/export-file       # write signed JSON bundle under the server-managed audit export directory
+POST /{tenant_id}/admin/audit/verify            # verify a bundle (inline JSON body and/or `file_path` under that directory)
 ```
 
-Signed audit bundles include a chain-integrity hash. `POST /verify` validates the signature server-side and returns a verification verdict.
+**Behavior**
+
+- **`403`** when the identity lacks Enterprise entitlement: structured error body; an **`entitlement_decision`** audit event is emitted with `surface` **`audit_signed_export_verify`** (see `tests/modules/api/test_audit_api.py` — `test_audit_signed_export_requires_enterprise_entitlement`).
+- **Verify** recomputes **chain fingerprint** and validates **signature** server-side; **tenant_id** in the bundle must match the path tenant; tampering fails verification deterministically.
+
+**Regression anchors (do not drop without replacement coverage):**
+
+- `tests/modules/api/test_audit_api.py` — `test_audit_export_file_and_verify_endpoint`, `test_audit_signed_export_requires_enterprise_entitlement`, `test_audit_verify_supports_key_rotation_and_legacy_signature_version`, path-safety tests for export/verify
+- `tests/modules/audit/test_evidence_bundle_generation.py`, `tests/modules/audit/test_audit_chain_integrity.py` — chain/signature helpers referenced from the entitlement matrix row
 
 ---
 

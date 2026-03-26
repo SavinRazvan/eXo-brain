@@ -13,7 +13,7 @@ Notes:
  - Policy overlay changes take effect immediately on the next tool call (no restart needed).
  - Quota limit changes take effect on the next check_submission call.
  - active_jobs in GET /quota returns 0 in MVP — BackgroundRuntime live tracking
-   is a post-v1 addition (see deferred items in docs/plans/api-platform.md).
+   is a post-v1 addition (see `docs/plans/tenant-tool-execution-architecture.md`).
 """
 
 from __future__ import annotations

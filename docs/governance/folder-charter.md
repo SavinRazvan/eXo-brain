@@ -20,11 +20,11 @@ Notes:
 | `docs/strategy/` | Product direction, monetization, entitlements, traceability, execution boards |
 | `docs/architecture/` | Enduring architecture doctrine and MVP layer model |
 | `docs/modules/` | Module-level technical references |
-| `docs/api/` | Consumer integration guidance |
+| `docs/api/` | Customer integration guidance (control plane HTTP contracts; optional **customer bridge** `/v1`); align with `docs/strategy/interface-strategy.md` |
 | `docs/operations/` | Runbooks, maintainer workflows, maintenance checklists |
 | `docs/plans/` | Active implementation plans, inventories, archives index |
 | `docs/governance/` | Authority, drift prevention, charters (this folder) |
-| `docs/roadmap/` | Alignment schemas, templates, hardening plans |
+| `docs/roadmap/` | Alignment audit schema/templates, module hardening plan; keep consistent with `docs/strategy/traceability-matrix.md` and `docs/plans/control-plane-product-alignment-plan.md` when scope touches product boundaries |
 | `docs/archive/` | Historical material only |
 
 ## `.local/` (local operating workspace — not canonical policy storage)

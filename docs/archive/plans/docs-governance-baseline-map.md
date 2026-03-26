@@ -1,10 +1,9 @@
 <!--
 File: docs-governance-baseline-map.md
-Path: docs/plans/docs-governance-baseline-map.md
-Role: Baseline classification of documentation paths used by active governance/workflow assets.
+Path: docs/archive/plans/docs-governance-baseline-map.md
+Role: Historical baseline classification of documentation paths for governance/workflow assets (migration wave).
 Used By:
- - docs/plans/documentation-cleanup-master-plan.md
- - docs/plans/docs-inventory-master.md
+ - docs/plans/docs-archive-index.md
 Depends On:
  - .cursor/rules/*.mdc
  - .cursor/skills/*.md
@@ -13,10 +12,15 @@ Depends On:
  - scripts/release/*.py
  - scripts/docs/check_docs_metadata.py
 Notes:
- - This file is an execution baseline for archive migrations; update before each migration wave.
+ - Archived snapshot; use active authority maps for current state.
 -->
 
 # Docs Governance Baseline Map
+
+> Status: **Archived**
+> Canonical replacement: `docs/plans/docs-authority-map.md`, `docs/plans/docs-archive-index.md`
+> Archived on: 2026-03-25
+> Archive reason: historical snapshot
 
 ## Scope
 
@@ -52,8 +56,8 @@ Governance reference scan over:
 
 - `docs/plans/docs-archive-index.md`
 - `docs/operations/documentation-maintenance-checklist.md`
-- `docs/plans/documentation-cleanup-master-plan.md`
-- `docs/plans/docs-and-notebooks-cleanup-plan.md`
+- `docs/archive/plans/documentation-cleanup-master-plan.md`
+- `docs/archive/plans/docs-and-notebooks-cleanup-plan.md`
 
 ## Archive Candidates (priority wave)
 
@@ -67,6 +71,12 @@ These were migrated to archive and remain non-authoritative:
 - `docs/archive/operations/local-ui-readiness-smoke.md`
 - `docs/archive/results/audit_alignment_results.md`
 - `docs/archive/results/audit_alignment_action_plan.md`
+- `docs/archive/plans/api-platform.md`
+- `docs/archive/plans/platform-extensions.md`
+- `docs/archive/plans/archive-agents-research.md`
+- `docs/archive/plans/docs-inventory.md`
+- `docs/archive/plans/notebooks-inventory.md`
+- `docs/archive/plans/docs-governance-baseline-map.md` (this file)
 
 ## Migration Guardrails
 

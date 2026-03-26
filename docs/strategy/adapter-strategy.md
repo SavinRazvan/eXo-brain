@@ -8,8 +8,8 @@ Used By:
  - AGENTS.md
  - docs/plans/tenant-tool-execution-architecture.md
 Depends On:
- - packages/exo-brain-core-contracts/*
- - packages/exo-brain-adapter-sdk/*
+ - packages/exo-brain-core-contracts/* (transitional; target repo `ai-adapters-sdk`)
+ - packages/exo-brain-adapter-sdk/* (transitional)
  - src/runtime/*
  - src/core/*
  - src/policies/*
@@ -17,6 +17,7 @@ Depends On:
 Notes:
  - Keep aligned with API-first Option C.
  - Keep adapter packaging decisions compatible with contract versioning policy.
+ - Adapter **package source** is **strategically out-of-repo** (`ai-adapters-sdk`); eXo-brain `packages/` is **transitional** — [`adapter-packages-extraction-handoff.md`](../plans/adapter-packages-extraction-handoff.md).
 -->
 
 # Adapter Strategy
@@ -25,12 +26,13 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.4.0`
+- Version: `1.6.0`
 - Last Reviewed: `2026-03-24`
 - Review Cadence: `monthly`
 - Decision Scope: `Provider adapter ecosystem boundaries, packaging policy, conformance, and rollout strategy.`
 
 Companion strategy docs:
+- `docs/plans/adapter-packages-extraction-handoff.md` — **move `packages/` to `ai-adapters-sdk`:** inventory, smoke/tests, `adapter_factory` coupling, dual-`RuntimeAdapter` refactor notes
 - `goal.md`
 - `core.md`
 - `monetization-strategy.md`
@@ -61,6 +63,13 @@ We standardize the platform into three product layers:
 3. `provider adapters` (baseline five + Expansion v2 portfolio)
 
 Customers choose providers and fallbacks, but core remains the trust boundary.
+
+### 2.1) Terminology: not the “customer bridge”
+
+The **provider runtime adapter** (this document’s focus) is **outbound from eXo-brain’s runtime** to a model/provider. It is **not** the same as the **customer bridge** (how customer apps connect **to** the control plane via HTTP/SDK). Confusing the two breaks enterprise conversations and RFPs.
+
+- **Provider runtime adapter:** portable distributions `exo-adapter-*`, `exo-brain-adapter-sdk`, `exo-brain-core-contracts` — **authored** in **`ai-adapters-sdk`** (target); **transitional** copies may still live under eXo-brain `packages/` until extraction. Loaded at runtime by `src/runtime/*` (`adapter_factory`, registry hydration).
+- **Customer bridge:** control plane REST/SSE/WS, optional `/v1` OpenAI-shaped ingress, future thin SDK — see `interface-strategy.md`, `governed-execution-positioning.md`, and [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 
 ---
 
@@ -100,41 +109,35 @@ Recommended package names:
 
 ## 4) Repository and Packaging Model
 
-Current baseline already includes:
-- `packages/exo-brain-core-contracts`
-- `packages/exo-brain-adapter-sdk`
-- `packages/exo-adapter-openai`
+**Strategic boundary:** the **eXo-brain** repository is **control plane only** (`governed-execution-positioning.md`, **Repository boundary**). **Adapter package source** belongs in a **separate** multi-package repository (working name **`ai-adapters-sdk`**). Full inventory, smoke script, tests, and control-plane coupling are in [`docs/plans/adapter-packages-extraction-handoff.md`](../plans/adapter-packages-extraction-handoff.md).
 
-Target authoring workspace for adapters:
+**Transitional (until extraction):** eXo-brain still carries under `packages/`:
+
+- `exo-brain-core-contracts`
+- `exo-brain-adapter-sdk`
+- `exo-adapter-openai`
+- `exo-adapter-echo`
+
+**Target authoring layout** inside **`ai-adapters-sdk`** (one repo, many distributions — same as today’s `packages/*` layout or equivalent):
 
 ```text
-exo_adapters/
-  openai/
-    pyproject.toml
-    src/exo_adapter_openai/
-    tests/
-  google_gemini/
-    pyproject.toml
-    src/exo_adapter_google_gemini/
-    tests/
-  anthropic/
-    pyproject.toml
-    src/exo_adapter_anthropic/
-    tests/
-  xai/
-    pyproject.toml
-    src/exo_adapter_xai/
-    tests/
-  meta_llama/
-    pyproject.toml
-    src/exo_adapter_meta_llama/
-    tests/
+ai-adapters-sdk/
+  packages/exo-brain-core-contracts/
+  packages/exo-brain-adapter-sdk/
+  packages/exo-adapter-openai/
+  packages/exo-adapter-echo/
+  # future per-provider trees, e.g.:
+  packages/exo-adapter-google-gemini/
+  packages/exo-adapter-anthropic/
+  ...
 ```
 
+The older `exo_adapters/<provider>/` sketch is still a valid **mental model** for **one folder per adapter** inside that repo; names should stay **`exo-adapter-*`** on PyPI.
+
 Publishing principle:
-- package names remain `exo-adapter-*`,
-- source workspace can be `exo_adapters/*`,
-- each adapter is independently installable.
+
+- Distribution names remain `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-*`.
+- Each adapter is **independently installable**; control plane pins versions via `requirements.txt` / env once published.
 
 ---
 

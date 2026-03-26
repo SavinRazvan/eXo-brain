@@ -25,8 +25,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.0.0`
-- Last Reviewed: `2026-03-15`
+- Version: `1.0.1`
+- Last Reviewed: `2026-03-24`
 - Review Cadence: `monthly`
 - Decision Scope: `Implementation sequencing and acceptance model for the 12 agreed architecture gap themes.`
 
@@ -41,7 +41,8 @@ This board translates the agreed gap list into implementation-ready epics with:
 Use this document as the execution companion to:
 - `next-directions.md` (priority direction),
 - `traceability-matrix.md` (strategy-to-code mapping),
-- `adapter-strategy.md` (adapter-specific rollout rules).
+- `adapter-strategy.md` (adapter-specific rollout rules),
+- [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md) (control plane vocabulary, customer bridge phases, enterprise evidence checklist).
 
 ## 2) Non-Negotiable Guardrails
 

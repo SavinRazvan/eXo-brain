@@ -1,12 +1,12 @@
 <!--
 File: adapter-ecosystem-gateway-hygiene-plan.md
-Path: docs/plans/adapter-ecosystem-gateway-hygiene-plan.md
+Path: docs/archive/plans/adapter-ecosystem-gateway-hygiene-plan.md
 Role: Detailed phased plan for adapter ecosystem (versioned, provider-neutral), northbound /v1 gateway, and platform hygiene after enterprise audit + local verification.
 Used By:
  - Maintainers and implementers scoping PRs
  - Alignment with docs/strategy/adapter-strategy.md and tenant-tool Slice 5
 Depends On:
- - docs/plans/post-monolith-execution-roadmap.md (umbrella streams A–F)
+ - docs/archive/plans/post-monolith-execution-roadmap.md (umbrella streams A–F)
  - docs/plans/tenant-tool-execution-architecture.md (Option C Slice 5)
  - docs/strategy/goal.md, docs/strategy/next-directions.md
  - .local/workflow-artifacts/enterprise-architecture-audit/enterprise-audit-actions.md (EA-IDs)
@@ -17,6 +17,8 @@ Notes:
 -->
 
 # Adapter ecosystem, northbound gateway, and hygiene — detailed execution plan
+
+> **Archived** (detailed phased checklist). Canonical replacement: `docs/strategy/adapter-strategy.md`, `docs/strategy/next-directions.md`, `docs/plans/adapter-packages-extraction-handoff.md`, `docs/plans/short-long-term-execution-plan.md`. Archived on: 2026-03-25.
 
 ## 1. Purpose
 

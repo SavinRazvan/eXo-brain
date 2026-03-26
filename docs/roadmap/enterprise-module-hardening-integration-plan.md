@@ -1,19 +1,34 @@
+<!--
+File: enterprise-module-hardening-integration-plan.md
+Path: docs/roadmap/enterprise-module-hardening-integration-plan.md
+Role: Phased module hardening program for src/* with gates and integration verification.
+Used By:
+ - Platform maintainers, implementer agents
+Depends On:
+ - docs/architecture/workspace-architecture.md
+ - docs/strategy/traceability-matrix.md
+Notes:
+ - Preserve control-plane vs customer-bridge vs provider-adapter vocabulary when updating related docs.
+-->
+
 # Enterprise Module Hardening + Integration Plan
 
 ## Document Metadata
 - Status: Active
 - Owner: Platform Architecture
 - Scope: `src/*`, `tests/modules/*`, CI architecture fitness workflows
-- Last Updated: 2026-03-01
+- Last Updated: 2026-03-24
 - Related:
   - `docs/architecture/mvp.md`
   - `docs/runtime_contracts.md`
   - `docs/mcp_integration.md`
   - `AGENTS.md`
   - `docs/roadmap/module-hardening-slice-checklist.md`
+  - `docs/strategy/governed-execution-positioning.md`
+  - `docs/plans/control-plane-product-alignment-plan.md`
 
 ## 1) Goal
-Harden each module with deterministic checks, structured logs, explicit error handlers, and integration verification while preserving provider-neutral architecture boundaries.
+Harden each module with deterministic checks, structured logs, explicit error handlers, and integration verification while preserving provider-neutral architecture boundaries and the **control plane** as the non-bypassable enforcement layer (see `docs/strategy/governed-execution-positioning.md`).
 
 ## 2) Program Success Criteria
 - All module boundaries enforce input/output validation.

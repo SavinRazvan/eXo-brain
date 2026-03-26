@@ -6,8 +6,11 @@ Used By:
  - docs/operations/local-workspace-layout.md
 Depends On:
  - scripts/dev/migrate_local_workspace_layout.py
+ - docs/plans/control-plane-product-alignment-plan.md
+ - docs/strategy/governed-execution-positioning.md
 Notes:
  - After editing templates, run the migration script with `--dry-run`, then apply on your machine.
+ - `pages.json` includes durable **strategy** and **control plane plan** tabs (paths under `docs/`); merge into your live `.local/.../pages.json` if you already customized tabs.
 -->
 
 # Local workspace templates
@@ -30,3 +33,13 @@ Paths inside `pages.json` are relative to the dashboard HTML file location (`das
 Do not point `pages.json` tab `file` entries at HTML audit files (tabs expect Markdown).
 
 **Typo guard:** if you see requests ending in `module-audit.htmlmodule-audit.html`, check `pages.json` for a duplicated filename in the `file` field.
+
+## Product vocabulary (for agents using this dashboard)
+
+When implementing or documenting integrations, use the same terms as `README.md` and `docs/strategy/`:
+
+- **Control plane** — authoritative API enforcement (policy, audit, deterministic tools, entitlements).
+- **Provider runtime adapter** — outbound model/provider connectivity (`packages/*`, `src/runtime/*`).
+- **Customer bridge** — optional OpenAI-shaped `POST /v1/chat/completions` (`EXO_ENABLE_OPENAI_COMPAT_GATEWAY`) or a future thin SDK; same governance spine as native APIs.
+
+Canonical links: [`docs/strategy/governed-execution-positioning.md`](../../strategy/governed-execution-positioning.md), [`docs/plans/control-plane-product-alignment-plan.md`](../../plans/control-plane-product-alignment-plan.md). Customer contracts: [`docs/api/customer-api-integration-guide.md`](../../api/customer-api-integration-guide.md).

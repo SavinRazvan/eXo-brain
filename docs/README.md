@@ -17,7 +17,7 @@ Notes:
 ## Reading spine (recommended)
 
 1. `README.md` (repository entry)
-2. `docs/strategy/goal.md` + `docs/strategy/next-directions.md` (direction)
+2. `docs/strategy/goal.md` + `docs/strategy/next-directions.md` (direction) + `docs/plans/short-long-term-execution-plan.md` (**short vs long horizons** and main-UI attach)
 3. `docs/architecture/ARCHITECTURE.md` (numbered planes + **control/adapter/data plane** vocabulary map in §2)
 4. `docs/architecture/beginner-workflow.md` (plain-language walkthrough)
 5. `docs/architecture/mvp.md` + `docs/architecture/workspace-architecture.md` (shape detail)
@@ -73,10 +73,11 @@ Notes:
 
 ## Planning and cleanup governance
 
-- `docs/plans/documentation-cleanup-master-plan.md`
+- `docs/governance/drift-prevention.md` — lightweight anti-drift process (active)
 - `docs/plans/docs-inventory-master.md`
 - `docs/plans/docs-authority-map.md`
 - `docs/plans/docs-archive-index.md`
+- `docs/plans/short-long-term-execution-plan.md` — execution horizons (diagrams + tier emphasis)
 - `docs/plans/README.md`
 
 ## Module docs

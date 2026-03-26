@@ -1,12 +1,29 @@
+<!--
+File: docs-inventory.md
+Path: docs/archive/plans/docs-inventory.md
+Role: Historical notebook-cleanup documentation inventory snapshot.
+Used By:
+ - docs/plans/docs-archive-index.md
+Depends On:
+ - N/A (historical)
+Notes:
+ - Superseded by docs/plans/docs-inventory-master.md for active inventory.
+-->
+
 # Documentation Inventory for Notebook Cleanup
+
+> Status: **Archived**
+> Canonical replacement: `docs/plans/docs-inventory-master.md`
+> Archived on: 2026-03-25
+> Archive reason: superseded
 
 ## Impacted Documents
 
 | Document | Current Notebook Guidance | Issue | Update Action |
 |---|---|---|---|
 | `README.md` | Mentions notebooks only indirectly in architecture diagram client labels | No canonical notebook runbook table | Add "Notebook validation suite" section with explicit canonical + module mapping |
-| `docs/plans/docs-and-notebooks-cleanup-plan.md` | Defines target state | None | Keep as execution plan and reference implementation artifacts |
-| `docs/plans/api-platform.md` | Contains historical notes about notebook-based OpenAI wiring | Can be read as pre-migration implementation state | Keep architecture history, add concise note that canonical execution notebooks moved to new suite |
+| `docs/archive/plans/docs-and-notebooks-cleanup-plan.md` | Defines target state | None | Keep as execution plan and reference implementation artifacts |
+| `docs/archive/plans/api-platform.md` | Contains historical notes about notebook-based OpenAI wiring | Can be read as pre-migration implementation state | Archived; canonical execution status in `tenant-tool-execution-architecture.md` |
 | `docs/operations/release-candidate-signoff-checklist.md` | No direct notebook runbook guidance | N/A | No change needed for this slice |
 | `docs/archive/operations/local-ui-readiness-smoke.md` | Historical UI doc, archived | N/A | No change needed |
 | `docs/operations/byoc-failure-injection-playbook.md` | No notebook references | N/A | No change needed |

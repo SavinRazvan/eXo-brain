@@ -3,19 +3,19 @@ File: README.md
 Path: README.md
 Role: Repository overview, quick start, architecture diagrams, and maintainer workflow summary.
 Used By: Contributors, onboarding, cross-links from docs/strategy and docs indexes.
-Depends On: docs/README.md, docs/plans/tenant-tool-execution-architecture.md, scripts/pr/prepare.py (gate order).
-Notes: Keep PR / quality gate bullets aligned with `scripts/pr/prepare.py` `GATES` and CI workflows.
+Depends On: docs/README.md, docs/plans/tenant-tool-execution-architecture.md, docs/plans/short-long-term-execution-plan.md, docs/plans/control-plane-product-alignment-plan.md, docs/strategy/governed-execution-positioning.md, scripts/pr/prepare.py (gate order).
+Notes: Keep PR / quality gate bullets aligned with `scripts/pr/prepare.py` `GATES` and CI workflows. Product vocabulary (control plane, customer bridge, provider runtime adapter): `docs/strategy/governed-execution-positioning.md`. **Repository boundary:** control plane only; adapter monorepo is not the strategic home (`packages/` transitional).
 -->
 
 # eXo-brain
 
-Provider-neutral AI orchestration platform with deterministic tool execution, multi-tenant runtime isolation, and a REST/SSE/WebSocket API for single-agent and multi-agent workloads.
+**Control-plane** codebase: governed AI execution (policy, audit, deterministic tools, entitlements), multi-tenant isolation, and REST/SSE/WebSocket APIs. **Strategic repository boundary:** this repo is **not** the long-term home for adapter products or a **monorepo** for provider packages — those ship from **separate adapter-ecosystem repositories** (see `docs/strategy/governed-execution-positioning.md`, **Repository boundary**).
 
 ## What this repository provides
 
+- **Control plane** — server-enforced policy, ingress gates, deterministic tool execution, audit, runtime control, and tier entitlements; paid value targets **governance and safety**, not commodity LLM access (see `docs/strategy/governed-execution-positioning.md`).
 - **API Platform** — FastAPI application with tenant-scoped tool/agent registration, SSE and WebSocket streaming, and live policy/quota management.
-- **Provider-neutral runtime contracts** — `RuntimeAdapter` ABC with pluggable backends (OpenAI Agents SDK, custom adapters).
-- **Adapter packaging** — provider-neutral package split with `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, and `exo-adapter-openai` under `packages/`.
+- **Provider-neutral runtime contracts (in-tree)** — `RuntimeAdapter` ABC and factory/registry loading in `src/runtime/*`; core stays free of provider SDK imports (adapter wall). **Installable adapter packages and SDK** are **out-of-repo** by design; the control plane consumes them via **contracts + registration**, not by owning their source trees.
 - **Deterministic-first tool execution** — every state-changing or high-impact tool call is routed through `DeterministicToolExecutor` and `PolicyMiddleware`.
 - **Policy middleware** — auditable `before_tool_call` / `after_tool_call` decisions (`allow`, `deny`, `escalate`) with per-tenant overlay support.
 - **Governance ingress direction (next slices)** — pre-model safety gate chain with predefined/custom profiles, explicit reason codes, and performance budgets.
@@ -25,31 +25,111 @@ Provider-neutral AI orchestration platform with deterministic tool execution, mu
 - **Background runtime** — task graph (DAG), scheduler, bounded worker pool, checkpoint/resume.
 - **Runtime control and audit APIs** — admin runtime-control, BYOC control endpoints, and signed audit export/verify flows.
 
+### Enterprise separation of concerns (diagram)
+
+Same four layers as `docs/strategy/governed-execution-positioning.md` and `docs/architecture/workspace-architecture.md`: **one primary layer per feature** keeps monetization (governance), trust enforcement, and provider portability distinct.
+
+```mermaid
+flowchart TB
+  L4["Layer 4 — Customer attach\nREST / SSE / WebSocket; optional OpenAI-shaped POST /v1"]
+  L2["Layer 2 — Trust / control plane\nIngress, policy, deterministic tools, audit, tenancy, quotas"]
+  L3["Layer 3 — Connectivity / portability\nSeparate adapter repos + RuntimeAdapter plug-in"]
+  PR["External model and API providers"]
+  L1["Layer 1 — Value / subscription\nTier entitlements scope governance depth"]
+  L4 --> L2
+  L2 --> L3
+  L3 --> PR
+  L1 -.->|enforces| L2
+```
+
 ## Current reality (Mar 2026)
 
 - API-first Option C is the active delivery path (no required UI/dashboard mount).
 - Tool-level deterministic policy enforcement is implemented; turn-level **governance ingress** (pre-model gate chain) is advanced in code and docs—see the canonical plan for **implemented vs planned** detail.
 - Prioritized roadmap tiers: `docs/strategy/next-directions.md` (strategy package; canonical strategy lives under `docs/strategy/` only).
+- Product model + integration surfaces (control plane / customer bridge / provider runtime adapter): `docs/plans/control-plane-product-alignment-plan.md`.
 - Canonical implementation status + queued slices: `docs/plans/tenant-tool-execution-architecture.md`.
 - Documentation authority, lifecycle, and archive pointers: `docs/plans/docs-authority-map.md`, `docs/plans/docs-inventory-master.md`, `docs/plans/docs-archive-index.md`.
 - Top-level doc index: `docs/README.md`.
+- **Short vs long term horizons (pilot proof → platform maturity):** `docs/plans/short-long-term-execution-plan.md`.
+
+### Execution horizons (diagrams)
+
+Canonical narrative and rules: [`docs/plans/short-long-term-execution-plan.md`](docs/plans/short-long-term-execution-plan.md). **Tier backlog** is unchanged in [`docs/strategy/next-directions.md`](docs/strategy/next-directions.md); this split only assigns **horizon emphasis**.
+
+#### Short term → long term
+
+```mermaid
+flowchart LR
+  subgraph ST[Short term — pilot proof]
+    direction TB
+    S1[Core pilot-complete\nfor one reference workflow]
+    S2[Governance · observability · audit\nvia public APIs]
+    S3[Adapter SDK + OpenAI\nreference path]
+    S4[Main UI platform\nconsumes APIs only]
+  end
+  subgraph LT[Long term — platform maturity]
+    direction TB
+    L1[Adapter ecosystem\n+ certification + router]
+    L2[Commercial plan +\nmetering aligned to value]
+    L3[Enterprise depth\napprovals · compliance · deploy]
+    L4[Optional in-repo console]
+  end
+  ST --> LT
+```
+
+#### Main UI + control plane + adapter packages (Layer B attach)
+
+```mermaid
+flowchart TB
+  UI[Main UI platform\noutside this repo\nconfigure · logs · audit views]
+  CP[eXo-brain control plane\nthis repo\nREST · SSE · WebSocket · optional POST /v1]
+  CT[Core contracts +\nadapter SDK\nseparate packages]
+  OAI[exo-adapter-openai\nreference adapter]
+  EP[External provider APIs]
+
+  UI -->|HTTPS only — no alternate enforcement| CP
+  CP -->|registry / factory| CT
+  CT --> OAI
+  OAI --> EP
+```
+
+**Invariant:** the main UI is **Layer B** (`docs/strategy/interface-strategy.md`): **not** the trust boundary; all policy and side-effect enforcement stay **server-side** in the control plane.
+
+#### Horizon × `next-directions` tiers (emphasis)
+
+```mermaid
+flowchart TB
+  subgraph SHORT[Short term — pull from tiers]
+    T1S[Tier 1 subset\nSDK + OpenAI reference]
+    T2S[Tier 2\npilot-critical gaps only]
+    T3S[Tier 3\nintegrator + observability depth as needed]
+  end
+  subgraph LONG[Long term — full streams]
+    T1L[Tier 1 full\necosystem + publish automation]
+    T2L[Tier 2 full\nentitlements + commercial ops]
+    T3L[Tier 3\ndeploy + compliance waves]
+    T4L[Tier 4\nalignment + decision records]
+  end
+  SHORT --> LONG
+```
 
 ---
 
 ## Adapter vs gateway boundary
 
-This repository uses a strict separation between internal provider execution and external client API surfaces.
+This repository implements the **control plane** and **northbound** surfaces. **Southbound** adapter *products* (pip-installable provider packages, adapter SDK, published contracts) target **separate repositories** — not this monorepo (see **Repository boundary** in `docs/strategy/governed-execution-positioning.md`). Vocabulary: `docs/plans/control-plane-product-alignment-plan.md`.
 
-- **Southbound (provider-facing)**: runtime adapters in `src/runtime/*` implement `RuntimeAdapter` and isolate provider SDK/protocol details.
-- **Northbound (client-facing)**: API routes in `src/api/*` define what external apps call.
-- A provider can be OpenAI-compatible at the adapter layer without automatically exposing public OpenAI-compatible gateway endpoints.
+- **Southbound (provider-facing):** at runtime, `src/runtime/*` implements or loads `RuntimeAdapter` behind the adapter wall. **Packaged** adapters are maintained **outside** this repo; **`packages/`** is **transitional** only until extraction finishes.
+- **Northbound (client-facing):** API routes in `src/api/*` — the authoritative **control plane** for tenants (REST/SSE/WebSocket), primarily session/turn oriented (`/tenants/{tenant_id}/sessions/...`).
+- **Customer bridge (optional):** when `EXO_ENABLE_OPENAI_COMPAT_GATEWAY=1`, **`POST /v1/chat/completions`** exposes an OpenAI-shaped JSON surface for client compatibility; it **reuses the same governance path** as native turns (not a raw upstream proxy). Details: `docs/archive/plans/northbound-v1-gateway.md`, `docs/api/customer-api-integration-guide.md` (section 4.0), `docs/strategy/interface-strategy.md` (Layer A2).
 
-Current northbound API is tenant/session/turn oriented (`/tenants/{tenant_id}/sessions/...`).  
-OpenAI-compatible northbound gateway parity (`/v1/...`) is tracked as a planned Option C next-phase slice.
+A provider can be OpenAI-compatible at the **adapter** layer without enabling the **northbound** `/v1` bridge.
 
-See:
+See also:
 - `docs/runtime_contracts.md` for runtime boundary contracts and mode ownership.
 - `docs/plans/tenant-tool-execution-architecture.md` for canonical implementation status and queued slices.
+- `docs/architecture/ARCHITECTURE.md` for consolidated plane map.
 
 ### Interaction mode ownership
 
@@ -67,11 +147,13 @@ See:
 
 ---
 
-## Packages / adapter development (`packages/`)
+## Transitional: `packages/` (conformance only; not the product boundary)
 
-- **Compatibility matrix and semver:** `docs/strategy/adapter-compatibility-matrix.md`
+Until adapter sources are **fully extracted** to **separate repositories**, a `packages/` tree may remain for **CI conformance** and migration. **Do not** treat this repo as the canonical monorepo for adapter development — strategy is **control plane only** here. **Full move checklist and file inventory:** `docs/plans/adapter-packages-extraction-handoff.md` (target repo e.g. **`ai-adapters-sdk`**).
+
+- **Adapter ecosystem strategy and matrix:** `docs/strategy/adapter-strategy.md`, `docs/strategy/adapter-compatibility-matrix.md`
 - **Operational log dimensions:** `docs/operations/adapter-telemetry-dimensions.md`
-- **Before merging changes under `packages/`:** run `python scripts/packages/external_install_smoke.py` (isolated venv install smoke) and `python -m pytest tests/packages -q`. Pull requests that touch `packages/**` trigger **`architecture-fitness`** (including `tests/packages`).
+- **While `packages/` still exists:** run `python scripts/packages/external_install_smoke.py` and `python -m pytest tests/packages -q` before merge; PRs touching `packages/**` still trigger **`architecture-fitness`** `package_workspace_tests`.
 
 ---
 

@@ -9,6 +9,7 @@ Used By:
  - README.md
  - AGENTS.md
  - docs/plans/tenant-tool-execution-architecture.md
+ - docs/plans/short-long-term-execution-plan.md
 Depends On:
  - src/core/*
  - src/runtime/*
@@ -26,8 +27,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.4.0`
-- Last Reviewed: `2026-03-22`
+- Version: `1.7.1`
+- Last Reviewed: `2026-03-25`
 - Review Cadence: `monthly`
 - Decision Scope: `Product north-star, strategic boundaries, and long-term direction for provider-neutral orchestration.`
 
@@ -69,6 +70,14 @@ eXo-brain is a provider-neutral AI orchestration platform where:
 In simple terms:
 - adapters give model connectivity,
 - core gives trust, control, and enterprise reliability as the governed execution boundary.
+
+### North star (mission, qualified)
+
+As AI becomes **infrastructure** inside products, teams need a **repeatable governed boundary** — policy, deterministic tools, audit, entitlements — without re-implementing it for every provider and every launch. eXo-brain targets that layer: **monetize governance and operational assurance**, keep **provider connectivity neutral and versioned**, and let **customer applications** attach through the **control plane API** and **customer bridge** patterns (see `governed-execution-positioning.md`: four-layer separation of concerns and integration surfaces). Claims in sales and docs must stay **evidence-aligned** with current platform maturity.
+
+### Repository scope (control plane only)
+
+The **primary codebase** for this product is the **control plane** (API, core, policies, tools, tenancy, audit). **Adapter SDK**, **published contracts**, and **provider adapter packages** are **separate deliverables** in **other repositories** — not a long-term monorepo beside the control plane. Any in-tree `packages/` is **transitional** until extraction completes (`governed-execution-positioning.md`, **Repository boundary**).
 
 ---
 
@@ -133,6 +142,20 @@ Core must remain provider-neutral and own:
 - standard telemetry export contracts for supported deployment profiles.
 
 Core is the non-bypassable enforcement layer.
+
+## 5a) Customer integration surfaces (control plane in the loop)
+
+§5 describes **internal platform layers** (core, adapter SDK, provider packages). This section names how **customers** attach eXo-brain to **their** organizations and end-user applications — complementary to §10.
+
+| Surface | Meaning |
+|---------|---------|
+| **Provider runtime adapter** | Outbound from the hosted runtime to a model/provider, via versioned packages and contracts; keeps orchestration **provider-neutral**. |
+| **Control plane API** | Authoritative REST/SSE/WS surface for governed execution, policy, audit, tools, agents, tenants, and provider registration. |
+| **Customer bridge** | Customer app integration: direct API use today; optional OpenAI-compatible **`/v1`** ingress (feature flag); **planned** thin SDK with **parity** to HTTP governance (no bypass). |
+
+**BYOC / worker connectors** follow dedicated runtime plans; they remain subject to the same policy and deterministic execution invariants.
+
+Canonical narrative: `governed-execution-positioning.md` and [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 
 ## Part 2: Adapter SDK (developer kit for adapters)
 
@@ -259,14 +282,15 @@ Monetization should focus on governance and operational value, not raw model acc
 ## 10) Integration model for customer projects/cloud
 
 Target usage pattern:
-1. Customer deploys eXo-brain API.
-2. Customer installs selected adapters and keeps provider credentials/configuration in customer-controlled environments.
-3. Customer registers providers, tools, agents, and policies via API.
-4. Customer builds their own UI/platform on top of eXo-brain APIs.
-5. Customer uses audit and runtime endpoints for governance and observability.
-6. Customer exports operational telemetry through supported sinks such as OpenTelemetry/Prometheus when those deployment profiles are enabled.
+1. Customer deploys eXo-brain API (**control plane**).
+2. Customer installs **provider runtime adapters** and keeps provider credentials/configuration in customer-controlled environments (Surface A).
+3. Customer registers providers, tools, agents, and policies via **control plane API** (Surface B).
+4. Customer applications use Surface B and/or **customer bridge** options (optional `/v1` OpenAI-shaped ingress; future thin SDK) so governed execution sits **in their AI loop** under subscription scope.
+5. Customer builds their own UI/platform on top of eXo-brain APIs where desired.
+6. Customer uses audit and runtime endpoints for governance and observability.
+7. Customer exports operational telemetry through supported sinks such as OpenTelemetry/Prometheus when those deployment profiles are enabled.
 
-This keeps eXo-brain as the governed execution backbone without turning it into a raw model-access resale surface.
+This keeps eXo-brain as the governed execution backbone without turning it into a raw model-access resale surface. **Monetization attaches to governance and assurance** (policy, audit, deterministic tools, entitlements), not to commodity provider transport alone.
 
 ---
 
@@ -311,7 +335,7 @@ If any answer is "no", stop and redesign before merging.
 
 ## 14) Practical next alignment steps
 
-Canonical source: `next-directions.md`.
+Canonical source: `next-directions.md`. **Horizon split (short vs long term, main UI as API consumer):** `docs/plans/short-long-term-execution-plan.md`.
 
 Summary:
 1. Finalize external package boundaries for adapter portability.
@@ -320,3 +344,4 @@ Summary:
 4. Publish a customer-facing API integration guide focused on policy/audit/governance operations.
 5. Add monetization-oriented feature flags and entitlement hooks around governance surfaces.
 6. Keep this file synchronized with `README.md`, `AGENTS.md`, canonical architecture docs, `adapter-strategy.md`, and `next-directions.md`.
+7. Near term: **pilot-complete core** for a reference workflow; **governance + observability + audit** provable via APIs for integrators (including a **separate main UI platform** — `interface-strategy.md` Layer B); **adapter SDK** with **OpenAI** as the first reference adapter path (`short-long-term-execution-plan.md`).

@@ -22,6 +22,16 @@
       "file": "../../index-and-planning/current/architecture.md"
     },
     {
+      "id": "strategy-index",
+      "title": "Strategy index",
+      "file": "../../../docs/strategy/README.md"
+    },
+    {
+      "id": "control-plane-plan",
+      "title": "Control plane plan",
+      "file": "../../../docs/plans/control-plane-product-alignment-plan.md"
+    },
+    {
       "id": "work",
       "title": "Work Tracker",
       "file": "../../index-and-planning/current/work-tracker.md"
@@ -29,7 +39,7 @@
     {
       "id": "archive",
       "title": "Archive Agents",
-      "file": "../../../docs/plans/archive-agents-research.md"
+      "file": "../../../docs/archive/plans/archive-agents-research.md"
     },
     {
       "id": "logging",

@@ -6,6 +6,7 @@ Used By:
  - AGENTS.md
  - goal.md
  - README.md
+ - docs/plans/short-long-term-execution-plan.md
 Depends On:
  - goal.md
  - core.md
@@ -25,8 +26,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.9.0`
-- Last Reviewed: `2026-03-15`
+- Version: `1.11.0`
+- Last Reviewed: `2026-03-25`
 - Review Cadence: `monthly`
 - Decision Scope: `Prioritized implementation directions derived from docs/strategy strategy docs.`
 
@@ -40,6 +41,18 @@ This document consolidates next-step guidance from:
 
 ---
 
+## 0) Execution horizons (short vs long term)
+
+**Canonical horizon split** (pilot proof vs platform maturity, main UI as API consumer, adapter SDK + OpenAI reference):  
+[`docs/plans/short-long-term-execution-plan.md`](../plans/short-long-term-execution-plan.md)
+
+- **Short term:** core **pilot-complete** for a **reference workflow**; user-facing **governance configuration** and **observability/audit** provable via APIs; **adapter SDK** with **OpenAI** as first reference adapter; **company main UI** integrates only through **public control plane APIs** (no alternate enforcement path) — see `interface-strategy.md` Layer B.
+- **Long term:** full **adapter ecosystem**, **monetization/commercial operability**, **enterprise** depth (approvals, compliance packaging, deployment certification), optional **in-repo** console still non-required.
+
+The **Tier 1–4** tables below are unchanged; the horizons doc maps them to **when** to emphasize each stream without breaking adapter-wall or API-first invariants.
+
+---
+
 ## 1) Tier 1 — Adapter Portability and Ecosystem
 
 | Direction | Why | References |
@@ -47,7 +60,8 @@ This document consolidates next-step guidance from:
 | **Finalize external package boundaries** | Adapters must be standalone; no monorepo-only imports. Core contracts + adapter SDK must be externalizable. | GOAL §11, TRACEABILITY §3 (full external adapter portability gap) |
 | **Complete `exo-adapter-openai` extraction** | Enables independent adapter distribution and partner ecosystem. First adapter sets the pattern. External install certification complete: all three packages install cleanly in an isolated venv with zero monorepo-relative imports; `scripts/packages/external_install_smoke.py` gates the external install path in CI. Next: publish certification automation (PyPI upload + version tagging). | TRACEABILITY §3, ADAPTER_STRATEGY §4 |
 | **Define adapter certification matrix** | Baseline and expansion providers require explicit conformance criteria, compatibility matrices, and release gates. | GOAL §14.2, ADAPTER_STRATEGY §3, §19 |
-| **Add northbound OpenAI-compatible gateway surface** | External apps need drop-in `/v1` compatibility while keeping internal orchestration contracts provider-neutral. | INTERFACE_STRATEGY §2, TRACEABILITY §3 (customer API surface parity gap) |
+| **Add northbound OpenAI-compatible gateway surface** | External apps need drop-in `/v1` compatibility while keeping internal orchestration contracts provider-neutral. | **MVP shipped** behind `EXO_ENABLE_OPENAI_COMPAT_GATEWAY` (`src/api/routers/openai_gateway.py`, `docs/archive/plans/northbound-v1-gateway.md`); optional hardening + broader OpenAI client parity remain. INTERFACE_STRATEGY Layer A2, TRACEABILITY |
+| **Customer bridge SDK (thin client, no bypass)** | Many teams want a library that inserts the control plane into their AI loop with the **same** policy/audit outcomes as REST/SSE — without re-implementing protocols. | `docs/plans/control-plane-product-alignment-plan.md` Phase L1, `governed-execution-positioning.md`, INTERFACE_STRATEGY Layer A2 |
 | **Split OpenAI execution modes by contract (`chat` vs `agents`)** | Improves reliability and testability by separating provider execution concerns from orchestration concerns. | GOAL §6, GOAL §11, ADAPTER_STRATEGY §2 |
 | **Add explicit provider endpoint protocol typing (`api_type`)** | Adapter expansion requires protocol-aware registration (`openai_native`, `openai_compatible`, `custom`) instead of hardcoded defaults. | ADAPTER_STRATEGY §19.2, TRACEABILITY §3 |
 | **Ship universal OpenAI-compatible adapter baseline** | Fastest safe path for onboarding additional providers while preserving provider-neutral core boundaries. | ADAPTER_STRATEGY §19.4, §19.6 |
@@ -93,6 +107,7 @@ This document consolidates next-step guidance from:
 | Direction | Why | References |
 |-----------|-----|------------|
 | **Keep GOAL, AGENTS, README, ADAPTER_STRATEGY synchronized** | Prevents direction drift. Edit docs/strategy first when strategy changes. | GOAL §14.5 |
+| **Control plane vocabulary + integration surfaces** | Locks enterprise language: control plane monetization vs provider runtime adapter vs customer bridge. | `docs/plans/control-plane-product-alignment-plan.md`, `goal.md` §5a, `governed-execution-positioning.md` (baseline alignment 2026-03-24) |
 | **Update traceability-matrix on architecture-impacting changes** | Ensures strategy decisions map to code/API/test anchors. | TRACEABILITY §4 Drift Detection Workflow |
 | **Resolve open strategy decisions with explicit decision records** | Adapter SLA/cert scope, interface stability, and deployment support boundaries should not remain open-ended across strategy docs. | ADAPTER_STRATEGY §17, INTERFACE_STRATEGY §13, DEPLOYMENT_MODELS §8 |
 
@@ -100,7 +115,7 @@ This document consolidates next-step guidance from:
 
 ## 5) Out of Scope (Deferred by Design)
 
-- **UI/dashboard** — API-first posture; optional API-driven console may be added later. Customer builds own UI on eXo-brain APIs. See `INTERFACE_STRATEGY.md` §2.
+- **Required in-repo UI/dashboard** — This repository stays **API-first**: no mandatory backend-served console **in-tree**. **Separate** product UIs (e.g. company **main UI platform**) consume governance, logs, and audit **only** via APIs and remain **non-authoritative** for enforcement — `INTERFACE_STRATEGY.md` Layer B. An optional **in-repo** API-driven console remains **deferred** unless explicitly re-enabled (`INTERFACE_STRATEGY.md` §5).
 - **Purge of historical UI references in docs** — Low priority; historical/planning docs may retain UI mentions for future reference.
 - **Unbounded customer code execution for safety plugins** — Deferred until signed plugin packaging, sandbox boundaries, and strict policy/latency controls are production-ready.
 

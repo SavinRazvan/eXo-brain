@@ -1,15 +1,16 @@
 <!--
 File: post-monolith-execution-roadmap.md
-Path: docs/plans/post-monolith-execution-roadmap.md
+Path: docs/archive/plans/post-monolith-execution-roadmap.md
 Role: Structured execution plan for work remaining after MOD-REF-001 and enterprise audit phases 1–8 closure.
 Used By:
  - Maintainers prioritizing post-refactor slices
  - Agents aligning implementation with strategy + hygiene backlogs
 Depends On:
- - docs/plans/enterprise-audit-remediation-plan.md
+ - docs/archive/plans/enterprise-audit-remediation-plan.md
  - docs/strategy/next-directions.md
  - docs/strategy/traceability-matrix.md
  - docs/plans/tenant-tool-execution-architecture.md
+ - docs/plans/control-plane-product-alignment-plan.md
  - .local/index-and-planning/current/work-tracker.md (tracker IDs; path may be gitignored locally)
 Notes:
  - Does not replace strategy docs; narrows “what to do next” after modular monolith + audit closure.
@@ -17,6 +18,8 @@ Notes:
 -->
 
 # Post–modular monolith execution roadmap
+
+> **Archived** (umbrella roadmap snapshot). Canonical replacement: `docs/strategy/next-directions.md`, `docs/plans/short-long-term-execution-plan.md`, `docs/strategy/traceability-matrix.md`, `docs/plans/tenant-tool-execution-architecture.md`. Archived on: 2026-03-25.
 
 ## 1. Executive snapshot
 
@@ -32,7 +35,7 @@ Notes:
 
 The codebase is positioned as **fit for controlled production / pilot** with correct deployment and ops discipline — **not** “enterprise-by-default at hyperscale.” Remaining themes:
 
-- **Product surface:** northbound **`/v1` OpenAI-compatible gateway**, execution-mode split (`chat` vs `agents`), provider router — see [`next-directions.md`](../strategy/next-directions.md) Tier 1.
+- **Product surface:** **optional** northbound **`/v1` OpenAI-compatible gateway** (**MVP shipped** behind `EXO_ENABLE_OPENAI_COMPAT_GATEWAY`; not a raw upstream proxy) — plus **execution-mode split** (`chat` vs `agents`), **customer bridge SDK** (planned), and **provider router** — see [`next-directions.md`](../strategy/next-directions.md) Tier 1 and [`control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 - **Operations evidence:** multi-worker / load-SLO profiles, OTLP **collector E2E** — see [`traceability-matrix.md`](../strategy/traceability-matrix.md) and `execution-board-12-gaps.md` (e.g. E04).
 - **Boundary debt:** `platform_bootstrap` compat (`_sync_modules_from_state`, `_build_compat_modules_from_state`) — called out in enterprise plan spot-check.
 - **Hygiene:** **`COV-100-002`** + **FIND-*** (test layout, docs checklist items) — [`.local/.../work-tracker.md`](../../.local/index-and-planning/current/work-tracker.md).
@@ -89,12 +92,13 @@ Each stream has **objective**, **suggested slice order**, **acceptance**, and **
 
 | Step | Action | Acceptance |
 |------|--------|------------|
-| C.1 | **Slice design** in [`tenant-tool-execution-architecture.md`](tenant-tool-execution-architecture.md) (or linked addendum): URL map, auth, tenant binding, policy insertion points | Reviewed; no implementation in design-only PR |
-| C.2 | **`/v1` gateway** (minimal vertical slice): router mount, contract tests, feature flag / env gate | Tests + docs; core orchestration unchanged in spirit |
+| C.1 | **Slice design** in [`tenant-tool-execution-architecture.md`](../plans/tenant-tool-execution-architecture.md) (or linked addendum): URL map, auth, tenant binding, policy insertion points | **Done:** [`northbound-v1-gateway.md`](northbound-v1-gateway.md) + Slice 5 pointer in tenant-tool plan |
+| C.2 | **`/v1` gateway** (minimal vertical slice): router mount, contract tests, feature flag / env gate | **Done:** `EXO_ENABLE_OPENAI_COMPAT_GATEWAY`, `src/api/routers/openai_gateway.py`, `tests/modules/api/test_openai_compat_gateway.py`, customer guide §4.0; optional parity hardening remains |
+| C.2b | **Customer bridge SDK** (thin client, same governance spine as HTTP) | Planned: [`control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md) Phase L1 |
 | C.3 | **Execution mode split** (`chat` vs `agents`) per adapter strategy | Conformance tests for at least two adapter paths where applicable |
 | C.4 | **Provider router** (health / policy-aware) — later tranche | Traceability gap closure recorded with tests |
 
-**Dependencies:** C.1 before C.2; C.2 can ship before C.4.
+**Dependencies:** C.1 before C.2 (**met**); C.2b can proceed in parallel with C.3 where staffing allows; C.4 remains later tranche.
 
 **References:** [`next-directions.md`](../strategy/next-directions.md) §1; [`interface-strategy.md`](../strategy/interface-strategy.md); [`traceability-matrix.md`](../strategy/traceability-matrix.md).
 
@@ -183,7 +187,7 @@ When changing governance, workflow policy, or tracked doc indexes:
 | Document | Role |
 |----------|------|
 | [`enterprise-audit-remediation-plan.md`](enterprise-audit-remediation-plan.md) | **Audit closure** Phases 1–8 + optional EA reconciliation section (other agents) |
-| [`tenant-tool-execution-architecture.md`](tenant-tool-execution-architecture.md) | **Option C** execution / gateway sequencing |
+| [`tenant-tool-execution-architecture.md`](../plans/tenant-tool-execution-architecture.md) | **Option C** execution / gateway sequencing |
 | [`next-directions.md`](../strategy/next-directions.md) | **Strategy tiers** — source of *what* matters commercially |
 | [`traceability-matrix.md`](../strategy/traceability-matrix.md) | **Gap ↔ code** mapping — update when streams close gaps |
 | [`adapter-ecosystem-gateway-hygiene-plan.md`](adapter-ecosystem-gateway-hygiene-plan.md) | **Detailed** breakdown: Python/CI alignment (EA-001), gate doc parity (EA-002), test layout (FIND-*), adapter platform + `/v1` gateway phases with acceptance criteria |

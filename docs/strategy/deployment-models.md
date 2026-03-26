@@ -25,8 +25,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.1.0`
-- Last Reviewed: `2026-03-22`
+- Version: `1.2.0`
+- Last Reviewed: `2026-03-24`
 - Review Cadence: `monthly`
 - Decision Scope: `Deployment model definitions, responsibilities, support posture, and tier alignment.`
 
@@ -39,7 +39,8 @@ This document answers:
 - who owns what responsibilities,
 - what SLA posture is realistic by model,
 - how models map to tier packaging and compliance readiness,
-- how observability export and provider-connectivity ownership should be handled by model.
+- how observability export and provider-connectivity ownership should be handled by model,
+- how **customer bridge** integrations (HTTP, optional `/v1`, future SDK) still terminate on the **hosted control plane** for enforcement (see `governed-execution-positioning.md` and [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md)).
 
 ---
 
