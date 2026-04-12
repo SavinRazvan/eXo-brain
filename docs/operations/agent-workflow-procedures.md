@@ -64,6 +64,16 @@ As of last sync, that is:
 
 ---
 
+## 3b) Commit message provenance (git, not PR artifacts)
+
+**Git commits** use **`.cursor/rules/commit-trailer-format.mdc`**: required `Author:` + `GitHub-User:`; optional `Assisted-by:` when disclosure applies. **Do not** use **`Made-with:`** (redundant with `Author:`). The human author stays accountable; AI or automation must not add human certification lines.
+
+**PR phase markdown** under `.local/workflow-artifacts/pr/` uses `Action-By` / `GitHub-User` / `Agent/s` per **`.agents/skills/PR_WORKFLOW.md`** — separate from git trailers.
+
+When `commit-trailer-format.mdc` changes, sync the same slice: **`README.md`** (root § PR workflow), **`AGENTS.md`** (Commits), **`docs/operations/local-workspace-layout.md`** (git vs `.local` artifacts), **`docs/plans/docs-authority-map.md`**, **`docs/plans/docs-inventory-master.md`**, **`docs/governance/workflow-source-owners.md`**, **`docs/operations/workflow-complete.md`**, **`docs/operations/documentation-maintenance-checklist.md`**, **`docs/operations/release-candidate-signoff-checklist.md`**, **`docs/releases/RELEASE_TEMPLATE.md`**, **`docs/README.md`** (index link), **`configs/release/README.md`**, **`scripts/pr/README.md`**, **`scripts/pr/local_workflow_paths.py`** (Notes), **`.local/index-and-planning/workflow-complete.md`** (implement + commit step), **`.local/index-and-planning/agent-workflow-procedures.md`** §3b, **`eXo_adapters/`** (if present: `AGENTS.md`, `.cursor/rules/commit-trailer-format.mdc`, `pr-workflow-enforcement.mdc`, implementer + implementation loop, `.agents/skills/PR_WORKFLOW.md` + `README.md`), **`.agents/skills/PR_WORKFLOW.md`**, **`.cursor/rules/pr-workflow-enforcement.mdc`**, **`.cursor/agents/implementer.md`**, **`.cursor/skills/implementation-execution-loop/SKILL.md`**, **`docs/governance/rules-overlap-matrix.md`** (row for this rule), and this §3b if the contract moves.
+
+---
+
 ## 4) Anti-duplication rule (stop repeating the same list)
 
 When **`GATES`** in `prepare.py` change, update **every** of these in the **same PR/slice** (or immediately after):

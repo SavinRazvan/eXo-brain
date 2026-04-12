@@ -28,8 +28,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.8.1`
-- Last Reviewed: `2026-03-25`
+- Version: `1.9.0`
+- Last Reviewed: `2026-04-01`
 - Review Cadence: `monthly`
 - Decision Scope: `Folder-level indexing, reading order, and strategy document governance for docs/strategy.`
 
@@ -62,6 +62,15 @@ These documents are intended to prevent direction drift while implementation evo
    Deployment packaging and support boundaries by model and tier.
 9. `interface-strategy.md`  
    API-first experience strategy and UI roadmap constraints.
+
+**Self-serve governance spine (read after `interface-strategy.md` when building customer onboarding, future UI, or policy iteration features):**
+
+- `customer-self-serve-governance-journey.md` — product contract, scope checklist, journey phases, agent rules.
+- `foundation-tier-adoption-checklist.md` — minimal Foundation API path.
+- [`../plans/governance-configuration-reference-model.md`](../plans/governance-configuration-reference-model.md) — configuration entities, dependencies, precedence, UI mapping table.
+- [`../api/governance-preview-and-testing.md`](../api/governance-preview-and-testing.md) — safe iteration patterns; planned simulation endpoints (§5).
+- [`../operations/governance-reason-code-catalog.md`](../operations/governance-reason-code-catalog.md) — reason-code maintenance contract.
+
 10. `traceability-matrix.md`  
    Decision-to-code and decision-to-test mapping for drift detection.
 11. `next-directions.md`  
@@ -89,7 +98,7 @@ These documents are intended to prevent direction drift while implementation evo
 - Detailed implementation contracts remain in module docs under `docs/modules/`.
 - Operational runbooks remain under `docs/operations/`.
 
-## Closure Snapshot (2026-03-12; product vocabulary 2026-03-24)
+## Closure Snapshot (2026-03-12; product vocabulary 2026-03-24; self-serve spine 2026-04-01)
 
 Now enforceable in strategy package:
 - governance metadata standardization across all docs/strategy docs,
@@ -98,6 +107,7 @@ Now enforceable in strategy package:
 - deployment model strategy with support and tier posture,
 - cross-document traceability anchors.
 - **2026-03-24:** Canonical **control plane** + **integration surfaces** (provider runtime adapter, control plane API, customer bridge) documented across `docs/strategy/*`, `docs/plans/control-plane-product-alignment-plan.md`, `docs/architecture/ARCHITECTURE.md`, and `docs/architecture/workspace-architecture.md`.
+- **2026-04-01:** **Customer self-serve governance** narrative and implementer contracts: `customer-self-serve-governance-journey.md`, `foundation-tier-adoption-checklist.md`, `docs/plans/governance-configuration-reference-model.md`, `docs/api/governance-preview-and-testing.md`, `docs/operations/governance-reason-code-catalog.md`; `goal.md` §7a; `monetization-strategy.md` §10a (technical self-serve vs commercial claims).
 
 Still planned (not yet fully implemented in product controls):
 - adapter portfolio expansion execution across universal/native/service lanes with certification evidence automation,

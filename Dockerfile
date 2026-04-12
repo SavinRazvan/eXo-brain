@@ -16,10 +16,11 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+# exo-brain-core-contracts comes from git in requirements.txt (eXo_adapters); image needs git for pip.
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .

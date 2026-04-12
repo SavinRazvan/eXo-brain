@@ -26,6 +26,7 @@ Run this checklist when a PR changes architecture, runtime contracts, policies, 
   - `.cursor/rules/*.mdc`
   - `.agents/skills/PR_WORKFLOW.md`
   - `docs/plans/docs-authority-map.md`
+- [ ] If you touch **git commit / AI provenance** policy or release provenance wording: sync every surface listed in **`docs/operations/agent-workflow-procedures.md` §3b** (includes `docs/plans/docs-inventory-master.md` rows for indexed paths, `configs/release/README.md`, `scripts/pr/README.md`, `docs/releases/RELEASE_TEMPLATE.md`, and this checklist when it references that policy).
 - [ ] If a doc is superseded, move it to `docs/archive/<domain>/`, mark it `archived`, and add replacement pointer.
 - [ ] Update `docs/plans/docs-inventory-master.md` when status changes (`active`, `planned`, `archived`).
 

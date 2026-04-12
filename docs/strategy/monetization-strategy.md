@@ -26,13 +26,14 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.3.0`
-- Last Reviewed: `2026-03-24`
+- Version: `1.4.0`
+- Last Reviewed: `2026-04-01`
 - Review Cadence: `monthly`
 - Decision Scope: `Tier strategy, entitlement boundaries, and value-capture model for governance-first monetization.`
 
 Companion enforcement docs:
 - `governed-execution-positioning.md`
+- `customer-self-serve-governance-journey.md`
 - `entitlement-matrix.md`
 - `compliance-profile-matrix.md`
 - `deployment-models.md`
@@ -255,6 +256,17 @@ Recommended near-term posture:
 4. Productize deployment, telemetry, and auth hardening before expanding commercial claims aggressively.
 
 This keeps messaging aligned with current platform maturity while building evidence for stronger monetization later.
+
+### 10a) Technical self-serve vs commercial enterprise posture (no contradiction)
+
+Two ideas must stay **explicitly separated** in sales, docs, and agent-generated copy:
+
+| Axis | Meaning |
+|------|---------|
+| **Technical self-serve** | Customers configure tenants, policies, ingress, tools, providers, and audit consumption **via public APIs** without requiring a vendor engineer in the loop for each change. This is the **default integration and product mechanics** — see [`customer-self-serve-governance-journey.md`](customer-self-serve-governance-journey.md) and [`foundation-tier-adoption-checklist.md`](foundation-tier-adoption-checklist.md). |
+| **Commercial / enterprise claims** | Marketing and contract language avoid **unsupported** assertions (“full enterprise self-serve,” “compliance-complete everywhere”) until deployment, telemetry, auth, and evidence bundles meet the maturity called out in §14 prerequisites and `governed-execution-positioning.md`. **Design-partner and assisted pilots** remain valid GTM while evidence deepens. |
+
+**Rule for agents:** Never use §10 to argue against shipping **API-first tenant governance**; use §10 to gate **external promises** and **support SLAs**, not the existence of customer-controlled configuration APIs.
 
 ---
 

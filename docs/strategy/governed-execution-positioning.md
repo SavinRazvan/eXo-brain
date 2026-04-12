@@ -8,6 +8,7 @@ Used By:
  - next-directions.md
 Depends On:
  - goal.md
+ - customer-self-serve-governance-journey.md
  - monetization-strategy.md
  - entitlement-matrix.md
  - compliance-profile-matrix.md
@@ -23,8 +24,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.3.0`
-- Last Reviewed: `2026-03-24`
+- Version: `1.4.0`
+- Last Reviewed: `2026-04-01`
 - Review Cadence: `monthly`
 - Decision Scope: `Product definition, ICP focus, monetization posture, and messaging guardrails for eXo-brain.`
 
@@ -236,6 +237,12 @@ Monetize assurance and deployment trust:
 3. Prove value with concrete evidence: blocked unsafe actions, deterministic coverage, audit outputs, and reduced incident/debugging effort.
 4. Productize deployment, telemetry, and auth hardening before expanding commercial claims.
 5. Expand adapter breadth after the governed execution core is commercially credible.
+
+### Customer technical self-serve (configuration)
+
+Independent of sales motion, the product **expects customers to configure governance themselves** through the **control plane API**: tenant policy overlays, ingress profiles (within tier), tools, agents, provider registration, quotas, and audit consumption. Future UI is a **thin client** over those same contracts — see [`customer-self-serve-governance-journey.md`](customer-self-serve-governance-journey.md), [`../plans/governance-configuration-reference-model.md`](../plans/governance-configuration-reference-model.md), and [`../api/governance-preview-and-testing.md`](../api/governance-preview-and-testing.md).
+
+**Vocabulary:** “Shadow” may mean **classifier shadow mode** at ingress (observe without enforce from that gate) where entitled — it must **never** mean a **bypass** of Layer 2 policy or deterministic tool execution (see enterprise separation table: no shadow execution path around the trust plane).
 
 ## Messaging Guardrails
 

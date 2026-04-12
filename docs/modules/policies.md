@@ -40,6 +40,8 @@ Notes:
 
 - `docs/plans/option-c-performance-gates.md`
 - `docs/operations/release-candidate-signoff-checklist.md`
+- `docs/operations/governance-reason-code-catalog.md`
+- `docs/api/governance-preview-and-testing.md`
 
 ## Breaking-Change Policy
 

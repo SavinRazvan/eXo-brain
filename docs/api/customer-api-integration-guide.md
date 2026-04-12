@@ -22,6 +22,10 @@ Depends On:
  - docs/strategy/interface-strategy.md
  - docs/strategy/governed-execution-positioning.md
  - docs/plans/control-plane-product-alignment-plan.md
+ - docs/strategy/customer-self-serve-governance-journey.md
+ - docs/plans/governance-configuration-reference-model.md
+ - docs/api/governance-preview-and-testing.md
+ - docs/strategy/foundation-tier-adoption-checklist.md
 Notes:
  - Keep tier labels in sync with docs/strategy/entitlement-matrix.md.
  - All safety and governance controls are server-side and non-bypassable regardless of tier.
@@ -34,8 +38,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.6.0`
-- Last Reviewed: `2026-03-27`
+- Version: `1.7.0`
+- Last Reviewed: `2026-04-01`
 - Review Cadence: `on architecture change`
 
 ---
@@ -51,6 +55,18 @@ Integration boundary:
 - eXo-brain owns the **control plane** governed execution boundary: policy, deterministic tool execution, audit, runtime control, and operational visibility.
 
 **Vocabulary (enterprise / partner conversations):** Do not overload “adapter.” **Provider runtime adapters** are how the *platform* reaches providers (`packages/*`, `src/runtime/*`). **Customer bridge** surfaces are how *your* apps call the control plane with less integration friction — today optional **`POST /v1/chat/completions`** (§4.0); a future thin SDK must share the same governance spine. Canonical definitions: [`docs/strategy/governed-execution-positioning.md`](../strategy/governed-execution-positioning.md), [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
+
+### 1.1 Self-serve governance documentation spine
+
+This guide is the **wire-level** reference (endpoints, tiers, examples). For **product intent**, **scope checklist** (tenant, tools, ingress, providers, etc.), **configuration precedence**, and **safe iteration patterns**, read in order:
+
+1. [`docs/strategy/customer-self-serve-governance-journey.md`](../strategy/customer-self-serve-governance-journey.md)
+2. [`docs/strategy/foundation-tier-adoption-checklist.md`](../strategy/foundation-tier-adoption-checklist.md)
+3. [`docs/plans/governance-configuration-reference-model.md`](../plans/governance-configuration-reference-model.md)
+4. [`docs/api/governance-preview-and-testing.md`](governance-preview-and-testing.md)
+5. [`docs/operations/governance-reason-code-catalog.md`](../operations/governance-reason-code-catalog.md)
+
+Implementers and automation agents should treat these as **one bundle**: changing API behavior normally requires updating the spine docs in the same change set.
 
 ---
 

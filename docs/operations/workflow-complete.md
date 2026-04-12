@@ -7,6 +7,7 @@ Used By:
 Depends On:
  - .agents/skills/PR_WORKFLOW.md (canonical narrative + skill order; local copy when present)
  - docs/operations/agent-workflow-procedures.md (enterprise-auditor + dedup contract)
+ - scripts/pr/README.md (PR scripts vs git commit trailers)
  - scripts/pr/review.py, scripts/pr/prepare.py, scripts/pr/merge.py, scripts/pr/finalize.py, scripts/pr/verify_publish.py
  - scripts/pr/check_testing_artifacts.py
  - scripts/architecture/check_governance_consistency.py (CI parity)
@@ -19,7 +20,7 @@ Notes:
 ## A) Standard PR slice (happy path)
 
 1. **Branch** — `git checkout -b feature/<scope>` (or `fix/`, `chore/`).
-2. **Implement + commit** — follow layer rules; commit trailers per `.cursor/rules/commit-trailer-format.mdc` (local).
+2. **Implement + commit** — follow layer rules; commit trailers (required `Author` / `GitHub-User`, optional `Assisted-by`; no `Made-with:`) per `.cursor/rules/commit-trailer-format.mdc` and `AGENTS.md` § Commits.
 3. **Push + PR** — `git push -u origin HEAD` → open PR to `main`.
 4. **Publish checkpoint** (before merge workflow):
    - `python scripts/pr/verify_publish.py --branch "$(git branch --show-current)"`

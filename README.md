@@ -3,8 +3,8 @@ File: README.md
 Path: README.md
 Role: Repository overview, quick start, architecture diagrams, and maintainer workflow summary.
 Used By: Contributors, onboarding, cross-links from docs/strategy and docs indexes.
-Depends On: docs/README.md, docs/plans/tenant-tool-execution-architecture.md, docs/plans/short-long-term-execution-plan.md, docs/plans/control-plane-product-alignment-plan.md, docs/strategy/governed-execution-positioning.md, scripts/pr/prepare.py (gate order).
-Notes: Keep PR / quality gate bullets aligned with `scripts/pr/prepare.py` `GATES` and CI workflows. Product vocabulary (control plane, customer bridge, provider runtime adapter): `docs/strategy/governed-execution-positioning.md`. **Repository boundary:** control plane only; adapter monorepo is not the strategic home (`packages/` transitional).
+Depends On: docs/README.md, docs/plans/tenant-tool-execution-architecture.md, docs/plans/short-long-term-execution-plan.md, docs/plans/control-plane-product-alignment-plan.md, docs/strategy/governed-execution-positioning.md, docs/strategy/customer-self-serve-governance-journey.md, scripts/pr/prepare.py (gate order).
+Notes: Keep PR / quality gate bullets aligned with `scripts/pr/prepare.py` `GATES` and CI workflows. Product vocabulary (control plane, customer bridge, provider runtime adapter): `docs/strategy/governed-execution-positioning.md`. Customer self-serve governance spine: `docs/strategy/customer-self-serve-governance-journey.md` (+ `docs/plans/governance-configuration-reference-model.md`, `docs/api/governance-preview-and-testing.md`). **Repository boundary:** control plane only; adapter monorepo is not the strategic home (`packages/` transitional).
 -->
 
 # eXo-brain
@@ -147,13 +147,14 @@ See also:
 
 ---
 
-## Transitional: `packages/` (conformance only; not the product boundary)
+## Adapter packages (eXo_adapters; not in this repo)
 
-Until adapter sources are **fully extracted** to **separate repositories**, a `packages/` tree may remain for **CI conformance** and migration. **Do not** treat this repo as the canonical monorepo for adapter development — strategy is **control plane only** here. **Full move checklist and file inventory:** `docs/plans/adapter-packages-extraction-handoff.md` (target repo e.g. **`ai-adapters-sdk`**).
+**Portable contracts and adapters** (`exo-brain-core-contracts`, `exo-adapter-*`, `exo-brain-adapter-sdk`) are **authored in the separate [eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) repository** (adjust the URL in `requirements.txt` if your remote differs). eXo-brain installs **`exo-brain-core-contracts`** via **pip** (git URL until PyPI). Strategy: **control plane only** here — see `docs/plans/adapter-packages-extraction-handoff.md`.
 
-- **Adapter ecosystem strategy and matrix:** `docs/strategy/adapter-strategy.md`, `docs/strategy/adapter-compatibility-matrix.md`
+- **Optional local checkout:** clone eXo_adapters beside this repo and symlink/copy `packages/` here **or** use `pip install -e ../eXo_adapters/packages/exo-adapter-openai` when working on packaged adapters; conformance tests under `tests/packages/` that need sources are **skipped** unless that tree exists.
+- **Adapter strategy and matrix:** `docs/strategy/adapter-strategy.md`, `docs/strategy/adapter-compatibility-matrix.md`
 - **Operational log dimensions:** `docs/operations/adapter-telemetry-dimensions.md`
-- **While `packages/` still exists:** run `python scripts/packages/external_install_smoke.py` and `python -m pytest tests/packages -q` before merge; PRs touching `packages/**` still trigger **`architecture-fitness`** `package_workspace_tests`.
+- **Smoke (optional):** `python scripts/packages/external_install_smoke.py` runs only when a local `packages/` (or `moving_to_adapters_project/packages/`) workspace is present; otherwise it prints **SKIP** (run the equivalent script from eXo_adapters for full certification).
 
 ---
 
@@ -163,7 +164,7 @@ Until adapter sources are **fully extracted** to **separate repositories**, a `p
 # 1. Create and activate a virtual environment (Python 3.12+ recommended; see "Supported Python" above)
 python -m venv .exo_env && source .exo_env/bin/activate
 
-# 2. Install dependencies
+# 2. Install dependencies (from repo root — pulls exo-brain-core-contracts from eXo_adapters via git in requirements.txt)
 pip install -r requirements.txt
 
 # 3. Copy environment template and set your API key
@@ -231,6 +232,7 @@ For acronym help, see `docs/operations/abbreviations-notepad.md`.
 ## Documentation map
 
 - Primary docs index: `docs/README.md`
+- Customer self-serve governance spine: `docs/strategy/customer-self-serve-governance-journey.md`, `docs/strategy/foundation-tier-adoption-checklist.md`, `docs/plans/governance-configuration-reference-model.md`, `docs/api/governance-preview-and-testing.md`
 - Plans index: `docs/plans/README.md`
 - Operations index: `docs/operations/README.md`
 - Module docs index: `docs/modules/README.md`
@@ -592,6 +594,7 @@ Tracked automation lives under `scripts/pr/` and `.github/workflows/`. Use **PR-
    - **Also** run `python scripts/architecture/check_governance_consistency.py` locally when changing governance, workflows, `.cursor/`, `.agents/`, or tracked policy docs (CI runs it in `architecture-fitness` on relevant paths — not part of the default four-gate `prepare.py` run).
 5. **Docs** — on architecture/workflow changes, follow `docs/operations/documentation-maintenance-checklist.md`; optional `python scripts/docs/check_docs_metadata.py`.
 6. **After merge** — sync `main`, then `python scripts/pr/finalize.py --branch <feature-branch>` (optional `--delete-merged-local`); confirm remote branch deletion per team policy.
+7. **Commits** — git trailers: required `Author` / `GitHub-User`, optional `Assisted-by:` (no `Made-with:`) per **`AGENTS.md`** § Commits and **`.cursor/rules/commit-trailer-format.mdc`**. That is separate from headers in `.local/workflow-artifacts/pr/*.md`.
 
 **Local IDE/agent files** (e.g. Cursor rules, optional `AGENTS.md`) may be maintained per developer and are **not** required for a minimal clone—the repo’s enforced contracts are in `scripts/`, tests, and GitHub Actions.
 

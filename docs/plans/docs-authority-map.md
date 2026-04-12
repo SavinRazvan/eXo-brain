@@ -19,12 +19,13 @@ Notes:
 
 1. **Repository rules and governance contracts**
    - `.cursor/rules/*.mdc`
-   - `AGENTS.md`
+   - `AGENTS.md` (includes **§ Commits**: required git trailers + optional `Assisted-by`; canonical detail in **`.cursor/rules/commit-trailer-format.mdc`**)
 2. **Maintainer workflow source**
    - `.agents/skills/PR_WORKFLOW.md`
 3. **Canonical active docs**
    - `README.md`
    - `docs/strategy/README.md` (strategy package index)
+   - Customer self-serve governance spine: `docs/strategy/customer-self-serve-governance-journey.md`, `docs/strategy/foundation-tier-adoption-checklist.md`, `docs/plans/governance-configuration-reference-model.md`, `docs/api/governance-preview-and-testing.md`, `docs/operations/governance-reason-code-catalog.md` (with `docs/api/customer-api-integration-guide.md` for wire contracts)
    - `docs/architecture/mvp.md` (see `docs/architecture_mvp.md` stub for legacy links)
    - `docs/architecture/workspace-architecture.md`
    - `docs/runtime_contracts.md`
