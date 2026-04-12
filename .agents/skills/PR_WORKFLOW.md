@@ -46,6 +46,11 @@ Optional: enable `delete_branch_on_merge` on the GitHub repo (`gh api repos/<own
 - Prefer **one** stacked PR from the tip branch when commits are strictly linear (avoids duplicate merges).
 - Reject bypasses of adapter wall / policy / tests. Doc updates for architecture-impacting PRs: `docs/operations/documentation-maintenance-checklist.md` and indexes as needed.
 
+## Git commit provenance (not PR artifacts)
+
+- Required trailers and optional `Assisted-by:` (no `Made-with:`): **`.cursor/rules/commit-trailer-format.mdc`** (also summarized in **`AGENTS.md`** § Commits).
+- Phase markdown here uses `Action-By` / `GitHub-User` / `Agent/s` only; do not conflate with git trailers.
+
 ## Tracking when scope shifts
 
 Update whatever actually changed among: `docs/plans/tenant-tool-execution-architecture.md`, `.local/index-and-planning/current/plan.md`, `work-tracker.md`, test trackers, `docs/plans/docs-inventory-master.md`.

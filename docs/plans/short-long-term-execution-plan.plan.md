@@ -123,6 +123,8 @@ Use these as **epic buckets**; each PR/slice should still be small and reversibl
 
 **Suggested tests touchpoints:** `tests/modules/runtime/`, `scripts/packages/external_install_smoke.py` (CI), integration tests that register `openai-test` / playground paths.
 
+**Rolling status:** **STP-W4-003** (2026-03-27) — contracts **0.1.1**: `RuntimeEvent` factory classmethods + `blocked_result` in package; `src/schemas/events.py`, `tool_io.py`, `src/runtime/capability_map.py` re-export. Prior: **STP-W4-002** (editable contracts + `runtime_adapter` re-export), **STP-W4-001** (factory dual-check, superseded for type identity).
+
 ---
 
 ### S4 — Main UI platform (out of repo)

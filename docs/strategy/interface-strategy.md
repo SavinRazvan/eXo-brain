@@ -22,13 +22,14 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.3.0`
-- Last Reviewed: `2026-03-24`
+- Version: `1.4.0`
+- Last Reviewed: `2026-04-01`
 - Review Cadence: `monthly`
 - Decision Scope: `API-first interface posture, UI roadmap constraints, and interface-level governance rules.`
 
 Companion strategy docs:
 - `goal.md`
+- `customer-self-serve-governance-journey.md`
 - `governed-execution-positioning.md`
 - `monetization-strategy.md`
 - `compliance-profile-matrix.md`
@@ -102,6 +103,12 @@ Constraint:
 - UI cannot be trust boundary; all safety checks remain backend-enforced.
 - UI should not become the canonical owner of provider-native settings that belong to customer-controlled adapters or deployment configuration.
 
+### 3a) Single configuration spine (API = source of truth)
+
+All governance settings that a future UI exposes must map to the **same payloads and resources** as the public API. The conceptual merge model (entities, dependencies, precedence) lives in [`../plans/governance-configuration-reference-model.md`](../plans/governance-configuration-reference-model.md). The customer journey and promises live in [`customer-self-serve-governance-journey.md`](customer-self-serve-governance-journey.md).
+
+**Agent rule:** Prototype UI state trees are **not** authoritative; OpenAPI + integration guide + reference model are.
+
 ---
 
 ## 4) API-First Design Rules
@@ -130,6 +137,8 @@ Recommended UI domains:
 - Runtime Control
 - Audit and Compliance dashboard
 - Tenant Governance panel
+
+Each domain must map to API resources in [`../plans/governance-configuration-reference-model.md`](../plans/governance-configuration-reference-model.md) §5.
 
 ---
 

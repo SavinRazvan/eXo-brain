@@ -23,6 +23,8 @@ on:
       - "src/**"
       - "tests/**"
       - "packages/**"
+      - "moving_to_adapters_project/**"
+      - "eXo_adapters/**"
       - "scripts/**"
       - "Makefile"
       - ".github/workflows/**"

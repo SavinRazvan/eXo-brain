@@ -9,7 +9,7 @@ Depends On:
  - pathlib
 Notes:
  - Provider SDK imports are allowed only inside runtime adapter modules.
- - Adapter packages under packages/exo-adapter-*/src must not import monorepo src.* modules.
+ - Adapter packages under ``eXo_adapters/packages/``, ``moving_to_adapters_project/packages/``, or legacy ``packages/`` must not import monorepo ``src.*`` modules.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
-PACKAGES = ROOT / "packages"
 
 # Provider SDK imports — allowed only in src/runtime/*adapter* files.
 PROVIDER_SDK_PREFIXES = (
@@ -59,7 +58,21 @@ def _is_api_file(rel_path: str) -> bool:
 
 
 def _is_adapter_package_file(rel_path: str) -> bool:
-    return rel_path.startswith("packages/exo-adapter-") and "/src/" in rel_path
+    # Staging: moving_to_adapters_project/packages/exo-adapter-*/src/...
+    # Legacy: packages/exo-adapter-*/src/...
+    return "/packages/exo-adapter-" in rel_path and "/src/" in rel_path
+
+
+def _adapter_package_roots() -> list[Path]:
+    roots: list[Path] = []
+    for candidate in (
+        ROOT / "eXo_adapters" / "packages",
+        ROOT / "moving_to_adapters_project" / "packages",
+        ROOT / "packages",
+    ):
+        if candidate.is_dir():
+            roots.append(candidate)
+    return roots
 
 
 def _is_forbidden_monorepo_import_for_adapter_package(module: str) -> bool:
@@ -82,11 +95,15 @@ def main() -> int:
                     f"{rel}: forbidden transport import '{module}' outside api/adapter boundary"
                 )
 
-    if PACKAGES.exists():
-        for py_file in PACKAGES.rglob("*.py"):
+    seen: set[Path] = set()
+    for pkg_root in _adapter_package_roots():
+        for py_file in pkg_root.rglob("*.py"):
+            if py_file in seen:
+                continue
             rel = py_file.relative_to(ROOT).as_posix()
             if not _is_adapter_package_file(rel):
                 continue
+            seen.add(py_file)
             for module in _imports_for_file(py_file):
                 if _is_forbidden_monorepo_import_for_adapter_package(module):
                     violations.append(

@@ -11,6 +11,7 @@ Depends On:
 Notes:
  - Keep path strings aligned with `.cursor/rules/pr-workflow-enforcement.mdc` and
    `scripts/architecture/check_governance_consistency.py` merge.py parity fragments.
+ - Git **commit** messages (not these `.md` paths): **`.cursor/rules/commit-trailer-format.mdc`** — `Author` / `GitHub-User`, optional `Assisted-by`; no `Made-with:`.
 """
 
 from __future__ import annotations

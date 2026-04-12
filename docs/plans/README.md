@@ -36,6 +36,7 @@ For the **numbered architecture planes** (stack), see [`docs/architecture/ARCHIT
 - `docs/plans/short-long-term-execution-plan.md` — short vs long horizons; main UI via APIs; diagrams §1.1 (mirrored in root `README.md`)
 - `docs/plans/short-long-term-execution-plan.plan.md` — **implementer companion:** governance metadata, inlined non-breaking rules, workstreams W1–W4 + S4 (main UI), primary artifacts, rolling status hooks, pre/post checklists, slice boilerplate for `.local/.../plan.md` (canonical narrative: `short-long-term-execution-plan.md`)
 - `docs/plans/adapter-packages-extraction-handoff.md` — adapter extraction checklist (`packages/` → separate repos)
+- `docs/plans/governance-configuration-reference-model.md` — tenant governance entities, API mapping, precedence, future thin-UI discipline
 
 ## Archived plans (completed or superseded)
 

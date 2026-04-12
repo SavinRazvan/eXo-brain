@@ -1,6 +1,10 @@
 # eXo-brain — project dependencies
 # Python 3.12+ (minimum). CI and Dockerfile use 3.12.x; newer CPython (e.g. 3.13+) expected compatible unless noted.
-# Install: pip install -r requirements.txt
+# Install: pip install -r requirements.txt (from repo root)
+
+# ── Runtime contracts (authored in eXo_adapters; pip install from git until PyPI publish) ─
+# Replace the git URL if your eXo_adapters remote differs; after PyPI publish, use e.g. exo-brain-core-contracts>=0.1.0
+exo-brain-core-contracts @ git+https://github.com/SavinRazvan/eXo_adapters.git@main#subdirectory=packages/exo-brain-core-contracts
 
 # ── AI / Model providers ──────────────────────────────────────────────────────
 openai>=2.21.0

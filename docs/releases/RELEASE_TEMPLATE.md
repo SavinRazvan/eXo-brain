@@ -26,7 +26,7 @@ Notes:
 
 ## Evidence Bundle
 - Gate evidence artifact:
-- Provenance artifact:
+- Provenance artifact: (RC / CI runner metadata — **not** the same as git commit trailers; see **`AGENTS.md`** § Commits and **`.cursor/rules/commit-trailer-format.mdc`**: `Author` / `GitHub-User`, optional `Assisted-by`; **no `Made-with:`**)
 - Deploy evidence artifact:
 
 ## Rollout Plan

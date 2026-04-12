@@ -27,8 +27,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.7.1`
-- Last Reviewed: `2026-03-25`
+- Version: `1.8.0`
+- Last Reviewed: `2026-04-01`
 - Review Cadence: `monthly`
 - Decision Scope: `Product north-star, strategic boundaries, and long-term direction for provider-neutral orchestration.`
 
@@ -54,6 +54,8 @@ Companion strategy docs:
 - `traceability-matrix.md`
 - `next-directions.md`
 - `execution-board-12-gaps.md`
+- `customer-self-serve-governance-journey.md`
+- `foundation-tier-adoption-checklist.md`
 
 ---
 
@@ -228,6 +230,18 @@ Customers should be able to configure through API:
 - audit query/export/verification.
 
 This gives customers control while preserving core invariants.
+
+### 7a) Customer self-serve governance (product contract)
+
+Customers must be able to **drive their own governance** for adapter-backed workflows **through the control plane API**:
+
+- configure gates, guardrails, policy overlays, tool/agent registration, provider registration, and quotas within **tenant scope**;
+- **iterate safely** using observable outcomes (reason codes, audit events, `correlation_id` joins) and patterns in [`docs/api/governance-preview-and-testing.md`](../api/governance-preview-and-testing.md);
+- rely on a **single configuration spine**: any future forms or dashboard modules are **thin clients** over the same APIs (no parallel config model) — see [`docs/strategy/interface-strategy.md`](interface-strategy.md) and [`docs/plans/governance-configuration-reference-model.md`](../plans/governance-configuration-reference-model.md).
+
+**Canonical narrative and scope checklist:** [`docs/strategy/customer-self-serve-governance-journey.md`](customer-self-serve-governance-journey.md). **Foundation minimum path:** [`docs/strategy/foundation-tier-adoption-checklist.md`](foundation-tier-adoption-checklist.md).
+
+**Commercial posture vs technical self-serve:** API-driven configuration is the **default product mechanics**; broad **enterprise commercial claims** remain evidence-gated per [`docs/strategy/monetization-strategy.md`](monetization-strategy.md) §10–§10a.
 
 ---
 

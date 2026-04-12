@@ -25,7 +25,8 @@ New or continued `feature/` | `fix/` | `chore/` work; recovery from blocked slic
 2. Document acceptance + rollback in `plan.md` if missing.
 3. Implement: contracts → code → tests.
 4. **Gates:** run commands in `scripts/pr/prepare.py` `GATES` (plus `check_governance_consistency.py` when governance/workflows/policy docs change). Prefer scoped `pytest` only with a short reason.
-5. **Close:** `work-tracker.md`, `history/updates-log.md` (no long gate dumps — `docs/operations/agent-workflow-procedures.md`), test/coverage trackers and `pages.json` when paths changed; do not touch `module-audit.html` unless regenerating an audit export.
+5. **Commits:** trailers per `.cursor/rules/commit-trailer-format.mdc` (`Author`, `GitHub-User`; add `Assisted-by:` when applicable; no `Made-with:`). Human remains accountable; no automated human certification lines.
+6. **Close:** `work-tracker.md`, `history/updates-log.md` (no long gate dumps — `docs/operations/agent-workflow-procedures.md`), test/coverage trackers and `pages.json` when paths changed; do not touch `module-audit.html` unless regenerating an audit export.
 
 ## Output
 

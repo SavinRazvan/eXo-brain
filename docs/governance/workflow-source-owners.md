@@ -23,6 +23,7 @@ Notes:
 | Durable maintainer checklist | `docs/operations/workflow-complete.md` | Everyone (versioned) |
 | Audit / dedup rules | `docs/operations/agent-workflow-procedures.md` | Alignment + governance |
 | Always-on enforcement | `.cursor/rules/*.mdc` | Cursor agents |
+| Git **commit** trailers (`Author` / `GitHub-User` + optional `Assisted-by`) | `.cursor/rules/commit-trailer-format.mdc` | `AGENTS.md` § Commits, implementer / implementation skills |
 | Repository orientation | `AGENTS.md`, `README.md` | All agents |
 
 **Rule:** If text disagrees with `prepare.py` or `local_workflow_paths.py`, update the text in the **same PR** as the script change, or immediately after.

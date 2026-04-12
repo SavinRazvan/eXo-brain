@@ -22,7 +22,8 @@ When the slice touches tests or ownership: `test-plan.md`, `test-index.md`. Afte
 1. One primary task `in_progress` in `work-tracker.md`; scope in `plan.md`.
 2. Contracts → implementation → tests.
 3. **Gates:** run the `GATES` commands in `scripts/pr/prepare.py` (use scoped `pytest` only when justified; document why). Add `check_governance_consistency.py` if governance/workflows/policy docs changed.
-4. **Close:** `work-tracker.md`, `history/updates-log.md` (short — no pasted gate laundry lists; see `docs/operations/agent-workflow-procedures.md`), test trackers + `coverage-index.md` + `agents-control-center/config/pages.json` when applicable.
+4. **Commits:** `.cursor/rules/commit-trailer-format.mdc` — required `Author` / `GitHub-User`; optional `Assisted-by:` when AI materially helped. Do not add `Made-with:` (redundant with `Author:`). No tool-generated human sign-off.
+5. **Close:** `work-tracker.md`, `history/updates-log.md` (short — no pasted gate laundry lists; see `docs/operations/agent-workflow-procedures.md`), test trackers + `coverage-index.md` + `agents-control-center/config/pages.json` when applicable.
 
 ## Architecture
 

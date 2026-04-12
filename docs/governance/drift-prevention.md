@@ -34,6 +34,10 @@ Notes:
 2. Update **`scripts/pr/local_workflow_paths.py`** (and dependents) for workflow artifacts.
 3. Refresh **`docs/templates/local-workspace/pages.json`** if dashboard tabs change.
 
+## After changing **git commit** trailer policy (`.cursor/rules/commit-trailer-format.mdc`)
+
+Follow the **full sync slice** in **`docs/operations/agent-workflow-procedures.md` §3b** (durable doc + **`.local/index-and-planning/agent-workflow-procedures.md`** twin): **`AGENTS.md`** § Commits, **`README.md`** (PR workflow § Commits), **`docs/operations/local-workspace-layout.md`**, **`docs/plans/docs-authority-map.md`**, **`docs/plans/docs-inventory-master.md`**, **`docs/governance/workflow-source-owners.md`**, **`docs/governance/rules-overlap-matrix.md`**, **`docs/operations/workflow-complete.md`**, **`docs/operations/release-candidate-signoff-checklist.md`**, **`docs/operations/documentation-maintenance-checklist.md`**, **`configs/release/README.md`**, **`scripts/pr/README.md`**, **`.cursor/`** / **`.agents/`** skills that mention trailers, and **`scripts/pr/local_workflow_paths.py`** Notes. Run **`python scripts/architecture/check_governance_consistency.py`** when paths touch rules or tracked policy docs.
+
 ## Quarterly
 
 - Skim **`docs/strategy/next-directions.md`** vs **`docs/plans/tenant-tool-execution-architecture.md`** for obvious stale claims.

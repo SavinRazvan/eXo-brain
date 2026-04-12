@@ -7,12 +7,10 @@ Used By:
  - scripts/release/rc_signoff.py (optional gate)
  - make targets
 Depends On:
- - packages/exo-brain-core-contracts
- - packages/exo-brain-adapter-sdk
- - packages/exo-adapter-openai
- - packages/exo-adapter-echo
+ - Optional local workspace: ``eXo_adapters/packages/``, ``moving_to_adapters_project/packages/``, or legacy ``packages/``.
 Notes:
- - Creates a throwaway venv in /tmp, installs all three packages, runs import + conformance assertions.
+ - **Canonical** multi-package smoke lives in **eXo_adapters**; this script is a no-op (exit 0) when no local tree exists.
+ - Creates a throwaway venv in /tmp, installs all four packages, runs import + conformance assertions.
  - Exit code 0 = pass, non-zero = fail.
  - Safe to run repeatedly; cleans up the temp venv on exit.
 """
@@ -29,12 +27,25 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-PACKAGES_INSTALL_ORDER = [
-    REPO_ROOT / "packages" / "exo-brain-core-contracts",
-    REPO_ROOT / "packages" / "exo-brain-adapter-sdk",
-    REPO_ROOT / "packages" / "exo-adapter-echo",
-    REPO_ROOT / "packages" / "exo-adapter-openai",
-]
+
+def _local_adapter_workspace() -> Path | None:
+    for candidate in (
+        REPO_ROOT / "eXo_adapters" / "packages",
+        REPO_ROOT / "moving_to_adapters_project" / "packages",
+        REPO_ROOT / "packages",
+    ):
+        if (candidate / "exo-brain-core-contracts" / "pyproject.toml").is_file():
+            return candidate
+    return None
+
+
+def _packages_install_order(root: Path) -> list[Path]:
+    return [
+        root / "exo-brain-core-contracts",
+        root / "exo-brain-adapter-sdk",
+        root / "exo-adapter-echo",
+        root / "exo-adapter-openai",
+    ]
 
 ASSERTION_SCRIPT = textwrap.dedent(
     """
@@ -143,6 +154,14 @@ def _run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[s
 
 
 def main() -> int:
+    workspace = _local_adapter_workspace()
+    if workspace is None:
+        print(
+            "[smoke] SKIP: no local adapter package workspace under eXo_adapters/packages/, "
+            "moving_to_adapters_project/packages/, or packages/. Run from eXo_adapters repo root instead."
+        )
+        return 0
+
     venv_dir = Path(tempfile.mkdtemp(prefix="exo_external_smoke_"))
     try:
         print(f"[smoke] Creating isolated venv: {venv_dir}")
@@ -151,7 +170,7 @@ def main() -> int:
         pip = str(venv_dir / "bin" / "pip")
         python = str(venv_dir / "bin" / "python3")
 
-        for pkg_path in PACKAGES_INSTALL_ORDER:
+        for pkg_path in _packages_install_order(workspace):
             print(f"[smoke] Installing {pkg_path.name} ...")
             result = _run([pip, "install", "-e", str(pkg_path), "-q"], check=False)
             if result.returncode != 0:

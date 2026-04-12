@@ -10,9 +10,10 @@
 2. `docs/strategy/next-directions.md` — priorities  
 3. `docs/strategy/goal.md` — boundary, non-negotiables  
 4. `docs/strategy/entitlement-matrix.md` — tiers  
+5. `docs/strategy/customer-self-serve-governance-journey.md` — tenant-driven governance config, API spine, agent implementation rules (with `docs/plans/governance-configuration-reference-model.md`, `docs/api/governance-preview-and-testing.md`)  
 
 Abbreviations: `docs/operations/abbreviations-notepad.md`  
-Gitignored workspace map: **`docs/operations/local-workspace-layout.md`** (what lives under `.local/`, what to open vs ignore).
+Gitignored workspace map: **`docs/operations/local-workspace-layout.md`** (what lives under `.local/`, what to open vs ignore; includes **git commits vs `.local` PR artifacts**).
 
 ## Rules (always applied in Cursor)
 
@@ -21,7 +22,7 @@ Gitignored workspace map: **`docs/operations/local-workspace-layout.md`** (what 
 | `.cursor/rules/provider-neutral-adapter-wall.mdc` | Layers, adapters, policy |
 | `.cursor/rules/implementation-workflow-governance.mdc` | Slice lifecycle, `.local/.../current` trackers, tests |
 | `.cursor/rules/pr-workflow-enforcement.mdc` | PR-first, artifacts, branch safety |
-| `.cursor/rules/commit-trailer-format.mdc` | Commit trailers |
+| `.cursor/rules/commit-trailer-format.mdc` | Commit trailers + optional `Assisted-by` (AI) |
 | `.cursor/rules/file-docstring-header-relations.mdc` | File headers |
 | `.cursor/rules/local-artifact-protection.mdc` | `.exo_data/`, `.coverage` |
 | `.cursor/rules/advisory-audit-alignment-enforcement.mdc` | Architecture-impacting audits → **`enterprise-auditor`** + alignment artifacts when scope warrants |
@@ -50,12 +51,14 @@ RC helpers: `make rc-signoff`, `make rc-signoff-json`.
 
 ## Commits
 
-End message body with:
+Required in every commit message (see **`.cursor/rules/commit-trailer-format.mdc`**):
 
 - `Author: Savin I. Razvan`
 - `GitHub-User: @SavinRazvan`
 
-(`.cursor/rules/commit-trailer-format.mdc`.)
+**AI-assisted work:** optional `Assisted-by:` when AI materially shaped the change. Human ownership is already expressed by **`Author:`** / **`GitHub-User:`** — do **not** add **`Made-with:`** (redundant). You stay accountable for the result; do not let tools add human sign-off or certification on your behalf.
+
+**PR workflow artifacts** (review/prepare/merge under `.local/workflow-artifacts/pr/`) use `Action-By` / `Prepared-By` / `GitHub-User` / `Agent/s` — that is separate from git commit trailers.
 
 ## Branching
 

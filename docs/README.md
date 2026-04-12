@@ -8,6 +8,7 @@ Used By:
 Depends On:
  - docs/plans/docs-inventory-master.md
  - docs/plans/docs-authority-map.md
+ - scripts/pr/README.md
 Notes:
  - Keep this file concise and update links whenever doc status changes.
 -->
@@ -63,6 +64,8 @@ Notes:
 - `docs/operations/byoc-failure-injection-playbook.md`
 - `docs/operations/byoc-artifact-integrity-dashboard.md`
 - `docs/operations/documentation-maintenance-checklist.md`
+- `configs/release/README.md` — release threshold bundle + pointer to commit provenance vs RC artifacts
+- `scripts/pr/README.md` — PR phase scripts vs git commit trailers (`Author` / `GitHub-User`, optional `Assisted-by`; no `Made-with:`)
 
 ## Operations (workflows)
 
@@ -86,7 +89,15 @@ Notes:
 
 ## API docs
 
-- `docs/api/customer-api-integration-guide.md`
+- `docs/api/customer-api-integration-guide.md` — tier-aware endpoints and examples
+- `docs/api/governance-preview-and-testing.md` — safe iteration, audit correlation, planned simulation APIs (§5)
+
+## Customer self-serve governance (strategy + plans)
+
+- `docs/strategy/customer-self-serve-governance-journey.md` — product contract and agent rules
+- `docs/strategy/foundation-tier-adoption-checklist.md` — Foundation onboarding steps
+- `docs/plans/governance-configuration-reference-model.md` — config entities, precedence, future UI mapping
+- `docs/operations/governance-reason-code-catalog.md` — reason-code maintenance contract
 
 ## Local workspace templates (copy into `.local/`)
 

@@ -16,11 +16,18 @@ Notes:
 
 The `.local/` directory is **gitignored**. This document is the **versioned contract** for how it should be organized.
 
+## Version control (must stay out of git)
+
+- **Never commit** paths under `.local/` (including `index-and-planning/agent-workflow-procedures.md`, `workflow-complete.md`, or `workflow-artifacts/**`). They are **local-only**; canonical workflow text lives under **`docs/operations/`** (for example **`agent-workflow-procedures.md`**, **`workflow-complete.md`**).
+- Do not use `git add -f` on `.local/` to bypass ignore rules.
+- **Sanity check:** `git ls-files .local/` should print **nothing** on a clean policy.
+
 ## Agent efficiency (read order)
 
 **Usually read:**
 
 - `index-and-planning/current/plan.md`, `work-tracker.md`, and (when relevant) `test-plan.md`, `test-index.md`, `coverage-index.md`, `architecture.md`
+- `index-and-planning/agent-workflow-procedures.md` when checking **gate dedup** or **git commit vs PR artifact** provenance (**§3b** — same contract as `docs/operations/agent-workflow-procedures.md`)
 - `workflow-artifacts/pr/review.md`, `prep.md`, `merge.md` during maintainer merge workflow
 - `workflow-artifacts/alignment/*` when an architecture-impacting PR audit is active (authored via **`enterprise-auditor`**)
 - `workflow-artifacts/enterprise-architecture-audit/*` only when an enterprise audit is active or being consumed
@@ -38,13 +45,15 @@ Do **not** treat every file under `.local/` as mandatory context each turn — t
 | Path | Purpose |
 |------|---------|
 | **`index-and-planning/current/`** | Live trackers: `plan.md`, `work-tracker.md`, `test-plan.md`, `test-index.md`, `coverage-index.md`, `architecture.md` (stub → `docs/architecture/workspace-architecture.md`) |
+| **`index-and-planning/agent-workflow-procedures.md`** | Local copy of maintainer **dedup + provenance** contract (**§3–§4**, **§3b** git vs PR); keep aligned with `docs/operations/agent-workflow-procedures.md` |
+| **`index-and-planning/workflow-complete.md`** | Local maintainer checklist mirror; align implement + commit step with `docs/operations/workflow-complete.md` |
 | **`index-and-planning/history/`** | Chronological logs (e.g. `updates-log.md`, optional legacy snapshots) |
 | **`index-and-planning/audits/`** | Local governance audit markdown (`agent-governance-audit.md`, `agent-governance-todos.md`) |
 | **`agents-control-center/dashboards/`** | **HTML entry surface** — see [HTML layout](#html-layout-landing--other-pages) below |
 | **`agents-control-center/audits/`** | `module-audit.html` and similar exports (stub links back to `../dashboards/implementation-control-center.html`) |
 | **`agents-control-center/config/`** | `pages.json` — tab labels + relative paths to markdown |
 | **`agents-control-center/data/`** | Optional `summary.json` for UI summaries |
-| **`workflow-artifacts/pr/`** | `review.md`, `prep.md`, `merge.md` from `scripts/pr/*` |
+| **`workflow-artifacts/pr/`** | `review.md`, `prep.md`, `merge.md` from `scripts/pr/*` — **PR phase** headers (`Action-By`, `Agent/s`, …), not git commit trailers (see **§3b** in `agent-workflow-procedures.md`) |
 | **`workflow-artifacts/alignment/`** | `alignment-audit.md`, `alignment-todos.md` |
 | **`workflow-artifacts/enterprise-architecture-audit/`** | `enterprise-architecture-audit.md` (full report), `enterprise-audit-actions.md` (prioritized backlog for implementers) |
 | **`workflow-artifacts/release/`** | RC signoff and release-local artifacts |
@@ -78,6 +87,12 @@ Use **one landing page** and keep every other HTML file as a **satellite** page 
 - Any satellite → landing: `../dashboards/index.html` (optional) or straight to `implementation-control-center.html`
 
 **Versioned templates** for the landing + dashboards live in **`docs/templates/local-workspace/`**; copy or run **`scripts/dev/migrate_local_workspace_layout.py`** when missing.
+
+## Git commits vs `.local` markdown
+
+- **Git trailers** (`Author`, `GitHub-User`, optional `Assisted-by`) belong in **`git commit` messages** only. There is no required “trailer file” under `.local/` for them. Do not use **`Made-with:`** (redundant with `Author:`; see **commit-trailer-format.mdc**).
+- **`.local/workflow-artifacts/pr/*.md`** and similar artifacts record **who ran which maintainer phase** (`Action-By`, `Prepared-By`, `Agent/s`, …). Do not paste those headers into commits as if they were `Author:` / human certification.
+- Policy: **`.cursor/rules/commit-trailer-format.mdc`** and **`AGENTS.md`** § Commits; contract detail: **`docs/operations/agent-workflow-procedures.md`** §3b (local twin: **`.local/index-and-planning/agent-workflow-procedures.md`** §3b).
 
 ## Durable documentation (not in `.local`)
 

@@ -128,3 +128,4 @@ The signoff runner verifies these files exist before running gates:
 
 - The signoff command fails fast if a required evidence-link document is missing.
 - On gate failure, `.local/rc-signoff.md` still contains outputs for debugging.
+- **Git commits** merged for the release use **git** trailers (`Author`, `GitHub-User`, optional `Assisted-by`; no `Made-with:`) per **`.cursor/rules/commit-trailer-format.mdc`** and **`AGENTS.md`** § Commits. **RC signoff artifacts** (actor, SHA, workflow ids, etc.) are separate runner evidence — do not conflate the two.
