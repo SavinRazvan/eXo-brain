@@ -9,7 +9,8 @@ Depends On:
  - importlib
  - src/runtime/runtime_adapter.py
 Notes:
- - Validates the loaded class inherits RuntimeAdapter before instantiation.
+ - Validates the loaded class with ``issubclass(..., RuntimeAdapter)`` where ``RuntimeAdapter`` is the
+   published ABC re-exported from ``src.runtime.runtime_adapter`` (same type as adapter packages).
  - Canonical OpenAI ref: "exo_adapter_openai.runtime.OpenAIAgentsRuntimeAdapter"
 """
 

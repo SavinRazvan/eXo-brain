@@ -5,8 +5,8 @@ Role: Conformance tests for the portable exo-adapter-echo package.
 Used By:
  - pytest
 Depends On:
- - packages/exo-brain-adapter-sdk
- - packages/exo-adapter-echo
+ - tests.adapter_package_paths
+ - exo-brain-adapter-sdk, exo-adapter-echo trees
 Notes:
  - Mirrors tests/packages/test_openai_adapter_conformance.py for a second external adapter.
 """
@@ -14,21 +14,28 @@ Notes:
 from __future__ import annotations
 
 import asyncio
-import sys
-from pathlib import Path
+
+import pytest
+
+from tests.adapter_package_paths import local_portable_adapters_present, package_src
+
+requires_local_adapter_packages = pytest.mark.skipif(
+    not local_portable_adapters_present(),
+    reason="Portable adapter sources live in eXo_adapters; add a local packages/ tree or sibling checkout to run these tests.",
+)
 
 
 def _add_package_paths() -> None:
-    repo_root = Path(__file__).resolve().parents[2]
     paths = [
-        repo_root / "packages" / "exo-brain-core-contracts" / "src",
-        repo_root / "packages" / "exo-brain-adapter-sdk" / "src",
-        repo_root / "packages" / "exo-adapter-echo" / "src",
+        package_src("exo-brain-core-contracts"),
+        package_src("exo-brain-adapter-sdk"),
+        package_src("exo-adapter-echo"),
     ]
     for path in reversed(paths):
         sys.path.insert(0, str(path))
 
 
+@requires_local_adapter_packages
 def test_echo_adapter_package_conformance() -> None:
     _add_package_paths()
 
@@ -39,6 +46,7 @@ def test_echo_adapter_package_conformance() -> None:
     assert_runtime_adapter_contract(adapter)
 
 
+@requires_local_adapter_packages
 def test_echo_adapter_portability_smoke_run_turn() -> None:
     _add_package_paths()
 
@@ -63,11 +71,12 @@ def test_echo_adapter_portability_smoke_run_turn() -> None:
     assert "run_complete" in event_types
 
 
+@requires_local_adapter_packages
 def test_echo_package_has_no_monorepo_imports() -> None:
-    repo_root = Path(__file__).resolve().parents[2]
+    base = package_src("exo-adapter-echo") / "exo_adapter_echo"
     package_files = [
-        repo_root / "packages" / "exo-adapter-echo" / "src" / "exo_adapter_echo" / "__init__.py",
-        repo_root / "packages" / "exo-adapter-echo" / "src" / "exo_adapter_echo" / "runtime.py",
+        base / "__init__.py",
+        base / "runtime.py",
     ]
     for file_path in package_files:
         for line in file_path.read_text(encoding="utf-8").splitlines():

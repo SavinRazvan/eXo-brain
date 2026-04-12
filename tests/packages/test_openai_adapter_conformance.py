@@ -5,8 +5,8 @@ Role: Validate provider package wrapper and runtime contract conformance helper.
 Used By:
  - CI test suite
 Depends On:
- - packages/exo-brain-adapter-sdk
- - packages/exo-adapter-openai
+ - tests.adapter_package_paths (staging or legacy packages dir)
+ - exo-brain-adapter-sdk, exo-adapter-openai trees
 Notes:
  - Contract check is structural and does not require network/API keys.
  - External install path tests use scripts/packages/external_install_smoke.py as subprocess gate.
@@ -17,20 +17,28 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import sys
-from pathlib import Path
+
+import pytest
+
+from tests.adapter_package_paths import REPO_ROOT, local_portable_adapters_present, package_src
+
+requires_local_adapter_packages = pytest.mark.skipif(
+    not local_portable_adapters_present(),
+    reason="Portable adapter sources live in eXo_adapters; add a local packages/ tree or sibling checkout to run these tests.",
+)
 
 
 def _add_package_paths() -> None:
-    repo_root = Path(__file__).resolve().parents[2]
     paths = [
-        repo_root / "packages" / "exo-brain-core-contracts" / "src",
-        repo_root / "packages" / "exo-brain-adapter-sdk" / "src",
-        repo_root / "packages" / "exo-adapter-openai" / "src",
+        package_src("exo-brain-core-contracts"),
+        package_src("exo-brain-adapter-sdk"),
+        package_src("exo-adapter-openai"),
     ]
     for path in reversed(paths):
         sys.path.insert(0, str(path))
 
 
+@requires_local_adapter_packages
 def test_openai_adapter_package_conformance() -> None:
     _add_package_paths()
 
@@ -41,6 +49,7 @@ def test_openai_adapter_package_conformance() -> None:
     assert_runtime_adapter_contract(adapter)
 
 
+@requires_local_adapter_packages
 def test_openai_adapter_load_adapter_factory() -> None:
     _add_package_paths()
 
@@ -50,12 +59,13 @@ def test_openai_adapter_load_adapter_factory() -> None:
     assert adapter.get_capabilities().provider_id == "openai-factory"
 
 
+@requires_local_adapter_packages
 def test_openai_adapter_package_has_no_monorepo_imports() -> None:
-    repo_root = Path(__file__).resolve().parents[2]
+    base = package_src("exo-adapter-openai") / "exo_adapter_openai"
     package_files = [
-        repo_root / "packages" / "exo-adapter-openai" / "src" / "exo_adapter_openai" / "__init__.py",
-        repo_root / "packages" / "exo-adapter-openai" / "src" / "exo_adapter_openai" / "runtime.py",
-        repo_root / "packages" / "exo-adapter-openai" / "src" / "exo_adapter_openai" / "tool_wiring.py",
+        base / "__init__.py",
+        base / "runtime.py",
+        base / "tool_wiring.py",
     ]
     for file_path in package_files:
         for line in file_path.read_text(encoding="utf-8").splitlines():
@@ -64,6 +74,7 @@ def test_openai_adapter_package_has_no_monorepo_imports() -> None:
             assert not stripped.startswith("import src."), f"Monorepo import found in {file_path}: {stripped}"
 
 
+@requires_local_adapter_packages
 def test_openai_adapter_portability_smoke_run_turn() -> None:
     _add_package_paths()
 
@@ -88,10 +99,10 @@ def test_openai_adapter_portability_smoke_run_turn() -> None:
     assert "run_complete" in event_types
 
 
+@requires_local_adapter_packages
 def test_adapter_sdk_has_no_monorepo_imports() -> None:
     """Verify exo-brain-adapter-sdk has no monorepo-relative fallback imports."""
-    repo_root = Path(__file__).resolve().parents[2]
-    sdk_files = list((repo_root / "packages" / "exo-brain-adapter-sdk" / "src").rglob("*.py"))
+    sdk_files = list(package_src("exo-brain-adapter-sdk").rglob("*.py"))
     assert sdk_files, "No SDK source files found"
     for file_path in sdk_files:
         for line in file_path.read_text(encoding="utf-8").splitlines():
@@ -104,10 +115,10 @@ def test_adapter_sdk_has_no_monorepo_imports() -> None:
             )
 
 
+@requires_local_adapter_packages
 def test_core_contracts_has_no_monorepo_imports() -> None:
     """Verify exo-brain-core-contracts has no monorepo-relative imports."""
-    repo_root = Path(__file__).resolve().parents[2]
-    contracts_files = list((repo_root / "packages" / "exo-brain-core-contracts" / "src").rglob("*.py"))
+    contracts_files = list(package_src("exo-brain-core-contracts").rglob("*.py"))
     assert contracts_files, "No core-contracts source files found"
     for file_path in contracts_files:
         for line in file_path.read_text(encoding="utf-8").splitlines():
@@ -120,10 +131,10 @@ def test_core_contracts_has_no_monorepo_imports() -> None:
             )
 
 
+@requires_local_adapter_packages
 def test_external_install_smoke_script_passes() -> None:
     """Run external install smoke in isolated venv to certify standalone installability."""
-    repo_root = Path(__file__).resolve().parents[2]
-    smoke_script = repo_root / "scripts" / "packages" / "external_install_smoke.py"
+    smoke_script = REPO_ROOT / "scripts" / "packages" / "external_install_smoke.py"
     assert smoke_script.exists(), f"Smoke script not found: {smoke_script}"
 
     result = subprocess.run(

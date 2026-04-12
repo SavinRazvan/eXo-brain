@@ -12,7 +12,7 @@ Depends On:
  - sys
  - tomllib
 Notes:
- - Uses `packages/exo-brain-core-contracts/pyproject.toml` as canonical source.
+ - Skips when no local workspace exists (versions are owned by **eXo_adapters** after extraction).
 """
 
 from __future__ import annotations
@@ -24,7 +24,21 @@ import tomllib
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PACKAGES_DIR = REPO_ROOT / "packages"
+
+
+def _packages_dir() -> Path:
+    """Prefer nested eXo_adapters checkout, then staging folder, then legacy ``packages/``."""
+    for candidate in (
+        REPO_ROOT / "eXo_adapters" / "packages",
+        REPO_ROOT / "moving_to_adapters_project" / "packages",
+        REPO_ROOT / "packages",
+    ):
+        if (candidate / "exo-brain-core-contracts" / "pyproject.toml").is_file():
+            return candidate
+    return REPO_ROOT / "packages"
+
+
+PACKAGES_DIR = _packages_dir()
 CANONICAL_FILE = PACKAGES_DIR / "exo-brain-core-contracts" / "pyproject.toml"
 
 
@@ -68,11 +82,18 @@ def _dependency_version_spec(dependency: str) -> tuple[str, str | None]:
 def main() -> int:
     errors: list[str] = []
 
+    if not CANONICAL_FILE.is_file():
+        print(
+            "check_version_consistency: SKIP — no local packages workspace "
+            "(adapter package versions are maintained in eXo_adapters)."
+        )
+        return 0
+
     canonical_name, canonical_version = _project_name_and_version(CANONICAL_FILE)
     package_paths = _all_package_pyprojects()
     if not package_paths:
-        print("No package manifests found under packages/*/pyproject.toml")
-        return 1
+        print("check_version_consistency: SKIP — no package manifests under local workspace.")
+        return 0
 
     internal_versions: dict[str, str] = {}
     package_dependencies: dict[str, list[str]] = {}

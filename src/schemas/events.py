@@ -1,141 +1,18 @@
 """
 File: events.py
 Path: src/schemas/events.py
-Role: Runtime event contracts shared across adapters and orchestration.
+Role: Re-export published runtime event contracts for control-plane parity with adapter packages.
 Used By:
- - src/runtime/runtime_adapter.py
  - src/runtime/openai_agents_runtime.py
  - src/core/orchestrator.py
 Depends On:
- - dataclasses
- - enum
- - src/schemas/tool_io.py
+ - exo_brain_core_contracts.events
 Notes:
- - Event envelopes are provider-neutral and intentionally minimal.
+ - Canonical types: distribution ``exo-brain-core-contracts`` (authored in **eXo_adapters**, installed via pip). Factory methods live on ``RuntimeEvent`` in that package.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any
+from exo_brain_core_contracts.events import RuntimeEvent, RuntimeEventType
 
-from src.schemas.tool_io import ToolCallContext
-
-
-class RuntimeEventType(str, Enum):
-    TOOL_INTENT = "tool_intent"
-    TOOL_PROGRESS = "tool_progress"
-    OUTPUT_DELTA = "output_delta"
-    RUN_COMPLETE = "run_complete"
-    ERROR = "error"
-
-
-@dataclass(slots=True)
-class RuntimeEvent:
-    event_type: RuntimeEventType
-    session_id: str
-    run_id: str
-    correlation_id: str = ""
-    payload: dict[str, Any] = field(default_factory=dict)
-    tool_call: ToolCallContext | None = None
-
-    @classmethod
-    def tool_intent(
-        cls,
-        session_id: str,
-        run_id: str,
-        call: ToolCallContext,
-        correlation_id: str = "",
-    ) -> "RuntimeEvent":
-        return cls(
-            event_type=RuntimeEventType.TOOL_INTENT,
-            session_id=session_id,
-            run_id=run_id,
-            correlation_id=correlation_id or run_id,
-            tool_call=call,
-        )
-
-    @classmethod
-    def output_delta(
-        cls,
-        session_id: str,
-        run_id: str,
-        text: str,
-        correlation_id: str = "",
-    ) -> "RuntimeEvent":
-        return cls(
-            event_type=RuntimeEventType.OUTPUT_DELTA,
-            session_id=session_id,
-            run_id=run_id,
-            correlation_id=correlation_id or run_id,
-            payload={"text": text},
-        )
-
-    @classmethod
-    def tool_progress(
-        cls,
-        session_id: str,
-        run_id: str,
-        *,
-        call_id: str,
-        tool_name: str,
-        state: str,
-        tool_status: str = "",
-        error_code: str = "",
-        job_id: str = "",
-        lease_token: str = "",
-        lease_expires_at_epoch: str = "",
-        claim_attempt: str = "",
-        correlation_id: str = "",
-    ) -> "RuntimeEvent":
-        return cls(
-            event_type=RuntimeEventType.TOOL_PROGRESS,
-            session_id=session_id,
-            run_id=run_id,
-            correlation_id=correlation_id or run_id,
-            payload={
-                "call_id": call_id,
-                "tool_name": tool_name,
-                "state": state,
-                "tool_status": tool_status,
-                "error_code": error_code,
-                "job_id": job_id,
-                "lease_token": lease_token,
-                "lease_expires_at_epoch": lease_expires_at_epoch,
-                "claim_attempt": claim_attempt,
-            },
-        )
-
-    @classmethod
-    def run_complete(
-        cls,
-        session_id: str,
-        run_id: str,
-        output: dict[str, Any] | None = None,
-        correlation_id: str = "",
-    ) -> "RuntimeEvent":
-        return cls(
-            event_type=RuntimeEventType.RUN_COMPLETE,
-            session_id=session_id,
-            run_id=run_id,
-            correlation_id=correlation_id or run_id,
-            payload=output or {},
-        )
-
-    @classmethod
-    def error(
-        cls,
-        session_id: str,
-        run_id: str,
-        code: str,
-        message: str,
-        correlation_id: str = "",
-    ) -> "RuntimeEvent":
-        return cls(
-            event_type=RuntimeEventType.ERROR,
-            session_id=session_id,
-            run_id=run_id,
-            correlation_id=correlation_id or run_id,
-            payload={"code": code, "message": message},
-        )
+__all__ = ["RuntimeEvent", "RuntimeEventType"]

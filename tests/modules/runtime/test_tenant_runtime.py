@@ -43,6 +43,17 @@ from src.runtime.capability_map import HealthState, HealthStatus, ProviderCapabi
 from src.runtime.custom_runtime import CustomRuntimeAdapter
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 from src.runtime.runtime_adapter import RuntimeAdapter, SessionHandle
+
+
+def _openai_agents_runtime_adapter_types() -> tuple[type, ...]:
+    """In-tree and (when importable) portable OpenAI adapter classes — lazy to avoid collection-order ImportErrors."""
+    types: list[type] = [OpenAIAgentsRuntimeAdapter]
+    try:
+        from exo_adapter_openai.runtime import OpenAIAgentsRuntimeAdapter as PackagedOpenAIAgentsRuntimeAdapter
+    except ImportError:
+        return tuple(types)
+    types.append(PackagedOpenAIAgentsRuntimeAdapter)
+    return tuple(types)
 from src.runtime.tenant_runtime import (
     TenantRuntimeContext,
     TenantRuntimeFactory,
@@ -379,7 +390,7 @@ def test_create_session_runtime_prefers_record_adapter_class_ref() -> None:
     )
 
     adapter = factory.get_session_adapter("sess-loader")
-    assert isinstance(adapter, OpenAIAgentsRuntimeAdapter)
+    assert isinstance(adapter, _openai_agents_runtime_adapter_types())
     assert adapter._tool_registry is ctx.tool_registry
     assert adapter._tool_executor is ctx.tool_executor
 
@@ -415,7 +426,7 @@ def test_create_session_runtime_accepts_legacy_short_adapter_class_ref() -> None
     )
 
     adapter = factory.get_session_adapter("sess-legacy-short")
-    assert isinstance(adapter, OpenAIAgentsRuntimeAdapter)
+    assert isinstance(adapter, _openai_agents_runtime_adapter_types())
 
 
 def test_get_session_runtime_raises_for_unknown_session() -> None:
