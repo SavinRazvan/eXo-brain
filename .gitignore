@@ -30,6 +30,7 @@ _archive/*
 _archive/
 .tmp_tools/*
 .tmp_tools
+eXo_adapters/
 
 # local agent metadata/config (version `.agents/skills/**` like `.cursor/skills`)
 .agents/*
