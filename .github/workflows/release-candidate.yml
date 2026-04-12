@@ -43,10 +43,9 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - uses: ./.github/actions/pip-install-requirements
+        with:
+          adapters-read-token: ${{ secrets.EXO_ADAPTERS_READ_TOKEN }}
 
       - name: Run release gates
         run: python scripts/release/verify_gates.py

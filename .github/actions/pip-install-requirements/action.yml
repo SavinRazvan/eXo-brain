@@ -1,0 +1,25 @@
+# Composite: pip install -r requirements.txt with optional PAT for private GitHub deps.
+name: pip-install-requirements
+description: >
+  Upgrades pip and installs requirements.txt. Pass adapters-read-token when
+  requirements.txt uses git+https to a private repo (eXo_adapters); set repo
+  secret EXO_ADAPTERS_READ_TOKEN (fine-grained PAT: read on eXo_adapters).
+inputs:
+  adapters-read-token:
+    description: PAT with read access to private adapter repos referenced in requirements.txt
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      env:
+        ADAPTERS_TOKEN: ${{ inputs.adapters-read-token }}
+      run: |
+        set -euo pipefail
+        python -m pip install --upgrade pip
+        if [ -n "${ADAPTERS_TOKEN}" ]; then
+          git config --global url."https://x-access-token:${ADAPTERS_TOKEN}@github.com/".insteadOf "https://github.com/"
+        fi
+        pip install -r requirements.txt

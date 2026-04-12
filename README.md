@@ -155,6 +155,7 @@ See also:
 - **Adapter strategy and matrix:** `docs/strategy/adapter-strategy.md`, `docs/strategy/adapter-compatibility-matrix.md`
 - **Operational log dimensions:** `docs/operations/adapter-telemetry-dimensions.md`
 - **Smoke (optional):** `python scripts/packages/external_install_smoke.py` runs only when a local `packages/` (or `moving_to_adapters_project/packages/`) workspace is present; otherwise it prints **SKIP** (run the equivalent script from eXo_adapters for full certification).
+- **GitHub Actions:** if **eXo_adapters** is a **private** repository, add a repository secret **`EXO_ADAPTERS_READ_TOKEN`** (fine-grained PAT with read access to that repo, or classic PAT scoped to repo contents). Workflows use `.github/actions/pip-install-requirements` so `pip install -r requirements.txt` can clone `git+https://github.com/...` dependencies. If the adapter repo is **public**, the secret can be omitted.
 
 ---
 
