@@ -628,6 +628,10 @@ async def get_byoc_governance_metrics(
     ctx: TenantRuntimeContext = Depends(get_tenant_context),
     _identity: IdentityContext = Depends(_require_byoc_governance_metrics_entitlement),
 ) -> ByocGovernanceMetricsResponse:
+    modules = get_app_modules(request)
+    if modules is None:
+        raise HTTPException(status_code=503, detail="Application modules are not configured.")
+
     adapter = _resolve_byoc_adapter(ctx)
     stats_method = getattr(adapter, "control_stats_for_tenant", None)
     control_stats = adapter.control_stats()
@@ -675,9 +679,6 @@ async def get_byoc_governance_metrics(
                 )
             )
 
-    modules = get_app_modules(request)
-    if modules is None:
-        raise HTTPException(status_code=503, detail="Application modules are not configured.")
     settings = modules.platform_bootstrap.settings
     anomaly_enabled = bool(settings.runtime.byoc_anomaly_detection_enabled)
     anomaly_thresholds = GovernanceAnomalyThresholds(
