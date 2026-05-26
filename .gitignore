@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
+
+# local working tree (PR artifacts, planning trackers, alignment audits)
 .local/
 
 # secrets — never commit
@@ -32,6 +34,9 @@ _archive/
 .tmp_tools
 eXo_adapters/
 
+# personal working notes (per maintainer; do not commit)
+temp_plan.md
+
 # local agent metadata/config (version `.agents/skills/**` like `.cursor/skills`)
 .agents/*
 !.agents/skills/
@@ -43,4 +48,7 @@ eXo_adapters/
 !.cursor/agents/**/*.md
 !.cursor/skills/
 !.cursor/skills/**/SKILL.md
-AGENTS.md
+
+# private research corpus (kept off-git by maintainer policy)
+_research_results/
+_research_results/*
