@@ -19,18 +19,21 @@ Notes:
  - start_session stores flat metadata dict — AgentSpec resolved by TenantRuntimeFactory
    before this call (Problem 4 fix).
  - run_turn calls build_agent_tools on every invocation for late binding (Problem 5 fix).
- - The stub path (planned_tool_call echo) is preserved for tests that do not set OPENAI_API_KEY.
+ - The stub path (planned_tool_call echo) is preserved for tests that do not set OPENAI_API_KEY;
+   stub intents set `requested_mode=DETERMINISTIC` so the orchestrator completes via `submit_tool_results`.
+ - SDK imports under `OPENAI_API_KEY` use `# type: ignore[import-not-found,import-untyped]` when the
+   optional `agents` distribution is absent from the type-check environment.
 """
 
 from __future__ import annotations
 
 import uuid
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, cast
 
 from src.runtime.capability_map import HealthState, HealthStatus, ProviderCapabilityMap, SecurityTier
 from src.runtime.runtime_adapter import RuntimeAdapter, SessionHandle
 from src.schemas.events import RuntimeEvent
-from src.schemas.tool_io import RiskTier, ToolCallContext, ToolResult
+from src.schemas.tool_io import RiskTier, ToolCallContext, ToolExecutionMode, ToolResult
 from src.tools.executor import DeterministicToolExecutor
 from src.tools.registry import ToolRegistry
 
@@ -113,6 +116,7 @@ class OpenAIAgentsRuntimeAdapter(RuntimeAdapter):
                     ],
                     risk_tier=RiskTier(str(planned_call.get("risk_tier", "low"))),
                     is_state_changing=bool(planned_call.get("is_state_changing", False)),
+                    requested_mode=ToolExecutionMode.DETERMINISTIC,
                     timestamp_utc=str(context.get("timestamp_utc", "")),
                 )
                 yield RuntimeEvent.tool_intent(
@@ -132,9 +136,17 @@ class OpenAIAgentsRuntimeAdapter(RuntimeAdapter):
                 session_meta = self._session_metadata.get(session_id, {})
                 agent_id = session_meta.get("agent_id", "exo-agent")
 
-                from agents import Agent, Runner
-                from agents.stream_events import RawResponsesStreamEvent, RunItemStreamEvent
-                from agents.items import MessageOutputItem, ToolCallItem, ToolCallOutputItem
+                # Optional SDK: not a hard dependency of the control plane; stubs may be absent in CI.
+                from agents import Agent, Runner  # type: ignore[import-not-found,import-untyped]
+                from agents.stream_events import (  # type: ignore[import-not-found,import-untyped]
+                    RawResponsesStreamEvent,
+                    RunItemStreamEvent,
+                )
+                from agents.items import (  # type: ignore[import-not-found,import-untyped]
+                    MessageOutputItem,
+                    ToolCallItem,
+                    ToolCallOutputItem,
+                )
 
                 from src.runtime.tool_wiring import build_agent_tools
 
@@ -151,7 +163,7 @@ class OpenAIAgentsRuntimeAdapter(RuntimeAdapter):
                     name=agent_id,
                     instructions=session_meta.get("instructions", ""),
                     model=session_meta.get("model", "gpt-4o-mini"),
-                    tools=tools,
+                    tools=cast(Any, tools),
                 )
 
                 result = Runner.run_streamed(agent, user_input)
@@ -159,7 +171,7 @@ class OpenAIAgentsRuntimeAdapter(RuntimeAdapter):
                     if isinstance(event, RunItemStreamEvent):
                         item = event.item
                         if isinstance(item, MessageOutputItem):
-                            from agents.items import ItemHelpers
+                            from agents.items import ItemHelpers  # type: ignore[import-not-found,import-untyped]
                             text = ItemHelpers.text_message_output(item)
                             yield RuntimeEvent.output_delta(
                                 session_id=session_id,

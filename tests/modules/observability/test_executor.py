@@ -57,6 +57,29 @@ def test_executor_success_path() -> None:
     assert result.result == {"value": 5}
 
 
+def test_executor_validation_error_passes_policy_postcheck() -> None:
+    """Invalid call envelopes still flow through after_tool_call (audit + deterministic mode)."""
+    executor = DeterministicToolExecutor(registry=ToolRegistry(), policy=DeterministicFirstPolicyMiddleware())
+    bad_call = ToolCallContext(
+        schema_version="0.9",
+        call_id="tc_bad_schema",
+        session_id="sess_1",
+        run_id="run_1",
+        job_id="job_1",
+        task_id="task_1",
+        agent_id="agent_1",
+        provider_id="openai",
+        tool_name="any",
+        arguments={},
+    )
+    result = executor.execute(bad_call)
+    assert result.status == ToolStatus.ERROR
+    assert result.error.code == "TOOL_CALL_VALIDATION_ERROR"
+    assert result.execution.mode_used == ToolExecutionMode.DETERMINISTIC
+    assert result.audit is not None
+    assert str(result.audit.correlation_id).strip() == "tc_bad_schema"
+
+
 def test_executor_unknown_tool_returns_error_envelope() -> None:
     executor = DeterministicToolExecutor(registry=ToolRegistry(), policy=DeterministicFirstPolicyMiddleware())
     call = ToolCallContext(

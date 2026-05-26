@@ -9,9 +9,11 @@ Used By:
  - src/api/routers/runtime_control.py
  - src/api/routers/turns.py
 Depends On:
+ - src/core/run_control_registry.py
  - src/core/session_context.py
  - src/persistence/contracts.py
  - src/runtime/tenant_runtime.py
+ - src/tenancy/rate_limiter.py
 Notes:
  - This facade keeps routers off the raw `TenantRuntimeFactory` and session-store wiring.
 """
@@ -21,10 +23,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import uuid
 
+from src.core.run_control_registry import RunControlRegistry, SQLiteRunControlRegistry
 from src.core.session_context import SessionContext
 from src.identity.contracts import IdentityContext
 from src.persistence.contracts import SessionRecord, SessionStore
 from src.runtime.tenant_runtime import TenantRuntimeContext, TenantRuntimeFactory
+from src.tenancy.rate_limiter import SQLiteTenantRateLimiter, TenantRateLimiter
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,9 +44,9 @@ class SessionRuntimeError(Exception):
 class SessionRuntimeService:
     tenant_factory: TenantRuntimeFactory
     session_store: SessionStore | None
-    run_control_registry: object
-    turn_rate_limiter: object
-    tool_upload_rate_limiter: object
+    run_control_registry: RunControlRegistry | SQLiteRunControlRegistry
+    turn_rate_limiter: TenantRateLimiter | SQLiteTenantRateLimiter
+    tool_upload_rate_limiter: TenantRateLimiter | SQLiteTenantRateLimiter
 
     def get_tenant_context(self, tenant_id: str) -> TenantRuntimeContext:
         return self.tenant_factory.get_or_create(tenant_id)
@@ -113,6 +117,6 @@ class SessionRuntimeModule:
     service: SessionRuntimeService
     tenant_factory: TenantRuntimeFactory
     session_store: SessionStore | None
-    run_control_registry: object
-    turn_rate_limiter: object
-    tool_upload_rate_limiter: object
+    run_control_registry: RunControlRegistry | SQLiteRunControlRegistry
+    turn_rate_limiter: TenantRateLimiter | SQLiteTenantRateLimiter
+    tool_upload_rate_limiter: TenantRateLimiter | SQLiteTenantRateLimiter

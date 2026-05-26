@@ -3,13 +3,16 @@ File: middleware.py
 Path: src/policies/middleware.py
 Role: Policy middleware contracts and default deterministic-first implementation.
 Used By:
- - src/runtime/mode_selector.py
  - src/tools/executor.py
  - src/core/orchestrator.py
+ - src/mcp/mcp_tool_adapter.py
 Depends On:
+ - src/policies/risk_gates.py
+ - src/tenancy/policy_overlay.py
  - src/schemas/tool_io.py
 Notes:
  - Policy decisions are auditable and must include reason codes.
+ - Execution mode selection uses policy output but lives in src/runtime/mode_selector.py (not this module).
 """
 
 from __future__ import annotations

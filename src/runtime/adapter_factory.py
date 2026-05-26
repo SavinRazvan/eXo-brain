@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import importlib
 import logging
-
 from src.runtime.runtime_adapter import RuntimeAdapter
 
 logger = logging.getLogger(__name__)
@@ -110,7 +109,7 @@ def load_adapter(adapter_class_ref: str, provider_id: str, **kwargs) -> RuntimeA
         except (ImportError, ValueError) as exc:
             load_errors.append(exc)
             continue
-        return cls(provider_id=provider_id, **kwargs)
+        return cls(provider_id=provider_id, **kwargs)  # type: ignore[call-arg]
     last_error = load_errors[-1] if load_errors else ValueError("unknown adapter load failure")
     raise ImportError(
         f"Could not load adapter class for {adapter_class_ref!r} "

@@ -15,10 +15,12 @@ Depends On:
  - src/schemas/tool_io.py
 Notes:
  - Core must remain provider-neutral and avoid provider SDK imports.
+ - Pre-model ingress and turn-level entitlements run in the API turn path (e.g. src/api/routers/turns.py) before this orchestrator; calling run_turn without that wrapper bypasses ingress.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from typing import Any, AsyncIterator
 
 from src.agents.contracts import AgentCapabilityTag
@@ -205,9 +207,15 @@ class Orchestrator:
         drain = getattr(adapter, "drain_progress_events", None)
         if not callable(drain):
             return []
-        progress_events = drain(call_id)
+        raw_events = drain(call_id)
+        if raw_events is None or isinstance(raw_events, (str, bytes)):
+            return []
+        if not isinstance(raw_events, Iterable):
+            return []
         rendered: list[RuntimeEvent] = []
-        for progress in progress_events:
+        for progress in raw_events:
+            if not isinstance(progress, Mapping):
+                continue
             rendered.append(RuntimeEvent.tool_progress(
                 session_id=session_id,
                 run_id=run_id,

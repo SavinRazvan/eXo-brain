@@ -8,6 +8,8 @@ Depends On:
  - fastapi
  - src/api/dependencies.py
  - src/api/schemas/runtime_control_schemas.py
+ - src/observability/ingress_budget.py
+ - src/tools/byoc/connector_runtime.py
 Notes:
  - Endpoints are tenant-scoped and require authenticated identity.
  - Controls are best-effort and intentionally additive for operations visibility.
@@ -17,6 +19,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import uuid
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -53,19 +56,24 @@ from src.api.schemas.runtime_control_schemas import (
     RuntimeCancellationResponse,
     RuntimeCleanupEventsResponse,
     RuntimeControlStatsResponse,
+    RuntimeIngressBudgetSummary,
     RuntimeIngressBudgetSummaryResponse,
     RuntimeRunCancelResponse,
     RuntimeRunListResponse,
     RuntimeRunRecord,
 )
-from src.core.run_control_registry import RunControlRegistry
+from src.core.run_control_registry import RunControlRegistry, SQLiteRunControlRegistry
 from src.identity.contracts import IdentityContext
 from src.policies.entitlements import EntitledFeature
+from src.observability.ingress_budget import IngressBudgetRecorder
 from src.policies.governance_anomaly_detector import (
+    GovernanceAnomaly,
     GovernanceAnomalyThresholds,
     detect_governance_anomalies,
 )
 from src.runtime.tenant_runtime import TenantRuntimeContext
+from src.tools.byoc.connector_runtime import TenantByocConnectorRuntime
+from src.tools.execution_adapter import ToolExecutionAdapter
 from src.tools.byoc.job_contracts import ByocToolResultEnvelope
 from src.schemas.tool_io import PolicyAction
 
@@ -145,7 +153,7 @@ async def _require_byoc_governance_metrics_entitlement(
     return identity
 
 
-def _resolve_runtime_adapter(ctx: TenantRuntimeContext):
+def _resolve_runtime_adapter(ctx: TenantRuntimeContext) -> ToolExecutionAdapter:
     adapter = ctx.tool_executor.execution_adapter()
     if adapter is None:
         raise HTTPException(
@@ -155,7 +163,7 @@ def _resolve_runtime_adapter(ctx: TenantRuntimeContext):
     return adapter
 
 
-def _resolve_run_registry(request: Request) -> RunControlRegistry:
+def _resolve_run_registry(request: Request) -> RunControlRegistry | SQLiteRunControlRegistry:
     modules = get_app_modules(request)
     registry = modules.session_runtime.run_control_registry if modules is not None else None
     if registry is None:
@@ -163,16 +171,16 @@ def _resolve_run_registry(request: Request) -> RunControlRegistry:
     return registry
 
 
-def _resolve_ingress_budget_recorder(request: Request):
+def _resolve_ingress_budget_recorder(request: Request) -> IngressBudgetRecorder | None:
     modules = get_app_modules(request)
     if modules is None:
         return None
     return modules.audit_observability.ingress_budget_recorder
 
 
-def _resolve_byoc_adapter(ctx: TenantRuntimeContext):
+def _resolve_byoc_adapter(ctx: TenantRuntimeContext) -> TenantByocConnectorRuntime:
     adapter = _resolve_runtime_adapter(ctx)
-    if adapter.backend_id != "byoc_pull_worker_runtime":
+    if not isinstance(adapter, TenantByocConnectorRuntime):
         raise HTTPException(
             status_code=409,
             detail="BYOC runtime adapter is not enabled for this tenant.",
@@ -211,11 +219,14 @@ async def get_runtime_control_stats(
     _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> RuntimeControlStatsResponse:
     adapter = _resolve_runtime_adapter(ctx)
-    pool_stats = getattr(adapter, "pool_stats", lambda: {})()
+    pool_raw = getattr(adapter, "pool_stats", lambda: {})()
+    pool_stats: dict[str, int] = dict(pool_raw) if isinstance(pool_raw, dict) else {}
     stats_method = getattr(adapter, "control_stats_for_tenant", None)
-    control_stats = adapter.control_stats()
+    control_stats: dict[str, int] = dict(adapter.control_stats())
     if callable(stats_method):
-        control_stats = stats_method(tenant_id=tenant_id)
+        merged = stats_method(tenant_id=tenant_id)
+        if isinstance(merged, dict):
+            control_stats = cast(dict[str, int], merged)
     return RuntimeControlStatsResponse(
         tenant_id=tenant_id,
         backend_id=adapter.backend_id,
@@ -493,7 +504,9 @@ async def cleanup_byoc_runtime_retention(
     cleanup_method = getattr(adapter, "cleanup_retention", None)
     stats: dict[str, int] = {}
     if callable(cleanup_method):
-        stats = cleanup_method(tenant_id=tenant_id, force=body.force)
+        cleanup_stats = cleanup_method(tenant_id=tenant_id, force=body.force)
+        if isinstance(cleanup_stats, dict):
+            stats = cast(dict[str, int], cleanup_stats)
     return ByocCleanupResponse(
         tenant_id=tenant_id,
         backend_id=adapter.backend_id,
@@ -515,7 +528,9 @@ async def list_byoc_dead_letter_jobs(
     list_method = getattr(adapter, "list_dead_letter_jobs", None)
     records: list[dict[str, str]] = []
     if callable(list_method):
-        records = list_method(tenant_id=tenant_id, limit=limit)
+        listed = list_method(tenant_id=tenant_id, limit=limit)
+        if isinstance(listed, list):
+            records = cast(list[dict[str, str]], listed)
     return ByocDlqListResponse(
         tenant_id=tenant_id,
         backend_id=adapter.backend_id,
@@ -567,8 +582,13 @@ async def replay_byoc_dead_letter_jobs_bulk(
     if requested_ids:
         target_job_ids = list(dict.fromkeys(requested_ids))[:bounded_limit]
     else:
-        records = list_method(tenant_id=tenant_id, limit=bounded_limit) if callable(list_method) else []
-        target_job_ids = [str(item.get("job_id", "")).strip() for item in records if str(item.get("job_id", "")).strip()]
+        records_raw = list_method(tenant_id=tenant_id, limit=bounded_limit) if callable(list_method) else []
+        records_list = records_raw if isinstance(records_raw, list) else []
+        target_job_ids = [
+            str(item.get("job_id", "")).strip()
+            for item in records_list
+            if isinstance(item, dict) and str(item.get("job_id", "")).strip()
+        ]
 
     attempted = len(target_job_ids)
     replayed = 0
@@ -584,7 +604,8 @@ async def replay_byoc_dead_letter_jobs_bulk(
         )
 
     if callable(replay_bulk_method):
-        summary = replay_bulk_method(tenant_id=tenant_id, job_ids=target_job_ids, limit=bounded_limit)
+        summary_raw = replay_bulk_method(tenant_id=tenant_id, job_ids=target_job_ids, limit=bounded_limit)
+        summary = cast(dict[str, Any], summary_raw) if isinstance(summary_raw, dict) else {}
         attempted = int(summary.get("attempted", attempted))
         replayed = int(summary.get("replayed", 0))
         raw_failures = summary.get("failures", [])
@@ -634,9 +655,11 @@ async def get_byoc_governance_metrics(
 
     adapter = _resolve_byoc_adapter(ctx)
     stats_method = getattr(adapter, "control_stats_for_tenant", None)
-    control_stats = adapter.control_stats()
+    control_stats = dict(adapter.control_stats())
     if callable(stats_method):
-        control_stats = stats_method(tenant_id=tenant_id)
+        merged = stats_method(tenant_id=tenant_id)
+        if isinstance(merged, dict):
+            control_stats = cast(dict[str, int], merged)
 
     window_policy_enabled = bool(int(control_stats.get("tenant_cost_window_policy_enabled", 0)))
     window_seconds = int(control_stats.get("tenant_cost_window_seconds", 0))
@@ -668,7 +691,8 @@ async def get_byoc_governance_metrics(
     conflict_method = getattr(adapter, "conflict_counts_for_tenant", None)
     if callable(conflict_method):
         raw_conflicts = conflict_method(tenant_id=tenant_id)
-        for record in raw_conflicts:
+        conflict_rows = raw_conflicts if isinstance(raw_conflicts, (list, tuple)) else []
+        for record in conflict_rows:
             conflict_counts.append(
                 ByocGovernanceConflictCount(
                     strategy=str(record.strategy),
@@ -688,7 +712,7 @@ async def get_byoc_governance_metrics(
         min_submit_attempts=int(settings.runtime.byoc_anomaly_min_submit_attempts),
         min_rejection_count=int(settings.runtime.byoc_anomaly_min_rejection_count),
     )
-    anomalies = []
+    anomalies: list[GovernanceAnomaly] = []
     if anomaly_enabled:
         anomalies = detect_governance_anomalies(
             cost_utilization_ratio=utilization_ratio,
@@ -750,30 +774,32 @@ async def get_runtime_ingress_budget_summary(
     _identity: IdentityContext = Depends(_require_runtime_admin_entitlement),
 ) -> RuntimeIngressBudgetSummaryResponse:
     recorder = _resolve_ingress_budget_recorder(request)
-    raw_summary = recorder.summary(tenant_id=tenant_id) if recorder is not None else {}
-    summary = {
-        "samples": int(raw_summary.get("samples", 0)),
-        "p95_latency_ms": float(raw_summary.get("p95_latency_ms", 0.0)),
-        "timeout_total": int(raw_summary.get("timeout_total", 0)),
-        "timeout_rate": float(raw_summary.get("timeout_rate", 0.0)),
-        "budget_exceeded_total": int(raw_summary.get("budget_exceeded_total", 0)),
-    }
+    raw_summary_obj = recorder.summary(tenant_id=tenant_id) if recorder is not None else {}
+    raw_summary = cast(dict[str, Any], raw_summary_obj) if isinstance(raw_summary_obj, dict) else {}
+    summary = RuntimeIngressBudgetSummary(
+        samples=int(cast(Any, raw_summary.get("samples", 0))),
+        p95_latency_ms=float(cast(Any, raw_summary.get("p95_latency_ms", 0.0))),
+        timeout_total=int(cast(Any, raw_summary.get("timeout_total", 0))),
+        timeout_rate=float(cast(Any, raw_summary.get("timeout_rate", 0.0))),
+        budget_exceeded_total=int(cast(Any, raw_summary.get("budget_exceeded_total", 0))),
+    )
     raw_profiles = raw_summary.get("profiles", {})
-    profiles: dict[str, dict[str, float | int]] = {}
+    profiles: dict[str, RuntimeIngressBudgetSummary] = {}
     if isinstance(raw_profiles, dict):
         for profile_name, profile_summary in raw_profiles.items():
             if not isinstance(profile_summary, dict):
                 continue
+            ps = cast(dict[str, Any], profile_summary)
             normalized_profile = str(profile_name).strip().lower()
             if not normalized_profile:
                 continue
-            profiles[normalized_profile] = {
-                "samples": int(profile_summary.get("samples", 0)),
-                "p95_latency_ms": float(profile_summary.get("p95_latency_ms", 0.0)),
-                "timeout_total": int(profile_summary.get("timeout_total", 0)),
-                "timeout_rate": float(profile_summary.get("timeout_rate", 0.0)),
-                "budget_exceeded_total": int(profile_summary.get("budget_exceeded_total", 0)),
-            }
+            profiles[normalized_profile] = RuntimeIngressBudgetSummary(
+                samples=int(cast(Any, ps.get("samples", 0))),
+                p95_latency_ms=float(cast(Any, ps.get("p95_latency_ms", 0.0))),
+                timeout_total=int(cast(Any, ps.get("timeout_total", 0))),
+                timeout_rate=float(cast(Any, ps.get("timeout_rate", 0.0))),
+                budget_exceeded_total=int(cast(Any, ps.get("budget_exceeded_total", 0))),
+            )
     return RuntimeIngressBudgetSummaryResponse(
         tenant_id=tenant_id,
         generated_at_utc=_utc_now(),

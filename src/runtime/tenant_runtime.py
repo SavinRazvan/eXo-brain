@@ -12,6 +12,7 @@ Depends On:
  - src/core/orchestrator.py
  - src/core/session_store.py
  - src/integration/host_adapter.py
+ - src/runtime/runtime_adapter.py
  - src/policies/middleware.py
  - src/tenancy/quotas.py
  - src/tools/executor.py
@@ -45,6 +46,7 @@ from src.core.orchestrator import Orchestrator
 from src.core.session_store import InMemorySessionStore, SessionStore
 from src.integration.host_adapter import OrchestratorHostAdapter
 from src.policies.middleware import DeterministicFirstPolicyMiddleware
+from src.runtime.runtime_adapter import RuntimeAdapter
 from src.tenancy.quotas import TenantQuotaManager
 from src.tools.executor import DeterministicToolExecutor
 from src.tools.registry import ToolRegistry
@@ -195,7 +197,7 @@ class SessionAdapterResolver:
         *,
         tenant_context: TenantRuntimeContext,
         provider_id: str,
-    ) -> "RuntimeAdapter":
+    ) -> RuntimeAdapter:
         from src.runtime.adapter_factory import load_adapter
 
         provider = self._provider_registry.get(provider_id)
@@ -215,10 +217,10 @@ class SessionAdapterResolver:
         registered_adapter = self._provider_registry.get_adapter(provider_id)
         adapter_cls = type(registered_adapter)
         try:
-            return adapter_cls(provider_id=provider_id, **init_kwargs)
+            return adapter_cls(provider_id=provider_id, **init_kwargs)  # type: ignore[call-arg]
         except TypeError:
             try:
-                return adapter_cls(provider_id=provider_id)
+                return adapter_cls(provider_id=provider_id)  # type: ignore[call-arg]
             except TypeError:
                 return adapter_cls()
 
@@ -270,7 +272,7 @@ class SessionRuntimeAssembler:
         agent_id: str,
         provider_id: str,
         session_id: str,
-    ) -> tuple[OrchestratorHostAdapter, "RuntimeAdapter"]:
+    ) -> tuple[OrchestratorHostAdapter, RuntimeAdapter]:
         spec = tenant_context.agent_registry.get(agent_id)
         adapter = self._adapter_resolver.resolve(
             tenant_context=tenant_context,
@@ -315,7 +317,7 @@ class TenantRuntimeFactory:
         self._contexts: dict[str, TenantRuntimeContext] = {}
         self._tenant_last_touch: dict[str, float] = {}
         self._session_runtimes: dict[str, OrchestratorHostAdapter] = {}
-        self._session_adapters: dict[str, "RuntimeAdapter"] = {}
+        self._session_adapters: dict[str, RuntimeAdapter] = {}
         self._session_tenant: dict[str, str] = {}
         self._session_last_access: dict[str, float] = {}
         self._sandbox_pool: TenantSandboxPool | None = (
@@ -394,7 +396,7 @@ class TenantRuntimeFactory:
         self,
         tenant_context: TenantRuntimeContext,
         provider_id: str,
-    ) -> "RuntimeAdapter":
+    ) -> RuntimeAdapter:
         """Resolve and instantiate a fresh adapter for a session.
 
         Preferred path: use provider_record.adapter_class via adapter_factory.
@@ -432,7 +434,7 @@ class TenantRuntimeFactory:
         self._touch_session(session_id)
         return host_adapter
 
-    def get_session_adapter(self, session_id: str) -> "RuntimeAdapter":
+    def get_session_adapter(self, session_id: str) -> RuntimeAdapter:
         """Return the runtime adapter for a session — used in tests and diagnostics."""
         self._evict_idle_sessions_only()
         adapter = self._session_adapters.get(session_id)

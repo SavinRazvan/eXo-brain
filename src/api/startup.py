@@ -35,6 +35,7 @@ from src.config.provider_registry import (
 )
 from src.persistence.contracts import PersistedAgentRecord, PersistedProviderRecord, PersistedToolRecord
 from src.runtime.adapter_factory import canonicalize_adapter_class_ref, load_adapter
+from src.runtime.runtime_adapter import RuntimeAdapter
 from src.schemas.tool_io import RiskTier
 from src.tools.registry import ToolDescriptor
 from src.tools.version_projection import descriptor_from_tool_version
@@ -90,7 +91,7 @@ def _tool_record_to_descriptor(record: PersistedToolRecord) -> ToolDescriptor | 
     )
 
 
-def _provider_record_to_runtime(record: PersistedProviderRecord) -> tuple[ProviderRecord, "RuntimeAdapter"] | None:
+def _provider_record_to_runtime(record: PersistedProviderRecord) -> tuple[ProviderRecord, RuntimeAdapter] | None:
     """Convert PersistedProviderRecord to (ProviderRecord, RuntimeAdapter).
 
     Returns None if the adapter cannot be loaded (e.g. missing module).

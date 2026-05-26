@@ -840,7 +840,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
     ) -> ToolResult:
         normalized_reason = str(reason_code).strip() or "BYOC_COST_LIMIT_EXCEEDED"
         self._increment_tenant_rejection(tenant_id=tenant_id, reason_code=normalized_reason)
-        merged_details = {"backend_id": self.backend_id, "tenant_id": tenant_id}
+        merged_details: dict[str, Any] = {"backend_id": self.backend_id, "tenant_id": tenant_id}
         merged_details.update(details)
         return ToolResult(
             schema_version="1.0",
@@ -961,7 +961,7 @@ class TenantByocConnectorRuntime(ToolExecutionAdapter):
             self._tenant_cost_window_microunits.setdefault(tenant_id, cost)
         return (start, cost)
 
-    def _fair_admission_coordinator(self) -> ByocFairAdmissionCoordinator:
+    def _fair_admission_coordinator(self) -> ByocFairAdmissionCoordinator | SQLiteByocFairAdmissionCoordinator:
         if self._fair_admission_backend == "sqlite":
             if self._sqlite_fair_admission is None:
                 self._sqlite_fair_admission = SQLiteByocFairAdmissionCoordinator(

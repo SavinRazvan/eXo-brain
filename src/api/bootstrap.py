@@ -182,8 +182,9 @@ def bootstrap(
         async def _hydrate_on_startup() -> None:
             await hydrate_tenant_registries(app)
 
-        if hasattr(app, "add_event_handler"):
-            app.add_event_handler("startup", _hydrate_on_startup)
+        add_event_handler = getattr(app, "add_event_handler", None)
+        if callable(add_event_handler):
+            add_event_handler("startup", _hydrate_on_startup)
         else:
             startup_handlers = getattr(app.router, "on_startup", None)
             if isinstance(startup_handlers, list):
