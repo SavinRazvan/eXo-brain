@@ -19,6 +19,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _CONTRACTS_DIR = "exo-brain-core-contracts"
 _MARKER = _CONTRACTS_DIR + "/pyproject.toml"
+_PORTABLE_ADAPTER_PACKAGE_DIRS = (
+    "exo-brain-adapter-sdk",
+    "exo-adapter-echo",
+    "exo-adapter-openai",
+)
 
 
 def _local_adapter_workspace() -> Path | None:
@@ -34,7 +39,10 @@ def _local_adapter_workspace() -> Path | None:
 
 
 def local_portable_adapters_present() -> bool:
-    return _local_adapter_workspace() is not None
+    workspace = _local_adapter_workspace()
+    if workspace is None:
+        return False
+    return all((workspace / package_name / "src").is_dir() for package_name in _PORTABLE_ADAPTER_PACKAGE_DIRS)
 
 
 def package_src(package_name: str) -> Path:
