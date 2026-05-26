@@ -33,6 +33,14 @@ _archive/
 .tmp_tools/*
 .tmp_tools
 eXo_adapters/
+!packages/eXo_adapters/
+!packages/eXo_adapters/packages/
+!packages/eXo_adapters/packages/exo-brain-core-contracts/
+!packages/eXo_adapters/packages/exo-brain-core-contracts/pyproject.toml
+!packages/eXo_adapters/packages/exo-brain-core-contracts/src/
+!packages/eXo_adapters/packages/exo-brain-core-contracts/src/exo_brain_core_contracts/
+!packages/eXo_adapters/packages/exo-brain-core-contracts/src/exo_brain_core_contracts/*.py
+packages/eXo_adapters/packages/exo-brain-core-contracts/src/*.egg-info/
 
 # personal working notes (per maintainer; do not commit)
 temp_plan.md
