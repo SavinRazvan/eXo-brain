@@ -1,6 +1,6 @@
 ---
 name: implementer
-model: composer-2
+model: composer-2.5[]
 ---
 
 # eXo-brain — implementer

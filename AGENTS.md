@@ -74,6 +74,7 @@ Use `feature/`, `fix/`, or `chore/` branches; keep `main` merge-ready. After mer
 | Audits (canonical) | **`enterprise-auditor`** — `.cursor/agents/enterprise-auditor.md` + `.cursor/skills/enterprise-architecture-audit/SKILL.md` (full report: `.local/workflow-artifacts/enterprise-architecture-audit/`; PR alignment: `.local/workflow-artifacts/alignment/`) |
 | Module map (depth tool) | `.cursor/skills/audit-module-map/SKILL.md` — use under **`enterprise-auditor`** when deep topology/HTML export is needed |
 | Maintainer PR | `.agents/skills/PR_WORKFLOW.md` → `review-pr` → `prepare-pr` → `merge-pr` (versioned under `.agents/skills/`, same layout as Cursor skills) |
+| Research corpus | `.cursor/agents/researcher.md` + `.cursor/skills/research-corpus-execution/SKILL.md` — hub `.agents/skills/RESEARCH_WORKFLOW.md`; output `_research_results/` (local, gitignored) |
 
 Scripts (attribution use your name as today):
 
