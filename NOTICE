@@ -1,0 +1,12 @@
+eXo-brain
+Copyright 2024-2026 Savin I. Razvan
+
+This product is licensed under the Apache License, Version 2.0 (the "License");
+see the LICENSE file in the root of this repository.
+
+eXo-brain is an independent reference implementation of governed agentic AI
+execution. It is maintained part-time by a single author and is not affiliated
+with, endorsed by, or supported by any vendor or commercial entity.
+
+See MAINTAINER_STATUS.md for current maintenance posture and the bounds of
+what can be claimed about this software.

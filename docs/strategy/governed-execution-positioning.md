@@ -31,9 +31,11 @@ Notes:
 
 ## Purpose
 
-This note sharpens how eXo-brain should be sold and explained.
+This note sharpens how eXo-brain should be explained, evaluated, and (where
+evidence supports it) commercialized.
 
-It turns the platform from a broad "AI infrastructure" description into a narrower commercial thesis:
+It turns the platform from a broad "AI infrastructure" description into a
+narrower positioning thesis:
 
 - customers keep their own model/provider stack,
 - eXo-brain becomes the governed execution boundary for risky AI behavior,
@@ -43,11 +45,13 @@ It turns the platform from a broad "AI infrastructure" description into a narrow
 
 **Context (intent, not a maturity claim):** As AI becomes default infrastructure inside products, the failure mode shifts from “model quality” to **uncontrolled actions**: tool side effects, policy bypass, weak audit, and tenant bleed. eXo-brain’s role is to make **governed execution** a **first-class, API-enforced layer** so organizations and startups do not have to rebuild the same safety spine in every stack.
 
-- **Safety (qualified):** We sell **enforceable** ingress, policy, deterministic tool execution, audit evidence, and operational controls — not a promise to “make AI safe” in the abstract (see Messaging Guardrails).
+- **Safety (qualified):** The project demonstrates **enforceable** ingress, policy, deterministic tool execution, audit evidence, and operational controls — not a promise to “make AI safe” in the abstract (see Messaging Guardrails).
 - **Speed for builders:** Startups and product teams ship faster when governance is **subscription-scoped configuration and APIs** instead of bespoke middleware before every launch.
 - **Monetization and sustainability:** Revenue from **governance depth and assurance** funds continued investment in controls, certification, telemetry, and enterprise operations — aligned with the customer outcome (reduced blast radius, audit-ready behavior), not commodity token resale.
 
-This north star is **compatible with** honest stage-gating: narrow commercial claims until evidence (tests, deployment profiles, telemetry) supports them (see Commercial Risks and Prerequisites).
+This north star is **compatible with** honest stage-gating: narrow public and
+commercial claims until evidence (tests, deployment profiles, telemetry)
+supports them (see Commercial Risks and Prerequisites and `STATUS.md`).
 
 ## Enterprise separation of concerns
 

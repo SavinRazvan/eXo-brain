@@ -43,15 +43,28 @@ Companion enforcement docs:
 
 eXo-brain is not a model reseller and not a generic LLM wrapper.
 
-**Control plane framing:** the paid product is the **governed execution and safety boundary** — policy, ingress gates, deterministic tool execution, audit evidence, entitlements, runtime control, and tenant governance — delivered primarily through the **control plane API** (with optional **customer bridge** surfaces for integration ergonomics). Provider runtime adapters enable customer-owned model connectivity but are **not** the primary margin story.
+**Control plane framing:** if this work is commercialized, the paid value is the
+**governed execution and safety boundary** — policy, ingress gates,
+deterministic tool execution, audit evidence, entitlements, runtime control,
+and tenant governance — delivered primarily through the **control plane API**
+(with optional **customer bridge** surfaces for integration ergonomics).
+Provider runtime adapters enable customer-owned model connectivity but are
+**not** the primary margin story.
 
-eXo-brain should be sold as the governed execution boundary for tool-using AI systems:
+eXo-brain should be positioned, and only later sold where evidence supports it,
+as the governed execution boundary for tool-using AI systems:
 
 - customers keep their own model and provider connectivity,
 - eXo-brain governs risky or state-changing actions,
 - durable paid value comes from policy, deterministic execution, audit, and runtime control.
 
 Do not monetize raw provider connectivity alone.
+
+Public repository note:
+- The current repository is a single-maintainer reference implementation. This
+  strategy describes value-capture direction, not a claim that the current
+  repository is a buyable enterprise SaaS product. See `STATUS.md` and
+  `MAINTAINER_STATUS.md`.
 
 Monetize:
 - non-bypassable execution safety,
