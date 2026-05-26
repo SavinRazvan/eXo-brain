@@ -38,7 +38,7 @@ notebook>=7.5.4
 nbformat>=5.10.4
 nbconvert>=7.17.0
 ipykernel>=7.2.0
-ipython>=9.10.0
+ipython>=9.13.0
 
 # ── Type utilities ────────────────────────────────────────────────────────────
 typing_extensions>=4.15.0
