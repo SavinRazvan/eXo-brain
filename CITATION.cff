@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use eXo-brain in research, writing, or architecture work, please cite it using this metadata."
+title: "eXo-brain: Reference Implementation of Governed Agentic AI Execution"
+type: software
+authors:
+  - family-names: "Savin"
+    given-names: "Razvan"
+    name-particle: "I."
+repository-code: "https://github.com/SavinRazvan/eXo-brain"
+url: "https://github.com/SavinRazvan/eXo-brain"
+license: "Apache-2.0"
+abstract: "An independent reference implementation of governed agentic AI execution, focused on policy gates, deterministic tool execution, provider-neutral runtime adapters, auditability, and tenant governance."
+keywords:
+  - ai-governance
+  - agentic-ai
+  - llm-orchestration
+  - deterministic-execution
+  - policy-engine
+  - provider-neutral
+  - multi-tenancy
+date-released: "2026-05-26"

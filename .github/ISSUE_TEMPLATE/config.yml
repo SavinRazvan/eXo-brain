@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/SavinRazvan/eXo-brain/security/advisories/new
+    about: Please report suspected vulnerabilities privately.
+  - name: Maintainer status
+    url: https://github.com/SavinRazvan/eXo-brain/blob/main/MAINTAINER_STATUS.md
+    about: Read the project's support and maintenance posture before opening broad requests.
