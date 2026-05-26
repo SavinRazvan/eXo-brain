@@ -21,16 +21,17 @@ Notes:
 | `README.md` | Project entrypoint and developer quick-start |
 | `docs/README.md` | Top-level documentation index (reading spine, module/API/plan pointers) |
 | `docs/api/customer-api-integration-guide.md` | Tier-aware API contract documentation for customer onboarding (chat/agents/workflow + governance ingress) |
-| `docs/api/governance-preview-and-testing.md` | Self-serve governance testing patterns, feedback loop, planned simulation/dry-run APIs |
+| `docs/api/governance-preview-and-testing.md` | **Planned (file not in repo yet)** — self-serve governance testing patterns, feedback loop, simulation/dry-run APIs (`traceability-matrix.md`) |
 | `docs/strategy/customer-self-serve-governance-journey.md` | Canonical customer self-serve governance product contract and implementer checklist |
 | `docs/strategy/foundation-tier-adoption-checklist.md` | Foundation-tier API adoption steps with Pro/Enterprise deltas |
 | `docs/plans/governance-configuration-reference-model.md` | Unified configuration entity model, dependency order, precedence, thin-UI mapping |
-| `docs/operations/governance-reason-code-catalog.md` | Reason-code ownership and discovery process (not a full literal catalog) |
+| `docs/operations/governance-reason-code-catalog.md` | **Planned (file not in repo yet)** — reason-code ownership and discovery process (`traceability-matrix.md`) |
 | `docs/architecture/beginner-workflow.md` | Beginner-friendly plain-language walkthrough of the platform workflow |
 | `docs/architecture/mvp.md` | Layer architecture and design intent (canonical) |
 | `docs/architecture_mvp.md` | Redirect stub → `docs/architecture/mvp.md` |
 | `docs/architecture/workspace-architecture.md` | Workspace doctrine (adapters, policy, enterprise controls) |
 | `docs/architecture/ARCHITECTURE.md` | Consolidated map: planes, Option C/strategy vocabulary, mermaid A–C, layers, modules, plans × concerns, maintainer checklist §14 |
+| `docs/architecture/governed-execution-pipeline.md` | Canonical control-plane ordering: entitlements, ingress, orchestrator, tool policy, deterministic execution vs provider-native; direct-`Orchestrator` bypass warning |
 | `docs/strategy/README.md` | Strategy package index (product direction, entitlements, traceability) |
 | `docs/strategy/governed-execution-positioning.md` | Product boundary, ICP, monetization posture, and messaging guardrails for governed execution |
 | `docs/operations/workflow-complete.md` | Maintainer workflow checklist (durable) |

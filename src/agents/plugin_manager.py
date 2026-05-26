@@ -38,7 +38,7 @@ class LifecyclePolicy(Protocol):
         plugin_id: str,
         has_active_non_idempotent_tasks: bool,
     ) -> LifecyclePolicyDecision:
-        """Return allow/deny/escalate decision for lifecycle actions."""
+        ...
 
 
 class AllowAllLifecyclePolicy:

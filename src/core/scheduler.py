@@ -11,6 +11,7 @@ Depends On:
  - src/persistence/contracts.py
 Notes:
  - Scheduler stops dependents when an upstream node fails.
+ - Defensive `AssertionError` after `_run_node` retry loop satisfies static exhaustiveness (unreachable).
 """
 
 from __future__ import annotations
@@ -279,6 +280,8 @@ class TaskScheduler:
                 level=LogLevel.WARNING,
             )
             await asyncio.sleep(self._retry_policy.delay_seconds(attempts))
+
+        raise AssertionError("unreachable: _run_node exited retry loop without return")  # pragma: no cover
 
     def _build_input_payload(
         self,

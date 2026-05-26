@@ -42,9 +42,6 @@ eXo_adapters/
 !packages/eXo_adapters/packages/exo-brain-core-contracts/src/exo_brain_core_contracts/*.py
 packages/eXo_adapters/packages/exo-brain-core-contracts/src/*.egg-info/
 
-# personal working notes (per maintainer; do not commit)
-temp_plan.md
-
 # local agent metadata/config (version `.agents/skills/**` like `.cursor/skills`)
 .agents/*
 !.agents/skills/

@@ -23,7 +23,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -148,7 +148,9 @@ async def _evaluate_ingress_turn(
     policy_metadata_fn = getattr(gate_chain, "policy_metadata", None)
     policy_metadata: dict[str, Any] = {}
     if callable(policy_metadata_fn):
-        policy_metadata = dict(policy_metadata_fn())
+        raw_policy_meta = policy_metadata_fn()
+        if isinstance(raw_policy_meta, Mapping):
+            policy_metadata = dict(raw_policy_meta)
     ingress_profile = str(policy_metadata.get("ingress_profile", DEFAULT_INGRESS_PROFILE)).strip().lower()
     if not ingress_profile:
         ingress_profile = DEFAULT_INGRESS_PROFILE

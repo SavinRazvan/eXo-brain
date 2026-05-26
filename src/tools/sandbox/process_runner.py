@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import multiprocessing
 from queue import Empty
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 
 class ProcessRunnerTimeoutError(TimeoutError):
@@ -26,7 +26,7 @@ class ProcessRunnerTimeoutError(TimeoutError):
 def _run_handler_in_child(
     handler: Callable[..., Any],
     arguments: dict[str, Any],
-    result_queue: multiprocessing.queues.Queue,
+    result_queue: Any,
 ) -> None:
     try:
         result = handler(**arguments)
@@ -55,8 +55,9 @@ class ProcessSandboxRunner:
         timeout_ms: int,
     ) -> Any:
         timeout_seconds = max(int(timeout_ms), 1) / 1000.0
-        queue: multiprocessing.queues.Queue = self._context.Queue(maxsize=1)
-        process = self._context.Process(target=_run_handler_in_child, args=(handler, arguments, queue), daemon=True)
+        queue: Any = self._context.Queue(maxsize=1)
+        process_factory = cast(Any, self._context).Process
+        process = process_factory(target=_run_handler_in_child, args=(handler, arguments, queue), daemon=True)
         process.start()
         process.join(timeout_seconds)
 

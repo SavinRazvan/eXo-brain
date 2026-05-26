@@ -2,8 +2,9 @@
 # Python 3.12+ (minimum). CI and Dockerfile use 3.12.x; newer CPython (e.g. 3.13+) expected compatible unless noted.
 # Install: pip install -r requirements.txt (from repo root)
 
-# -- Runtime contracts (in-tree transitional bundle under packages/eXo_adapters) --
+# ── Runtime contracts (in-tree transitional bundle under packages/eXo_adapters) ─
 # Canonical upstream remains the eXo_adapters repo; this path keeps CI/local pip working without git auth.
+# Fallback: sibling clone — bash scripts/dev/install_requirements_with_sibling_exo_adapters.sh
 -e ./packages/eXo_adapters/packages/exo-brain-core-contracts
 
 # ── AI / Model providers ──────────────────────────────────────────────────────
@@ -39,6 +40,7 @@ nbformat>=5.10.4
 nbconvert>=7.17.0
 ipykernel>=7.2.0
 ipython>=9.13.0
+nest-asyncio>=1.6.0
 
 # ── Type utilities ────────────────────────────────────────────────────────────
 typing_extensions>=4.15.0

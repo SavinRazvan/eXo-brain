@@ -1,6 +1,6 @@
 <!--
 File: goal.md
-Path: goal.md
+Path: docs/strategy/goal.md
 Role: Product, architecture, and monetization north-star for eXo-brain.
 Used By:
  - adapter-strategy.md
@@ -16,6 +16,7 @@ Depends On:
  - src/tools/*
  - src/policies/*
  - src/api/*
+ - docs/architecture/governed-execution-pipeline.md
 Notes:
  - Keep aligned with API-first Option C delivery.
  - Update when package boundaries, business model, or governance model changes.
@@ -27,8 +28,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.8.0`
-- Last Reviewed: `2026-04-01`
+- Version: `1.9.0`
+- Last Reviewed: `2026-04-12`
 - Review Cadence: `monthly`
 - Decision Scope: `Product north-star, strategic boundaries, and long-term direction for provider-neutral orchestration.`
 
@@ -94,7 +95,7 @@ The **primary codebase** for this product is the **control plane** (API, core, p
 - Model tool intent is separated from side-effect execution.
 
 ### C. Lack of policy control
-- Customers can choose predefined governance profiles and per-tenant overlays (deny/escalate/allow behavior).
+- Customers can choose predefined governance profiles and per-tenant overlays (deny/escalate/allow behavior). **`ESCALATE`** today means **no progression** for that gate or tool step (blocked envelope / stream error) plus **review metadata and reason codes** for operators; a first-class **human approve/reject API lifecycle** is planned (see `traceability-matrix.md`, Human approval workflow surface).
 - Customers can add bounded custom policy/gate rules without redeploying core logic.
 - High-flexibility customization (plugin-style custom gates) must remain sandboxed, signed, and policy-governed.
 
@@ -134,16 +135,19 @@ UI scope note:
 
 ## Part 1: Core (control plane and governance plane)
 
-Core must remain provider-neutral and own:
-- orchestration,
-- ingress safety gating before model/runtime execution,
-- policy gates,
-- deterministic tool execution,
+The **control plane** (this repository: API, policies, `src/core`, tools, tenancy, audit) must remain provider-neutral and own the **non-bypassable enforcement story** end-to-end for supported entrypoints:
+
+- orchestration (`src/core/orchestrator.py` and contracts),
+- **ingress and pre-turn admission** implemented primarily on the **API turn path** (`src/api/routers/turns.py`) and policy modules (`src/policies/ingress_*.py`) — not inside the orchestrator class file,
+- policy gates and risk evaluation (`src/policies/*`),
+- deterministic tool execution (`src/tools/executor.py`),
 - tenant governance,
 - observability and audit,
 - standard telemetry export contracts for supported deployment profiles.
 
-Core is the non-bypassable enforcement layer.
+The **`src/core` Python package** is the **orchestration and adapter bridging** layer; **ingress** runs **before** `Orchestrator.run_turn` on the default customer path. See [`docs/architecture/governed-execution-pipeline.md`](../architecture/governed-execution-pipeline.md) for the canonical ordering diagram. **Calling `Orchestrator.run_turn` directly without the API wrapper bypasses ingress** unless the integrator re-applies equivalent gates.
+
+Core (control plane) is the non-bypassable enforcement layer for productized entrypoints.
 
 ## 5a) Customer integration surfaces (control plane in the loop)
 
@@ -236,7 +240,7 @@ This gives customers control while preserving core invariants.
 Customers must be able to **drive their own governance** for adapter-backed workflows **through the control plane API**:
 
 - configure gates, guardrails, policy overlays, tool/agent registration, provider registration, and quotas within **tenant scope**;
-- **iterate safely** using observable outcomes (reason codes, audit events, `correlation_id` joins) and patterns in [`docs/api/governance-preview-and-testing.md`](../api/governance-preview-and-testing.md);
+- **iterate safely** using observable outcomes (reason codes, audit events, `correlation_id` joins) and the integration patterns in [`docs/api/customer-api-integration-guide.md`](../api/customer-api-integration-guide.md) (audit and turn correlation sections) plus [`docs/architecture/governed-execution-pipeline.md`](../architecture/governed-execution-pipeline.md); **planned** deep-dive docs (`governance-preview-and-testing`, `governance-reason-code-catalog`) remain tracked in [`docs/strategy/traceability-matrix.md`](traceability-matrix.md) until published in-tree;
 - rely on a **single configuration spine**: any future forms or dashboard modules are **thin clients** over the same APIs (no parallel config model) — see [`docs/strategy/interface-strategy.md`](interface-strategy.md) and [`docs/plans/governance-configuration-reference-model.md`](../plans/governance-configuration-reference-model.md).
 
 **Canonical narrative and scope checklist:** [`docs/strategy/customer-self-serve-governance-journey.md`](customer-self-serve-governance-journey.md). **Foundation minimum path:** [`docs/strategy/foundation-tier-adoption-checklist.md`](foundation-tier-adoption-checklist.md).
@@ -282,7 +286,8 @@ Monetization should focus on governance and operational value, not raw model acc
 
 ### Runtime safety
 - Keep deterministic path mandatory for risky/state-changing operations.
-- Keep policy `before_tool_call` and `after_tool_call` around every side-effect path.
+- Keep policy **`before_tool_call`** on **every path that can reach tool execution** (orchestrator and executor both evaluate for defense in depth on the reference path).
+- Keep policy **`after_tool_call`** post-checks on **successful deterministic and hosted tool envelopes** returned from `DeterministicToolExecutor` (audit correlation, deterministic `mode_used`, success payload invariants). Early exits that never invoked a handler (validation failures, policy **block** envelopes) still pass through the same middleware hook where applicable so post-check rules stay centralized; provider-native tool execution inside adapters follows adapter contracts and streaming behavior in [`docs/architecture/governed-execution-pipeline.md`](../architecture/governed-execution-pipeline.md).
 - Keep turn-ingress gate evaluation bounded by explicit latency budgets and fail-safe behavior.
 - Keep adapter failures isolated and recoverable (fallbacks, retries, cancellation controls).
 
@@ -338,7 +343,7 @@ Required outcome:
 
 - Does this change preserve provider-neutral core boundaries?
 - Can a customer configure it via API without code patching core?
-- Does policy middleware still wrap all side-effect paths?
+- Does policy middleware still wrap all **deterministic** side-effect paths and preserve the ingress + tool-policy ordering in [`docs/architecture/governed-execution-pipeline.md`](../architecture/governed-execution-pipeline.md)?
 - Is deterministic execution still enforced for risky/state-changing calls?
 - Are audit and observability events complete and verifiable?
 - Is the change compatible with adapter contract version policy?

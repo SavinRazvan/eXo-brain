@@ -20,7 +20,7 @@ import json
 import uuid
 from typing import Any
 
-from agents import FunctionTool
+from agents import FunctionTool  # type: ignore[import-not-found,import-untyped]
 
 from src.schemas.tool_io import ToolCallContext, ToolStatus
 from src.tools.executor import DeterministicToolExecutor

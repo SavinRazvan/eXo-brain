@@ -182,7 +182,8 @@ class SQLiteByocFairAdmissionCoordinator:
                         """,
                         (normalized, now, now + self._lease_seconds),
                     )
-                    return FairAdmissionToken(tenant_id=normalized, request_id=int(cur.lastrowid))
+                    last_id = cur.lastrowid
+                    return FairAdmissionToken(tenant_id=normalized, request_id=int(last_id or 0))
             if time.monotonic() >= deadline:
                 return None
             time.sleep(0.01)

@@ -209,6 +209,54 @@ def test_orchestrator_terminal_state_and_progress_guard_branches() -> None:
     _collect(orchestrator, context={"run_id": "run_o_1"})
 
 
+def test_orchestrator_emit_adapter_progress_defensive_guards() -> None:
+    """Each defensive guard in _emit_adapter_progress returns [] / skips silently for malformed adapter output."""
+    registry = ToolRegistry()
+    registry.register(ToolDescriptor(name="echo_tool", handler=lambda value: value))
+    policy = _AllowPolicy()
+    runtime = _RuntimeAdapterDouble(call=_call_context())
+    orchestrator = Orchestrator(
+        runtime_adapter=runtime,
+        policy_middleware=policy,
+        tool_executor=DeterministicToolExecutor(registry=registry, policy=policy),
+    )
+
+    def _emit(adapter_obj: Any) -> list[RuntimeEvent]:
+        return orchestrator._emit_adapter_progress(
+            session_id="sess",
+            run_id="run",
+            correlation_id="corr",
+            call_id="call",
+            adapter=adapter_obj,
+        )
+
+    class _ReturnsNone:
+        def drain_progress_events(self, _call_id: str) -> None:
+            return None
+
+    class _ReturnsString:
+        def drain_progress_events(self, _call_id: str) -> str:
+            return "not iterable as progress"
+
+    class _ReturnsBytes:
+        def drain_progress_events(self, _call_id: str) -> bytes:
+            return b"raw"
+
+    class _ReturnsNonIterable:
+        def drain_progress_events(self, _call_id: str) -> int:
+            return 42  # type: ignore[return-value]
+
+    class _ReturnsNonMappingItems:
+        def drain_progress_events(self, _call_id: str) -> list[Any]:
+            return ["progress-as-string", 7, ("tuple", "item")]
+
+    assert _emit(_ReturnsNone()) == []
+    assert _emit(_ReturnsString()) == []
+    assert _emit(_ReturnsBytes()) == []
+    assert _emit(_ReturnsNonIterable()) == []
+    assert _emit(_ReturnsNonMappingItems()) == []
+
+
 def test_orchestrator_handoff_error_matrix() -> None:
     class _AgentRegistryDouble:
         def __init__(self) -> None:

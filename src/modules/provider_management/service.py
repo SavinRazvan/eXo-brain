@@ -17,7 +17,9 @@ Notes:
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import cast
 
 from src.config.provider_registry import (
     AuthConfig,
@@ -171,7 +173,8 @@ class ProviderManagementService:
                             status_code=422,
                             detail="Session store does not support provider-drain operation.",
                         )
-                    await drain_fn(provider_id)
+                    drain_coro = cast(Callable[[str], Awaitable[object]], drain_fn)(provider_id)
+                    await drain_coro
                     if tenant_factory is not None and hasattr(tenant_factory, "evict_sessions_for_provider"):
                         tenant_factory.evict_sessions_for_provider(provider_id)
                     count = await session_store.count_active_sessions_by_provider(provider_id)

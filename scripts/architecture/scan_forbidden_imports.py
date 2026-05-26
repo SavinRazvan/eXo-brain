@@ -9,7 +9,7 @@ Depends On:
  - pathlib
 Notes:
  - Provider SDK imports are allowed only inside runtime adapter modules.
- - Adapter packages under ``eXo_adapters/packages/``, ``moving_to_adapters_project/packages/``, or legacy ``packages/`` must not import monorepo ``src.*`` modules.
+ - Adapter packages under ``packages/eXo_adapters/packages/``, ``eXo_adapters/packages/``, ``moving_to_adapters_project/packages/``, or legacy ``packages/exo-adapter-*`` must not import monorepo ``src.*`` modules.
 """
 
 from __future__ import annotations
@@ -67,6 +67,7 @@ def _adapter_package_roots() -> list[Path]:
     roots: list[Path] = []
     for candidate in (
         ROOT / "eXo_adapters" / "packages",
+        ROOT / "packages" / "eXo_adapters" / "packages",
         ROOT / "moving_to_adapters_project" / "packages",
         ROOT / "packages",
     ):

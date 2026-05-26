@@ -10,6 +10,7 @@ Depends On:
  - src/schemas/tool_io.py
 Notes:
  - All side-effecting operations should route through this executor.
+ - Every ToolResult returned from execute() passes through policy after_tool_call for consistent post-checks.
 """
 
 from __future__ import annotations
@@ -56,6 +57,10 @@ class DeterministicToolExecutor:
         self._execution_adapter = execution_adapter
         self._enable_hosted_runtime = enable_hosted_runtime
 
+    def _after_policy(self, result: ToolResult) -> ToolResult:
+        """Run policy post-checks on any envelope leaving execute()."""
+        return self._policy.after_tool_call(result)
+
     def execute(self, call: ToolCallContext) -> ToolResult:
         if self._metrics is not None:
             self._metrics.inc("tool.call.total")
@@ -64,13 +69,13 @@ class DeterministicToolExecutor:
         if validation_error is not None:
             if self._metrics is not None:
                 self._metrics.inc("tool.call.failed")
-            return validation_error
+            return self._after_policy(validation_error)
 
         decision = self._policy.before_tool_call(call)
         if decision.decision != PolicyAction.ALLOW:
             if self._metrics is not None:
                 self._metrics.inc("tool.call.blocked")
-            return blocked_result(call, decision.reason_code, decision.message)
+            return self._after_policy(blocked_result(call, decision.reason_code, decision.message))
 
         started = _utc_now()
         try:
@@ -90,7 +95,7 @@ class DeterministicToolExecutor:
                             runtime_payload.setdefault(key, value)
                 if self._metrics is not None and result.status == ToolStatus.SUCCESS:
                     self._metrics.inc("tool.call.success")
-                postchecked = self._policy.after_tool_call(result)
+                postchecked = self._after_policy(result)
                 if postchecked.status == ToolStatus.ERROR and self._metrics is not None:
                     self._metrics.inc("tool.call.failed")
                     self._metrics.inc("tool.call.postcheck_failed")
@@ -128,7 +133,7 @@ class DeterministicToolExecutor:
             )
             if self._metrics is not None:
                 self._metrics.inc("tool.call.success")
-            postchecked = self._policy.after_tool_call(result)
+            postchecked = self._after_policy(result)
             if postchecked.status == ToolStatus.ERROR and self._metrics is not None:
                 self._metrics.inc("tool.call.failed")
                 self._metrics.inc("tool.call.postcheck_failed")
@@ -136,44 +141,48 @@ class DeterministicToolExecutor:
         except KeyError as exc:
             if self._metrics is not None:
                 self._metrics.inc("tool.call.failed")
-            return ToolResult(
-                schema_version="1.0",
-                call_id=call.call_id,
-                tool_name=call.tool_name,
-                status=ToolStatus.ERROR,
-                error=NormalizedError(
-                    code="TOOL_NOT_FOUND",
-                    category="tool_registry",
-                    message=str(exc),
-                    retryable=False,
-                ),
-                execution=ExecutionMetadata(
-                    mode_used=ToolExecutionMode.DETERMINISTIC,
-                    started_at_utc=started,
-                    finished_at_utc=_utc_now(),
-                ),
-                audit=ToolAudit(correlation_id=call.call_id, decision_reason_code=decision.reason_code),
+            return self._after_policy(
+                ToolResult(
+                    schema_version="1.0",
+                    call_id=call.call_id,
+                    tool_name=call.tool_name,
+                    status=ToolStatus.ERROR,
+                    error=NormalizedError(
+                        code="TOOL_NOT_FOUND",
+                        category="tool_registry",
+                        message=str(exc),
+                        retryable=False,
+                    ),
+                    execution=ExecutionMetadata(
+                        mode_used=ToolExecutionMode.DETERMINISTIC,
+                        started_at_utc=started,
+                        finished_at_utc=_utc_now(),
+                    ),
+                    audit=ToolAudit(correlation_id=call.call_id, decision_reason_code=decision.reason_code),
+                )
             )
         except Exception as exc:  # pragma: no cover - defensive catch for plugin handlers
             if self._metrics is not None:
                 self._metrics.inc("tool.call.failed")
-            return ToolResult(
-                schema_version="1.0",
-                call_id=call.call_id,
-                tool_name=call.tool_name,
-                status=ToolStatus.ERROR,
-                error=NormalizedError(
-                    code="TOOL_EXECUTION_ERROR",
-                    category="tool_runtime",
-                    message=str(exc),
-                    retryable=False,
-                ),
-                execution=ExecutionMetadata(
-                    mode_used=ToolExecutionMode.DETERMINISTIC,
-                    started_at_utc=started,
-                    finished_at_utc=_utc_now(),
-                ),
-                audit=ToolAudit(correlation_id=call.call_id, decision_reason_code=decision.reason_code),
+            return self._after_policy(
+                ToolResult(
+                    schema_version="1.0",
+                    call_id=call.call_id,
+                    tool_name=call.tool_name,
+                    status=ToolStatus.ERROR,
+                    error=NormalizedError(
+                        code="TOOL_EXECUTION_ERROR",
+                        category="tool_runtime",
+                        message=str(exc),
+                        retryable=False,
+                    ),
+                    execution=ExecutionMetadata(
+                        mode_used=ToolExecutionMode.DETERMINISTIC,
+                        started_at_utc=started,
+                        finished_at_utc=_utc_now(),
+                    ),
+                    audit=ToolAudit(correlation_id=call.call_id, decision_reason_code=decision.reason_code),
+                )
             )
 
     def _validate_call(self, call: ToolCallContext) -> ToolResult | None:
