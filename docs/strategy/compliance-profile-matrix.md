@@ -76,11 +76,14 @@ This sequencing prioritizes practical enterprise adoption without overextending 
 ## 5) Industry Packaging Recommendations
 
 - Default launch profile:
-  - Sell `SOC2 + GDPR readiness` for SaaS and AI platform teams.
+  - Position `SOC2 + GDPR readiness` only as control-mapping direction for
+    SaaS and AI platform teams; do not present it as certification or current
+    vendor-readiness.
 - Expansion profile:
   - Introduce healthcare and fintech/public-sector readiness only after entitlement and deployment boundaries are fully enforceable.
 - Sales discipline:
-  - Sell readiness claims tied to documented controls and artifacts.
+  - Use readiness claims only when they are tied to documented controls and
+    artifacts.
   - Do not sell certification claims before formal external attestation.
 
 ---

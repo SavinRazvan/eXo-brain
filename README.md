@@ -1,601 +1,216 @@
 <!--
 File: README.md
 Path: README.md
-Role: Repository overview, quick start, architecture diagrams, and maintainer workflow summary.
-Used By: Contributors, onboarding, cross-links from docs/strategy and docs indexes.
-Depends On: docs/README.md, docs/plans/tenant-tool-execution-architecture.md, docs/plans/short-long-term-execution-plan.md, docs/plans/control-plane-product-alignment-plan.md, docs/strategy/governed-execution-positioning.md, docs/strategy/customer-self-serve-governance-journey.md, scripts/pr/prepare.py (gate order).
-Notes: Keep PR / quality gate bullets aligned with `scripts/pr/prepare.py` `GATES` and CI workflows. Product vocabulary (control plane, customer bridge, provider runtime adapter): `docs/strategy/governed-execution-positioning.md`. Customer self-serve governance spine: `docs/strategy/customer-self-serve-governance-journey.md` (+ `docs/plans/governance-configuration-reference-model.md`, `docs/api/governance-preview-and-testing.md`). **Repository boundary:** control plane only; adapter monorepo is not the strategic home (`packages/` transitional).
+Role: Public repository overview, maturity boundary, quick start, and architecture map.
+Used By:
+ - Contributors and evaluators
+ - docs/README.md
+ - docs/strategy/*
+Depends On:
+ - MAINTAINER_STATUS.md
+ - STATUS.md
+ - docs/architecture/governed-execution-pipeline.md
+ - docs/strategy/governed-execution-positioning.md
+ - docs/strategy/next-directions.md
+Notes:
+ - Keep public claims evidence-aligned with STATUS.md.
 -->
 
 # eXo-brain
 
-**Control-plane** codebase: governed AI execution (policy, audit, deterministic tools, entitlements), multi-tenant isolation, and REST/SSE/WebSocket APIs. **Strategic repository boundary:** this repo is **not** the long-term home for adapter products or a **monorepo** for provider packages — those ship from **separate adapter-ecosystem repositories** (see `docs/strategy/governed-execution-positioning.md`, **Repository boundary**).
+**Independent reference implementation of governed agentic AI execution.**
 
-## What this repository provides
+eXo-brain explores how to put a server-side control plane around tool-using AI
+systems: policy gates, deterministic tool execution, provider-neutral runtime
+adapters, tenant-scoped governance, audit events, and runtime control.
 
-- **Control plane** — server-enforced policy, ingress gates, deterministic tool execution, audit, runtime control, and tier entitlements; paid value targets **governance and safety**, not commodity LLM access (see `docs/strategy/governed-execution-positioning.md`).
-- **API Platform** — FastAPI application with tenant-scoped tool/agent registration, SSE and WebSocket streaming, and live policy/quota management.
-- **Provider-neutral runtime contracts (in-tree)** — `RuntimeAdapter` ABC and factory/registry loading in `src/runtime/*`; core stays free of provider SDK imports (adapter wall). **Installable adapter packages and SDK** are **out-of-repo** by design; the control plane consumes them via **contracts + registration**, not by owning their source trees.
-- **Deterministic-first tool execution** — every state-changing or high-impact tool call is routed through `DeterministicToolExecutor` and `PolicyMiddleware`.
-- **Policy middleware** — auditable `before_tool_call` / `after_tool_call` decisions (`allow`, `deny`, `escalate`) with per-tenant overlay support.
-- **Governance ingress direction (next slices)** — pre-model safety gate chain with predefined/custom profiles, explicit reason codes, and performance budgets.
-- **Multi-tenant isolation** — `TenantRuntimeFactory` gives each tenant its own `ToolRegistry`, `AgentRegistry`, `PolicyMiddleware`, and session store.
-- **Shared control-state mode** — optional SQLite-backed run control and rate limiter backends for multi-process admission consistency.
-- **MCP integration** — trust-tier and per-server health controls for MCP tool calls.
-- **Background runtime** — task graph (DAG), scheduler, bounded worker pool, checkpoint/resume.
-- **Runtime control and audit APIs** — admin runtime-control, BYOC control endpoints, and signed audit export/verify flows.
+> **Maturity note:** this is a single-maintainer research project, not a
+> production enterprise platform, SaaS product, or supported deployment
+> template. See [MAINTAINER_STATUS.md](MAINTAINER_STATUS.md) and
+> [STATUS.md](STATUS.md) before using it for serious evaluation.
 
-### Enterprise separation of concerns (diagram)
+## What This Is
 
-Same four layers as `docs/strategy/governed-execution-positioning.md` and `docs/architecture/workspace-architecture.md`: **one primary layer per feature** keeps monetization (governance), trust enforcement, and provider portability distinct.
+- A **control-plane reference implementation** for governed agent execution:
+  ingress gates, policy middleware, deterministic tool runtime, audit, tenancy,
+  quotas, and runtime control.
+- A **provider-neutral orchestration example**: provider SDKs stay behind runtime
+  adapter modules, while core orchestration depends on contracts, capabilities,
+  and policy.
+- A **portfolio and design-partner artifact** for teams thinking about safe
+  tool use, adapter boundaries, MCP/tool governance, and audit-ready AI
+  workflows.
 
-```mermaid
-flowchart TB
-  L4["Layer 4 — Customer attach\nREST / SSE / WebSocket; optional OpenAI-shaped POST /v1"]
-  L2["Layer 2 — Trust / control plane\nIngress, policy, deterministic tools, audit, tenancy, quotas"]
-  L3["Layer 3 — Connectivity / portability\nSeparate adapter repos + RuntimeAdapter plug-in"]
-  PR["External model and API providers"]
-  L1["Layer 1 — Value / subscription\nTier entitlements scope governance depth"]
-  L4 --> L2
-  L2 --> L3
-  L3 --> PR
-  L1 -.->|enforces| L2
-```
+## What This Is Not
 
-## Current reality (Mar 2026)
+- Not a commercial SaaS product.
+- Not an enterprise-supported distribution, SLA-backed vendor offering, or
+  certified compliance product.
+- Not a complete provider-adapter marketplace. The strongest adapter path today
+  is OpenAI-oriented; broader adapter breadth remains roadmap work.
+- Not a production deployment template. `docker-compose.yml` is intentionally a
+  local single-node development stack.
+- Not a generic chatbot wrapper or raw model-access resale surface.
 
-- API-first Option C is the active delivery path (no required UI/dashboard mount).
-- Tool-level deterministic policy enforcement is implemented; turn-level **governance ingress** (pre-model gate chain) is advanced in code and docs—see the canonical plan for **implemented vs planned** detail.
-- Prioritized roadmap tiers: `docs/strategy/next-directions.md` (strategy package; canonical strategy lives under `docs/strategy/` only).
-- Product model + integration surfaces (control plane / customer bridge / provider runtime adapter): `docs/plans/control-plane-product-alignment-plan.md`.
-- Canonical implementation status + queued slices: `docs/plans/tenant-tool-execution-architecture.md`.
-- Documentation authority, lifecycle, and archive pointers: `docs/plans/docs-authority-map.md`, `docs/plans/docs-inventory-master.md`, `docs/plans/docs-archive-index.md`.
-- Top-level doc index: `docs/README.md`.
-- **Short vs long term horizons (pilot proof → platform maturity):** `docs/plans/short-long-term-execution-plan.md`.
-
-### Execution horizons (diagrams)
-
-Canonical narrative and rules: [`docs/plans/short-long-term-execution-plan.md`](docs/plans/short-long-term-execution-plan.md). **Tier backlog** is unchanged in [`docs/strategy/next-directions.md`](docs/strategy/next-directions.md); this split only assigns **horizon emphasis**.
-
-#### Short term → long term
-
-```mermaid
-flowchart LR
-  subgraph ST[Short term — pilot proof]
-    direction TB
-    S1[Core pilot-complete\nfor one reference workflow]
-    S2[Governance · observability · audit\nvia public APIs]
-    S3[Adapter SDK + OpenAI\nreference path]
-    S4[Main UI platform\nconsumes APIs only]
-  end
-  subgraph LT[Long term — platform maturity]
-    direction TB
-    L1[Adapter ecosystem\n+ certification + router]
-    L2[Commercial plan +\nmetering aligned to value]
-    L3[Enterprise depth\napprovals · compliance · deploy]
-    L4[Optional in-repo console]
-  end
-  ST --> LT
-```
-
-#### Main UI + control plane + adapter packages (Layer B attach)
+## Architecture at a Glance
 
 ```mermaid
 flowchart TB
-  UI[Main UI platform\noutside this repo\nconfigure · logs · audit views]
-  CP[eXo-brain control plane\nthis repo\nREST · SSE · WebSocket · optional POST /v1]
-  CT[Core contracts +\nadapter SDK\nseparate packages]
-  OAI[exo-adapter-openai\nreference adapter]
-  EP[External provider APIs]
+  customerApp["Customer App or Test Client"]
+  apiLayer["Control Plane API"]
+  governanceLayer["Governance Layer"]
+  runtimeLayer["Session Runtime"]
+  adapterLayer["Provider Adapter Wall"]
+  toolLayer["Deterministic Tool Runtime"]
+  persistenceLayer["SQLite Stores"]
+  providerApi["External Model Provider"]
 
-  UI -->|HTTPS only — no alternate enforcement| CP
-  CP -->|registry / factory| CT
-  CT --> OAI
-  OAI --> EP
+  customerApp --> apiLayer
+  apiLayer --> governanceLayer
+  governanceLayer --> runtimeLayer
+  runtimeLayer --> adapterLayer
+  runtimeLayer --> toolLayer
+  adapterLayer --> providerApi
+  governanceLayer --> persistenceLayer
+  toolLayer --> persistenceLayer
 ```
 
-**Invariant:** the main UI is **Layer B** (`docs/strategy/interface-strategy.md`): **not** the trust boundary; all policy and side-effect enforcement stay **server-side** in the control plane.
+Default governed turn flow:
 
-#### Horizon × `next-directions` tiers (emphasis)
+1. Authenticate tenant and session.
+2. Evaluate entitlements and ingress gates.
+3. Start the governed runtime path.
+4. Stream through the orchestrator.
+5. Route high-risk or state-changing tool calls through deterministic execution.
+6. Apply policy before and after tool execution.
+7. Persist audit and runtime-control evidence.
 
-```mermaid
-flowchart TB
-  subgraph SHORT[Short term — pull from tiers]
-    T1S[Tier 1 subset\nSDK + OpenAI reference]
-    T2S[Tier 2\npilot-critical gaps only]
-    T3S[Tier 3\nintegrator + observability depth as needed]
-  end
-  subgraph LONG[Long term — full streams]
-    T1L[Tier 1 full\necosystem + publish automation]
-    T2L[Tier 2 full\nentitlements + commercial ops]
-    T3L[Tier 3\ndeploy + compliance waves]
-    T4L[Tier 4\nalignment + decision records]
-  end
-  SHORT --> LONG
-```
+The canonical ordering reference is
+[docs/architecture/governed-execution-pipeline.md](docs/architecture/governed-execution-pipeline.md).
 
----
+## Delivered Today
 
-## Adapter vs gateway boundary
+The public repository currently includes:
 
-This repository implements the **control plane** and **northbound** surfaces. **Southbound** adapter *products* (pip-installable provider packages, adapter SDK, published contracts) target **separate repositories** — not this monorepo (see **Repository boundary** in `docs/strategy/governed-execution-positioning.md`). Vocabulary: `docs/plans/control-plane-product-alignment-plan.md`.
+- **FastAPI control plane** with REST plus streaming turn surfaces.
+- **11 API router modules** covering sessions, turns, tools, agents, providers,
+  runtime control, audit, admin keys, Prometheus metrics, and OpenAI-compatible
+  ingress.
+- **12 policy modules** under `src/policies/` for middleware, ingress gates,
+  risk gates, policy templates, signed plugins, classifier support, and BYOC
+  fairness.
+- **Deterministic tool execution** through `src/tools/executor.py`.
+- **Capability + policy execution-mode selection** through
+  `src/runtime/mode_selector.py`.
+- **Provider-neutral runtime adapter contracts** under `src/runtime/`.
+- **Tenant runtime composition** through `src/runtime/tenant_runtime.py`.
+- **SQLite-backed persistence** for local sessions, agents, tools, providers,
+  audit events, run control, and rate limiting.
+- **BYOC tool-runtime primitives** for customer-owned tool execution paths.
+- **MCP integration baseline** for registering MCP tools into the internal tool
+  ecosystem.
+- **Architecture checks** under `scripts/architecture/` for layer validation and
+  forbidden provider imports.
+- **Test corpus** under `tests/` with module-scoped coverage for governance,
+  runtime, tools, persistence, API, and architecture scripts.
 
-- **Southbound (provider-facing):** at runtime, `src/runtime/*` implements or loads `RuntimeAdapter` behind the adapter wall. **Packaged** adapters are maintained **outside** this repo; **`packages/`** is **transitional** only until extraction finishes.
-- **Northbound (client-facing):** API routes in `src/api/*` — the authoritative **control plane** for tenants (REST/SSE/WebSocket), primarily session/turn oriented (`/tenants/{tenant_id}/sessions/...`).
-- **Customer bridge (optional):** when `EXO_ENABLE_OPENAI_COMPAT_GATEWAY=1`, **`POST /v1/chat/completions`** exposes an OpenAI-shaped JSON surface for client compatibility; it **reuses the same governance path** as native turns (not a raw upstream proxy). Details: `docs/archive/plans/northbound-v1-gateway.md`, `docs/api/customer-api-integration-guide.md` (section 4.0), `docs/strategy/interface-strategy.md` (Layer A2).
+See [STATUS.md](STATUS.md) for a public maturity matrix.
 
-A provider can be OpenAI-compatible at the **adapter** layer without enabling the **northbound** `/v1` bridge.
+## Known Limits
 
-See also:
-- `docs/runtime_contracts.md` for runtime boundary contracts and mode ownership.
-- `docs/plans/tenant-tool-execution-architecture.md` for canonical implementation status and queued slices.
-- `docs/architecture/ARCHITECTURE.md` for consolidated plane map.
+The current public posture is intentionally conservative:
 
-### Interaction mode ownership
+- Persistence is SQLite-oriented; there is no packaged Postgres or HA datastore
+  distribution.
+- The compose file is local-development only.
+- Human approval lifecycle APIs are planned, not complete.
+- Standard telemetry hooks exist, but enterprise collector and dashboard
+  certification are not complete.
+- Adapter ecosystem breadth is not complete.
+- No formal compliance attestation is claimed.
 
-| Mode | Primary owner | Notes |
-|---|---|---|
-| `chat` | API gateway + runtime adapter | OpenAI-compatible chat/completions style request and streaming response path |
-| `agents` | Runtime adapter | Agents SDK-style execution path behind provider-neutral runtime contract |
-| `workflow` | Core orchestration (`src/core/*`) | Multi-step orchestration state/graph stays in core, not provider adapters |
+## Local Quick Start
 
----
+### Requirements
 
-## Supported Python
+- Python 3.12+
+- Docker and Docker Compose, if using the compose stack
+- A local virtual environment is recommended
 
-**Minimum Python 3.12** — matches GitHub Actions `python-version: "3.12"` and the `Dockerfile` base image (`python:3.12-slim`). Use the same major.minor locally for parity with CI and coverage runs. Newer CPython (for example 3.13+) is expected to work unless documented otherwise.
-
----
-
-## Adapter packages (eXo_adapters; not in this repo)
-
-**Portable contracts and adapters** (`exo-brain-core-contracts`, `exo-adapter-*`, `exo-brain-adapter-sdk`) are **authored in the separate [eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) repository** (adjust the URL in `requirements.txt` if your remote differs). eXo-brain installs **`exo-brain-core-contracts`** via **pip** (git URL until PyPI). Strategy: **control plane only** here — see `docs/plans/adapter-packages-extraction-handoff.md`.
-
-- **Optional local checkout:** clone eXo_adapters beside this repo and symlink/copy `packages/` here **or** use `pip install -e ../eXo_adapters/packages/exo-adapter-openai` when working on packaged adapters; conformance tests under `tests/packages/` that need sources are **skipped** unless that tree exists.
-- **Adapter strategy and matrix:** `docs/strategy/adapter-strategy.md`, `docs/strategy/adapter-compatibility-matrix.md`
-- **Operational log dimensions:** `docs/operations/adapter-telemetry-dimensions.md`
-- **Smoke (optional):** `python scripts/packages/external_install_smoke.py` runs only when a local `packages/` (or `moving_to_adapters_project/packages/`) workspace is present; otherwise it prints **SKIP** (run the equivalent script from eXo_adapters for full certification).
-
----
-
-## Quick start
+### Install
 
 ```bash
-# 1. Create and activate a virtual environment (Python 3.12+ recommended; see "Supported Python" above)
-python -m venv .exo_env && source .exo_env/bin/activate
-
-# 2. Install dependencies (from repo root — pulls exo-brain-core-contracts from eXo_adapters via git in requirements.txt)
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+```
 
-# 3. Copy environment template and set your API key
-cp .env.template .env
-# Edit .env and set OPENAI_API_KEY=sk-...
+### Run Tests
 
-# 4. Local quality gates — same **order** as scripts/pr/prepare.py GATES (four commands; canonical merge prep)
-python scripts/pr/check_testing_artifacts.py
+```bash
 python -m pytest -q
 python scripts/architecture/validate_layers.py
 python scripts/architecture/scan_forbidden_imports.py
-
-# 4b. When you change governance, workflows, or tracked policy docs, also run (CI mirrors path filters):
-# python scripts/architecture/check_governance_consistency.py
-
-# 5. Start the API server
-uvicorn src.api.app:create_app --factory --reload --port 8000
-# API docs: http://localhost:8000/docs
 ```
 
-### Docker (optional)
+### Run Locally with Docker Compose
 
 ```bash
 docker compose up --build
-# Liveness: http://localhost:8000/health
-# Readiness (SQLite PRAGMA quick_check): http://localhost:8000/ready
 ```
 
-**Compose safety:** The repo `docker-compose.yml` defaults to **`EXO_ENV=development`** and is **not** an enterprise production template — read the banner at the top of that file. Wildcard CORS can apply when `EXO_CORS_ORIGINS` is unset in development; for production-like deployments set **`EXO_ENV=production`** (or `staging`) and **`EXO_CORS_ORIGINS`** to real origins. For local-only tweaks, copy **`docker-compose.override.example.yml`** → **`docker-compose.override.yml`** (gitignored); Compose merges it automatically.
-
-**Operations-oriented environment variables** (non-exhaustive; **observability**: Prometheus and OTLP are listed here — wiring details in `src/observability/telemetry_export.py` and `src/api/routers/prometheus_metrics.py`):
-
-| Variable | Purpose |
-|----------|---------|
-| `EXO_CONTROL_STATE_BACKEND` | `memory` (default) or `sqlite` — shared SQLite run-control registry and per-tenant rate limiters for multi-worker/multi-process deployments (`src/api/bootstrap.py`). |
-| `EXO_CONTROL_STATE_SQLITE_DB_PATH` | SQLite file path when `EXO_CONTROL_STATE_BACKEND=sqlite` (default `.exo_data/exo_control_state.db`). |
-| `EXO_SESSION_RUNTIME_IDLE_TTL_SECONDS` | Process-local tenant session cache idle TTL in seconds; `0` disables idle eviction (`RuntimeSettings.session_runtime_idle_ttl_seconds`). |
-| `EXO_SESSION_RUNTIME_MAX_CACHED_SESSIONS` | Max cached sessions per tenant runtime; `0` means no cap (`RuntimeSettings.session_runtime_max_cached_sessions`). |
-| `EXO_TENANT_RUNTIME_MAX_CACHED_CONTEXTS` | Max distinct tenant runtime contexts cached in-process; `0` means no cap; when set, LRU tenant contexts are evicted before adding a new tenant (`RuntimeSettings.tenant_runtime_max_cached_contexts`). |
-| `EXO_RUN_CONTROL_MAX_TERMINAL_RECORDS_PER_TENANT` | Prune terminal run-control rows per tenant; `0` means unlimited automatic pruning (`RuntimeSettings.run_control_max_terminal_records_per_tenant`). |
-| `EXO_ENABLE_PROMETHEUS_METRICS` | When `1`, exposes `GET /metrics` (Prometheus text). |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base URL for OTLP HTTP export (traces + metrics); optional per-signal overrides in `telemetry_export.py`. |
-| `EXO_CORS_ORIGINS` | Comma-separated allowed origins; unset + non-dev `EXO_ENV` disables wildcard CORS. |
-| `EXO_ENABLE_OPENAPI` | When `0`, disables `/docs`, `/redoc`, and `/openapi.json`. |
-
----
-
-## Beginner quick map (2-minute view)
-
-If you are new to this project, read the system in this order:
-
-1. **You call the API** (`REST`, `SSE`, or `WebSocket`).
-2. **Tenant context is resolved** (identity, tenant scope, policy/quota state).
-3. **Governance checks run**:
-   - tool-level policy gates are enforced on tool execution,
-   - turn-level ingress governance is implemented/planned per slice—see `docs/plans/tenant-tool-execution-architecture.md` for current status.
-4. **Orchestrator runs provider-neutral logic** and delegates model transport to adapters.
-5. **Tool calls are policy-gated** and deterministic for risky/state-changing operations.
-6. **Events and audit evidence are emitted** with correlation IDs for traceability.
-
-For acronym help, see `docs/operations/abbreviations-notepad.md`.
-
----
-
-## Documentation map
-
-- Primary docs index: `docs/README.md`
-- Customer self-serve governance spine: `docs/strategy/customer-self-serve-governance-journey.md`, `docs/strategy/foundation-tier-adoption-checklist.md`, `docs/plans/governance-configuration-reference-model.md`, `docs/api/governance-preview-and-testing.md`
-- Plans index: `docs/plans/README.md`
-- Operations index: `docs/operations/README.md`
-- Module docs index: `docs/modules/README.md`
-- Docs authority and precedence: `docs/plans/docs-authority-map.md`
-- Abbreviations notepad: `docs/operations/abbreviations-notepad.md`
-
----
-
-## Makefile shortcuts (optional)
-
-Thin wrappers around versioned scripts (outputs under `.local/` where noted):
-
-| Target | Purpose |
-|--------|---------|
-| `make rc-signoff` | Generate `.local/rc-signoff.md` via `scripts/release/rc_signoff.py` |
-| `make rc-signoff-json` | Parse signoff markdown → `.local/rc-signoff.json` |
-| `make db-backup` / `db-restore` / `db-validate` | Local SQLite safety helpers |
-| `make coverage-index` | Full `pytest --cov` run + regenerate `.local/index-and-planning/current/coverage-index.md` |
-
----
-
-## Notebooks (tutorials, checks, edge cases)
-
-Interactive notebooks live under `notebooks/`. **Source of truth** is the build scripts—regenerate `.ipynb` files from Python builders; see `notebooks/README.md` for the full index, kernel setup, and naming rules.
-
-| Category | Examples | Build script |
-|----------|----------|----------------|
-| `tutorial_*` | `tutorial_01_core_framework.ipynb` → `tutorial_07_governance_and_anomaly.ipynb` (learning order in notebook README) | `python notebooks/build_tutorials.py` |
-| `check_*` | `check_01_core_orchestrator.ipynb` … `check_04_tenant_and_limits.ipynb` | `python notebooks/build_checks.py` |
-| `edge_*` | `edge_01_ingress_policy_conflicts.ipynb`, `edge_02_tool_error_envelopes.ipynb` | `python notebooks/build_checks.py` |
-
-Cells marked `[REQUIRES API KEY]` skip when `OPENAI_API_KEY` is unset; most checks run without a live model.
-
----
-
-## Architecture principles
-
-- Keep provider SDK code inside `src/runtime/*adapter*` modules only — never in core.
-- Keep orchestration core provider-neutral — no branching on provider name.
-- Route state-changing/high-impact tool operations through deterministic policy-governed execution.
-- Preserve strict layer boundaries: `api → integration → core → runtime / tools / policies / persistence / observability`.
-- Per-tenant isolation: each tenant's tools, agents, policies, and sessions are fully independent.
-
----
-
-## Architecture
-
-### Full layer map
-
-```mermaid
-flowchart TB
-    subgraph api_layer [API Layer]
-        CLI["HTTP Client / Browser / Notebook"]
-        FAPI["FastAPI App\nsrc/api/app.py"]
-        BOOT["Bootstrap\nsrc/api/bootstrap.py"]
-        AUTH["Auth Middleware\nX-Identity header"]
-        ROUTERS["Routers\ntools · agents · sessions · turns · providers · tenants"]
-        SCHEMAS["Pydantic Schemas\nrequest / response / SSE+WS event envelope"]
-    end
-
-    subgraph tenant_layer [Tenant Runtime]
-        TRF["TenantRuntimeFactory\nsrc/runtime/tenant_runtime.py"]
-        TRC["TenantRuntimeContext\n(per tenant — isolated registries)"]
-        TW["tool_wiring.py\nbuild_agent_tools() — late binding"]
-    end
-
-    subgraph integration [Integration Layer]
-        HA["OrchestratorHostAdapter\nsubmit_turn()"]
-    end
-
-    subgraph governance_ingress ["Governance ingress plane"]
-        IG["IngressGateChain\nallow · deny · escalate"]
-        EP["Entitlements and tier gates\n(entitlement-matrix depth)"]
-        GB["Ingress budget + fail-safe\nper-profile SLO"]
-        GP["Profiles · custom rules · classifiers"]
-    end
-
-    subgraph core [Core Orchestration]
-        ORCH["Orchestrator\nrun_turn()"]
-        SC["SessionContext"]
-        ER["EventRouter"]
-        BR["BackgroundRuntime"]
-        SCHED["TaskScheduler"]
-        TG["TaskGraph (DAG)"]
-        WP["WorkerPool"]
-    end
-
-    subgraph runtime [Runtime Adapters]
-        RA["RuntimeAdapter (ABC)"]
-        OAR["OpenAIAgentsRuntime\n(real SDK wiring)"]
-        OCR["OpenAICompatibleRuntime"]
-        CR["CustomRuntime"]
-        MS["ModeSelector"]
-        CM["CapabilityMap"]
-    end
-
-    subgraph tools [Tools Layer]
-        TR["ToolRegistry\nlist_descriptors · unregister"]
-        TE["DeterministicToolExecutor"]
-        DEC["Decorators\nvalidation · authz · retry · audit · redaction"]
-        PM["PluginManager"]
-    end
-
-    subgraph policies [Policies Layer]
-        MW["DeterministicFirstPolicyMiddleware\nbefore_tool_call · after_tool_call"]
-        RG["RiskGatePolicy"]
-        POL["TenantPolicyOverlayStore\nper-tenant deny / escalate rules"]
-    end
-
-    subgraph agents [Agents Layer]
-        AR["AgentRegistry\nrouting · handoff · fallback\nlist_routes · list_fallback_policies"]
-    end
-
-    subgraph mcp [MCP Layer]
-        MTA["McpToolAdapter"]
-        MR["McpRegistry\ntrust tiers · health"]
-        CB["CircuitBreaker"]
-        DLQ["DeadLetterQueue"]
-    end
-
-    subgraph persistence [Persistence]
-        SS["InMemorySessionStore"]
-        SQLITE["SQLiteAdapter"]
-        POSTGRES["PostgresAdapter"]
-    end
-
-    subgraph observability [Observability]
-        LOG["StructuredLogger"]
-        TRACE["RuntimeTracer"]
-        METRICS["RuntimeMetrics"]
-        TL["RuntimeTimeline"]
-        TAP["ToolAuditPipeline"]
-    end
-
-    subgraph identity_access [Identity + Access]
-        IC["IdentityContext"]
-        ACE["AccessPolicyEngine (RBAC)"]
-    end
-
-    subgraph tenancy [Tenancy]
-        QM["TenantQuotaManager\nset_limit · check_submission"]
-    end
-
-    subgraph config [Config]
-        SET["AppSettings"]
-        PRR["ProviderRegistry\nget_adapter()"]
-    end
-
-    CLI --> FAPI
-    FAPI --> AUTH
-    FAPI --> BOOT
-    BOOT --> TRF
-    FAPI --> ROUTERS
-    ROUTERS --> TRC
-    ROUTERS --> IG
-    IG --> EP --> GB --> GP
-    GP --> HA
-    TRC --> TR & AR & MW & QM & SS
-    TRF --> TRC
-    TRF --> HA
-    TW --> OAR
-    HA --> ORCH
-    ORCH --> RA
-    RA --> OAR & OCR & CR
-    ORCH --> MS --> CM
-    ORCH --> MW --> RG --> ACE
-    ORCH --> TE --> TR & DEC & MW
-    ORCH --> AR
-    ORCH --> BR --> QM & SCHED
-    SCHED --> TG & WP
-    MTA --> MR & CB & DLQ & MW
-    PRR --> RA
-    SET --> PRR
-    IG --> TAP
-```
-
----
-
-### API request → tool execution flow
-
-```mermaid
-flowchart TD
-    A["Client: POST /tenants/{id}/sessions/{id}/turns\n{input: 'What is 5 + 7?'}"] --> B["FastAPI Router\nresolve identity · get tenant context"]
-    B --> B1["Ingress gate chain\nprofile · entitlement · budget"]
-    B1 -->|deny/escalate| B2["Return policy decision event/error\nwith reason code and correlation_id"]
-    B1 -->|allow| C["TenantRuntimeFactory\nget_session_runtime(session_id)"]
-    C --> D["OrchestratorHostAdapter.submit_turn()"]
-    D --> E["Orchestrator.run_turn(session_id, user_input)"]
-    E --> F["RuntimeAdapter.run_turn()\nprovider transport isolated in adapter"]
-    F --> G["Agent + Runner.run_streamed()\nOpenAI Agents SDK"]
-    G --> H{SDK event?}
-    H -->|text delta| I["RuntimeEvent.OUTPUT_DELTA\n→ SSE: output_delta"]
-    H -->|tool call| J["FunctionTool.on_invoke_tool()\nroutes to DeterministicToolExecutor"]
-    J --> K["PolicyMiddleware.before_tool_call()\nRiskGatePolicy + TenantPolicyOverlay"]
-    K -->|DENY| L["TOOL_EXECUTION_ERROR returned to SDK"]
-    K -->|ALLOW| M["handler(**args) — Python function executes"]
-    M --> N["PolicyMiddleware.after_tool_call()\naudit · mode · payload checks"]
-    N --> O["ToolResult returned to SDK\n→ SSE: tool_call + tool_result events"]
-    O --> G
-    H -->|run complete| P["RuntimeEvent.RUN_COMPLETE\n→ SSE: run_complete"]
-```
-
----
-
-### WebSocket multi-turn flow
-
-```mermaid
-flowchart TD
-    A["WS /tenants/{id}/sessions/{id}/ws\n(persistent connection)"] --> B["Server: verify session exists"]
-    B -->|unknown| C["Close 4404 — session not found"]
-    B -->|ok| D["Hold OrchestratorHostAdapter for connection lifetime"]
-    D --> E{Client message?}
-    E -->|turn message| F["Ingress gate decision\n(per turn)"]
-    F -->|allow| G["Create asyncio.Task\nstore run_id → task"]
-    F -->|deny/escalate| H["Return policy event/error with reason code"]
-    G --> I["submit_turn → stream events back over WS\noutput_delta · tool_call · tool_result · run_complete"]
-    I --> E
-    H --> E
-    E -->|cancel message| J["task.cancel()\nemit run_cancelled event"]
-    J --> E
-    E -->|disconnect| K["Auto-cancel any in-flight task"]
-```
-
----
-
-### Background job execution flow
-
-```mermaid
-flowchart TD
-    A["BackgroundRuntime.submit(job_id, TaskGraph, context)"] --> B["TenantQuotaManager\ncheck_submission() — hard or soft enforcement"]
-    B -->|"quota exceeded + hard"| C["QuotaDecision: DENIED"]
-    B -->|allowed| D["Create asyncio.Task\ntrack in job registry"]
-    D --> E["TaskScheduler.execute(graph)"]
-    E --> F["Identify ready wave\nTaskGraph.ready_nodes()"]
-    F --> G["WorkerPool.run()\nbounded concurrency semaphore"]
-    G --> H["_run_node() per node in parallel"]
-    H --> I["CheckpointStore.get_checkpoint()\nresume from prior state if exists"]
-    I --> J["Execute handler + RetryPolicy exponential backoff"]
-    J -->|success| K["CheckpointStore.save_checkpoint()\nStructuredLogger · RuntimeTracer · RuntimeMetrics"]
-    K --> L{All nodes done?}
-    L -->|no| F
-    L -->|yes| M["SchedulerResult → BackgroundRuntime"]
-    J -->|"timeout / retries exhausted"| N["Mark node FAILED\ncancel downstream"]
-```
-
----
-
-### Policy and mode-selection decision tree
-
-```mermaid
-flowchart TD
-    A["ToolCallContext arrives"] --> B{PolicyDecision\nnot ALLOW?}
-    B -->|yes| C["DETERMINISTIC\npolicy blocks provider-native path"]
-    B -->|no| D{Policy enforces\ndeterministic?}
-    D -->|yes| C
-    D -->|no| E{is_state_changing\nor HIGH / CRITICAL risk?}
-    E -->|yes| C
-    E -->|no| F{CapabilityMap\nreliability < 4 or missing function-calling?}
-    F -->|yes| C
-    F -->|no| G{Policy enforces\nspecific mode?}
-    G -->|yes| H["Use policy-enforced mode"]
-    G -->|no| I{Tool requests\nspecific mode?}
-    I -->|yes| J["Use tool-requested mode"]
-    I -->|no| K["PROVIDER_NATIVE (fast path)"]
-```
-
----
-
-### Governance ingress decision tree (target)
-
-```mermaid
-flowchart TD
-    A["Turn request arrives"] --> B["Resolve tenant + identity + profile"]
-    B --> C["Run predefined/custom ingress gates (ordered chain)"]
-    C --> D{Any gate decision?}
-    D -->|"deny"| E["Block turn\nemit reason_code + audit evidence"]
-    D -->|"escalate"| F["Escalate turn\nemit review_required + reason_code"]
-    D -->|"allow"| G["Continue to orchestration/runtime flow"]
-    C --> H["Track latency budget and fail-safe mode"]
-    H -->|"budget exceeded"| I["Apply configured fail-safe action\nallow or deny or escalate"]
-```
-
----
-
-## Abbreviations notepad (quick reference)
-
-Use `docs/operations/abbreviations-notepad.md` for a beginner-friendly glossary of all common abbreviations used in this repository.
-
----
-
-### Key design principles
-
-| Principle | Where enforced |
-|---|---|
-| Provider SDK never touches core | `RuntimeAdapter` ABC — adapters import SDK, orchestrator imports only ABC |
-| Tool calls are intent, not execution | `FunctionTool.on_invoke_tool` delegates to `DeterministicToolExecutor` |
-| State-changing ops are always deterministic | `ModeSelector` and `PolicyMiddleware` enforce unconditionally |
-| Policy wraps every side-effect path | `before_tool_call` + `after_tool_call` on all execution paths |
-| Per-tenant isolation | `TenantRuntimeFactory` — each tenant owns independent registries and session store |
-| Policy changes are live | `TenantPolicyOverlayStore.set_overlay()` takes effect on the next tool call, no restart |
-| Audit trail is tamper-evident | SHA-256 hash chain in `AuditChainRecord` |
-| Secrets are never logged | `StructuredLogger._redact_context()` auto-redacts `secret/token/password/api_key` keys |
-| Adapter plug-and-play | Implement 5-method `RuntimeAdapter` ABC → register in `ProviderRegistry` → selectable by `provider_id` |
-
----
-
-## API endpoints (v1, current)
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/health` | Platform health check |
-| `POST` | `/tenants/{id}/tools` | Register a tool (`handler_ref`, `description`, `parameters_schema`, risk tier) |
-| `POST` | `/tenants/{id}/tools/import-schema` | Normalize/prefill OpenAI-style tool JSON |
-| `POST` | `/tenants/{id}/tools/upload` | Upload tool package/version with validation and optional activation |
-| `GET` | `/tenants/{id}/tools/validate/{tool_name}` | Retrieve tool validation state (active or explicit version) |
-| `GET` | `/tenants/{id}/tools/versions/{tool_name}` | List persisted versions for a tenant tool |
-| `POST` | `/tenants/{id}/tools/versions/{tool_name}/{version}/deactivate` | Deactivate active tool version |
-| `POST` | `/tenants/{id}/tools/versions/{tool_name}/rollback` | Roll back active version |
-| `DELETE` | `/tenants/{id}/tools/versions/{tool_name}/{version}` | Revoke a tool package version |
-| `GET/DELETE` | `/tenants/{id}/tools[/{name}]` | List / get / delete tools |
-| `POST` | `/tenants/{id}/agents` | Register agent (`instructions`, `capability_tags`, model metadata) |
-| `GET/DELETE` | `/tenants/{id}/agents[/{agent_id}]` | List / get / delete agents |
-| `POST/GET` | `/tenants/{id}/agents/routes` | Add / list handoff routes |
-| `POST/GET` | `/tenants/{id}/agents/fallback` | Set / list fallback policies |
-| `POST` | `/tenants/{id}/sessions` | Create a session (`agent_id`, `provider_id`) |
-| `GET` | `/tenants/{id}/sessions/{session_id}` | Get session state |
-| `POST` | `/tenants/{id}/sessions/{session_id}/turns` | Submit a turn — returns `text/event-stream` (SSE) |
-| `WS` | `/tenants/{id}/sessions/{session_id}/ws` | WebSocket — persistent multi-turn with cancellation |
-| `POST` | `/providers` | Dynamically register a provider adapter |
-| `DELETE` | `/providers/{id}` | Unregister provider (with optional graceful drain controls) |
-| `GET` | `/providers` | List all registered providers |
-| `GET` | `/providers/{id}/health` | Provider health check |
-| `GET` | `/providers/{id}/capabilities` | Provider capability map |
-| `GET/PUT` | `/tenants/{id}/policy` | Read / apply tenant policy overlay |
-| `GET/PUT` | `/tenants/{id}/quota` | Read / update tenant job quota |
-| `GET/POST/DELETE` | `/tenants/{id}/admin/runtime/*` | Runtime control stats, cancellations, run controls, BYOC worker/job operations |
-| `GET/POST` | `/tenants/{id}/admin/audit/*` | Audit events/report/cleanup/export/verify |
-| `POST/GET/DELETE` | `/admin/keys*` | API key management (create/list/revoke) |
-
----
-
-## PR workflow (maintainers)
-
-Tracked automation lives under `scripts/pr/` and `.github/workflows/`. Use **PR-first** delivery and short-lived branches (`feature/`, `fix/`, `chore/`).
-
-1. **After push / before merge** — verify publication and linkage:
-   - `python scripts/pr/verify_publish.py --branch "$(git branch --show-current)"`
-   - `gh pr view --json number,url,headRefName,state,mergeStateStatus`
-2. **Phases (in order)** — `review-pr` → `prepare-pr` → `merge-pr` (skills or manual equivalent). Scripts:
-   - `python scripts/pr/review.py --pr <id|url> --actor "…" --agents "review-pr"`
-   - `python scripts/pr/prepare.py --pr <id|url> --actor "…" --agents "review-pr | prepare-pr"` (runs gates unless `--skip-gates`)
-   - `python scripts/pr/merge.py --pr … --check-only` then merge via `gh`, then `merge.py` again with `--merge-sha <oid>`
-3. **Local artifacts** (scripts write under **`.local/workflow-artifacts/pr/`**): `review.md`, `prep.md`, `merge.md`. For **architecture-impacting** changes, produce `alignment-audit.md` and `alignment-todos.md` under **`.local/workflow-artifacts/alignment/`** using **`enterprise-auditor`** (`.cursor/agents/enterprise-auditor.md` + `.cursor/skills/enterprise-architecture-audit/SKILL.md`), and pass `--arch-impacting` to `merge.py` so both files are enforced.
-4. **Merge gates** — default **`prepare.py` order** is exactly the four commands in `scripts/pr/prepare.py` `GATES` (canonical):
-   - `python scripts/pr/check_testing_artifacts.py`
-   - `python -m pytest -q` (CI also enforces coverage thresholds on PRs)
-   - `python scripts/architecture/validate_layers.py`
-   - `python scripts/architecture/scan_forbidden_imports.py`
-   - **Also** run `python scripts/architecture/check_governance_consistency.py` locally when changing governance, workflows, `.cursor/`, `.agents/`, or tracked policy docs (CI runs it in `architecture-fitness` on relevant paths — not part of the default four-gate `prepare.py` run).
-5. **Docs** — on architecture/workflow changes, follow `docs/operations/documentation-maintenance-checklist.md`; optional `python scripts/docs/check_docs_metadata.py`.
-6. **After merge** — sync `main`, then `python scripts/pr/finalize.py --branch <feature-branch>` (optional `--delete-merged-local`); confirm remote branch deletion per team policy.
-7. **Commits** — git trailers: required `Author` / `GitHub-User`, optional `Assisted-by:` (no `Made-with:`) per **`AGENTS.md`** § Commits and **`.cursor/rules/commit-trailer-format.mdc`**. That is separate from headers in `.local/workflow-artifacts/pr/*.md`.
-
-**Local IDE/agent files** (e.g. Cursor rules, optional `AGENTS.md`) may be maintained per developer and are **not** required for a minimal clone—the repo’s enforced contracts are in `scripts/`, tests, and GitHub Actions.
-
----
+The API listens on `http://127.0.0.1:8000` by default.
+
+`docker-compose.yml` is explicitly marked as **not a production or enterprise
+template**. It sets `EXO_ENV=development` and uses a local SQLite volume. Do not
+use it as a deployment blueprint without a separate hardening pass.
+
+## Repository Map
+
+- `src/api/` - FastAPI app, routers, middleware, bootstrap.
+- `src/core/` - orchestrator, scheduler, run control primitives.
+- `src/runtime/` - runtime adapter contracts, factory loading, tenant runtime.
+- `src/policies/` - policy middleware, ingress gates, risk gates, templates.
+- `src/tools/` - deterministic tool executor, BYOC runtime, sandbox helpers.
+- `src/tenancy/` - tenant governance and policy overlay support.
+- `src/persistence/` - in-memory and SQLite persistence adapters.
+- `src/mcp/` - MCP registry and tool-adapter bridge.
+- `tests/` - module-aligned regression suites and architecture checks.
+- `docs/strategy/` - product boundary, governance posture, monetization and
+  deployment thinking.
+- `docs/architecture/` - architecture references and governed execution order.
+- `.cursor/` and `.agents/` - maintainer workflow rules and agent skills.
+
+## Design Principles
+
+- Provider SDKs stay behind runtime adapters.
+- State-changing tool work must be policy-wrapped and deterministic when risk
+  requires it.
+- Capability + policy decide execution mode; core should not branch on provider
+  names.
+- Tenant-scoped configuration should be API-driven.
+- Claims must be backed by code, tests, docs, or explicitly marked as planned.
+
+## Roadmap
+
+The roadmap lives in [docs/strategy/next-directions.md](docs/strategy/next-directions.md).
+Near-term areas that remain especially relevant:
+
+- MCP governance depth.
+- Human approval lifecycle APIs.
+- Stronger deployment packaging and production-hardening evidence.
+- Broader adapter conformance and publish certification.
+- Better standard telemetry evidence.
+
+## Design-Partner Work
+
+The maintainer is open to paid design-partner or embedded engineering work
+around governed AI execution, adapter-neutral orchestration, policy-wrapped tool
+execution, and related architecture reviews.
+
+This repository can be used as a reference implementation or starting point, but
+production deployment should go through a separate hardening process.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

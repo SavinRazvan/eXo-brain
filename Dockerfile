@@ -1,11 +1,12 @@
 # File: Dockerfile
 # Path: Dockerfile
-# Role: Production-oriented container image for the eXo-brain API (uvicorn factory).
+# Role: Local evaluation container image for the eXo-brain API (uvicorn factory).
 # Used By:
 #  - docker compose / CI smoke tests
 # Depends On:
 #  - requirements.txt
 # Notes:
+#  - Not a production or enterprise deployment template.
 #  - Set EXO_ENV and secrets via orchestrator env, not baked into the image.
 
 FROM python:3.12-slim AS runtime
@@ -16,11 +17,12 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl git \
+    && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-# exo-brain-core-contracts comes from git in requirements.txt (eXo_adapters); image needs git for pip.
+# Editable contracts path must exist before pip (layer cache); full tree copied afterward.
+COPY packages/eXo_adapters/packages/exo-brain-core-contracts ./packages/eXo_adapters/packages/exo-brain-core-contracts
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .

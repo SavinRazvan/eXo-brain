@@ -15,7 +15,8 @@ Depends On:
  - src/audit/*
  - scripts/release/*
 Notes:
- - Canonical launch posture is SaaS-first with dedicated VPC expansion.
+ - Strategy note: historical SaaS-first posture; current public repository is
+   a reference implementation, not a SaaS distribution.
  - Private/self-hosted remains a deferred option until operational maturity gates are met.
 -->
 
@@ -32,7 +33,11 @@ Notes:
 
 ## 1) Purpose
 
-Define explicit deployment models and support boundaries so enterprise GTM, pricing, and operations are aligned with platform reality.
+Define explicit deployment models and support boundaries so enterprise GTM,
+pricing, and operations remain aligned with platform reality. In the public
+repository, these models are strategic reference material, not a claim that
+hosted SaaS, dedicated VPC, or private enterprise deployment is currently
+available.
 
 This document answers:
 - where workloads run,
@@ -46,7 +51,7 @@ This document answers:
 
 ## 2) Locked Deployment Sequencing
 
-- Launch default: **Shared multi-tenant SaaS**.
+- Historical launch default: **Shared multi-tenant SaaS**.
 - Enterprise expansion: **Dedicated single-tenant/VPC**.
 - Deferred option: **Private/self-hosted** when operations and support maturity are sufficient.
 
@@ -178,7 +183,7 @@ Reasoning:
 
 | Deployment model | Foundation | Pro | Enterprise | Notes |
 |---|---|---|---|---|
-| Shared multi-tenant SaaS | Primary | Primary | Supported | Default launch model |
+| Shared multi-tenant SaaS | Primary | Primary | Supported | Historical default launch model; not currently offered by this public repository |
 | Dedicated single-tenant/VPC | Not default | Optional by agreement | Primary | Enterprise expansion path |
 | Private/self-hosted | Planned (not default) | Planned (not default) | Optional after maturity gates | Deferred until support model is hardened |
 
