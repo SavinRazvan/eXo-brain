@@ -24,7 +24,7 @@ Depends On:
  - docs/plans/control-plane-product-alignment-plan.md
  - docs/strategy/customer-self-serve-governance-journey.md
  - docs/plans/governance-configuration-reference-model.md
- - docs/api/governance-preview-and-testing.md
+ - docs/architecture/governed-execution-pipeline.md
  - docs/strategy/foundation-tier-adoption-checklist.md
 Notes:
  - Keep tier labels in sync with docs/strategy/entitlement-matrix.md.
@@ -38,8 +38,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.7.0`
-- Last Reviewed: `2026-04-01`
+- Version: `1.8.0`
+- Last Reviewed: `2026-04-12`
 - Review Cadence: `on architecture change`
 
 ---
@@ -63,8 +63,8 @@ This guide is the **wire-level** reference (endpoints, tiers, examples). For **p
 1. [`docs/strategy/customer-self-serve-governance-journey.md`](../strategy/customer-self-serve-governance-journey.md)
 2. [`docs/strategy/foundation-tier-adoption-checklist.md`](../strategy/foundation-tier-adoption-checklist.md)
 3. [`docs/plans/governance-configuration-reference-model.md`](../plans/governance-configuration-reference-model.md)
-4. [`docs/api/governance-preview-and-testing.md`](governance-preview-and-testing.md)
-5. [`docs/operations/governance-reason-code-catalog.md`](../operations/governance-reason-code-catalog.md)
+4. [`docs/architecture/governed-execution-pipeline.md`](../architecture/governed-execution-pipeline.md) — canonical ordering of ingress, orchestration, tool policy, and deterministic execution.
+5. **Planned in-tree:** `docs/api/governance-preview-and-testing.md`, `docs/operations/governance-reason-code-catalog.md` (tracked via [`docs/strategy/traceability-matrix.md`](../strategy/traceability-matrix.md)).
 
 Implementers and automation agents should treat these as **one bundle**: changing API behavior normally requires updating the spine docs in the same change set.
 
@@ -149,6 +149,13 @@ Accept: text/event-stream
 3. Latency budget evaluation (profile-specific p95 threshold + timeout fail-safe)
 
 If the gate chain returns `deny`, the stream emits a `403` response with a reason code. If a timeout occurs with `fail_closed` mode, the turn is rejected. With `fail_open`, the turn proceeds and a budget alert event is emitted.
+
+#### 4.1.1) Non-ALLOW ingress vs tool policy (same progression rule)
+
+For both **ingress** decisions and **tool-level** policy decisions on the governed turn path, any outcome **other than `allow`** means **that step does not progress** to the next stage in the sense of executing the risky work:
+
+- **Ingress** (`allow` / `deny` / `escalate`): a **non-`allow`** ingress decision **stops the HTTP/SSE/WebSocket turn** before model streaming and before `Orchestrator.run_turn` side effects (see [`docs/architecture/governed-execution-pipeline.md`](../architecture/governed-execution-pipeline.md)). **`escalate`** here is a **review signal** with reason metadata in audit/events; it is **not** an approval callback API.
+- **Tool policy** (after a tool intent is emitted): a **non-`allow`** decision yields a **blocked tool result** submitted back through the runtime adapter; the registered deterministic handler does **not** run. **`escalate`** carries **`review_required`** / channel metadata for operators; end-to-end **approve/reject** action APIs are **planned** (traceability matrix: Human approval workflow surface).
 
 ### 4.2) WebSocket Turn
 

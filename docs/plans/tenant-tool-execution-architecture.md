@@ -32,6 +32,7 @@ This section supersedes conflicting historical wording in this document.
 
 ## Canonical Current State (single source)
 
+- **Control-plane ordering (ingress, API turn path, orchestrator, policy, deterministic tools):** see [`docs/architecture/governed-execution-pipeline.md`](../architecture/governed-execution-pipeline.md).
 - Completed implementation baseline:
   - Slices `0`, `1`, `2`, `4.0` through `4.3`, `5.0` through `5.3`, and `6.0` through `6.4`.
   - Post-6.4 gap-closure track `T1` through `T4` completed (tenant scope guard, active uploaded-version execution wiring, import-first Tool Manager baseline, canonical docs synchronization baseline).

@@ -10,6 +10,7 @@
 # Notes:
 #  - Keep this workflow aligned with active governance scripts and `.local/index-and-planning/current` coverage index output.
 #  - evidence_bundle_publish records each job's GitHub Actions result (success|failure|skipped|cancelled) and fails the workflow if any stage did not succeed.
+#  - automated_test_suite runs nbconvert --execute on notebooks/tutorial_08_governed_execution_sandbox.ipynb (OPENAI_API_KEY unset; Part 8 skips live calls).
 
 name: architecture-fitness
 
@@ -26,6 +27,7 @@ on:
       - "moving_to_adapters_project/**"
       - "eXo_adapters/**"
       - "scripts/**"
+      - "notebooks/**"
       - "Makefile"
       - ".github/workflows/**"
   push:
@@ -82,6 +84,13 @@ jobs:
           pip install -r requirements.txt
       - name: Run automated test suite
         run: python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=100 -q
+      - name: Execute tutorial 08 notebook (nbconvert; no live API)
+        env:
+          OPENAI_API_KEY: ""
+        run: |
+          python -m jupyter nbconvert --execute --ExecutePreprocessor.timeout=900 \
+            --to notebook notebooks/tutorial_08_governed_execution_sandbox.ipynb \
+            --output /tmp/tutorial_08_executed.ipynb
       - name: Build coverage JSON index input
         run: mkdir -p .local/generated-data/coverage .local/index-and-planning/current && coverage json -o .local/generated-data/coverage/coverage.json
       - name: Generate coverage index artifact

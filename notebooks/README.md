@@ -6,7 +6,9 @@ live outputs, and hands-on exploration that pytest tests do not.
 
 **New here?** Start with `tutorial_01` → `tutorial_02` → `tutorial_03` → `tutorial_04` in order.
 Each tutorial builds on the previous one. `tutorial_05`, `tutorial_06`, and `tutorial_07` are
-standalone deep-dives you can run in any order after `tutorial_03`. The `check_` notebooks are
+standalone deep-dives you can run in any order after `tutorial_03`. **`tutorial_08`** is a
+**governed-execution lab** (story + code): edit policy, ingress, and tool knobs, read stdout like
+operator traces, and optionally run a **live** governed turn with `OPENAI_API_KEY`. The `check_` notebooks are
 independent smoke tests you can run any time to confirm a module is working correctly.
 The `edge_` notebooks explore boundary conditions and failure modes.
 
@@ -35,14 +37,15 @@ Rules:
 
 ## How to Run
 
-**Kernel:** `eXo-brain (.exo_env)` — select this kernel before running any notebook.
+**Kernel:** Use the project venv (`.venv` or `.exo_env`) — select a **Python 3.12** kernel whose
+`sys.prefix` points at that environment before running any notebook.
 
 ```bash
-# Activate the venv first
-source .exo_env/bin/activate
+# Activate the venv first (example: .venv)
+source .venv/bin/activate
 
 # Install the kernel if not already registered
-python -m ipykernel install --user --name=exo-brain --display-name "eXo-brain (.exo_env)"
+python -m ipykernel install --user --name=exo-brain --display-name "eXo-brain (.venv)"
 
 # Launch Jupyter
 jupyter lab notebooks/
@@ -60,7 +63,7 @@ are generated output — always edit the build script, then regenerate. Never ed
 
 | Script | Generates | Run command |
 |---|---|---|
-| `build_tutorials.py` | `tutorial_01_*` through `tutorial_07_*` | `python notebooks/build_tutorials.py` |
+| `build_tutorials.py` | `tutorial_01_*` through `tutorial_08_*` | `python notebooks/build_tutorials.py` |
 | `build_checks.py` | `check_01_*` through `check_04_*`, `edge_01_*`, `edge_02_*` | `python notebooks/build_checks.py` |
 
 After regenerating, re-run the notebook cells to refresh outputs, then commit both
@@ -239,6 +242,48 @@ give operators visibility and control over multi-tenant resource sharing.
 
 **Modules covered:** `src/policies/governance_anomaly_detector`, `src/policies/byoc_fairness`,
 `src/tenancy/policy_overlay`
+
+---
+
+#### `tutorial_08_governed_execution_sandbox.ipynb`
+
+**Purpose:** **Story + code** governance lab — each part explains *why* a layer exists (ingress, policy,
+deterministic tools, execution mode), what to edit, and how to read stdout. Opens with **For non-technical
+readers** (executive path + jargon cheat sheet). Optional **Part 8** runs a
+**live** `OPENAI_API_KEY` **governed vs raw** demos: ingress block vs model-always-runs, tenant **deny**
+on `admin_reset` vs ungoverned tool execution, **`safe_add_proven`** (random per-kernel `proof_token`)
+vs raw **`sloppy_add_proven`**, plus a governed-only live **`calculate_result`** multiply (same tool
+contract as **Tutorial 02**) — still calling **ingress first** on the governed side.
+
+**API key required:** **No** for Parts 1–7. **Part 8** uses `OPENAI_API_KEY` if set (otherwise prints skip).
+**Part 8 cost controls:** `NB_LIVE_INGRESS`, `NB_LIVE_POLICY`, `NB_LIVE_MATH`, `NB_LIVE_CALC` (default on;
+set to `0`/`false`/`off` to skip a block), plus optional `NB_LIVE_RAW_CALC_CONTRAST=1` for an extra raw
+multiply bug demo.
+
+**CI:** `architecture-fitness` runs `jupyter nbconvert --execute` on this notebook with an empty API key
+(Part 8 skips live calls).
+
+**Requires** `pip install -r requirements.txt` from repo root (editable `exo-brain-core-contracts` under
+`packages/eXo_adapters/`). **`nest-asyncio`** is in `requirements.txt` for Jupyter when a loop is
+already running (Parts 7–8).
+
+**What you will do inside:**
+1. Read the **beginner checklist**, **map**, and **deterministic vs provider-native** narrative, then bootstrap paths.
+2. Tune `USER_RISK` → probe synthetic `SCENARIOS` twice (**strict vs relaxed** risk gates).
+3. Set `USER_OVERLAY` → compare **global-only** vs **tenant overlay** on the same probe call.
+4. Register `USER_TOOLS` (including **`calculate_result`** like Tutorial 02) → `DeterministicToolExecutor` + metrics.
+5. Sweep `CAPABILITY_VARIANTS` → `select_execution_mode`.
+6. Edit `INGRESS_OVERLAY` → `evaluate_prompt` / gate chain.
+7. Stub orchestrator stream → `planned_tool_call` (no API key).
+8. Optional live turn → real adapter + same registry/executor; ingress gate on user text first.
+
+**Key insight:** Policy **escalate** / **deny** stop handler execution on the tool path; ingress **non-ALLOW**
+stops before orchestration on the real API path — see `docs/architecture/governed-execution-pipeline.md`.
+
+**Modules covered:** `src/policies/risk_gates`, `src/policies/middleware`, `src/tenancy/policy_overlay`,
+`src/tools/registry`, `src/tools/executor`, `src/observability/metrics`, `src/runtime/capability_map`,
+`src/runtime/mode_selector`, `src/policies/ingress_gates`, `src/core/orchestrator`,
+`src/runtime/openai_agents_runtime`
 
 ---
 

@@ -16,6 +16,8 @@ Depends On:
 Notes:
  - Generates notebooks idempotently; rerun after content updates.
  - Does not preserve existing cell outputs; re-run the notebook to refresh them.
+ - Bootstrap cells prepend vendored `exo-brain-core-contracts` `src` when present under
+   `packages/eXo_adapters/`.
 """
 
 from __future__ import annotations
@@ -59,6 +61,9 @@ def build_check_01_core_orchestrator() -> nbf.NotebookNode:
 
             _root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
             sys.path.insert(0, str(_root))
+            _contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
+            if _contracts_src.is_dir():
+                sys.path.insert(0, str(_contracts_src))
 
             from src.core.orchestrator import Orchestrator
             from src.policies.middleware import DeterministicFirstPolicyMiddleware
@@ -133,6 +138,9 @@ def build_check_02_policy_middleware() -> nbf.NotebookNode:
 
             _root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
             sys.path.insert(0, str(_root))
+            _contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
+            if _contracts_src.is_dir():
+                sys.path.insert(0, str(_contracts_src))
 
             from src.policies.middleware import DeterministicFirstPolicyMiddleware
             from src.schemas.tool_io import (
@@ -199,6 +207,9 @@ def build_check_03_runtime_adapter() -> nbf.NotebookNode:
 
             _root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
             sys.path.insert(0, str(_root))
+            _contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
+            if _contracts_src.is_dir():
+                sys.path.insert(0, str(_contracts_src))
 
             from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
             from src.schemas.events import RuntimeEventType
@@ -265,6 +276,9 @@ def build_check_04_tenant_and_limits() -> nbf.NotebookNode:
 
             _root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
             sys.path.insert(0, str(_root))
+            _contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
+            if _contracts_src.is_dir():
+                sys.path.insert(0, str(_contracts_src))
 
             from src.tenancy.quotas import TenantQuotaManager
             from src.tenancy.rate_limiter import TenantRateLimiter, SQLiteTenantRateLimiter
@@ -321,8 +335,14 @@ Key scenarios:
 - Injection phrase + custom rule overlap → first gate in chain wins, result is deterministic
 """),
         code(textwrap.dedent("""\
+            import pathlib
             import sys, os
-            sys.path.insert(0, os.path.abspath(".."))
+
+            _repo = pathlib.Path(os.path.abspath(".."))
+            sys.path.insert(0, str(_repo))
+            _contracts_src = _repo / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
+            if _contracts_src.is_dir():
+                sys.path.insert(0, str(_contracts_src))
 
             try:
                 from dotenv import load_dotenv
@@ -560,8 +580,14 @@ Regardless of how a tool fails, the result is always a typed `ToolResult` envelo
 The raw exception stack trace is **never** exposed to the model.
 """),
         code(textwrap.dedent("""\
+            import pathlib
             import sys, os
-            sys.path.insert(0, os.path.abspath(".."))
+
+            _repo = pathlib.Path(os.path.abspath(".."))
+            sys.path.insert(0, str(_repo))
+            _contracts_src = _repo / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
+            if _contracts_src.is_dir():
+                sys.path.insert(0, str(_contracts_src))
 
             try:
                 from dotenv import load_dotenv

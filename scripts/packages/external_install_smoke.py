@@ -7,7 +7,7 @@ Used By:
  - scripts/release/rc_signoff.py (optional gate)
  - make targets
 Depends On:
- - Optional local workspace: ``eXo_adapters/packages/``, ``moving_to_adapters_project/packages/``, or legacy ``packages/``.
+ - Optional local workspace: ``packages/eXo_adapters/packages/``, ``eXo_adapters/packages/``, ``moving_to_adapters_project/packages/``, or legacy ``packages/`` (with ``exo-brain-core-contracts`` at the root).
 Notes:
  - **Canonical** multi-package smoke lives in **eXo_adapters**; this script is a no-op (exit 0) when no local tree exists.
  - Creates a throwaway venv in /tmp, installs all four packages, runs import + conformance assertions.
@@ -31,6 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def _local_adapter_workspace() -> Path | None:
     for candidate in (
         REPO_ROOT / "eXo_adapters" / "packages",
+        REPO_ROOT / "packages" / "eXo_adapters" / "packages",
         REPO_ROOT / "moving_to_adapters_project" / "packages",
         REPO_ROOT / "packages",
     ):
