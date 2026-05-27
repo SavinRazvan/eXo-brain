@@ -9,7 +9,7 @@
 
 # ── AI / Model providers ──────────────────────────────────────────────────────
 openai>=2.21.0
-openai-agents>=0.10.2
+openai-agents>=0.17.4
 
 # ── Validation & settings ─────────────────────────────────────────────────────
 pydantic>=2.12.4
