@@ -12,6 +12,8 @@ operator traces, and optionally run a **live** governed turn with `OPENAI_API_KE
 independent smoke tests you can run any time to confirm a module is working correctly.
 The `edge_` notebooks explore boundary conditions and failure modes.
 
+**Evaluator time-boxed paths:** [EVALUATOR_GUIDE.md](EVALUATOR_GUIDE.md) (15 min / 90 min / security / maintainer smoke).
+
 ---
 
 ## Naming Standard
@@ -290,7 +292,8 @@ stops before orchestration on the real API path — see `docs/architecture/gover
 ### Checks
 
 Module smoke checks — deterministic, no API key, run top-to-bottom in under 5 seconds each.
-Run these any time to confirm a module is still working correctly after changes.
+Each check notebook includes **purpose, prerequisites, related tutorial, PASS criteria, and troubleshooting**
+in the first markdown cell (enterprise-friendly packaging, not just internal asserts).
 
 | File | What it checks | PASS condition |
 |---|---|---|

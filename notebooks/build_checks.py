@@ -30,6 +30,23 @@ import nbformat as nbf
 
 NB_DIR = Path(__file__).parent
 
+PORTABLE_KERNELSPEC = {
+    "display_name": "Python 3 (eXo-brain venv)",
+    "language": "python",
+    "name": "python3",
+}
+
+BOOTSTRAP_CODE = """
+import pathlib
+import sys
+
+_root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
+sys.path.insert(0, str(_root))
+_contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
+if _contracts_src.is_dir():
+    sys.path.insert(0, str(_contracts_src))
+"""
+
 
 def md(text: str) -> nbf.NotebookNode:
     return nbf.v4.new_markdown_cell(textwrap.dedent(text).strip())
@@ -39,32 +56,99 @@ def code(text: str) -> nbf.NotebookNode:
     return nbf.v4.new_code_cell(textwrap.dedent(text).strip())
 
 
+def setup_code(imports_and_body: str) -> nbf.NotebookNode:
+    """Bootstrap sys.path then run imports and test logic (dedented)."""
+    combined = BOOTSTRAP_CODE.strip() + "\n\n" + textwrap.dedent(imports_and_body).strip()
+    return code(combined)
+
+
 def new_notebook() -> nbf.NotebookNode:
     nb = nbf.v4.new_notebook()
-    nb.metadata["kernelspec"] = {
-        "display_name": "eXo-brain (.exo_env)",
-        "language": "python",
-        "name": "exo-brain",
-    }
-    nb.metadata["language_info"] = {"name": "python", "version": "3.13"}
+    nb.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
+    nb.metadata["language_info"] = {"name": "python", "version": "3.12"}
     return nb
+
+
+def check_header(
+    number: str,
+    title: str,
+    *,
+    purpose: str,
+    modules: str,
+    tutorial: str,
+    pass_means: str,
+    troubleshooting: str,
+) -> str:
+    return f"""\
+# Check {number} — {title}
+
+**Category:** Module smoke check (fast regression; companion to pytest, not a full tutorial).
+
+**Purpose:** {purpose}
+
+**Prerequisites:**
+- Python **3.12+** with project deps installed (`pip install -r requirements.txt` from repo root)
+- Kernel: project **`.venv`** (see `notebooks/README.md`)
+- Run cells **top to bottom** (bootstrap cell sets `sys.path` automatically)
+- **No API key** required — deterministic, in-process only
+
+**Related tutorial:** {tutorial}
+
+**Modules exercised:** {modules}
+
+**PASS means:** {pass_means}
+
+**Troubleshooting:** {troubleshooting}
+"""
+
+
+def edge_footer(*, tutorial: str, modules: str) -> str:
+    return f"""\
+## Summary
+
+All scenarios above ended with **PASS**. Gate ordering and error envelopes are deterministic.
+
+**Learn more:** {tutorial}
+
+**Modules:** {modules}
+
+**Troubleshooting:**
+- Import errors → run bootstrap first; confirm `packages/eXo_adapters/.../exo-brain-core-contracts` exists or `pip install -e` that path
+- Assertion failures after code changes → run matching `tests/modules/...` pytest file, then regenerate this notebook via `python notebooks/build_checks.py`
+"""
 
 
 def build_check_01_core_orchestrator() -> nbf.NotebookNode:
     nb = new_notebook()
     nb.cells = [
-        md("# Check 01 — Core Orchestrator"),
-        code(
+        md(
+            check_header(
+                "01",
+                "Core Orchestrator",
+                purpose=(
+                    "Prove `Orchestrator.run_turn` routes a HIGH-risk, state-changing "
+                    "`planned_tool_call` through the deterministic tool path and emits "
+                    "`RUN_COMPLETE` plus completed `TOOL_PROGRESS`."
+                ),
+                modules=(
+                    "`src/core/orchestrator`, `src/policies/middleware`, "
+                    "`src/runtime/openai_agents_runtime`, `src/tools/executor`, `src/tools/registry`"
+                ),
+                tutorial="`tutorial_01_core_framework.ipynb`",
+                pass_means=(
+                    "Printed event stream includes `run_complete` and `tool_progress` with "
+                    "`state=completed`; final line is `PASS: orchestrator deterministic tool path`."
+                ),
+                troubleshooting=(
+                    "If `planned_tool_call` is ignored, verify `tool_name` matches a registered "
+                    "descriptor and risk tier is HIGH + `is_state_changing=True`. "
+                    "If async errors appear, re-run after the bootstrap cell; check 03 shows the "
+                    "`nest_asyncio` pattern."
+                ),
+            )
+        ),
+        setup_code(
             """
-            import pathlib
-            import sys
-
-            _root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
-            sys.path.insert(0, str(_root))
-            _contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-            if _contracts_src.is_dir():
-                sys.path.insert(0, str(_contracts_src))
-
             from src.core.orchestrator import Orchestrator
             from src.policies.middleware import DeterministicFirstPolicyMiddleware
             from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
@@ -106,23 +190,33 @@ def build_check_01_core_orchestrator() -> nbf.NotebookNode:
                 },
             }
 
-            events = []
-            async for event in orchestrator.run_turn("sess_core_nb", "run deterministic", context):
-                events.append(event)
-                print(event.event_type.value, event.payload)
+            import asyncio
 
-            event_types = [e.event_type for e in events]
-            assert RuntimeEventType.RUN_COMPLETE in event_types, "Missing RUN_COMPLETE event"
-            tool_progress_states = [
-                e.payload.get("state")
-                for e in events
-                if e.event_type == RuntimeEventType.TOOL_PROGRESS
-            ]
-            assert "completed" in tool_progress_states, "Missing completed TOOL_PROGRESS state"
-            print("PASS: orchestrator deterministic tool path")
+            async def _run_check():
+                events = []
+                async for event in orchestrator.run_turn("sess_core_nb", "run deterministic", context):
+                    events.append(event)
+                    print(event.event_type.value, event.payload)
+
+                event_types = [e.event_type for e in events]
+                assert RuntimeEventType.RUN_COMPLETE in event_types, "Missing RUN_COMPLETE event"
+                tool_progress_states = [
+                    e.payload.get("state")
+                    for e in events
+                    if e.event_type == RuntimeEventType.TOOL_PROGRESS
+                ]
+                assert "completed" in tool_progress_states, "Missing completed TOOL_PROGRESS state"
+                print("PASS: orchestrator deterministic tool path")
+
+            try:
+                loop = asyncio.get_running_loop()
+                import nest_asyncio
+                nest_asyncio.apply()
+                loop.run_until_complete(_run_check())
+            except RuntimeError:
+                asyncio.run(_run_check())
             """
         ),
-        md("Troubleshooting: if assertions fail, verify `planned_tool_call` and `tool_name` registration match."),
     ]
     return nb
 
@@ -130,18 +224,30 @@ def build_check_01_core_orchestrator() -> nbf.NotebookNode:
 def build_check_02_policy_middleware() -> nbf.NotebookNode:
     nb = new_notebook()
     nb.cells = [
-        md("# Check 02 — Policy Middleware"),
-        code(
+        md(
+            check_header(
+                "02",
+                "Policy Middleware",
+                purpose=(
+                    "Prove `DeterministicFirstPolicyMiddleware` allows LOW-risk pre-checks and "
+                    "enforces post-checks (`POLICY_POSTCHECK_FAILED` when SUCCESS has no payload)."
+                ),
+                modules="`src/policies/middleware`, `src/schemas/tool_io`",
+                tutorial="`tutorial_08_governed_execution_sandbox.ipynb` (Parts 1–3)",
+                pass_means=(
+                    "`before_tool_call` prints `allow` with a reason code; "
+                    "`after_tool_call` on bad SUCCESS returns `POLICY_POSTCHECK_FAILED`; "
+                    "final line `PASS: policy middleware checks`."
+                ),
+                troubleshooting=(
+                    "If post-check does not fire, confirm `ToolResult.status` is SUCCESS and "
+                    "`result=None`. IDE squiggles on `ToolCallContext(...)` are often false "
+                    "positives — trust runtime PASS if cells execute."
+                ),
+            )
+        ),
+        setup_code(
             """
-            import pathlib
-            import sys
-
-            _root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
-            sys.path.insert(0, str(_root))
-            _contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-            if _contracts_src.is_dir():
-                sys.path.insert(0, str(_contracts_src))
-
             from src.policies.middleware import DeterministicFirstPolicyMiddleware
             from src.schemas.tool_io import (
                 ExecutionMetadata,
@@ -199,18 +305,28 @@ def build_check_02_policy_middleware() -> nbf.NotebookNode:
 def build_check_03_runtime_adapter() -> nbf.NotebookNode:
     nb = new_notebook()
     nb.cells = [
-        md("# Check 03 — Runtime Adapter"),
-        code(
+        md(
+            check_header(
+                "03",
+                "Runtime Adapter",
+                purpose=(
+                    "Prove `OpenAIAgentsRuntimeAdapter` healthcheck works and "
+                    "`run_turn` with `planned_tool_call` emits `TOOL_INTENT` (simulation path)."
+                ),
+                modules="`src/runtime/openai_agents_runtime`, `src/schemas/events`",
+                tutorial="`tutorial_02_openai_adapter.ipynb`",
+                pass_means=(
+                    "Health prints healthy; event stream includes `tool_intent`; "
+                    "`PASS: runtime adapter planned tool-intent path`."
+                ),
+                troubleshooting=(
+                    "If `nest_asyncio` is missing in Jupyter, `pip install nest-asyncio` "
+                    "(listed in `requirements.txt`). Live OpenAI calls are **not** required here."
+                ),
+            )
+        ),
+        setup_code(
             """
-            import pathlib
-            import sys
-
-            _root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
-            sys.path.insert(0, str(_root))
-            _contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-            if _contracts_src.is_dir():
-                sys.path.insert(0, str(_contracts_src))
-
             from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
             from src.schemas.events import RuntimeEventType
             """
@@ -267,18 +383,29 @@ def build_check_03_runtime_adapter() -> nbf.NotebookNode:
 def build_check_04_tenant_and_limits() -> nbf.NotebookNode:
     nb = new_notebook()
     nb.cells = [
-        md("# Check 04 — Tenant and Limits"),
-        code(
+        md(
+            check_header(
+                "04",
+                "Tenant and Limits",
+                purpose=(
+                    "Prove `TenantQuotaManager` denies over-quota submissions and both in-memory "
+                    "and SQLite rate limiters enforce sliding-window caps."
+                ),
+                modules="`src/tenancy/quotas`, `src/tenancy/rate_limiter`",
+                tutorial="`tutorial_05_multi_turn_sessions.ipynb`",
+                pass_means=(
+                    "Quota denial prints `TENANT_QUOTA_EXCEEDED`; both limiters block the third "
+                    "request; `PASS: tenancy and limits checks`."
+                ),
+                troubleshooting=(
+                    "If SQLite limiter fails on permissions, confirm temp directory is writable. "
+                    "Quota uses `active_jobs` argument — must pass `2` to trigger denial when max is 2."
+                ),
+            )
+        ),
+        setup_code(
             """
-            import pathlib
-            import sys
             import tempfile
-
-            _root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
-            sys.path.insert(0, str(_root))
-            _contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-            if _contracts_src.is_dir():
-                sys.path.insert(0, str(_contracts_src))
 
             from src.tenancy.quotas import TenantQuotaManager
             from src.tenancy.rate_limiter import TenantRateLimiter, SQLiteTenantRateLimiter
@@ -323,16 +450,23 @@ def build_edge_01() -> nbf.NotebookNode:
         md("""\
 # Edge Case 01 — Ingress Policy Conflicts
 
-**No API key required. Target: under 3 minutes.**
+**Category:** Boundary / failure exploration (deterministic proof notebook).
 
-When multiple gates in the ingress chain could fire for the same input, which one wins?
-This notebook proves that **first non-ALLOW wins** — gate ordering is deterministic.
+**Purpose:** When multiple ingress gates could fire for the same input, prove **first non-ALLOW wins** — gate ordering is fixed and deterministic.
+
+**Prerequisites:** Python 3.12+ `.venv`, no API key. Target runtime: **under 3 minutes**.
+
+**Related tutorial:** `tutorial_03_bring_your_own_config.ipynb`
+
+**Modules:** `src/policies/ingress_gates`, `src/policies/ingress_profiles`
+
+**PASS means:** Each scenario prints PASS; final line `All edge_01 scenarios: PASS`.
 
 Key scenarios:
-- Classifier AND custom rule both match → classifier fires first (it precedes CustomRulesGate)
+- Classifier AND custom rule both match → classifier evaluated first (shadow passes through; enforce may block)
 - Custom rule matches, classifier does not → CustomRulesGate fires
 - Shadow classifier: exceeds threshold but another gate fires first → recorded but not the winner
-- Injection phrase + custom rule overlap → first gate in chain wins, result is deterministic
+- Injection phrase + custom rule overlap → first gate in chain wins
 """),
         code(textwrap.dedent("""\
             import pathlib
@@ -358,12 +492,17 @@ through a gate chain and prints which gate fired and why.
 """),
         code(textwrap.dedent("""\
             from src.policies.ingress_gates import (
-                IngressGateChain, IngressTurnContext, build_ingress_gate_chain_from_overlay,
+                IngressDecision,
+                IngressGateChain,
+                IngressTurnContext,
+                build_ingress_gate_chain_from_overlay,
             )
             from src.policies.ingress_profiles import resolve_ingress_profile_settings
             from src.schemas.tool_io import PolicyAction
 
-            def evaluate_prompt(chain: IngressGateChain, prompt: str, session_id: str = "edge-01") -> None:
+            def evaluate_prompt(
+                chain: IngressGateChain, prompt: str, session_id: str = "edge-01",
+            ) -> IngressDecision:
                 ctx = IngressTurnContext(
                     tenant_id="tenant-edge",
                     session_id=session_id,
@@ -558,6 +697,12 @@ Verify that a clean input produces ALLOW from the chain.
             print("All edge_01 scenarios: PASS")
             print("Gate chain order is deterministic. First non-ALLOW wins.")
         """)),
+        md(
+            edge_footer(
+                tutorial="`tutorial_03_bring_your_own_config.ipynb`",
+                modules="`src/policies/ingress_gates`, `src/policies/ingress_profiles`",
+            )
+        ),
     ]
     return nb
 
@@ -568,16 +713,23 @@ def build_edge_02() -> nbf.NotebookNode:
         md("""\
 # Edge Case 02 — Tool Error Envelopes
 
-**No API key required. Target: under 2 minutes.**
+**Category:** Boundary / failure exploration (deterministic proof notebook).
 
-`DeterministicToolExecutor` is the safety boundary between the model and your tools.
-Regardless of how a tool fails, the result is always a typed `ToolResult` envelope:
-- `status` — one of `SUCCESS`, `ERROR`, `BLOCKED`, `TIMEOUT`, `CANCELLED`
-- `error` — a `NormalizedError` with `code`, `category`, `message`, `retryable`
-- `audit` — `ToolAudit` with `correlation_id` for traceability
-- `result` — populated on `SUCCESS`, `None` on failure
+**Purpose:** Prove `DeterministicToolExecutor` is a **safety boundary** — every outcome is a typed `ToolResult`; raw exceptions never leak to the model.
 
-The raw exception stack trace is **never** exposed to the model.
+**Prerequisites:** Python 3.12+ `.venv`, no API key. Target runtime: **under 2 minutes**.
+
+**Related tutorial:** `tutorial_04_audit_trail.ipynb` (audit fields); `tutorial_02_openai_adapter.ipynb` (live tool path)
+
+**Modules:** `src/tools/executor`, `src/tools/registry`, `src/schemas/tool_io`, `src/policies/middleware`
+
+**PASS means:** Each part prints PASS; final line `All edge_02 scenarios: PASS`.
+
+Envelope fields on every path:
+- `status` — `SUCCESS`, `ERROR`, `BLOCKED`, `TIMEOUT`, or `CANCELLED`
+- `error` — `NormalizedError` with `code`, `category`, `message`, `retryable`
+- `audit` — `correlation_id` for traceability
+- `result` — populated on SUCCESS only
 """),
         code(textwrap.dedent("""\
             import pathlib
@@ -798,6 +950,12 @@ A `ToolCallContext` with `schema_version != "1.0"` fails validation before execu
             print("All edge_02 scenarios: PASS")
             print("DeterministicToolExecutor is a safety boundary — every outcome is a typed ToolResult.")
         """)),
+        md(
+            edge_footer(
+                tutorial="`tutorial_08_governed_execution_sandbox.ipynb` (Part 4)",
+                modules="`src/tools/executor`, `src/schemas/tool_io`",
+            )
+        ),
     ]
     return nb
 
