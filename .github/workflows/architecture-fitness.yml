@@ -28,6 +28,7 @@ on:
       - "eXo_adapters/**"
       - "scripts/**"
       - "notebooks/**"
+      - "requirements.txt"
       - "Makefile"
       - ".github/workflows/**"
   push:

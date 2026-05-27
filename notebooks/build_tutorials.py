@@ -26,6 +26,20 @@ PORTABLE_KERNELSPEC = {
     "name": "python3",
 }
 
+TUTORIAL_FOOTER = """
+## Notebook navigation
+
+| If you want… | Open |
+|---|---|
+| Previous / next in learning path | See `notebooks/README.md` index |
+| Fast module smoke after a code change | `check_01` … `check_04` |
+| Ingress or tool boundary proofs | `edge_01`, `edge_02` |
+| Full governance lab (story + optional live) | `tutorial_08_governed_execution_sandbox.ipynb` |
+| Evaluator time-boxed paths | `notebooks/EVALUATOR_GUIDE.md` |
+
+**Regenerate notebooks:** edit this build script, then `python notebooks/build_tutorials.py` (do not hand-edit `.ipynb` JSON).
+"""
+
 
 def md(text: str) -> nbf.NotebookNode:
     return nbf.v4.new_markdown_cell(text.strip())
@@ -3846,6 +3860,9 @@ Customer-facing overlay keys and API behaviour: `docs/api/customer-api-integrati
 
 
 # ── write tutorial notebooks ─────────────────────────────────────────────────────
+
+for _nb in (nb1, nb2, nb3, nb4, nb5, nb6, nb7, nb8):
+    _nb.cells.append(md(TUTORIAL_FOOTER))
 
 p1 = NB_DIR / "tutorial_01_core_framework.ipynb"
 p2 = NB_DIR / "tutorial_02_openai_adapter.ipynb"

@@ -6,8 +6,9 @@ eXo-brain is an independent, single-maintainer reference implementation of
 governed agentic AI execution.
 
 It is **not** a commercial SaaS product, not an enterprise-supported platform,
-and not a production deployment template. It is maintained part-time by Savin I.
-Razvan as an open-source research and engineering artifact.
+and not a production deployment template. It is maintained part-time by
+**Savin Ionut Razvan** (credited as Savin I. Razvan) as an open-source research
+and engineering artifact.
 
 ## What This Repository Is For
 

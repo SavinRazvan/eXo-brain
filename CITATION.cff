@@ -3,9 +3,8 @@ message: "If you use eXo-brain in research, writing, or architecture work, pleas
 title: "eXo-brain: Reference Implementation of Governed Agentic AI Execution"
 type: software
 authors:
-  - family-names: "Savin"
-    given-names: "Razvan"
-    name-particle: "I."
+  - family-names: Savin
+    given-names: Ionut Razvan
 repository-code: "https://github.com/SavinRazvan/eXo-brain"
 url: "https://github.com/SavinRazvan/eXo-brain"
 license: "Apache-2.0"

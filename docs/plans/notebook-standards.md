@@ -1,44 +1,93 @@
-# Notebook Standards and Ownership Map
+<!--
+File: notebook-standards.md
+Path: docs/plans/notebook-standards.md
+Role: Canonical contract for eXo-brain notebook categories, structure, and regeneration.
+Used By:
+ - Maintainers adding or editing notebooks
+ - notebooks/README.md
+Depends On:
+ - notebooks/build_tutorials.py
+ - notebooks/build_checks.py
+Notes:
+ - Supersedes legacy names (01_idea_validation, 1x_*_checks).
+-->
 
-## Canonical Notebook Contract (`01_idea_validation.ipynb`)
+# Notebook standards
 
-- **Goal:** prove deterministic tool execution with one end-to-end interaction.
-- **Required sections:**
-  - prerequisites and API-key marker
-  - local deterministic smoke (no API key)
-  - single live workflow run (API key required)
-  - explicit "intercepted tool call" output proof
-  - expected output checklist
-- **Rule:** one user prompt -> one model run -> one final result path.
+## Categories (current)
 
-## Module Notebook Template
-
-Every module notebook must include:
-
-1. **Purpose** (what subsystem it validates)
-2. **Prerequisites** (env vars, dependencies, API key requirement)
-3. **Setup cell** (imports + path bootstrap)
-4. **Run/check cell(s)** with assertions
-5. **Troubleshooting cell** (common failure causes and next checks)
-
-## Naming Standard
-
-- Canonical: `01_idea_validation.ipynb`
-- Module checks: `1x_*_checks.ipynb`
-- Keep names stable for docs and onboarding links.
-
-## Ownership Map
-
-| Notebook | Primary Validation Owner | Secondary Owner |
+| Prefix | Purpose | Audience |
 |---|---|---|
-| `notebooks/01_idea_validation.ipynb` | Runtime/Tools integration | Platform API maintainers |
-| `notebooks/10_core_orchestrator_checks.ipynb` | Core orchestration maintainers | Runtime maintainers |
-| `notebooks/11_policy_middleware_checks.ipynb` | Policy and safety maintainers | Core maintainers |
-| `notebooks/12_runtime_adapter_checks.ipynb` | Runtime adapter maintainers | Integration maintainers |
-| `notebooks/13_tenant_and_limits_checks.ipynb` | Tenancy and control-plane maintainers | API maintainers |
+| `tutorial_` | Narrative walkthrough; concepts before code | Evaluators, new contributors, design partners |
+| `check_` | Fast module smoke (~5s); assert + PASS | Maintainers after refactors |
+| `edge_` | Boundary / failure proofs; scenario-driven | Security, platform, compliance reviewers |
 
-## Expected Output Quality
+Naming: `<category>_<NN>_<slug>.ipynb` — numbers are sequential **within** each category.
 
-- Assertions should fail fast with clear messages.
-- Tool-execution proof logs should be concise and deterministic.
-- API-key-required cells must start with explicit skip guards when key is absent.
+## Source of truth
+
+| Generates | Script |
+|---|---|
+| `tutorial_01` … `tutorial_08` | `python notebooks/build_tutorials.py` |
+| `check_01` … `check_04`, `edge_01`, `edge_02` | `python notebooks/build_checks.py` |
+
+**Do not hand-edit `.ipynb` files** for content changes — edit the build script, regenerate, re-run cells for outputs, commit both.
+
+## Required structure — tutorials
+
+1. **Title cell** — what it covers, API key policy, time estimate when relevant
+2. **Bootstrap** — `.env` optional load, `sys.path`, vendored contracts `src` when present
+3. **Concept markdown** — architecture diagram or story before heavy code
+4. **Section markdown** — numbered steps (“We will…”)
+5. **Code + interpretation** — stdout is evidence
+6. **`[REQUIRES API KEY]`** sections where live calls need a key (skip guards in code)
+7. **Key insight / summary** — one paragraph takeaway
+8. **Notebook navigation** footer (auto-appended by `build_tutorials.py`)
+
+## Required structure — checks
+
+1. **Header markdown** — category, purpose, prerequisites, related tutorial, modules, PASS means, troubleshooting
+2. **Bootstrap code** — shared path setup
+3. **Assert code** — prints `PASS: …` on success
+4. No API key; deterministic only
+
+## Required structure — edge cases
+
+1. **Header** — purpose, prerequisites, related tutorial, modules, PASS means
+2. **Scenario markdown → code** alternation
+3. **Summary footer** — troubleshooting + link to tutorial
+
+## Kernel and environment
+
+- Use project **`.venv`** (Python **3.12+**)
+- Kernelspec name: **`python3`** (portable; not a hardcoded `.exo_env` path)
+- Install deps: `pip install -r requirements.txt` from repo root
+
+## Expected output quality
+
+- Assertions fail fast with clear messages
+- Checks and edges end with explicit **PASS** lines
+- API-key cells skip gracefully when `OPENAI_API_KEY` is unset
+- Reason codes and gate IDs printed where relevant (enterprise evidence)
+
+## CI
+
+- `tutorial_08` is executed via `nbconvert` in `architecture-fitness.yml` (no API key; Part 8 skips live)
+- Other notebooks: maintainer / evaluator runs locally
+
+## Evaluator entry point
+
+See **`notebooks/EVALUATOR_GUIDE.md`** for time-boxed paths (15 min / 90 min / security focus).
+
+## Ownership map (logical)
+
+| Notebook | Primary validation |
+|---|---|
+| `tutorial_01`, `check_01` | Core orchestration |
+| `tutorial_02`, `check_03` | Runtime adapter |
+| `tutorial_03`, `edge_01` | Ingress policy |
+| `tutorial_04`, `edge_02` | Audit / tool envelopes |
+| `tutorial_05`, `check_04` | Tenancy / limits |
+| `tutorial_06` | Background workflows |
+| `tutorial_07` | Governance anomaly / fairness |
+| `tutorial_08` | Full governed execution lab |
