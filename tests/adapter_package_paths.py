@@ -1,19 +1,20 @@
 """
 File: adapter_package_paths.py
 Path: tests/adapter_package_paths.py
-Role: Locate optional local portable adapter package workspace for conformance tests.
+Role: Detect installed or local portable adapter packages for conformance tests.
 Used By:
  - tests/packages/test_echo_adapter_conformance.py
  - tests/packages/test_openai_adapter_conformance.py
  - tests/modules/runtime/test_adapter_factory.py
 Depends On:
- - Optional directory trees (see _local_adapter_workspace)
+ - importlib (installed wheels) or packages/repo_for_pipy (dev fallback)
 Notes:
- - Probe order matches scripts/packages/external_install_smoke.py _local_adapter_workspace().
+ - Prefer PyPI/editable installs; local src trees are dev-only fallback.
 """
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -26,8 +27,14 @@ _PORTABLE_ADAPTER_PACKAGE_DIRS = (
 )
 
 
+def packaged_adapters_installed() -> bool:
+    """True when adapter wheels are importable (PyPI or editable install)."""
+    return importlib.util.find_spec("exo_adapter_openai") is not None
+
+
 def _local_adapter_workspace() -> Path | None:
     for candidate in (
+        REPO_ROOT / "packages" / "repo_for_pipy" / "packages",
         REPO_ROOT / "eXo_adapters" / "packages",
         REPO_ROOT / "packages" / "eXo_adapters" / "packages",
         REPO_ROOT / "moving_to_adapters_project" / "packages",
@@ -39,6 +46,8 @@ def _local_adapter_workspace() -> Path | None:
 
 
 def local_portable_adapters_present() -> bool:
+    if packaged_adapters_installed():
+        return True
     workspace = _local_adapter_workspace()
     if workspace is None:
         return False
@@ -46,12 +55,12 @@ def local_portable_adapters_present() -> bool:
 
 
 def package_src(package_name: str) -> Path:
+    """Return local src tree for sys.path injection (legacy dev fallback only)."""
     workspace = _local_adapter_workspace()
     if workspace is None:
         raise FileNotFoundError(
-            "Portable adapter packages not found under eXo_adapters/packages, "
-            "packages/eXo_adapters/packages, moving_to_adapters_project/packages, "
-            "or legacy packages/."
+            "Portable adapter packages not found. Install with "
+            "bash scripts/dev/install_adapter_dependencies.sh"
         )
     src_root = workspace / package_name / "src"
     if not src_root.is_dir():

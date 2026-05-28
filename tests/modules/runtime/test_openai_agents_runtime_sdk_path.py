@@ -102,7 +102,7 @@ def test_openai_adapter_sdk_branch_emits_message_tool_intent_and_completion(monk
         observed.update(kwargs)
         return []
 
-    monkeypatch.setattr("src.runtime.tool_wiring.build_agent_tools", _fake_build_agent_tools)
+    monkeypatch.setattr("exo_adapter_openai.runtime.build_agent_tools", _fake_build_agent_tools)
 
     adapter = OpenAIAgentsRuntimeAdapter(
         provider_id="openai-test",
@@ -130,16 +130,13 @@ def test_openai_adapter_sdk_branch_emits_message_tool_intent_and_completion(monk
         ]
 
     events = asyncio.run(_run())
+    # Delegating tools: ToolCallItem does not re-emit TOOL_INTENT (SDK bodies own execution).
     assert [event.event_type for event in events] == [
         RuntimeEventType.OUTPUT_DELTA,
-        RuntimeEventType.TOOL_INTENT,
         RuntimeEventType.RUN_COMPLETE,
     ]
     assert events[0].payload["text"] == "hello from sdk"
-    assert events[1].tool_call is not None
-    assert events[1].tool_call.call_id == "tc_sdk"
-    assert events[1].tool_call.tool_name == "math_tool"
-    assert events[2].payload["output"] == "final answer"
+    assert events[1].payload["output"] == "final answer"
     assert observed["session_id"] == "sess_sdk"
     assert observed["agent_id"] == "agent_sdk"
     assert observed["provider_id"] == "openai-test"

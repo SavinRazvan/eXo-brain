@@ -20,10 +20,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-# Editable contracts path must exist before pip (layer cache); full tree copied afterward.
-COPY packages/eXo_adapters/packages/exo-brain-core-contracts ./packages/eXo_adapters/packages/exo-brain-core-contracts
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements-adapters.txt requirements-adapters-local.txt ./
+COPY scripts/dev/install_adapter_dependencies.sh ./scripts/dev/install_adapter_dependencies.sh
+COPY packages/repo_for_pipy/packages ./packages/repo_for_pipy/packages
+RUN chmod +x scripts/dev/install_adapter_dependencies.sh \
+    && ./scripts/dev/install_adapter_dependencies.sh
 
 COPY . .
 

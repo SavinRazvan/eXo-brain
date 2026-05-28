@@ -1,0 +1,7 @@
+# Local editable installs when PyPI wheels are unavailable (pre-publish or offline dev).
+# Used automatically by scripts/dev/install_adapter_dependencies.sh as fallback.
+
+-e ./packages/repo_for_pipy/packages/exo-brain-core-contracts
+-e ./packages/repo_for_pipy/packages/exo-brain-adapter-sdk
+-e ./packages/repo_for_pipy/packages/exo-adapter-echo
+-e ./packages/repo_for_pipy/packages/exo-adapter-openai

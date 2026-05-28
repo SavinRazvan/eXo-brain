@@ -29,6 +29,9 @@ on:
       - "scripts/**"
       - "notebooks/**"
       - "requirements.txt"
+      - "requirements-adapters.txt"
+      - "requirements-adapters-local.txt"
+      - "packages/repo_for_pipy/**"
       - "Makefile"
       - ".github/workflows/**"
   push:
@@ -80,9 +83,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: bash scripts/dev/install_adapter_dependencies.sh
       - name: Run automated test suite
         run: python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=100 -q
       - name: Execute tutorial 08 notebook (nbconvert; no live API)
@@ -111,9 +112,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: bash scripts/dev/install_adapter_dependencies.sh
       - name: Run runtime contract tests
         run: python -m pytest tests/modules/runtime/test_runtime_adapter_contract.py -q
 
@@ -126,9 +125,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: bash scripts/dev/install_adapter_dependencies.sh
       - name: Run packages/ workspace tests
         run: python -m pytest tests/packages -q
 
@@ -141,9 +138,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: bash scripts/dev/install_adapter_dependencies.sh
       - name: Run integration fitness tests
         run: python -m pytest tests/modules/core/test_orchestrator_turn.py tests/modules/core/test_multi_adapter_workflow_parity.py tests/modules/integration/test_host_adapter_input_flow.py -q
 

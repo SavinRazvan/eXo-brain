@@ -104,8 +104,8 @@ def test_load_adapter_accepts_legacy_short_alias() -> None:
             assert isinstance(adapter, OpenAIAgentsRuntimeAdapter)
 
 
-def test_canonicalize_adapter_class_ref_maps_legacy_to_canonical() -> None:
-    canonical = canonicalize_adapter_class_ref("src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter")
+def test_canonicalize_adapter_class_ref_maps_short_openai_alias() -> None:
+    canonical = canonicalize_adapter_class_ref("OpenAIAgentsRuntimeAdapter")
     assert canonical == OPENAI_ADAPTER_CANONICAL_CLASS_REF
 
 

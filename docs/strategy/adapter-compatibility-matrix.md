@@ -19,16 +19,18 @@ Companion to [`adapter-strategy.md`](adapter-strategy.md) (packaging, certificat
 
 **Scope note:** these packages are **provider runtime adapters** (and contracts/SDK for building them) — **outbound** from eXo-brain to model providers. They are **not** the **customer bridge** (HTTP/SDK customers use to call the control plane); see `governed-execution-positioning.md` and [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 
-**Source location (2026-03-24):** distribution names and versions below are authoritative for **pip install** targets. **Authoring** is moving to **`ai-adapters-sdk`** (or equivalent); copies under `packages/` in eXo-brain remain **only until extraction** completes (`governed-execution-positioning.md` **Repository boundary**, [`adapter-packages-extraction-handoff.md`](../plans/adapter-packages-extraction-handoff.md)).
+**Source location (2026-05-28):** canonical authoring and PyPI publish tree is **`SavinRazvan/eXo_adapters`** (vendored dev copy: `packages/repo_for_pipy/`). eXo-brain consumes wheels via `requirements.txt` + `requirements-adapters.txt`; `packages/eXo_adapters/` is deprecated for publish.
 
 ## 1) Published packages (distributions)
 
 | Package | PyPI name (target) | Version (pyproject) | Python (package) | Depends on |
 |--------|-------------------|---------------------|------------------|------------|
-| Core contracts | `exo-brain-core-contracts` | **0.1.0** | >=3.11 | — |
-| Adapter SDK | `exo-brain-adapter-sdk` | **0.1.0** | >=3.11 | `exo-brain-core-contracts` |
-| OpenAI adapter | `exo-adapter-openai` | **0.1.0** | >=3.11 | `exo-brain-core-contracts`, OpenAI SDKs |
-| Echo adapter | `exo-adapter-echo` | **0.1.0** | >=3.11 | `exo-brain-core-contracts` |
+| Core contracts | `exo-brain-core-contracts` | **0.1.1** | >=3.11 | — |
+| Adapter SDK | `exo-brain-adapter-sdk` | **0.1.1** | >=3.11 | `exo-brain-core-contracts>=0.1.1,<0.2` |
+| OpenAI adapter | `exo-adapter-openai` | **0.1.1** | >=3.11 | `exo-brain-core-contracts`, OpenAI SDKs |
+| Echo adapter | `exo-adapter-echo` | **0.1.1** | >=3.11 | `exo-brain-core-contracts` |
+
+**eXo-brain pairing:** control plane **v0.1.0+** with adapter lockstep **0.1.1** (see `requirements-adapters.txt`). Contract drift guard: `tests/modules/runtime/test_contract_drift.py`.
 
 **Repo platform Python:** minimum **3.12** for `src/**` CI and runtime (see root `README.md`); packages still declare `>=3.11` until a coordinated bump.
 
@@ -70,8 +72,8 @@ M0 is defined in [`adapter-strategy.md` §19.6](adapter-strategy.md#196-incremen
 
 | Adapter package | Version | Conformance tests | External install smoke | Notes |
 |-----------------|---------|-------------------|-------------------------|-------|
-| `exo-adapter-echo` | 0.1.0 | `tests/packages/test_echo_adapter_conformance.py` (move with `ai-adapters-sdk`) | `scripts/packages/external_install_smoke.py` (same) | Reference deterministic adapter for multi-adapter parity |
-| `exo-adapter-openai` | 0.1.0 | `tests/packages/test_openai_adapter_conformance.py` (move with `ai-adapters-sdk`) | `scripts/packages/external_install_smoke.py` (same) | Requires OpenAI SDK deps in env |
+| `exo-adapter-echo` | 0.1.1 | `tests/packages/test_echo_adapter_conformance.py` | `scripts/dev/install_adapter_dependencies.sh` | Reference deterministic adapter; CI installs from PyPI or `packages/repo_for_pipy` |
+| `exo-adapter-openai` | 0.1.1 | `tests/packages/test_openai_adapter_conformance.py` | same | Provider SDK only in adapter wheel; not in base `requirements.txt` |
 
 **Lane A (two `base_url` configs):** API persistence + registration coverage — `tests/modules/api/test_slice_provider_registration.py::test_post_providers_two_distinct_openai_compatible_base_urls`.
 
@@ -91,3 +93,4 @@ Minimum evidence before claiming **GA** for a **new** provider adapter (aligns w
 | 2026-03-24 | Initial matrix: package versions, semver, M0 done, Lane A deferred. |
 | 2026-03-24 | §5 certification rows (echo/openai); §6 checklist rename; Lane A two-`base_url` test anchor. |
 | 2026-03-24 | §1 retitled (distributions); source-location note + `ai-adapters-sdk` / extraction handoff; §5–§6 aligned with move. |
+| 2026-05-28 | PyPI **0.1.1** lockstep; eXo_adapters canonical repo; operator install doc; contract drift test. |
