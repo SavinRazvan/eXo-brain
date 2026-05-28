@@ -1,0 +1,24 @@
+---
+description: Provider-neutral core; SDKs only in runtime adapters
+alwaysApply: true
+---
+
+# Provider-neutral adapter wall
+
+- Provider SDKs live only behind runtime adapters (`runtime/*_adapter*`, `runtime/openai_*`, etc.). No SDK imports in `core`, `tools`, `policies`, `persistence`, `observability`, or API/control-plane loading concrete adapter types—use registry/factory.
+- OpenAI Agents SDK is an adapter, not orchestration core.
+- Execution mode: **capability + policy**, never provider-name switches. Deterministic tool runtime for state-changing, high-risk, or policy-flagged work; provider fast path only when both gates allow low-risk work.
+- Layers stay separate: runtime, orchestration, routing, tools, policies, observability. Thin controllers; no shortcuts around policy middleware. Typed I/O at tool boundaries; composition over inheritance; DI-friendly modules.
+- State-changing paths: validation, policy checks, structured logs.
+
+## Contracts
+
+- **Runtime:** `start_session`, `run_turn`, `submit_tool_results`, `get_capabilities`, `healthcheck`.
+- **Tool effects:** model intent → deterministic runtime executes side effects.
+- **Policy:** pre, post, and output checks on every side-effect path.
+
+## Checks
+
+- No SDK imports outside adapter modules; removing one adapter must not break core imports.
+- Same workflow contract runnable on at least two adapters.
+- Risky tool calls blocked or rerouted when deterministic mode is required.

@@ -44,12 +44,17 @@ packages/eXo_adapters/packages/*
 !packages/eXo_adapters/packages/exo-brain-core-contracts/
 packages/eXo_adapters/packages/exo-brain-core-contracts/src/*.egg-info/
 
-# Local Cursor / agent IDE config — keep on disk only; never push to remote
-.agents/
-.cursor/
-
-# Legacy local adapter clone (includes its own .agents/.cursor/.local)
-packages/eXo_adapters_old/
+# local agent metadata/config (version `.agents/skills/**` like `.cursor/skills`)
+.agents/*
+!.agents/skills/
+!.agents/skills/**
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**/*.mdc
+!.cursor/agents/
+!.cursor/agents/**/*.md
+!.cursor/skills/
+!.cursor/skills/**/SKILL.md
 
 # private research corpus (kept off-git by maintainer policy)
 _research_results/
