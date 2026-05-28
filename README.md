@@ -184,6 +184,7 @@ use it as a deployment blueprint without a separate hardening pass.
 - `docs/architecture/` - architecture references and governed execution order.
 - `.cursor/` and `.agents/` - maintainer workflow rules and agent skills.
 
+
 ## Design Principles
 
 - Provider SDKs stay behind runtime adapters.

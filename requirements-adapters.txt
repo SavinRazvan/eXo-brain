@@ -1,0 +1,7 @@
+# Optional provider runtime adapters (PyPI lockstep line 0.1.1).
+# Install with: pip install -r requirements-adapters.txt
+# Or use scripts/dev/install_adapter_dependencies.sh (PyPI with local fallback).
+
+exo-brain-adapter-sdk==0.1.1
+exo-adapter-echo==0.1.1
+exo-adapter-openai==0.1.1

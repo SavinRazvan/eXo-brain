@@ -2,14 +2,12 @@
 # Python 3.12+ (minimum). CI and Dockerfile use 3.12.x; newer CPython (e.g. 3.13+) expected compatible unless noted.
 # Install: pip install -r requirements.txt (from repo root)
 
-# ── Runtime contracts (in-tree transitional bundle under packages/eXo_adapters) ─
-# Canonical upstream remains the eXo_adapters repo; this path keeps CI/local pip working without git auth.
-# Fallback: sibling clone — bash scripts/dev/install_requirements_with_sibling_exo_adapters.sh
--e ./packages/eXo_adapters/packages/exo-brain-core-contracts
+# ── Runtime contracts (published from SavinRazvan/eXo_adapters) ─────────────
+# Local fallback: scripts/dev/install_adapter_dependencies.sh
+exo-brain-core-contracts==0.1.1
 
-# ── AI / Model providers ──────────────────────────────────────────────────────
-openai>=2.21.0
-openai-agents>=0.17.4
+# Provider SDKs ship with optional adapter wheels (requirements-adapters.txt).
+# Do not add openai / openai-agents here — keep the adapter wall intact.
 
 # ── Validation & settings ─────────────────────────────────────────────────────
 pydantic>=2.12.4

@@ -12,6 +12,7 @@ Notes:
  - Validates the loaded class with ``issubclass(..., RuntimeAdapter)`` where ``RuntimeAdapter`` is the
    published ABC re-exported from ``src.runtime.runtime_adapter`` (same type as adapter packages).
  - Canonical OpenAI ref: "exo_adapter_openai.runtime.OpenAIAgentsRuntimeAdapter"
+ - Requires published adapter wheels (see requirements-adapters.txt).
 """
 
 from __future__ import annotations
@@ -28,7 +29,6 @@ ECHO_ADAPTER_CANONICAL_CLASS_REF = "exo_adapter_echo.runtime.EchoRuntimeAdapter"
 _OPENAI_ADAPTER_CLASS_REF_ALIASES = frozenset(
     {
         "OpenAIAgentsRuntimeAdapter",
-        "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
         "exo_adapter_openai.OpenAIAgentsRuntimeAdapter",
         OPENAI_ADAPTER_CANONICAL_CLASS_REF,
     }
@@ -41,18 +41,6 @@ _ECHO_ADAPTER_CLASS_REF_ALIASES = frozenset(
     }
 )
 
-_ADAPTER_LOAD_FALLBACKS: dict[str, tuple[str, ...]] = {
-    OPENAI_ADAPTER_CANONICAL_CLASS_REF: (
-        OPENAI_ADAPTER_CANONICAL_CLASS_REF,
-        "src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter",
-        "exo_adapter_openai.OpenAIAgentsRuntimeAdapter",
-    ),
-    ECHO_ADAPTER_CANONICAL_CLASS_REF: (
-        ECHO_ADAPTER_CANONICAL_CLASS_REF,
-        "src.runtime.openai_compatible_runtime.OpenAICompatibleRuntimeAdapter",
-    ),
-}
-
 
 def canonicalize_adapter_class_ref(adapter_class_ref: str) -> str:
     """Return canonical class ref for known adapter aliases."""
@@ -64,10 +52,6 @@ def canonicalize_adapter_class_ref(adapter_class_ref: str) -> str:
     if ref in _OPENAI_ADAPTER_CLASS_REF_ALIASES:
         return OPENAI_ADAPTER_CANONICAL_CLASS_REF
     return ref
-
-
-def _candidate_refs(canonical_ref: str) -> tuple[str, ...]:
-    return _ADAPTER_LOAD_FALLBACKS.get(canonical_ref, (canonical_ref,))
 
 
 def _load_adapter_class(ref: str) -> type[RuntimeAdapter]:
@@ -99,19 +83,16 @@ def load_adapter(adapter_class_ref: str, provider_id: str, **kwargs) -> RuntimeA
 
     Raises:
         ValueError: If the ref is malformed or the class is not a RuntimeAdapter.
-        ImportError: If the module or class cannot be loaded.
+        ImportError: If the module or class cannot be loaded (install requirements-adapters.txt).
     """
     canonical_ref = canonicalize_adapter_class_ref(adapter_class_ref)
-    load_errors: list[Exception] = []
-    for candidate_ref in _candidate_refs(canonical_ref):
-        try:
-            cls = _load_adapter_class(candidate_ref)
-        except (ImportError, ValueError) as exc:
-            load_errors.append(exc)
-            continue
-        return cls(provider_id=provider_id, **kwargs)  # type: ignore[call-arg]
-    last_error = load_errors[-1] if load_errors else ValueError("unknown adapter load failure")
-    raise ImportError(
-        f"Could not load adapter class for {adapter_class_ref!r} "
-        f"(canonical={canonical_ref!r}); last_error={last_error}"
-    ) from last_error
+    try:
+        cls = _load_adapter_class(canonical_ref)
+    except (ImportError, ValueError) as exc:
+        raise ImportError(
+            f"Could not load adapter class for {adapter_class_ref!r} "
+            f"(canonical={canonical_ref!r}). Install adapter packages: "
+            "pip install -r requirements-adapters.txt "
+            "or bash scripts/dev/install_adapter_dependencies.sh"
+        ) from exc
+    return cls(provider_id=provider_id, **kwargs)  # type: ignore[call-arg]
