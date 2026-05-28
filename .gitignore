@@ -44,17 +44,9 @@ packages/eXo_adapters/packages/*
 !packages/eXo_adapters/packages/exo-brain-core-contracts/
 packages/eXo_adapters/packages/exo-brain-core-contracts/src/*.egg-info/
 
-# local agent metadata/config (version `.agents/skills/**` like `.cursor/skills`)
-.agents/*
-!.agents/skills/
-!.agents/skills/**
-.cursor/*
-!.cursor/rules/
-!.cursor/rules/**/*.mdc
-!.cursor/agents/
-!.cursor/agents/**/*.md
-!.cursor/skills/
-!.cursor/skills/**/SKILL.md
+# Local Cursor / agent IDE config — not published (keep on disk only)
+.agents/
+.cursor/
 
 # Legacy local adapter clone — do not commit (nested .agents/.cursor/.local)
 packages/eXo_adapters_old/
