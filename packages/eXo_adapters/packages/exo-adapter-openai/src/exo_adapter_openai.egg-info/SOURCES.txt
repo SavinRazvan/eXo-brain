@@ -1,9 +1,0 @@
-pyproject.toml
-src/exo_adapter_openai/__init__.py
-src/exo_adapter_openai/runtime.py
-src/exo_adapter_openai/tool_wiring.py
-src/exo_adapter_openai.egg-info/PKG-INFO
-src/exo_adapter_openai.egg-info/SOURCES.txt
-src/exo_adapter_openai.egg-info/dependency_links.txt
-src/exo_adapter_openai.egg-info/requires.txt
-src/exo_adapter_openai.egg-info/top_level.txt

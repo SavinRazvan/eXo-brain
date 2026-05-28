@@ -1,6 +1,0 @@
-Metadata-Version: 2.4
-Name: exo-brain-adapter-sdk
-Version: 0.1.1
-Summary: Adapter SDK helpers and conformance checks for eXo-brain adapters.
-Requires-Python: >=3.11
-Requires-Dist: exo-brain-core-contracts<0.2,>=0.1.1

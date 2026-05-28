@@ -1,8 +1,0 @@
-pyproject.toml
-src/exo_adapter_echo/__init__.py
-src/exo_adapter_echo/runtime.py
-src/exo_adapter_echo.egg-info/PKG-INFO
-src/exo_adapter_echo.egg-info/SOURCES.txt
-src/exo_adapter_echo.egg-info/dependency_links.txt
-src/exo_adapter_echo.egg-info/requires.txt
-src/exo_adapter_echo.egg-info/top_level.txt
