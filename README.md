@@ -182,7 +182,7 @@ use it as a deployment blueprint without a separate hardening pass.
 - `docs/strategy/` - product boundary, governance posture, monetization and
   deployment thinking.
 - `docs/architecture/` - architecture references and governed execution order.
-- `.cursor/` and `.agents/` - maintainer workflow rules and agent skills.
+
 
 ## Design Principles
 
