@@ -1,7 +1,10 @@
 # Local editable installs when PyPI wheels are unavailable (pre-publish or offline dev).
 # Used automatically by scripts/dev/install_adapter_dependencies.sh as fallback.
 
+# Prefer packages/repo_for_pipy when developing adapters; CI uses PyPI or eXo_adapters contracts vendored path.
 -e ./packages/repo_for_pipy/packages/exo-brain-core-contracts
 -e ./packages/repo_for_pipy/packages/exo-brain-adapter-sdk
 -e ./packages/repo_for_pipy/packages/exo-adapter-echo
 -e ./packages/repo_for_pipy/packages/exo-adapter-openai
+# Fallback (contracts only tracked in eXo-brain):
+# -e ./packages/eXo_adapters/packages/exo-brain-core-contracts

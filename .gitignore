@@ -42,7 +42,10 @@ packages/eXo_adapters/*
 !packages/eXo_adapters/packages/
 packages/eXo_adapters/packages/*
 !packages/eXo_adapters/packages/exo-brain-core-contracts/
-packages/eXo_adapters/packages/exo-brain-core-contracts/src/*.egg-info/
+!packages/eXo_adapters/packages/exo-brain-adapter-sdk/
+!packages/eXo_adapters/packages/exo-adapter-echo/
+!packages/eXo_adapters/packages/exo-adapter-openai/
+packages/eXo_adapters/packages/*/src/*.egg-info/
 
 # Local Cursor / agent IDE config — not published (keep on disk only)
 .agents/

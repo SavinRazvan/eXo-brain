@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: exo-adapter-openai
+Version: 0.1.1
+Summary: OpenAI runtime adapter package for eXo-brain.
+Requires-Python: >=3.11
+Requires-Dist: exo-brain-core-contracts<0.2,>=0.1.1
+Requires-Dist: openai>=1.0.0
+Requires-Dist: openai-agents>=0.0.0

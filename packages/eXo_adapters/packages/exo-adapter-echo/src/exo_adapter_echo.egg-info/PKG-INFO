@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: exo-adapter-echo
+Version: 0.1.1
+Summary: Portable echo RuntimeAdapter for eXo-brain conformance and multi-adapter tests.
+Requires-Python: >=3.11
+Requires-Dist: exo-brain-core-contracts<0.2,>=0.1.1

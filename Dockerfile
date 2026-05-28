@@ -22,7 +22,7 @@ RUN apt-get update \
 
 COPY requirements.txt requirements-adapters.txt requirements-adapters-local.txt ./
 COPY scripts/dev/install_adapter_dependencies.sh ./scripts/dev/install_adapter_dependencies.sh
-COPY packages/repo_for_pipy/packages ./packages/repo_for_pipy/packages
+COPY packages/eXo_adapters/packages ./packages/eXo_adapters/packages
 RUN chmod +x scripts/dev/install_adapter_dependencies.sh \
     && ./scripts/dev/install_adapter_dependencies.sh
 
