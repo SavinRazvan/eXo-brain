@@ -28,6 +28,9 @@ adapters, tenant-scoped governance, audit events, and runtime control.
 > production enterprise platform, SaaS product, or supported deployment
 > template. See [MAINTAINER_STATUS.md](MAINTAINER_STATUS.md) and
 > [STATUS.md](STATUS.md) before using it for serious evaluation.
+>
+> Build model: **AI-assisted implementation**, with human-owned architecture,
+> review, and evidence. See `MAINTAINER_STATUS.md` § “How This Project Is Built”.
 
 ## What This Is
 

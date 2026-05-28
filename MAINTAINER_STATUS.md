@@ -36,6 +36,21 @@ and engineering artifact.
 - Security issues should follow [SECURITY.md](SECURITY.md).
 - Releases happen when useful slices are ready, not on a fixed cadence.
 
+## How This Project Is Built
+
+This repository is developed with **AI-assisted implementation** where it helps
+speed up iteration (drafting, refactors, test scaffolds). The maintainer remains
+responsible for:
+
+- architecture decisions and system boundaries,
+- reviewing and validating changes,
+- keeping tests and architecture checks green,
+- ensuring public-facing claims remain aligned with `STATUS.md`.
+
+AI assistance is an implementation accelerator, not a substitute for ownership
+or evidence. If you evaluate this repo, evaluate the **boundaries and evidence**
+(tests, checks, docs) rather than assumptions about how quickly code was typed.
+
 ## Contribution Filter
 
 The project is most likely to accept changes that:
