@@ -56,6 +56,9 @@ packages/eXo_adapters/packages/exo-brain-core-contracts/src/*.egg-info/
 !.cursor/skills/
 !.cursor/skills/**/SKILL.md
 
+# Legacy local adapter clone — do not commit (nested .agents/.cursor/.local)
+packages/eXo_adapters_old/
+
 # private research corpus (kept off-git by maintainer policy)
 _research_results/
 _research_results/*
