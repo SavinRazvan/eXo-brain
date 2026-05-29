@@ -13,11 +13,12 @@ Depends On:
  - nbformat
  - pathlib
  - textwrap
+ - notebooks/notebook_common.py
 Notes:
  - Generates notebooks idempotently; rerun after content updates.
  - Does not preserve existing cell outputs; pass `--execute` to refresh them in one step.
- - Bootstrap cells prepend vendored `exo-brain-core-contracts` `src` when present under
-   `packages/eXo_adapters/`.
+ - Requires `pip install -r requirements.txt` (all four PyPI wheels: exo-brain-core-contracts,
+   exo-brain-adapter-sdk, exo-adapter-echo, exo-adapter-openai).
 """
 
 from __future__ import annotations
@@ -30,25 +31,19 @@ import textwrap
 
 import nbformat as nbf
 
+from notebook_common import (
+    ADAPTER_WHEEL_PROBE,
+    BOOTSTRAP_CODE,
+    BOOTSTRAP_WITH_DOTENV,
+    ECHO_ADAPTER_IDENTITY_ASSERT,
+    LANGUAGE_INFO,
+    OPENAI_ADAPTER_IDENTITY_ASSERT,
+    PORTABLE_KERNELSPEC,
+    join_notebook_code,
+)
+
 
 NB_DIR = Path(__file__).parent
-
-PORTABLE_KERNELSPEC = {
-    "display_name": "Python 3 (eXo-brain venv)",
-    "language": "python",
-    "name": "python3",
-}
-
-BOOTSTRAP_CODE = """
-import pathlib
-import sys
-
-_root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
-sys.path.insert(0, str(_root))
-_contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-if _contracts_src.is_dir():
-    sys.path.insert(0, str(_contracts_src))
-"""
 
 
 def md(text: str) -> nbf.NotebookNode:
@@ -59,16 +54,20 @@ def code(text: str) -> nbf.NotebookNode:
     return nbf.v4.new_code_cell(textwrap.dedent(text).strip())
 
 
-def setup_code(imports_and_body: str) -> nbf.NotebookNode:
-    """Bootstrap sys.path then run imports and test logic (dedented)."""
-    combined = BOOTSTRAP_CODE.strip() + "\n\n" + textwrap.dedent(imports_and_body).strip()
-    return code(combined)
+def setup_code(*parts: str) -> nbf.NotebookNode:
+    """Bootstrap sys.path then run imports and test logic (each part dedented separately)."""
+    return code(join_notebook_code(BOOTSTRAP_CODE, *parts))
+
+
+def bootstrap_with_dotenv_code(*parts: str) -> nbf.NotebookNode:
+    """Bootstrap sys.path + optional .env, then run imports and test logic."""
+    return code(join_notebook_code(BOOTSTRAP_WITH_DOTENV, *parts))
 
 
 def new_notebook() -> nbf.NotebookNode:
     nb = nbf.v4.new_notebook()
     nb.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
-    nb.metadata["language_info"] = {"name": "python", "version": "3.12"}
+    nb.metadata["language_info"] = dict(LANGUAGE_INFO)
     return nb
 
 
@@ -116,7 +115,7 @@ def edge_footer(*, tutorial: str, modules: str, summary: str) -> str:
 **Modules:** {modules}
 
 **Troubleshooting:**
-- Import errors → run bootstrap first; confirm `packages/eXo_adapters/.../exo-brain-core-contracts` exists or `pip install -e` that path
+- Import errors → `pip install -r requirements.txt` from repo root
 - Assertion failures after code changes → run matching `tests/modules/...` pytest file, then regenerate this notebook via `python notebooks/build_checks.py`
 """
 
@@ -151,15 +150,16 @@ def build_check_01_core_orchestrator() -> nbf.NotebookNode:
             )
         ),
         setup_code(
+            ADAPTER_WHEEL_PROBE,
+            OPENAI_ADAPTER_IDENTITY_ASSERT,
             """
-            from src.core.orchestrator import Orchestrator
-            from src.policies.middleware import DeterministicFirstPolicyMiddleware
-            from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
-            from src.schemas.events import RuntimeEventType
-            from src.schemas.tool_io import RiskTier
-            from src.tools.executor import DeterministicToolExecutor
-            from src.tools.registry import ToolDescriptor, ToolRegistry
-            """
+from src.core.orchestrator import Orchestrator
+from src.policies.middleware import DeterministicFirstPolicyMiddleware
+from src.schemas.events import RuntimeEventType
+from src.schemas.tool_io import RiskTier
+from src.tools.executor import DeterministicToolExecutor
+from src.tools.registry import ToolDescriptor, ToolRegistry
+""",
         ),
         code(
             """
@@ -310,10 +310,15 @@ def build_check_03_runtime_adapter() -> nbf.NotebookNode:
                 "03",
                 "Runtime Adapter",
                 purpose=(
-                    "Prove `OpenAIAgentsRuntimeAdapter` healthcheck works and "
-                    "`run_turn` with `planned_tool_call` emits `TOOL_INTENT` (simulation path)."
+                    "Prove PyPI adapter wheels load (`exo-adapter-openai`, `exo-adapter-echo`), "
+                    "`OpenAIAgentsRuntimeAdapter` healthcheck works, and `run_turn` with "
+                    "`planned_tool_call` emits `TOOL_INTENT` (deterministic turn injection, no live model)."
                 ),
-                modules="`src/runtime/openai_agents_runtime`, `src/schemas/events`",
+                modules=(
+                    "`exo-adapter-openai`, `exo-adapter-echo` (PyPI wheels), "
+                    "`src/runtime/openai_agents_runtime` (shim re-export), "
+                    "`exo-brain-core-contracts` (via `src/schemas/events`)"
+                ),
                 tutorial="`tutorial_02_openai_adapter.ipynb`",
                 pass_means=(
                     "Health prints healthy; event stream includes `tool_intent`; "
@@ -326,16 +331,23 @@ def build_check_03_runtime_adapter() -> nbf.NotebookNode:
             )
         ),
         setup_code(
+            ADAPTER_WHEEL_PROBE,
+            OPENAI_ADAPTER_IDENTITY_ASSERT,
+            ECHO_ADAPTER_IDENTITY_ASSERT,
             """
-            from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
-            from src.schemas.events import RuntimeEventType
-            """
+from src.schemas.events import RuntimeEventType
+from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
+""",
         ),
         code(
             """
             import asyncio
 
             async def _run_check():
+                echo = EchoRuntimeAdapter()
+                echo_health = await echo.healthcheck()
+                print("echo health:", echo_health.state.value, echo_health.reason)
+
                 adapter = OpenAIAgentsRuntimeAdapter()
                 handle = await adapter.start_session("sess_runtime_nb", {"agent_id": "runtime-nb"})
                 assert handle.session_id == "sess_runtime_nb"
@@ -469,22 +481,7 @@ Key scenarios:
 - Shadow classifier: exceeds threshold but another gate fires first → recorded but not the winner
 - Injection phrase + custom rule overlap → first gate in chain wins
 """),
-        code(textwrap.dedent("""\
-            import pathlib
-            import sys, os
-
-            _repo = pathlib.Path(os.path.abspath(".."))
-            sys.path.insert(0, str(_repo))
-            _contracts_src = _repo / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-            if _contracts_src.is_dir():
-                sys.path.insert(0, str(_contracts_src))
-
-            try:
-                from dotenv import load_dotenv
-                load_dotenv("../.env", override=False)
-            except ImportError:
-                pass
-        """)),
+        code(textwrap.dedent(BOOTSTRAP_WITH_DOTENV)),
         md("""\
 ## Setup — imports and helper
 
@@ -740,22 +737,8 @@ Typical envelope fields:
 - `audit` — `correlation_id` for traceability
 - `result` — populated on SUCCESS only
 """),
-        code(textwrap.dedent("""\
-            import pathlib
-            import sys, os
-
-            _repo = pathlib.Path(os.path.abspath(".."))
-            sys.path.insert(0, str(_repo))
-            _contracts_src = _repo / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-            if _contracts_src.is_dir():
-                sys.path.insert(0, str(_contracts_src))
-
-            try:
-                from dotenv import load_dotenv
-                load_dotenv("../.env", override=False)
-            except ImportError:
-                pass
-
+        bootstrap_with_dotenv_code(
+            """
             from src.tools.executor import DeterministicToolExecutor
             from src.tools.registry import ToolRegistry, ToolDescriptor
             from src.schemas.tool_io import (
@@ -779,14 +762,14 @@ Typical envelope fields:
                     provider_id="demo",
                     tool_name=tool_name,
                     arguments=arguments or {},
-                    tenant_id="tenant-edge",
                     risk_tier=RiskTier.LOW,
                     is_state_changing=False,
                 )
 
             print("executor :", type(executor).__name__)
             print("registry :", type(registry).__name__)
-        """)),
+            """
+        ),
         md("""\
 ## Part 1 — Register tools with different failure modes
 
@@ -945,7 +928,6 @@ A `ToolCallContext` with `schema_version != "1.0"` fails validation before execu
                 provider_id="demo",
                 tool_name="success_tool",
                 arguments={"x": 5},
-                tenant_id="tenant-edge",
             )
 
             r_invalid = executor.execute(invalid_call)

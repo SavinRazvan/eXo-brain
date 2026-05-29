@@ -8,7 +8,17 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 | [docs/plans/notebook-standards.md](../docs/plans/notebook-standards.md) | Regeneration contract, structure, CI |
 | [docs/architecture/governed-execution-pipeline.md](../docs/architecture/governed-execution-pipeline.md) | Production turn ordering; **Hands-on proof** ↔ `tutorial_08` |
 
-**Runtime:** Python 3.12+, project `.venv`, `pip install -r requirements.txt` from repo root. Launch: `jupyter lab notebooks/`. Use the venv-backed **`python3`** kernel (see README).
+**Runtime:** Python **3.12+**, project `.venv`, `pip install -r requirements.txt` from repo root. Launch: `jupyter lab notebooks/`. Use the venv-backed **`python3`** kernel (see README).
+
+**Adapters (PyPI):** Install all four wheels from `requirements.txt` (`exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-echo`, `exo-adapter-openai`). Notebooks import via `src/*` shims or `exo_adapter_*` directly. Bootstrap cells in tutorials **01, 02, 05, 08** and checks **01, 03** print wheel paths to confirm PyPI provenance — not in-tree packages.
+
+**Naming cheat sheet:**
+
+| Term | Notebook | Meaning |
+|---|---|---|
+| **BYO configuration** | `tutorial_03` | Ingress / governance overlay dicts (no adapter code) |
+| **BYOC** | `tutorial_07` | Bring Your Own Compute — anomaly + fair admission |
+| **Runtime adapter** | `tutorial_02`, `check_03` | PyPI `exo-adapter-openai` + `exo-adapter-echo` |
 
 ---
 
@@ -16,18 +26,18 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 
 | ID | API key | Best for |
 |---|---|---|
-| `tutorial_01` | No | Core orchestration + background DAG |
-| `tutorial_02` | Optional | OpenAI Agents SDK delegating wrapper |
-| `tutorial_03` | No | Ingress / BYOC overlays |
+| `tutorial_01` | No | Core orchestration + background DAG; PyPI adapter + `planned_tool_call` |
+| `tutorial_02` | Optional | OpenAI runtime adapter — delegating wrapper (teaching) + PyPI `exo-adapter-openai` (production) |
+| `tutorial_03` | No | Ingress / governance **configuration** overlays (not adapters) |
 | `tutorial_04` | No | Audit trail + hash chain |
-| `tutorial_05` | Optional (Part 6) | Sessions, timeline, quotas; Part 6 = live turns on one session_id |
+| `tutorial_05` | Optional (Part 6) | Sessions, timeline, quotas; Part 2 = local `SessionAdapter`; Part 6 = live PyPI adapter |
 | `tutorial_06` | No | Background DAG, retry, checkpoint |
-| `tutorial_07` | No | Anomaly advisory + fair admission |
+| `tutorial_07` | No | **BYOC** anomaly advisory + fair admission |
 | `tutorial_08` | Part 8 only | Governance lab; Part 8 §1–§4 use `planned_tool_call` live proofs |
-| `check_01`–`check_04` | No | Maintainer smoke (~30 s total) |
+| `check_01`–`check_04` | No | Maintainer smoke (~30 s total); `check_01`/`check_03` verify PyPI wheels |
 | `edge_01`, `edge_02` | No | Ingress ordering + tool envelopes |
 
-**Not a substitute for pytest:** the repo has **~1,200** automated tests under `tests/`; notebooks add **narrative and printable evidence**.
+**Not a substitute for pytest:** the repo has **~1,210** automated tests under `tests/` (plus 2 opt-in skipped: soak + live OpenAI); notebooks add **narrative and printable evidence**.
 
 ---
 
@@ -80,10 +90,10 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 
 | Order | Notebook |
 |---|---|
-| 1 | `tutorial_03` |
+| 1 | `tutorial_03` (ingress overlays) |
 | 2 | `edge_01` |
 | 3 | `tutorial_04` |
-| 4 | `tutorial_07` |
+| 4 | `tutorial_07` (BYOC fairness / anomaly) |
 | 5 | `tutorial_08` (Parts 1–7 minimum; Part 8 optional) |
 
 **Cross-read:** `docs/architecture/governed-execution-pipeline.md`
@@ -92,11 +102,13 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 
 ## OpenAI / Agents SDK integration focus
 
-| Order | Notebook |
-|---|---|
-| 1 | `tutorial_02_openai_adapter.ipynb` |
-| 2 | `tutorial_08` Part 8 (optional live) |
-| 3 | `check_03_runtime_adapter.ipynb` |
+| Order | Notebook | Notes |
+|---|---|---|
+| 1 | `tutorial_02_openai_adapter.ipynb` | Inline `OpenAIAgentsSDKAdapter` teaches the pattern; summary links to PyPI wheel |
+| 2 | `check_03_runtime_adapter.ipynb` | Proves `exo-adapter-openai` + `exo-adapter-echo` load and healthcheck |
+| 3 | `tutorial_08` Part 8 (optional live) | Governed `planned_tool_call` proofs |
+
+**Bring your own adapter:** Implement `RuntimeAdapter` (`exo-brain-core-contracts`), pip-install your package, pass to `Orchestrator` or register via API `adapter_class_ref`. Notebooks default to shipped PyPI adapters.
 
 ---
 
@@ -122,7 +134,7 @@ python notebooks/build_checks.py      # checks + edges
 python notebooks/build_checks.py --execute   # regenerate + execute checks/edges (refreshes stdout evidence)
 ```
 
-Re-run affected notebooks to refresh committed outputs when you want evidence in the `.ipynb`.
+Shared bootstrap and wheel probes live in `notebooks/notebook_common.py`. Re-run affected notebooks to refresh committed outputs when you want evidence in the `.ipynb`.
 
 ---
 
@@ -130,7 +142,7 @@ Re-run affected notebooks to refresh committed outputs when you want evidence in
 
 - Not a production deployment guide (see `MAINTAINER_STATUS.md`; `docker-compose.yml` is dev-oriented)
 - Not a formal compliance certification pack
-- Not a replacement for CI (`architecture-fitness` runs full pytest + executes `tutorial_08` without a live key)
+- Not a replacement for CI (`architecture-fitness` runs full pytest with coverage floor + executes `tutorial_08` without a live key)
 
 ---
 

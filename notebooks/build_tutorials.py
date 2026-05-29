@@ -6,24 +6,27 @@ Used By:
  - developers regenerating notebooks after content updates
 Depends On:
  - nbformat
+ - notebooks/notebook_common.py
 Notes:
  - Run once after editing: python notebooks/build_tutorials.py
  - Does not preserve existing cell outputs; re-run the notebook to refresh them.
  - Kernelspec `python3` targets the active Jupyter env (not a hardcoded `.exo_env` path).
- - Bootstrap cells add vendored `packages/eXo_adapters/.../exo-brain-core-contracts/src` to
-   `sys.path` when present so `exo_brain_core_contracts` imports without a separate pip step.
+ - Requires `pip install -r requirements.txt` (all four PyPI wheels: exo-brain-core-contracts,
+   exo-brain-adapter-sdk, exo-adapter-echo, exo-adapter-openai).
 """
 import nbformat as nbf
 from pathlib import Path
 
+from notebook_common import (
+    ADAPTER_WHEEL_PROBE,
+    BOOTSTRAP_CODE,
+    BOOTSTRAP_WITH_DOTENV,
+    LANGUAGE_INFO,
+    OPENAI_ADAPTER_IDENTITY_ASSERT,
+    PORTABLE_KERNELSPEC,
+)
+
 NB_DIR = Path(__file__).parent
-# Use the environment's registered `python3` kernel (ipykernel uses `python` on PATH).
-# Avoids the user-local `exo-brain` kernelspec that hardcodes `.exo_env/bin/python`.
-PORTABLE_KERNELSPEC = {
-    "display_name": "Python 3 (eXo-brain venv)",
-    "language": "python",
-    "name": "python3",
-}
 
 TUTORIAL_FOOTER = """
 ## Notebook navigation
@@ -595,12 +598,12 @@ print("Part 8 complete.")
     ]
 
 # ──────────────────────────────────────────────────────────────────────────────
-# NOTEBOOK 1 — First Brick: Core Framework
+# Tutorial 01 — Core Framework (tutorial_01_core_framework.ipynb)
 # ──────────────────────────────────────────────────────────────────────────────
 
 nb1 = nbf.v4.new_notebook()
 nb1.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
-nb1.metadata["language_info"] = {"name": "python", "version": "3.13"}
+nb1.metadata["language_info"] = dict(LANGUAGE_INFO)
 
 nb1.cells = [
 
@@ -612,7 +615,8 @@ nb1.cells = [
 - Running a complete single-turn orchestration with a deterministic tool call
 - Running a multi-node background DAG with full observability evidence
 
-**No API key required.** Everything runs in-process with in-memory adapters.
+**No API key required.** Everything runs in-process with the PyPI OpenAI runtime adapter
+(`OpenAIAgentsRuntimeAdapter`) using `planned_tool_call` — no live model call.
 """),
 
     code("""
@@ -680,10 +684,10 @@ We will:
 import sys, pathlib
 _root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
 sys.path.insert(0, str(_root))
-_contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-if _contracts_src.is_dir():
-    sys.path.insert(0, str(_contracts_src))
-
+"""
+    + ADAPTER_WHEEL_PROBE
+    + OPENAI_ADAPTER_IDENTITY_ASSERT
+    + """
 from src.core.orchestrator import Orchestrator
 from src.policies.middleware import DeterministicFirstPolicyMiddleware
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
@@ -722,7 +726,7 @@ print(f"✓ registered tools: {registry.list_tools()}")
 ### Step 2 — Wire the Orchestrator
 
 Three components are injected:
-- `runtime_adapter` — the provider boundary (currently a simulation stub)
+- `runtime_adapter` — the PyPI OpenAI adapter (`exo-adapter-openai` via `src/runtime/openai_agents_runtime`)
 - `policy_middleware` — `DeterministicFirstPolicyMiddleware` enforces deterministic execution
   for HIGH/CRITICAL and state-changing operations
 - `tool_executor` — executes tools with the full decorator stack (validate → authz → retry → audit → redact)
@@ -740,7 +744,7 @@ orchestrator = Orchestrator(
 print("✓ orchestrator ready")
 print(f"  adapter capabilities: {orchestrator._runtime_adapter.get_capabilities()}")
 
-# verify healthcheck works (adapter is a simulation stub — always HEALTHY)
+# verify healthcheck on the real PyPI adapter (planned_tool_call turn — no live model)
 health = await orchestrator._runtime_adapter.healthcheck()
 print(f"  adapter health:       {health.state.value}")
 """),
@@ -1005,19 +1009,19 @@ resilience primitives (retry / circuit-breaker / DLQ), tamper-evident audit
 hash chains, and MCP integration — those are **out of scope for this first
 brick** and are exercised in later notebooks and the automated test suite.
 
-**What's missing here:** a real provider adapter that calls an actual AI model.
-That is what **Tutorial 02** and later bricks build on top of this core.
+**What's missing here:** a **live model call** through the adapter (Tutorial 02).
+That builds on this core orchestration path with real OpenAI Agents SDK turns.
 """),
 
 ]
 
 # ──────────────────────────────────────────────────────────────────────────────
-# NOTEBOOK 2 — Second Brick: OpenAI Agents SDK Adapter
+# Tutorial 02 — OpenAI Runtime Adapter (tutorial_02_openai_adapter.ipynb)
 # ──────────────────────────────────────────────────────────────────────────────
 
 nb2 = nbf.v4.new_notebook()
 nb2.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
-nb2.metadata["language_info"] = {"name": "python", "version": "3.13"}
+nb2.metadata["language_info"] = dict(LANGUAGE_INFO)
 
 # ─── INSTRUCTIONS CONSTANT (avoids triple-quote nesting issues) ───────────────
 CALC_INSTRUCTIONS = (
@@ -1030,10 +1034,16 @@ CALC_INSTRUCTIONS = (
 nb2.cells = [
 
     md("""
-# Tutorial 02 — OpenAI Agents SDK Adapter
+# Tutorial 02 — OpenAI Runtime Adapter
 
 This notebook starts from a real agent generated by **OpenAI Agent Builder** and shows
-exactly what eXo-brain adds on top.
+exactly what eXo-brain adds on top — using the **delegating wrapper** pattern behind the
+provider-neutral `RuntimeAdapter` contract.
+
+**Teaching vs production:** Act 2 defines an inline `OpenAIAgentsSDKAdapter` class so you
+see the integration seam in one notebook. The shipped wheel is **`exo-adapter-openai`**
+(`OpenAIAgentsRuntimeAdapter`, re-exported from `src/runtime/openai_agents_runtime`).
+Verify PyPI provenance in `check_03_runtime_adapter.ipynb`.
 
 **The story in three acts:**
 1. **Before eXo-brain** — the agent runs but the tool body is `pass`, so nothing actually executes
@@ -1053,10 +1063,6 @@ import sys, pathlib, os, asyncio
 # ── path setup ────────────────────────────────────────────────────────────────
 _root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
 sys.path.insert(0, str(_root))
-_contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-if _contracts_src.is_dir():
-    sys.path.insert(0, str(_contracts_src))
-
 # ── load .env ─────────────────────────────────────────────────────────────────
 _env = _root / ".env"
 if _env.exists():
@@ -1066,6 +1072,10 @@ if _env.exists():
 else:
     print(f"ℹ no .env at {_env}")
 
+"""
+    + ADAPTER_WHEEL_PROBE
+    + OPENAI_ADAPTER_IDENTITY_ASSERT
+    + """
 # ── framework imports ─────────────────────────────────────────────────────────
 from src.runtime.runtime_adapter import RuntimeAdapter, SessionHandle
 from src.runtime.capability_map import ProviderCapabilityMap, HealthStatus, HealthState, SecurityTier
@@ -1530,6 +1540,11 @@ print("  Result: 72  |  Structured ToolResult envelope | Planned tool call injec
 
 **The `@function_tool` body is the integration seam. Everything outside it is already provider-neutral.**
 
+### Production path
+- **Shipped adapter:** `exo-adapter-openai` → `OpenAIAgentsRuntimeAdapter` (same contract as the inline class above)
+- **Smoke check:** `check_03_runtime_adapter.ipynb` (wheel probe + `planned_tool_call` intent path)
+- **Deterministic reference adapter:** `exo-adapter-echo` (`EchoRuntimeAdapter`) — see `check_03` and `tests/packages/test_echo_adapter_conformance.py`
+
 ### Next steps
 - **Multi-turn** — call `run_turn()` again; session history is preserved in `adapter._sessions`
 - **More tools** — register in `ToolRegistry` + delegating `@function_tool` wrapper
@@ -1541,12 +1556,12 @@ print("  Result: 72  |  Structured ToolResult envelope | Planned tool call injec
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# NOTEBOOK 3 — Tutorial 03: Bring Your Own Configuration
+# Tutorial 03 — Bring Your Own Configuration (tutorial_03_bring_your_own_config.ipynb)
 # ──────────────────────────────────────────────────────────────────────────────
 
 nb3 = nbf.v4.new_notebook()
 nb3.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
-nb3.metadata["language_info"] = {"name": "python", "version": "3.13"}
+nb3.metadata["language_info"] = dict(LANGUAGE_INFO)
 
 nb3.cells = [
 
@@ -1554,8 +1569,11 @@ nb3.cells = [
 # Tutorial 03 — Bring Your Own Configuration
 
 This notebook shows a **customer-facing configuration story**:
-how you bring your own adapter, ingress rules, policy profile, and risk settings
+how you bring your own **ingress rules, policy profile, and risk settings**
 — without touching any core framework code.
+
+**Scope:** governance **configuration** (overlay dicts and templates), not runtime adapter wiring.
+For adapters, see **Tutorial 02** and `check_03_runtime_adapter.ipynb`.
 
 **What you will configure:**
 - Choose an ingress profile (`baseline` / `strict` / `hardened`)
@@ -1567,15 +1585,7 @@ how you bring your own adapter, ingress rules, policy profile, and risk settings
 **No API key required.** All cells run deterministically in-process.
 """),
 
-    code("""
-import pathlib, sys
-
-_root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
-sys.path.insert(0, str(_root))
-_contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-if _contracts_src.is_dir():
-    sys.path.insert(0, str(_contracts_src))
-
+    code(BOOTSTRAP_CODE.strip() + """
 from src.policies.ingress_gates import (
     IngressGateChain,
     IngressTurnContext,
@@ -1946,11 +1956,12 @@ Swap the overlay and the entire gate chain recompiles. That is the "bring your o
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# NOTEBOOK 4 — Audit Trail (Enterprise)
+# Tutorial 04 — Audit Trail (tutorial_04_audit_trail.ipynb)
 # ──────────────────────────────────────────────────────────────────────────────
 
 nb4 = nbf.v4.new_notebook()
 nb4.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
+nb4.metadata["language_info"] = dict(LANGUAGE_INFO)
 nb4.cells = [
 
     md("""
@@ -1973,22 +1984,7 @@ require an external anchoring step (signature, append-only store, or sealed fing
 which is described elsewhere in the repo.
 """),
 
-    code("""
-import pathlib
-import sys, os
-
-_repo = pathlib.Path(os.path.abspath(".."))
-sys.path.insert(0, str(_repo))
-_contracts_src = _repo / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-if _contracts_src.is_dir():
-    sys.path.insert(0, str(_contracts_src))
-
-try:
-    from dotenv import load_dotenv
-    load_dotenv("../.env", override=False)
-except ImportError:
-    pass
-"""),
+    code(BOOTSTRAP_WITH_DOTENV),
 
     md("""
 ## Part 1 — Wire the audit infrastructure
@@ -2245,11 +2241,12 @@ anchored fingerprint — any record edit breaks `verify_chain`.
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# NOTEBOOK 5 — Multi-Turn Sessions
+# Tutorial 05 — Multi-Turn Sessions (tutorial_05_multi_turn_sessions.ipynb)
 # ──────────────────────────────────────────────────────────────────────────────
 
 nb5 = nbf.v4.new_notebook()
 nb5.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
+nb5.metadata["language_info"] = dict(LANGUAGE_INFO)
 nb5.cells = [
 
     md("""
@@ -2264,31 +2261,25 @@ A "session" in eXo-brain is more than a single prompt/response pair. This tutori
 - How `TenantQuotaManager` enforces per-tenant active-job limits across turns
 - What a `QuotaDecision(allowed=False)` looks like when the limit is reached
 
-eXo-brain's built-in `OpenAIAgentsRuntimeAdapter` (in `src/runtime/openai_agents_runtime.py`)
-handles session lifecycle. For full conversation history tracking we use the delegating
-wrapper pattern introduced in Tutorial 02 — the same `OpenAIAgentsSDKAdapter` class.
+eXo-brain's built-in `OpenAIAgentsRuntimeAdapter` (PyPI `exo-adapter-openai`, shim at
+`src/runtime/openai_agents_runtime.py`) handles session lifecycle for live turns.
+For a **local, key-free demo**, Part 2 uses a minimal inline `SessionAdapter` that applies the
+same **delegating wrapper pattern** taught in Tutorial 02 (not the notebook-local
+`OpenAIAgentsSDKAdapter` class — that class is educational only).
 """),
 
-    code("""
-import pathlib
-import sys, os
-
-_repo = pathlib.Path(os.path.abspath(".."))
-sys.path.insert(0, str(_repo))
-_contracts_src = _repo / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-if _contracts_src.is_dir():
-    sys.path.insert(0, str(_contracts_src))
-
-try:
-    from dotenv import load_dotenv
-    load_dotenv("../.env", override=False)
-except ImportError:
-    pass
+    code(
+        BOOTSTRAP_WITH_DOTENV
+        + ADAPTER_WHEEL_PROBE
+        + OPENAI_ADAPTER_IDENTITY_ASSERT
+        + """
+import os
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 HAS_API_KEY = bool(OPENAI_API_KEY)
 print(f"API key present: {HAS_API_KEY}")
-"""),
+"""
+    ),
 
     md("""
 ## Part 1 — Wire the session infrastructure
@@ -2598,7 +2589,7 @@ else:
 | Capability | Module | Key API |
 |---|---|---|
 | Session lifecycle | `src/runtime/openai_agents_runtime` | `OpenAIAgentsRuntimeAdapter.start_session()` |
-| Cross-turn history | custom adapter pattern | `_sessions[session_id]["history"]` |
+| Cross-turn history | `SessionAdapter` (local demo) / PyPI adapter in Part 6 | `_sessions[session_id]["history"]` |
 | Cross-turn correlation | `src/observability/timeline` | `timeline.append()`, `timeline.entries_for()` |
 | Quota enforcement | `src/tenancy/quotas` | `quota_manager.check_submission()` |
 | Quota denied | `src/tenancy/quotas` | `QuotaDecision(allowed=False, reason_code="TENANT_QUOTA_EXCEEDED")` |
@@ -2617,11 +2608,12 @@ Quota enforcement is stateless (Part 5). Part 6 optionally shows live `run_turn`
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# NOTEBOOK 6 — Background Workflows
+# Tutorial 06 — Background Workflows (tutorial_06_background_workflows.ipynb)
 # ──────────────────────────────────────────────────────────────────────────────
 
 nb6 = nbf.v4.new_notebook()
 nb6.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
+nb6.metadata["language_info"] = dict(LANGUAGE_INFO)
 nb6.cells = [
 
     md("""
@@ -2640,22 +2632,7 @@ dependencies, automatic retries, and checkpoint-based resume. This tutorial show
 No model calls. No API keys. All async execution is wrapped in `asyncio.run()`.
 """),
 
-    code("""
-import pathlib
-import sys, os
-
-_repo = pathlib.Path(os.path.abspath(".."))
-sys.path.insert(0, str(_repo))
-_contracts_src = _repo / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-if _contracts_src.is_dir():
-    sys.path.insert(0, str(_contracts_src))
-
-try:
-    from dotenv import load_dotenv
-    load_dotenv("../.env", override=False)
-except ImportError:
-    pass
-
+    code(BOOTSTRAP_WITH_DOTENV + """
 import asyncio
 try:
     import nest_asyncio; nest_asyncio.apply()
@@ -2950,11 +2927,12 @@ not on a fresh `submit()` alone.
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# NOTEBOOK 7 — Governance and Anomaly Detection
+# Tutorial 07 — Governance and Anomaly Detection (tutorial_07_governance_and_anomaly.ipynb)
 # ──────────────────────────────────────────────────────────────────────────────
 
 nb7 = nbf.v4.new_notebook()
 nb7.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
+nb7.metadata["language_info"] = dict(LANGUAGE_INFO)
 nb7.cells = [
 
     md("""
@@ -2976,22 +2954,7 @@ independent governance layers to handle this:
 Both are independent of the ingress gate chain from Tutorial 03.
 """),
 
-    code("""
-import pathlib
-import sys, os
-
-_repo = pathlib.Path(os.path.abspath(".."))
-sys.path.insert(0, str(_repo))
-_contracts_src = _repo / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-if _contracts_src.is_dir():
-    sys.path.insert(0, str(_contracts_src))
-
-try:
-    from dotenv import load_dotenv
-    load_dotenv("../.env", override=False)
-except ImportError:
-    pass
-"""),
+    code(BOOTSTRAP_WITH_DOTENV),
 
     md("""
 ## Part 1 — BYOC governance model
@@ -3297,12 +3260,12 @@ Both layers are independent of the ingress gate chain.
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# NOTEBOOK 8 — Governed execution sandbox (policy, ingress, tools, observability)
+# Tutorial 08 — Governed Execution Sandbox (tutorial_08_governed_execution_sandbox.ipynb)
 # ──────────────────────────────────────────────────────────────────────────────
 
 nb8 = nbf.v4.new_notebook()
 nb8.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
-nb8.metadata["language_info"] = {"name": "python", "version": "3.12"}
+nb8.metadata["language_info"] = dict(LANGUAGE_INFO)
 
 nb8.cells = [
 
@@ -3332,8 +3295,8 @@ operator would read logs and policy traces.
 - **Part 8** is optional: set **`OPENAI_API_KEY`** for live contrasts (**8.1 setup**, then **§1–§4** cells).
   Governed proofs use **`planned_tool_call`** (same as Part 7); **8.6** prints the summary table.
 
-**Requires:** `exo-brain-core-contracts` — in-tree under `packages/eXo_adapters/...` (first code cell adds
-`src` to `sys.path` when present) or `pip install -r requirements.txt`.
+**Requires:** `pip install -r requirements.txt` (all four PyPI wheels: `exo-brain-core-contracts`,
+`exo-brain-adapter-sdk`, `exo-adapter-echo`, `exo-adapter-openai`).
 
 **Further reading:** `docs/architecture/governed-execution-pipeline.md` (ordering of ingress, orchestrator,
 policy, deterministic tools on the full API path).
@@ -3491,28 +3454,20 @@ the **next** model token is grounded in **your** truth, which is what operators 
 agent response.
 """),
 
-    code("""
+    code(
+        """
 import asyncio
-import pathlib
-import sys
 import traceback
 
-_root = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
-sys.path.insert(0, str(_root))
-_contracts_src = _root / "packages" / "eXo_adapters" / "packages" / "exo-brain-core-contracts" / "src"
-if _contracts_src.is_dir():
-    sys.path.insert(0, str(_contracts_src))
-
-try:
-    from dotenv import load_dotenv
-    load_dotenv(_root / ".env", override=False)
-except ImportError:
-    pass
+"""
+        + BOOTSTRAP_WITH_DOTENV
+        + """
 
 print("repo root:", _root)
-if not _contracts_src.is_dir():
-    print("warn: vendored contracts src missing:", _contracts_src)
-"""),
+"""
+        + ADAPTER_WHEEL_PROBE
+        + OPENAI_ADAPTER_IDENTITY_ASSERT
+    ),
 
     md("""
 ## Part 1 — Risk gate knobs (`RiskGateConfig`)

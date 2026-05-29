@@ -16,6 +16,8 @@ boundary proofs.
 
 **Canonical standards:** [docs/plans/notebook-standards.md](../docs/plans/notebook-standards.md) (structure, regeneration, CI).
 
+**Architecture (notebooks):** eXo-brain **core** (orchestrator, policy, tools, tenancy) runs against pluggable **runtime adapters** from PyPI. Notebooks use the shipped wheels via `src/*` shims — not in-tree `packages/`. Custom adapters implement the same `RuntimeAdapter` contract (`exo-brain-core-contracts`); see Tutorial 02 and `check_03`.
+
 ---
 
 ## Inventory (14 notebooks)
@@ -83,8 +85,24 @@ python -m ipykernel install --user --name=exo-brain --display-name "eXo-brain (.
 jupyter lab notebooks/
 ```
 
-**Execution:** Run **top to bottom** the first time. Bootstrap cells add the repo root and, when present,
-`packages/eXo_adapters/packages/exo-brain-core-contracts/src` to `sys.path`.
+**Execution:** Run **top to bottom** the first time. Bootstrap cells add the repo root to `sys.path` (shared helpers in `notebook_common.py`).
+
+Install deps from repo root:
+
+```bash
+pip install -r requirements.txt
+```
+
+This pulls all **four PyPI adapter wheels** (lockstep pin in `requirements.txt`):
+
+| Distribution | Import | Role |
+|---|---|---|
+| `exo-brain-core-contracts` | `exo_brain_core_contracts` | `RuntimeAdapter` contract, events, tool I/O |
+| `exo-brain-adapter-sdk` | `exo_brain_adapter_sdk` | Adapter authoring helpers |
+| `exo-adapter-echo` | `exo_adapter_echo` | Deterministic reference adapter |
+| `exo-adapter-openai` | `exo_adapter_openai` | OpenAI Agents SDK adapter |
+
+Tutorials **01, 02, 05, 08** and checks **01, 03** print wheel paths at bootstrap to confirm PyPI provenance.
 
 **API keys:** Cells marked **`[REQUIRES API KEY]`** (or tutorial Part 8) skip gracefully when
 `OPENAI_API_KEY` is unset. Everything else is deterministic and needs no live provider.
@@ -95,10 +113,11 @@ jupyter lab notebooks/
 
 | Script | Generates | Command |
 |---|---|---|
+| `notebook_common.py` | Shared bootstrap, wheel probe, kernelspec | Imported by builders (do not run directly) |
 | `build_tutorials.py` | `tutorial_01_*` … `tutorial_08_*` | `python notebooks/build_tutorials.py` |
 | `build_checks.py` | `check_01_*` … `check_04_*`, `edge_01_*`, `edge_02_*` | `python notebooks/build_checks.py` (`--execute` to refresh outputs) |
 
-After regenerating, re-run notebook cells to refresh outputs, then commit the `.py` builder and `.ipynb` together.
+After regenerating, re-run notebook cells to refresh outputs, then commit the builder(s), `notebook_common.py` (if changed), and `.ipynb` together.
 
 **CI:** In `.github/workflows/architecture-fitness.yml`, job **`automated_test_suite`** runs
 `jupyter nbconvert --execute` on **`tutorial_08_governed_execution_sandbox.ipynb`** with
@@ -118,25 +137,33 @@ Narrative walkthroughs. Run top-to-bottom unless noted.
 
 **Purpose:** How eXo-brain is structured; run a single orchestrated turn and a two-node background DAG with observability.
 
-**API key:** No — in-process adapters only.
+**API key:** No — PyPI `OpenAIAgentsRuntimeAdapter` with `planned_tool_call` (no live model call).
 
 **What you will do:**
 
-1. Register a tool in `ToolRegistry` (HIGH risk, `is_state_changing=True`)
-2. Wire `Orchestrator` with `DeterministicFirstPolicyMiddleware` and `DeterministicToolExecutor`
-3. Inject `planned_tool_call` and stream events: `TOOL_INTENT`, `TOOL_PROGRESS`, `OUTPUT_DELTA`, `RUN_COMPLETE`
-4. Build a `fetch → process` DAG with `BackgroundRuntime`; inspect outcomes, metrics, timeline, logs
+1. Confirm four adapter wheels load (bootstrap probe)
+2. Register a tool in `ToolRegistry` (HIGH risk, `is_state_changing=True`)
+3. Wire `Orchestrator` with `DeterministicFirstPolicyMiddleware` and `DeterministicToolExecutor`
+4. Inject `planned_tool_call` and stream events: `TOOL_INTENT`, `TOOL_PROGRESS`, `OUTPUT_DELTA`, `RUN_COMPLETE`
+5. Build a `fetch → process` DAG with `BackgroundRuntime`; inspect outcomes, metrics, timeline, logs
 
-**Key insight:** Model output is intent; eXo-brain executes deterministically with an audit trail.
+**Key insight:** Model output is intent; eXo-brain executes deterministically with an audit trail. The adapter is real (PyPI); the turn is deterministic injection, not a live provider call.
 
 **Modules:** `src/core/orchestrator`, `src/core/background_runtime`, `src/core/scheduler`, `src/core/task_graph`,
-`src/core/worker_pool`, `src/policies/middleware`, `src/tools/executor`, `src/tools/registry`, `src/observability/*`
+`src/core/worker_pool`, `src/policies/middleware`, `src/tools/executor`, `src/tools/registry`, `src/observability/*`,
+`src/runtime/openai_agents_runtime` (shim → `exo-adapter-openai`)
+
+**Related check:** `check_01_core_orchestrator.ipynb`
 
 ---
 
 #### `tutorial_02_openai_adapter.ipynb`
 
-**Purpose:** What eXo-brain adds on top of the OpenAI Agents SDK, starting from Agent Builder–style agent code.
+**Title:** Tutorial 02 — **OpenAI Runtime Adapter** (filename slug: `openai_adapter`).
+
+**Purpose:** What eXo-brain adds on top of the OpenAI Agents SDK — **delegating wrapper** pattern in Act 2, then the **production** path via PyPI `exo-adapter-openai` (`OpenAIAgentsRuntimeAdapter`).
+
+**Teaching vs production:** Act 2 defines an inline `OpenAIAgentsSDKAdapter` class so the integration seam is visible in one notebook. Production code uses the shipped wheel (re-exported from `src/runtime/openai_agents_runtime`). Verify provenance in `check_03_runtime_adapter.ipynb`.
 
 **API key:** Optional — **three** markdown sections marked `[REQUIRES API KEY]` (original `pass` tool demo;
 three arithmetic live turns in one cell; division-by-zero observation). Policy demo and adapter wiring run without a key.
@@ -150,7 +177,7 @@ three arithmetic live turns in one cell; division-by-zero observation). Policy d
 5. Live division-by-zero — **observe** model vs tool behaviour (not a formal envelope proof in this cell; see `edge_02` / Tutorial 04)
 6. HIGH-risk `planned_tool_call` demo without API key — deterministic path forced (injected intent, not live model choice)
 
-**Key insight:** The `@function_tool` body is the integration seam; orchestration stays provider-neutral.
+**Key insight:** The `@function_tool` body is the integration seam; orchestration stays provider-neutral. Shipped adapter: `exo-adapter-openai`; reference deterministic adapter: `exo-adapter-echo` (see `check_03`).
 
 **Modules:** `src/runtime/openai_agents_runtime`, `src/runtime/runtime_adapter`, `src/runtime/capability_map`,
 `src/core/orchestrator`, `src/policies/middleware`, `src/tools/executor`, `src/tools/registry`,
@@ -162,7 +189,7 @@ three arithmetic live turns in one cell; division-by-zero observation). Policy d
 
 #### `tutorial_03_bring_your_own_config.ipynb`
 
-**Purpose:** Configure ingress policy via overlay dicts — no framework code changes.
+**Purpose:** **Bring Your Own Configuration** — ingress and governance overlays via Python dicts. **Not** runtime adapter wiring (see Tutorial 02 / `check_03` for adapters).
 
 **API key:** No.
 
@@ -175,7 +202,7 @@ three arithmetic live turns in one cell; division-by-zero observation). Policy d
 5. Apply template `data-perimeter-v1` and extend with custom rules — Part 6
 6. Inspect `chain.policy_metadata()` — Part 7
 
-**Key insight:** Edit a dict; the gate chain recompiles. Core code stays unchanged.
+**Key insight:** Edit a dict; the gate chain recompiles. Core code stays unchanged. (Do not confuse with **BYOC** — Bring Your Own Compute — which is Tutorial 07.)
 
 **Modules:** `src/policies/ingress_gates`, `src/policies/ingress_profiles`, `src/policies/policy_templates`
 
@@ -208,12 +235,12 @@ mutate a record and fail `verify_chain`; compute `compute_audit_chain_fingerprin
 
 **API key:** Optional — Part 6 live multi-turn only.
 
-**What you will do:** Wire timeline + `TenantQuotaManager`; session-aware adapter; simulate three turns
+**What you will do:** Wire timeline + `TenantQuotaManager`; local **`SessionAdapter`** demo (Parts 2–3, key-free); simulate three turns
 (history growth); per-turn `timeline.entries_for(corr)`; quota allow/deny with `TENANT_QUOTA_EXCEEDED`;
-optional live OpenAI conversation (Part 6: three turns on one `session_id`; cross-turn SDK memory and
+optional live turns with PyPI **`OpenAIAgentsRuntimeAdapter`** (Part 6: three turns on one `session_id`; cross-turn SDK memory and
 tool proofs are **Tutorial 02** / **Tutorial 08**, not required here).
 
-**Key insight:** Session state lives in the adapter; timeline and quotas are provider-agnostic.
+**Key insight:** Session state lives in the adapter layer; timeline and quotas are provider-agnostic. Part 2 uses a minimal inline adapter — not the Tutorial 02 educational `OpenAIAgentsSDKAdapter` class.
 
 **Modules:** `src/observability/timeline`, `src/tenancy/quotas`, `src/runtime/openai_agents_runtime`,
 `src/observability/logging`, `src/observability/metrics`
@@ -241,7 +268,7 @@ tool proofs are **Tutorial 02** / **Tutorial 08**, not required here).
 
 #### `tutorial_07_governance_and_anomaly.ipynb`
 
-**Purpose:** Advisory anomaly detection vs deterministic fair admission (independent of ingress).
+**Purpose:** **BYOC** (Bring Your Own Compute) — advisory anomaly detection vs deterministic fair admission. Independent of ingress (Tutorial 03).
 
 **API key:** No.
 
@@ -288,7 +315,7 @@ off by default) is model-driven diagnostic only; **8.6** prints the live summary
 | `NB_LIVE_RAW_CALC_CONTRAST` | off | §4 optional raw broken multiply |
 | `NB_LIVE_MODEL_DRIVEN` | off | §8.5 model-initiated diagnostic turns |
 
-**Requires:** `pip install -r requirements.txt` (contracts under `packages/eXo_adapters/…` or editable install).
+**Requires:** `pip install -r requirements.txt` (all four PyPI wheels). Bootstrap prints wheel paths and asserts OpenAI adapter provenance.
 **`nest-asyncio`** in requirements for Jupyter async in Parts 7–8.
 
 **Parts map:** 1–2 risk + scenarios; 3 tenant overlay; 4 tools; 5 execution mode; 6 ingress; 7 stub orchestrator;
@@ -309,9 +336,9 @@ Fast module smoke checks. Each opens with **purpose, prerequisites, related tuto
 
 | File | What it checks | PASS condition |
 |---|---|---|
-| `check_01_core_orchestrator.ipynb` | HIGH-risk state-changing `planned_tool_call` through orchestrator | `run_complete` + `tool_progress` `state=completed`; `PASS: orchestrator deterministic tool path` |
+| `check_01_core_orchestrator.ipynb` | PyPI wheel probe + HIGH-risk `planned_tool_call` through orchestrator | Wheels load; `run_complete` + `tool_progress` `state=completed`; `PASS: orchestrator deterministic tool path` |
 | `check_02_policy_middleware.ipynb` | `DeterministicFirstPolicyMiddleware` pre/post | `before_tool_call` allow; bad SUCCESS → `POLICY_POSTCHECK_FAILED`; `PASS: policy middleware checks` |
-| `check_03_runtime_adapter.ipynb` | `OpenAIAgentsRuntimeAdapter` health + planned tool intent | Healthy healthcheck + `tool_intent`; `PASS: runtime adapter planned tool-intent path` |
+| `check_03_runtime_adapter.ipynb` | PyPI OpenAI + Echo adapters; health + planned tool intent | Both adapters healthy; `tool_intent` emitted; `PASS: runtime adapter planned tool-intent path` |
 | `check_04_tenant_and_limits.ipynb` | Quota + in-memory and SQLite rate limiters | `TENANT_QUOTA_EXCEEDED`; in-memory blocks 3rd request, SQLite (max=1) blocks 2nd; `PASS: tenancy and limits checks` |
 
 ---
@@ -370,7 +397,7 @@ Deterministic scenario notebooks. Final line: **`All edge_XX scenarios: PASS`**.
 1. Pick category: `tutorial_` / `check_` / `edge_`
 2. Next sequential number **in that category**
 3. Name: `<category>_<NN>_<slug>.ipynb`
-4. Add builder to `build_tutorials.py` or `build_checks.py`
+4. Add builder to `build_tutorials.py` or `build_checks.py` (reuse `notebook_common.py` for bootstrap/probes)
 5. Update this README, `EVALUATOR_GUIDE.md` if evaluator-facing, and `docs/plans/notebook-standards.md` ownership table
 6. **Checks/edges:** deterministic, assert + explicit PASS lines, no API key
 7. **Tutorials:** story before code; skip guards for optional live sections
