@@ -6,9 +6,11 @@ __pycache__/
 # local working tree (PR artifacts, planning trackers, alignment audits)
 .local/
 
-# secrets — never commit
+# secrets — never commit (templates are OK)
 .env
-*.env
+.env.*
+!.env.template
+!.env.example
 
 # virtual environments
 .exo_env/
