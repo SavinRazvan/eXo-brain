@@ -45,7 +45,7 @@ Notes:
 | `docs/strategy/goal.md` | Product north star and platform boundary |
 | `docs/strategy/core.md` | Core invariants and governance model |
 | `docs/strategy/adapter-strategy.md` | Adapter ecosystem, lanes, certification |
-| `docs/strategy/adapter-compatibility-matrix.md` | Published package versions (0.1.2), semver, M0/M1 status |
+| `docs/strategy/adapter-compatibility-matrix.md` | Published package versions (0.1.1), semver, M0/M1 status |
 | `docs/strategy/monetization-strategy.md` | Monetization and tier value capture |
 | `docs/strategy/governed-execution-positioning.md` | Product boundary, ICP, monetization posture, and messaging guardrails for governed execution |
 | `docs/strategy/entitlement-matrix.md` | Feature-to-tier enforcement matrix |

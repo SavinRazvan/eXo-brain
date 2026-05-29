@@ -119,11 +119,11 @@ Use these as **epic buckets**; each PR/slice should still be small and reversibl
 | OpenAI adapter | Register provider → governed turn | Conformance + API smoke (`build_test_app` / playground tests) |
 | Handoff doc | Extraction complete; PyPI-only consumption | [`adapter-packages-extraction-handoff.md`](adapter-packages-extraction-handoff.md), [`exo_adapters_pypi_handoff.md`](../handoffs/exo_adapters_pypi_handoff.md) |
 
-**Primary artifacts:** PyPI `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-openai`, `exo-adapter-echo` (lockstep **0.1.2**); `src/runtime/` adapter loading; [`next-directions.md`](../strategy/next-directions.md) Tier 1.
+**Primary artifacts:** PyPI `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-openai`, `exo-adapter-echo` (lockstep **0.1.1**); `src/runtime/` adapter loading; [`next-directions.md`](../strategy/next-directions.md) Tier 1.
 
 **Suggested tests touchpoints:** `tests/modules/runtime/`, `scripts/packages/external_install_smoke.py`, integration tests that register `openai-test` / playground paths.
 
-**Rolling status:** **Shipped (2026-05-29):** extraction complete; eXo-brain PyPI-only; lockstep **0.1.2**. Prior: **STP-W4-003** (contracts **0.1.1+** re-exports), **STP-W4-002** (`runtime_adapter` re-export), **STP-W4-001** (factory dual-check, superseded).
+**Rolling status:** **Shipped (2026-05-29):** extraction complete; eXo-brain PyPI-only; lockstep **0.1.1**. Prior: **STP-W4-003** (contracts **0.1.1+** re-exports), **STP-W4-002** (`runtime_adapter` re-export), **STP-W4-001** (factory dual-check, superseded).
 
 ---
 

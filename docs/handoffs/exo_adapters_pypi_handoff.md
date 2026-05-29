@@ -24,7 +24,7 @@ Notes:
 |---|---|
 | **Four PyPI distributions** (lockstep; see `requirements.txt`) | `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-echo`, `exo-adapter-openai` |
 | **Authoring / publish repo** | [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) |
-| **eXo-brain install** | `requirements.txt` (all four distributions; current lockstep **0.1.2**) |
+| **eXo-brain install** | `requirements.txt` (all four distributions; current lockstep **0.1.1**) |
 | **Optional adapters-only file** | `requirements-adapters.txt` (when contracts already satisfied) |
 | **Dev install** | `bash scripts/dev/install_adapter_dependencies.sh` → PyPI via `requirements.txt` |
 | **Conformance tests in control plane** | `tests/packages/test_*_adapter_conformance.py` |

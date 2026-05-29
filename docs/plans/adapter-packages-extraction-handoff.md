@@ -156,7 +156,7 @@ No change to **API shape** required for extraction if **dotted class paths** sta
 
 | Doc | Status |
 |-----|--------|
-| `docs/strategy/adapter-compatibility-matrix.md` | Updated — PyPI **0.1.2**, eXo_adapters repo |
+| `docs/strategy/adapter-compatibility-matrix.md` | Updated — PyPI **0.1.1**, eXo_adapters repo |
 | `docs/strategy/adapter-strategy.md` | Updated — extraction complete |
 | `docs/architecture/ARCHITECTURE.md` | Updated — PyPI adapter plane |
 | `README.md` | Updated — PyPI install path |
@@ -201,7 +201,7 @@ Alternatively: **one** `pyproject.toml` with **workspace** / multiple packages (
 2. [x] `external_install_smoke` / adapter repo smoke passes (`packages/eXo_adapters/scripts/external_install_smoke.py`).  
 3. [x] eXo-brain **`load_adapter`** uses package path **without** relying on in-tree fallback (or fallback explicitly deprecated).  
 4. [x] **Published runtime type identity** — **STP-W4-002** + **STP-W4-003** (contracts **0.1.1+**).  
-5. [x] `requirements.txt` / `requirements-adapters.txt` pin PyPI **0.1.2**; Docker uses `install_adapter_dependencies.sh`.  
+5. [x] `requirements.txt` / `requirements-adapters.txt` pin PyPI **0.1.1**; Docker uses `install_adapter_dependencies.sh`.  
 6. [x] Remove `packages/eXo_adapters/` from eXo-brain; dev uses sibling clone or PyPI.  
 7. [x] Narrow `scan_forbidden_imports` / CI `packages/**` triggers once vendored tree is dev-only.  
 8. [x] Operator docs: `adapter-installation.md`, `adapter-repos-and-pypi.md`, handoff status doc.
@@ -212,10 +212,10 @@ Alternatively: **one** `pyproject.toml` with **workspace** / multiple packages (
 
 | Distribution | Version (today) | `requires-python` | Runtime deps (declared) |
 |--------------|-----------------|-------------------|-------------------------|
-| `exo-brain-core-contracts` | 0.1.2 | >=3.11 | — |
-| `exo-brain-adapter-sdk` | 0.1.2 | >=3.11 | `exo-brain-core-contracts` |
-| `exo-adapter-openai` | 0.1.2 | >=3.11 | `exo-brain-core-contracts`, `openai`, `openai-agents` |
-| `exo-adapter-echo` | 0.1.2 | >=3.11 | `exo-brain-core-contracts` |
+| `exo-brain-core-contracts` | 0.1.1 | >=3.11 | — |
+| `exo-brain-adapter-sdk` | 0.1.1 | >=3.11 | `exo-brain-core-contracts` |
+| `exo-adapter-openai` | 0.1.1 | >=3.11 | `exo-brain-core-contracts`, `openai`, `openai-agents` |
+| `exo-adapter-echo` | 0.1.1 | >=3.11 | `exo-brain-core-contracts` |
 
 ---
 
@@ -223,7 +223,7 @@ Alternatively: **one** `pyproject.toml` with **workspace** / multiple packages (
 
 | Date | Change |
 |------|--------|
-| 2026-05-29 | PyPI-only eXo-brain: in-tree `packages/` removed; lockstep **0.1.2**; checklist §9 items 3, 5, 7 closed; §10 version table updated. |
+| 2026-05-29 | PyPI-only eXo-brain: in-tree `packages/` removed; lockstep **0.1.1**; checklist §9 items 3, 5, 7 closed; §10 version table updated. |
 | 2026-03-27 | **STP-W4-002:** `requirements.txt` + Dockerfile install editable `exo-brain-core-contracts`; `runtime_adapter.py` re-exports published ABC; factory uses single `issubclass`; checklist §9 item 4 closed for RuntimeAdapter identity; §5.1–5.2 refreshed. |
 | 2026-03-27 | Factory: `_is_acceptable_runtime_adapter_subclass` accepts published `exo_brain_core_contracts.RuntimeAdapter` when importable (STP-W4-001); handoff §5.1 debt note refreshed. |
 | 2026-03-24 | Initial handoff: full inventory, install order, smoke script contract, factory coupling, dual-ABC debt, migration phases. |

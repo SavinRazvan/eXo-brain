@@ -2,20 +2,19 @@
 #
 # File: install_requirements_with_sibling_exo_adapters.sh
 # Path: scripts/dev/install_requirements_with_sibling_exo_adapters.sh
-# Role: Install eXo-brain deps; optionally override adapter packages from a sibling eXo_adapters checkout.
+# Role: Opt-in editable adapter installs for eXo_adapters repo maintainers only.
 # Used By:
 #  - Adapter maintainers developing wheels alongside the control plane
 # Depends On:
 #  - bash, pip, requirements.txt at repo root
 # Notes:
-#  - Default: pip install -r requirements.txt (PyPI pins).
-#  - Override: EXO_ADAPTERS_ROOT=/path/to/eXo_adapters for editable installs from that repo.
+#  - Default path for everyone else: pip install -r requirements.txt (PyPI wheels).
+#  - Requires EXO_ADAPTERS_ROOT=/absolute/path/to/eXo_adapters (no auto ../ sibling).
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REQ="${ROOT}/requirements.txt"
-SIBLING_ROOT="${ROOT}/../eXo_adapters"
 
 if [[ ! -f "$REQ" ]]; then
   echo "error: missing $REQ" >&2
@@ -24,17 +23,14 @@ fi
 
 python -m pip install --upgrade pip
 
-if [[ -n "${EXO_ADAPTERS_ROOT:-}" ]]; then
-  ADAPTERS_ROOT="$EXO_ADAPTERS_ROOT"
-elif [[ -d "${SIBLING_ROOT}/packages/exo-brain-core-contracts" ]]; then
-  ADAPTERS_ROOT="$SIBLING_ROOT"
-else
+if [[ -z "${EXO_ADAPTERS_ROOT:-}" ]]; then
   echo "Installing from PyPI (requirements.txt)"
   python -m pip install -r "$REQ"
   echo "Done. Verify: python -c \"import exo_brain_core_contracts, exo_adapter_openai; print('ok')\""
   exit 0
 fi
 
+ADAPTERS_ROOT="$EXO_ADAPTERS_ROOT"
 PKG_ROOT="${ADAPTERS_ROOT}/packages"
 for pkg in exo-brain-core-contracts exo-brain-adapter-sdk exo-adapter-echo exo-adapter-openai; do
   if [[ ! -f "${PKG_ROOT}/${pkg}/pyproject.toml" ]]; then

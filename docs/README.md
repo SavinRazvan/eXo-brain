@@ -45,7 +45,7 @@ Narrative and smoke evidence for evaluators and contributors — **not** a subst
 - [`docs/strategy/README.md`](strategy/README.md) — index, reading order, shipped vs planned snapshot
 - [governed-execution-positioning.md](strategy/governed-execution-positioning.md) — product boundary, ICP, four-layer model
 - [entitlement-matrix.md](strategy/entitlement-matrix.md) + [traceability-matrix.md](strategy/traceability-matrix.md) — tiers and code anchors
-- [adapter-compatibility-matrix.md](strategy/adapter-compatibility-matrix.md) — PyPI **0.1.2** lockstep packages
+- [adapter-compatibility-matrix.md](strategy/adapter-compatibility-matrix.md) — PyPI **0.1.1** lockstep packages
 - [next-directions.md](strategy/next-directions.md) — prioritized implementation directions
 - [customer-self-serve-governance-journey.md](strategy/customer-self-serve-governance-journey.md) — self-serve spine
 

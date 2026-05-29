@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from importlib.metadata import version
 
 import pytest
 
@@ -133,4 +134,9 @@ async def test_tool_wrapper_returns_execution_error_fallbacks() -> None:
     )
     tool = _single_tool(executor)
     payload = await tool.on_invoke_tool(None, "")
-    assert payload == "TOOL_EXECUTION_ERROR: ERR_ONLY_CODE"
+    # exo-adapter-openai 0.1.1 renders str(None); 0.1.2+ falls back to error.code
+    openai_adapter_version = version("exo-adapter-openai")
+    if openai_adapter_version >= "0.1.2":
+        assert payload == "TOOL_EXECUTION_ERROR: ERR_ONLY_CODE"
+    else:
+        assert payload == "TOOL_EXECUTION_ERROR: None"

@@ -417,7 +417,7 @@ flowchart BT
 | **`exo-adapter-openai`** | OpenAI-oriented adapter implementation | Must not import `src.*` (enforced in eXo_adapters + eXo-brain conformance tests) |
 | **`exo-adapter-echo`** | Second adapter for parity/conformance tests | Same portability rule |
 
-**Authoring repo:** [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters). **Install:** `requirements.txt` lockstep pins (currently **0.1.2**).
+**Authoring repo:** [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters). **Install:** `requirements.txt` lockstep pins (currently **0.1.1**).
 
 External install smoke (eXo-brain): [`scripts/packages/external_install_smoke.py`](../../scripts/packages/external_install_smoke.py).
 

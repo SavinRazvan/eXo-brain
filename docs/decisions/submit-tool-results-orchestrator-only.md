@@ -13,7 +13,7 @@ Notes:
 
 # Decision: `submit_tool_results` — orchestrator-only continuation
 
-**Status:** Accepted for adapter **0.1.1+** (current lockstep **0.1.2**; updated 2026-05-29)
+**Status:** Accepted for adapter **0.1.1+** (current lockstep **0.1.1**; updated 2026-05-29)
 
 **Context:** The OpenAI Agents SDK supports resuming a run after local tool execution. eXo-brain routes state-changing tools through the deterministic tool executor and policy middleware; side effects stay in the control plane.
 

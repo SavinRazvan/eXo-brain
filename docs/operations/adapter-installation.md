@@ -21,14 +21,11 @@ Notes:
 | `pip install -r requirements.txt` | Control plane + all four adapter distributions (lockstep pin in file) |
 | `pip install -r requirements-adapters.txt` | All four adapter distributions only (same pins as above) |
 
-Development / CI: `bash scripts/dev/install_adapter_dependencies.sh` (PyPI via `requirements.txt`).
+Development / CI / Docker: `bash scripts/dev/install_adapter_dependencies.sh` (PyPI via `requirements.txt`).
 
-When PyPI does not yet ship the pinned release (e.g. **0.1.2** before publish), CI and Docker
-clone [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) at the matching
-git tag and install editable wheels via `EXO_ADAPTERS_ROOT`. Set `EXO_ADAPTERS_PYPI_ONLY=1` only
-after all four wheels are on PyPI.
-
-Docker images use the same install script with a git checkout during build until PyPI catches up.
+**PyPI only** — eXo-brain does not auto-install from a sibling `eXo_adapters` checkout. Adapter
+maintainers who need editable installs must set `EXO_ADAPTERS_ROOT` explicitly and run
+`scripts/dev/install_requirements_with_sibling_exo_adapters.sh` (opt-in, not used in CI).
 
 ## Canonical `adapter_class_ref` values
 
@@ -64,7 +61,7 @@ export EXO_RUN_LIVE_OPENAI=1
 pytest tests/modules/runtime/test_openai_live_integration.py -q
 ```
 
-## OpenAI adapter behavior (0.1.2+)
+## OpenAI adapter behavior (0.1.1+)
 
 - **Governed tools:** `FunctionTool` bodies delegate to eXo-brain’s executor (no duplicate `TOOL_INTENT` from the Agents stream when registry + executor are wired).
 - **After orchestrator tool execution:** `submit_tool_results` calls the model again with formatted tool results when `OPENAI_API_KEY` is set.

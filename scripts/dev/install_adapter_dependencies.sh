@@ -5,9 +5,9 @@
 # Used By:
 #  - CI, Dockerfile, local dev
 # Notes:
-#  - Verifies installed versions match requirements.txt pins.
-#  - Set EXO_ADAPTERS_PYPI_ONLY=1 (Docker/CI) to require PyPI and skip sibling fallback.
-#  - Local dev: falls back to editable sibling ../eXo_adapters when PyPI lacks the pinned release.
+#  - PyPI only. Pins must match published wheels on PyPI (see requirements.txt).
+#  - Adapter maintainers developing both repos: use install_requirements_with_sibling_exo_adapters.sh
+#    with EXO_ADAPTERS_ROOT set explicitly (never auto-detected from ../eXo_adapters).
 
 set -euo pipefail
 
@@ -18,10 +18,6 @@ PYTHON="${PYTHON:-python3}"
 if ! command -v "$PYTHON" >/dev/null 2>&1; then
   PYTHON=python
 fi
-
-PYPI_ONLY="${EXO_ADAPTERS_PYPI_ONLY:-0}"
-SIBLING="${EXO_ADAPTERS_ROOT:-$ROOT/../eXo_adapters}"
-SIBLING_PKG="${SIBLING}/packages"
 
 verify_adapter_pins() {
   "$PYTHON" <<'PY'
@@ -47,7 +43,7 @@ for pkg in packages:
     try:
         installed = version(pkg)
     except PackageNotFoundError:
-        errors.append(f"{pkg} not installed")
+        errors.append(f"{pkg} not installed (pip install -r requirements.txt)")
         continue
     if installed != pinned:
         errors.append(f"{pkg} installed {installed!r} != pinned {pinned!r}")
@@ -60,58 +56,7 @@ print("Adapter wheels OK (all four distributions match requirements.txt pins)")
 PY
 }
 
-import_adapter_wheels() {
-  "$PYTHON" -c "import exo_brain_core_contracts, exo_brain_adapter_sdk, exo_adapter_openai, exo_adapter_echo"
-}
-
-install_editable_sibling() {
-  if [[ ! -f "${SIBLING_PKG}/exo-brain-core-contracts/pyproject.toml" ]]; then
-    echo "error: sibling eXo_adapters not found at ${SIBLING_PKG}" >&2
-    return 1
-  fi
-  TMP_REQ="$(mktemp)"
-  trap 'rm -f "$TMP_REQ"' RETURN
-  grep -vE '^exo-(brain-core-contracts|brain-adapter-sdk|adapter-echo|adapter-openai)' requirements.txt >"$TMP_REQ"
-  echo "Installing control-plane deps (adapter pins deferred for editable installs)"
-  "$PYTHON" -m pip install -r "$TMP_REQ"
-  echo "Installing editable adapter packages from ${SIBLING_PKG}"
-  "$PYTHON" -m pip install \
-    -e "${SIBLING_PKG}/exo-brain-core-contracts" \
-    -e "${SIBLING_PKG}/exo-brain-adapter-sdk" \
-    -e "${SIBLING_PKG}/exo-adapter-echo" \
-    -e "${SIBLING_PKG}/exo-adapter-openai"
-}
-
-pypi_only_failure() {
-  echo "error: PyPI install did not satisfy adapter pins from requirements.txt." >&2
-  echo "  Docker and CI require published wheels (EXO_ADAPTERS_PYPI_ONLY=1)." >&2
-  echo "  Local dev: publish the pinned release or use install_requirements_with_sibling_exo_adapters.sh" >&2
-  exit 1
-}
-
 "$PYTHON" -m pip install --upgrade pip
-
-if [[ "$PYPI_ONLY" == "1" ]]; then
-  "$PYTHON" -m pip install -r requirements.txt
-  verify_adapter_pins
-  import_adapter_wheels
-  exit 0
-fi
-
-"$PYTHON" -m pip install -r requirements.txt || true
-
-if verify_adapter_pins; then
-  import_adapter_wheels
-  exit 0
-fi
-
-echo "PyPI install did not satisfy adapter pins; trying editable sibling at ${SIBLING}" >&2
-if ! install_editable_sibling; then
-  echo "error: adapter install failed. Options:" >&2
-  echo "  - pip install -r requirements.txt (when wheels are on PyPI)" >&2
-  echo "  - clone SavinRazvan/eXo_adapters as ../eXo_adapters or set EXO_ADAPTERS_ROOT" >&2
-  echo "  - bash scripts/dev/install_requirements_with_sibling_exo_adapters.sh" >&2
-  exit 1
-fi
+"$PYTHON" -m pip install -r requirements.txt
 verify_adapter_pins
-import_adapter_wheels
+"$PYTHON" -c "import exo_brain_core_contracts, exo_brain_adapter_sdk, exo_adapter_openai, exo_adapter_echo"

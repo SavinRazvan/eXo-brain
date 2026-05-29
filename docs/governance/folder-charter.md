@@ -38,7 +38,7 @@ Notes:
 | Path | Purpose |
 |------|---------|
 | `notebooks/` | Tutorials, checks, edge proofs ([README](../../notebooks/README.md)) |
-| Adapter packages | PyPI only — [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) (**0.1.2** lockstep) |
+| Adapter packages | PyPI only — [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) (**0.1.1** lockstep) |
 | `src/` | Control-plane implementation |
 
 ## `.local/` (local operating workspace — not canonical policy storage)
