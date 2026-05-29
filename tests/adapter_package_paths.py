@@ -34,7 +34,7 @@ def packaged_adapters_installed() -> bool:
 
 
 def local_portable_adapters_present() -> bool:
-    """Alias for CI skip guards — requires PyPI/editable adapter installs."""
+    """Alias for CI skip guards — requires PyPI adapter wheels."""
     return packaged_adapters_installed()
 
 

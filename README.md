@@ -164,8 +164,9 @@ Adapter runtime packages (`exo-brain-core-contracts`, `exo-brain-adapter-sdk`,
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# or: bash scripts/dev/install_adapter_dependencies.sh
 ```
+
+All four adapter wheels come from **PyPI only** — no sibling repo, git, or editable installs.
 
 See [docs/operations/adapter-installation.md](docs/operations/adapter-installation.md)
 for operator notes and provider registration.

@@ -50,14 +50,13 @@ bash scripts/dev/install_adapter_dependencies.sh
 pip install -r requirements-adapters.txt
 ```
 
-**Adapter development** (editable installs — opt-in, explicit path only):
+**Install (PyPI only):**
 
 ```bash
-export EXO_ADAPTERS_ROOT=/absolute/path/to/eXo_adapters
-bash scripts/dev/install_requirements_with_sibling_exo_adapters.sh
+pip install -r requirements.txt
 ```
 
-Do **not** rely on `../eXo_adapters`; eXo-brain CI and default install use **PyPI only**.
+Adapter source is authored in **`SavinRazvan/eXo_adapters`** and published to PyPI. eXo-brain never installs from that repo path directly.
 
 Operator details: [adapter-installation.md](adapter-installation.md).
 

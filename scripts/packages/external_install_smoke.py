@@ -7,10 +7,9 @@ Used By:
  - scripts/release/rc_signoff.py (optional gate)
  - make targets
 Depends On:
- - PyPI distributions at pins matching requirements.txt
+ - PyPI distributions at pins matching requirements-adapters.txt
 Notes:
- - Canonical multi-package smoke also lives in SavinRazvan/eXo_adapters.
- - Creates a throwaway venv in /tmp, installs all four packages from PyPI (or editable sibling fallback), runs assertions.
+ - Creates a throwaway venv in /tmp, installs all four packages from PyPI only, runs assertions.
  - Exit code 0 = pass, non-zero = fail.
 """
 
@@ -26,35 +25,6 @@ import textwrap
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-
-PACKAGE_DIRS = (
-    "exo-brain-core-contracts",
-    "exo-brain-adapter-sdk",
-    "exo-adapter-echo",
-    "exo-adapter-openai",
-)
-
-
-def _read_pypi_pins() -> tuple[str, ...]:
-    req_path = REPO_ROOT / "requirements-adapters.txt"
-    pins = [
-        line.strip()
-        for line in req_path.read_text(encoding="utf-8").splitlines()
-        if re.match(r"^exo-(brain-|adapter-)", line.strip())
-    ]
-    if len(pins) != 4:
-        raise RuntimeError(f"expected 4 adapter pins in {req_path}, got {len(pins)}")
-    return tuple(pins)
-
-
-def _sibling_adapter_packages_root() -> Path | None:
-    for candidate in (
-        REPO_ROOT.parent / "eXo_adapters" / "packages",
-        Path.home() / "Projects" / "eXo_adapters" / "packages",
-    ):
-        if (candidate / "exo-brain-core-contracts" / "pyproject.toml").is_file():
-            return candidate
-    return None
 
 ASSERTION_SCRIPT = textwrap.dedent(
     """
@@ -150,6 +120,18 @@ ASSERTION_SCRIPT = textwrap.dedent(
 ).strip()
 
 
+def _read_pypi_pins() -> tuple[str, ...]:
+    req_path = REPO_ROOT / "requirements-adapters.txt"
+    pins = [
+        line.strip()
+        for line in req_path.read_text(encoding="utf-8").splitlines()
+        if re.match(r"^exo-(brain-|adapter-)", line.strip())
+    ]
+    if len(pins) != 4:
+        raise RuntimeError(f"expected 4 adapter pins in {req_path}, got {len(pins)}")
+    return tuple(pins)
+
+
 def _run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, capture_output=True, text=True, check=check)
 
@@ -157,7 +139,6 @@ def _run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[s
 def main() -> int:
     pypi_pins = _read_pypi_pins()
     venv_dir = Path(tempfile.mkdtemp(prefix="exo_external_smoke_"))
-    install_mode = "pypi"
     try:
         print(f"[smoke] Creating isolated venv: {venv_dir}")
         _run([sys.executable, "-m", "venv", str(venv_dir)])
@@ -165,30 +146,14 @@ def main() -> int:
         pip = str(venv_dir / "bin" / "pip")
         python = str(venv_dir / "bin" / "python3")
 
-        pypi_failed = False
         for pin in pypi_pins:
             print(f"[smoke] Installing {pin} from PyPI ...")
             result = _run([pip, "install", pin, "-q"], check=False)
             if result.returncode != 0:
-                print(f"[smoke] PyPI install failed for {pin}")
-                pypi_failed = True
-                break
-
-        if pypi_failed:
-            sibling_root = _sibling_adapter_packages_root()
-            if sibling_root is None:
-                print("[smoke] FAIL: PyPI install failed and no sibling eXo_adapters/packages found")
+                print(f"[smoke] FAIL: PyPI install failed for {pin}")
+                if result.stderr:
+                    print(result.stderr)
                 return 1
-            install_mode = "editable-sibling"
-            print(f"[smoke] Falling back to editable installs from {sibling_root}")
-            for pkg_name in PACKAGE_DIRS:
-                pkg_path = sibling_root / pkg_name
-                result = _run([pip, "install", "-e", str(pkg_path), "-q"], check=False)
-                if result.returncode != 0:
-                    print(f"[smoke] FAIL: editable install {pkg_name}")
-                    if result.stderr:
-                        print(result.stderr)
-                    return 1
 
         print("[smoke] Running assertion script ...")
         result = _run([python, "-c", ASSERTION_SCRIPT], check=False)
@@ -199,7 +164,7 @@ def main() -> int:
                 print(result.stderr)
             return 1
 
-        print(f"[smoke] PASS: all checks passed ({install_mode} install)")
+        print("[smoke] PASS: all checks passed (PyPI install)")
         return 0
 
     finally:

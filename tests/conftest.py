@@ -79,9 +79,18 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             continue
         module_name = ADAPTER_IMPORT_MODULES[dist]
         try:
-            __import__(module_name)
+            mod = __import__(module_name)
         except ImportError as exc:
             errors.append(f"{dist} import {module_name!r} failed: {exc}")
+            continue
+        mod_file = (mod.__file__ or "").replace("\\", "/")
+        if "site-packages" not in mod_file and "dist-packages" not in mod_file:
+            errors.append(f"{dist} must be installed from PyPI wheel (site-packages), got {mod.__file__}")
+        elif "/eXo_adapters/" in mod_file:
+            errors.append(
+                f"{dist} must not load from eXo_adapters checkout — "
+                f"pip uninstall and pip install -r requirements.txt: {mod.__file__}"
+            )
 
     if errors:
         pytest.exit("Adapter wheel preflight failed:\n  - " + "\n  - ".join(errors), returncode=2)

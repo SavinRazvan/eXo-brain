@@ -42,7 +42,7 @@ except ImportError:
 """
 )
 
-# Confirms SavinRazvan/eXo_adapters wheels (PyPI or editable sibling), not in-tree packages/.
+# Confirms SavinRazvan/eXo_adapters wheels are installed from PyPI (site-packages), not editable checkouts.
 ADAPTER_WHEEL_PROBE = """
 import importlib
 import importlib.util
@@ -61,6 +61,14 @@ def _print_adapter_wheels() -> None:
             print(f"warn: {dist} not installed — pip install -r requirements.txt")
             continue
         mod = importlib.import_module(module_name)
+        mod_file = (mod.__file__ or "").replace("\\\\", "/")
+        if "site-packages" not in mod_file and "dist-packages" not in mod_file:
+            raise RuntimeError(f"{dist} must be a PyPI wheel in site-packages, got {mod.__file__}")
+        if "/eXo_adapters/" in mod_file:
+            raise RuntimeError(
+                f"{dist} must not load from eXo_adapters checkout — "
+                f"pip install -r requirements.txt: {mod.__file__}"
+            )
         print(f"{dist}:", mod.__file__)
 
 

@@ -21,11 +21,9 @@ Notes:
 | `pip install -r requirements.txt` | Control plane + all four adapter distributions (lockstep pin in file) |
 | `pip install -r requirements-adapters.txt` | All four adapter distributions only (same pins as above) |
 
-Development / CI / Docker: `bash scripts/dev/install_adapter_dependencies.sh` (PyPI via `requirements.txt`).
+Development / CI / Docker: `bash scripts/dev/install_adapter_dependencies.sh` or `pip install -r requirements.txt`.
 
-**PyPI only** — eXo-brain does not auto-install from a sibling `eXo_adapters` checkout. Adapter
-maintainers who need editable installs must set `EXO_ADAPTERS_ROOT` explicitly and run
-`scripts/dev/install_requirements_with_sibling_exo_adapters.sh` (opt-in, not used in CI).
+**PyPI only.** No git, editable, or sibling-repo adapter installs in this repository.
 
 ## Canonical `adapter_class_ref` values
 

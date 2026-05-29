@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 # File: install_adapter_dependencies.sh
 # Path: scripts/dev/install_adapter_dependencies.sh
-# Role: Install requirements.txt including all four SavinRazvan/eXo_adapters PyPI wheels.
+# Role: Install requirements.txt including all four adapter PyPI wheels.
 # Used By:
 #  - CI, Dockerfile, local dev
 # Notes:
-#  - PyPI only. Pins must match published wheels on PyPI (see requirements.txt).
-#  - Adapter maintainers developing both repos: use install_requirements_with_sibling_exo_adapters.sh
-#    with EXO_ADAPTERS_ROOT set explicitly (never auto-detected from ../eXo_adapters).
+#  - PyPI wheels only. No git, editable, or sibling-repo installs.
 
 set -euo pipefail
 
@@ -19,44 +17,49 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
   PYTHON=python
 fi
 
-verify_adapter_pins() {
-  "$PYTHON" <<'PY'
+"$PYTHON" -m pip install --upgrade pip
+"$PYTHON" -m pip install -r requirements.txt
+
+"$PYTHON" <<'PY'
 import re
 import sys
+from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-req = (Path("requirements.txt").read_text(encoding="utf-8"))
+req = Path("requirements.txt").read_text(encoding="utf-8")
 packages = (
-    "exo-brain-core-contracts",
-    "exo-brain-adapter-sdk",
-    "exo-adapter-echo",
-    "exo-adapter-openai",
+    ("exo-brain-core-contracts", "exo_brain_core_contracts"),
+    ("exo-brain-adapter-sdk", "exo_brain_adapter_sdk"),
+    ("exo-adapter-echo", "exo_adapter_echo"),
+    ("exo-adapter-openai", "exo_adapter_openai"),
 )
 errors: list[str] = []
-for pkg in packages:
-    match = re.search(rf"^{re.escape(pkg)}==(\S+)", req, re.MULTILINE)
+for dist, module_name in packages:
+    match = re.search(rf"^{re.escape(dist)}==(\S+)", req, re.MULTILINE)
     if not match:
-        errors.append(f"missing pin for {pkg} in requirements.txt")
+        errors.append(f"missing pin for {dist} in requirements.txt")
         continue
     pinned = match.group(1)
     try:
-        installed = version(pkg)
+        installed = version(dist)
     except PackageNotFoundError:
-        errors.append(f"{pkg} not installed (pip install -r requirements.txt)")
+        errors.append(f"{dist} not installed (pip install -r requirements.txt)")
         continue
     if installed != pinned:
-        errors.append(f"{pkg} installed {installed!r} != pinned {pinned!r}")
+        errors.append(f"{dist} installed {installed!r} != pinned {pinned!r}")
+        continue
+    mod = import_module(module_name)
+    mod_file = (mod.__file__ or "").replace("\\", "/")
+    if "site-packages" not in mod_file and "dist-packages" not in mod_file:
+        errors.append(f"{dist} must be a PyPI wheel in site-packages, got {mod.__file__}")
+    if "/eXo_adapters/" in mod_file or mod_file.endswith("/eXo_adapters"):
+        errors.append(f"{dist} must not load from sibling eXo_adapters checkout: {mod.__file__}")
+
 if errors:
-    print("Adapter pin verification failed:", file=sys.stderr)
+    print("Adapter PyPI verification failed:", file=sys.stderr)
     for err in errors:
         print(f"  - {err}", file=sys.stderr)
     sys.exit(1)
-print("Adapter wheels OK (all four distributions match requirements.txt pins)")
+print("Adapter wheels OK (PyPI only; all four match requirements.txt pins)")
 PY
-}
-
-"$PYTHON" -m pip install --upgrade pip
-"$PYTHON" -m pip install -r requirements.txt
-verify_adapter_pins
-"$PYTHON" -c "import exo_brain_core_contracts, exo_brain_adapter_sdk, exo_adapter_openai, exo_adapter_echo"

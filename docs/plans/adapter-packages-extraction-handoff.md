@@ -24,7 +24,7 @@ Notes:
 
 ## 1. Goal
 
-Portable adapter artifacts live in the **eXo_adapters** repository (multi-package layout, same PyPI distribution names). The eXo-brain repo remains **control plane only**; it **consumes** `exo-brain-core-contracts` (and optional adapters) via **pip** (git or PyPI) and loads runtime implementations via **`adapter_class_ref`** (`src/runtime/adapter_factory.py`).
+Portable adapter artifacts live in the **eXo_adapters** repository (multi-package layout, same PyPI distribution names). The eXo-brain repo remains **control plane only**; it **consumes** wheels from **PyPI** via `requirements.txt` and loads runtime implementations via **`adapter_class_ref`** (`src/runtime/adapter_factory.py`).
 
 **Layout:** path columns below use **`packages/...`** as inside **eXo_adapters**. An optional **`moving_to_adapters_project/`** copy may exist only as a migration aid; it is not required for eXo-brain CI once `requirements.txt` points at the real remote.
 
@@ -202,7 +202,7 @@ Alternatively: **one** `pyproject.toml` with **workspace** / multiple packages (
 3. [x] eXo-brain **`load_adapter`** uses package path **without** relying on in-tree fallback (or fallback explicitly deprecated).  
 4. [x] **Published runtime type identity** — **STP-W4-002** + **STP-W4-003** (contracts **0.1.1+**).  
 5. [x] `requirements.txt` / `requirements-adapters.txt` pin PyPI **0.1.1**; Docker uses `install_adapter_dependencies.sh`.  
-6. [x] Remove `packages/eXo_adapters/` from eXo-brain; dev uses sibling clone or PyPI.  
+6. [x] Remove `packages/eXo_adapters/` from eXo-brain; dev and CI use PyPI wheels only.  
 7. [x] Narrow `scan_forbidden_imports` / CI `packages/**` triggers once vendored tree is dev-only.  
 8. [x] Operator docs: `adapter-installation.md`, `adapter-repos-and-pypi.md`, handoff status doc.
 
