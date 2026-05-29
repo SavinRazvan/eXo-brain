@@ -7,6 +7,7 @@ Used By:
 Depends On:
  - AGENTS.md
  - .cursor/rules/provider-neutral-adapter-wall.mdc
+ - docs/architecture/governed-execution-pipeline.md
  - docs/plans/short-long-term-execution-plan.md
 Notes:
  - Live execution trackers stay under `.local/index-and-planning/current/`; edit this file for enduring doctrine.
@@ -59,6 +60,10 @@ flowchart TB
   MUI -->|no bypass| CP
   CP --> ADP
 ```
+
+## Governed turn ordering (API path)
+
+Stage order for default customer traffic (auth → entitlements → ingress → session → orchestrator → tool policy → deterministic execution) is documented in **[governed-execution-pipeline.md](governed-execution-pipeline.md)**. Hands-on lab: `notebooks/tutorial_08_governed_execution_sandbox.ipynb` (see pipeline **Hands-on proof**).
 
 ## Non-negotiable boundaries
 - Core orchestration stays provider-neutral.

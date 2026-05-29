@@ -3,6 +3,10 @@ File: governed-execution-pipeline.md
 Path: docs/architecture/governed-execution-pipeline.md
 Role: Canonical control-plane ordering for governance, orchestration, policy, and deterministic tool execution.
 Used By:
+ - docs/README.md
+ - docs/architecture/README.md
+ - docs/architecture/beginner-workflow.md
+ - docs/architecture/workspace-architecture.md
  - docs/strategy/goal.md
  - docs/api/customer-api-integration-guide.md
  - docs/modules/policies.md
@@ -90,11 +94,11 @@ The governed lab notebook [`notebooks/tutorial_08_governed_execution_sandbox.ipy
 
 1. **Plain mental math is wrong on purpose** — answering **44** for “11+33” without calling the tool proves the model **did not** use your governed runtime.
 2. **Deterministic execution is the source of truth** — policy + `DeterministicToolExecutor` run **your** Python handler; the model only narrates typed **`ToolResult`** JSON.
-3. **Governed vs raw contrast (Part 8, diagnostic)** — optional live turns compare governed vs notebook-only raw Agents SDK. **§1 ingress** usually **PASS**es on the governed path; **§2–§4** often **FAIL** when the model will not call tools — the notebook’s **`§N VERIFICATION`** and closing summary record that honestly (local Parts 1–7 remain ground truth).
+3. **Governed vs raw contrast (Part 8, optional live)** — **§1 ingress** on the real chain; **§2–§4** use **`planned_tool_call`** through `Orchestrator` (same reliable stream as Part 7) plus raw SDK anti-patterns. Optional **`NB_LIVE_MODEL_DRIVEN=1`** tests model-initiated tools (often no `TOOL_INTENT` on the OpenAI delegating path).
 
 Regenerate the notebook from [`notebooks/build_tutorials.py`](../../notebooks/build_tutorials.py) after editing the lab; see [`notebooks/README.md`](../../notebooks/README.md) and [`notebooks/EVALUATOR_GUIDE.md`](../../notebooks/EVALUATOR_GUIDE.md).
 
-**Enterprise acceptance (Part 4 local; Part 8 optional live is diagnostic):** Part 4 prints **`[PASS] Part 4 local proof`** when handler JSON matches the kernel baseline. Part 8 **`PASS`** requires **`tool_progress` completed** for the tool under test — matching assistant text without completion is **`FAIL`**. Operator baseline sum/token are **not** in model prompts. §3 **`PASS`** only when **`safe_add_proven`** completes then cites kernel sum/token; §2 requires **`admin_reset`** **`tool_intent`** plus **`POLICY_BLOCKED`** progress (model refusal without a tool call is **`FAIL`**).
+**Enterprise acceptance (Part 4 local; Part 8 optional live):** Part 4 prints **`[PASS] Part 4 local proof`** when handler JSON matches the kernel baseline. Part 8 **§2–§4** use **`planned_tool_call`** through `Orchestrator` (same as Part 7) — **`PASS`** requires **`tool_progress` completed** (or **`POLICY_BLOCKED`** for §2) on that stream; matching assistant text without completion is **`FAIL`**. Operator baseline sum/token are **not** in model prompts. §3 **`PASS`** when **`safe_add_proven`** completes then cites kernel sum/token. Optional **`NB_LIVE_MODEL_DRIVEN=1`** (Part 8.5) is diagnostic only — model-initiated tools often skip **`TOOL_INTENT`** on the OpenAI delegating path.
 
 ## Related documents
 

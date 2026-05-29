@@ -473,16 +473,18 @@ Plans live under [`docs/plans/README.md`](../plans/README.md). This table maps *
 | Provider SDK / FastAPI import zones | [`scripts/architecture/scan_forbidden_imports.py`](../../scripts/architecture/scan_forbidden_imports.py) |
 | Docs/policy index consistency | [`scripts/architecture/check_governance_consistency.py`](../../scripts/architecture/check_governance_consistency.py) |
 | PR merge gate order | [`scripts/pr/prepare.py`](../../scripts/pr/prepare.py) `GATES` |
-| CI | [`.github/workflows/architecture-fitness.yml`](../../.github/workflows/architecture-fitness.yml) |
+| CI | [`.github/workflows/architecture-fitness.yml`](../../.github/workflows/architecture-fitness.yml) (pytest, layer scans, governance consistency, **`nbconvert --execute`** on `notebooks/tutorial_08_governed_execution_sandbox.ipynb`) |
 
 ---
 
 ## 12. Deeper diagrams and walkthroughs
 
 - **§2 in this file:** **Diagram A** (Option C workflow: control → adapter → providers + tool data plane), **Diagram B** (strategy terms: governance ⊂ control, Layer B external, persistence/evidence), **Diagram C** (ten numbered planes stack).
+- **Canonical turn ordering (stages 1–8):** [`governed-execution-pipeline.md`](governed-execution-pipeline.md) — use this when docs must match `turns.py` + `orchestrator.py` behavior.
 - **Large component diagram** (API, tenant runtime, core, adapters, tools, policies, MCP, persistence): root [`README.md`](../../README.md) § Architecture.
 - **Request → tool execution** and **WebSocket** flows: same README section.
 - **Beginner narrative:** [`beginner-workflow.md`](beginner-workflow.md).
+- **Hands-on evidence:** [`notebooks/README.md`](../../notebooks/README.md), [`notebooks/EVALUATOR_GUIDE.md`](../../notebooks/EVALUATOR_GUIDE.md); CI executes `tutorial_08` via `architecture-fitness` (see §11).
 
 ---
 
@@ -490,8 +492,10 @@ Plans live under [`docs/plans/README.md`](../plans/README.md). This table maps *
 
 | Document | Use when |
 |----------|----------|
+| [`governed-execution-pipeline.md`](governed-execution-pipeline.md) | Exact governed turn order; integrator bypass warning; `tutorial_08` proof |
 | [`mvp.md`](mvp.md) | Layer list and guardrails in one page |
 | [`workspace-architecture.md`](workspace-architecture.md) | Modular monolith doctrine and non-negotiables |
+| [`notebooks/README.md`](../../notebooks/README.md) | Hands-on tutorials, checks, edges (14 notebooks) |
 | [`docs/runtime_contracts.md`](../runtime_contracts.md) | Runtime boundary contracts |
 | [`docs/plans/tenant-tool-execution-architecture.md`](../plans/tenant-tool-execution-architecture.md) | What is shipped vs next |
 | [`docs/strategy/deployment-models.md`](../strategy/deployment-models.md) | Data/control-plane boundary in managed vs self-hosted offerings |
@@ -509,5 +513,7 @@ Use this when changing `src/` or strategy docs and you want this file to stay tr
 - [ ] **Strategy table (§2)** still matches [`goal.md`](../strategy/goal.md) Part 1/3, [`interface-strategy.md`](../strategy/interface-strategy.md) §3, and [`abbreviations-notepad.md`](../operations/abbreviations-notepad.md) Option C row.
 - [ ] **Canonical plans table (§10)** still aligned with [`docs/plans/README.md`](../plans/README.md) and any new `docs/plans/*` canonical doc.
 - [ ] **Mermaid:** subgraph IDs stay alphanumeric/underscore; after edits, spot-render in GitHub or VS Code preview (broken mermaid fails silently in some viewers).
+- [ ] **Governed pipeline doc** still matches [`turns.py`](../../src/api/routers/turns.py) ingress/entitlement hooks and [`governed-execution-pipeline.md`](governed-execution-pipeline.md) when those paths change.
+- [ ] **Notebook index** ([`notebooks/README.md`](../../notebooks/README.md)) still matches builders when architecture-facing demos move.
 
 **Known simplifications (not bugs):** Diagrams **A–C** omit MCP registry detail, background-only jobs, and some readiness/health routes; **§3** omits the orchestrator↔adapter tool loop edges on purpose (see §3 bullet 6).

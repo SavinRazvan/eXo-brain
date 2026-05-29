@@ -8,6 +8,7 @@ Used By:
 Depends On:
  - README.md
  - docs/architecture/mvp.md
+ - docs/architecture/governed-execution-pipeline.md
  - docs/plans/tenant-tool-execution-architecture.md
 Notes:
  - Prefer plain language and one consistent analogy over internal jargon.
@@ -91,13 +92,15 @@ Now the system asks:
 - Should it be escalated for review?
 - Does this tenant have access to this feature level?
 
-This is the governance part of the system.
+This is the governance part of the system. On the **production API path**, **entitlements** and **ingress gates** run in `turns.py` **before** the model or orchestrator sees the user text (pre-model guard rails).
+
+**Canonical ordering:** [governed-execution-pipeline.md](governed-execution-pipeline.md).
 
 In the codebase, this is mainly:
 
-- `src/policies/*`
+- `src/policies/ingress_gates.py`, `src/policies/ingress_profiles.py` (evaluated from `src/api/routers/turns.py`)
 - `src/api/middleware/entitlements.py`
-- `src/api/routers/turns.py`
+- `src/policies/*` (tool policy and risk gates — also used inside the orchestrator path)
 
 ### 4. The dispatcher chooses how to run the work
 
@@ -196,7 +199,7 @@ In the codebase, this is mainly:
 |---|---|---|
 | Front desk | Entry point that receives requests | `src/api/*` |
 | Security | Checks identity and tenant scope | `src/api/middleware/auth.py`, `src/api/dependencies.py`, `src/identity/*` |
-| Rules desk | Decides what is allowed, denied, or escalated | `src/policies/*`, `src/api/middleware/entitlements.py` |
+| Rules desk | Decides what is allowed, denied, or escalated (ingress + entitlements on API path) | `src/api/routers/turns.py`, `src/policies/ingress_*`, `src/api/middleware/entitlements.py`, `src/policies/*` |
 | Dispatcher | Coordinates the whole request | `src/core/*` |
 | Specialist phone lines | Connections to model providers | `src/runtime/*`, `packages/*` |
 | Secure tool room | Safe execution of tools and side effects | `src/tools/*` |
@@ -300,15 +303,26 @@ If you need to explain the product to a beginner, this sentence works well:
 A simple reading order is:
 
 1. `README.md`
-2. `docs/architecture/mvp.md`
-3. `docs/plans/tenant-tool-execution-architecture.md`
-4. `src/api/app.py`
-5. `src/api/routers/turns.py`
-6. `src/core/orchestrator.py`
-7. `src/runtime/tenant_runtime.py`
-8. `src/tools/*`
-9. `src/policies/*`
-10. `src/persistence/*` and `src/api/routers/audit.py`
+2. `docs/architecture/governed-execution-pipeline.md` (canonical turn ordering)
+3. `docs/architecture/mvp.md`
+4. `docs/plans/tenant-tool-execution-architecture.md`
+5. `src/api/app.py`
+6. `src/api/routers/turns.py`
+7. `src/core/orchestrator.py`
+8. `src/runtime/tenant_runtime.py`
+9. `src/tools/*`
+10. `src/policies/*`
+11. `src/persistence/*` and `src/api/routers/audit.py`
+
+## If you want hands-on proof (optional)
+
+Notebooks complement `tests/` with narrative, printable evidence:
+
+| Goal | Start here |
+|---|---|
+| 15 min executive skim (no API key) | [notebooks/EVALUATOR_GUIDE.md](../../notebooks/EVALUATOR_GUIDE.md) |
+| Full index and learning order | [notebooks/README.md](../../notebooks/README.md) |
+| Governed execution + `safe_add_proven` proof | `notebooks/tutorial_08_governed_execution_sandbox.ipynb` (see pipeline doc **Hands-on proof**) |
 
 This guide is intentionally plain-language first.  
 It explains the workflow and the idea behind the system, not every technical detail.
