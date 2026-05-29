@@ -8,9 +8,12 @@ Depends On:
  - docs/operations/local-workspace-layout.md
 Notes:
  - Run the migration script after pulling changes; it moves files inside gitignored `.local/`.
+ - Last reviewed: 2026-05-29
 -->
 
 # Path migration map
+
+**Scope:** Historical and ongoing **layout** reference. Paths in the `.local` section are relative to **`.local/`** unless prefixed otherwise. New work should target nested paths directly — see [local-workspace-layout.md](../operations/local-workspace-layout.md).
 
 ## Strategy (`architecture-goals` → `docs/strategy`)
 

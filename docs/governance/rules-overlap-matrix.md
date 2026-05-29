@@ -9,6 +9,7 @@ Depends On:
  - docs/operations/agent-workflow-procedures.md
 Notes:
  - Concise-pass + merge completed: `test-implementation-standard.mdc` merged into `implementation-workflow-governance.mdc`.
+ - Last reviewed: 2026-05-29 — seven always-applied rules under `.cursor/rules/`.
 -->
 
 # Rules overlap matrix (Cursor)
