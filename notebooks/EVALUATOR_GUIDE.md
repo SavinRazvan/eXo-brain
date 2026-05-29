@@ -20,10 +20,10 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 | `tutorial_02` | Optional | OpenAI Agents SDK delegating wrapper |
 | `tutorial_03` | No | Ingress / BYOC overlays |
 | `tutorial_04` | No | Audit trail + hash chain |
-| `tutorial_05` | Optional (Part 6) | Sessions, timeline, quotas |
+| `tutorial_05` | Optional (Part 6) | Sessions, timeline, quotas; Part 6 = live turns on one session_id |
 | `tutorial_06` | No | Background DAG, retry, checkpoint |
 | `tutorial_07` | No | Anomaly advisory + fair admission |
-| `tutorial_08` | Part 8 only | Full governance lab + `safe_add_proven` proof |
+| `tutorial_08` | Part 8 only | Governance lab; Part 8 §1–§4 use `planned_tool_call` live proofs |
 | `check_01`–`check_04` | No | Maintainer smoke (~30 s total) |
 | `edge_01`, `edge_02` | No | Ingress ordering + tool envelopes |
 
@@ -55,12 +55,13 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 | 4 | `edge_02_tool_error_envelopes.ipynb` | 10 min |
 | 5 | `tutorial_08` Parts 1–7 (emphasize **Part 4**) | 25 min |
 
-**Optional with API key:** `tutorial_02` `[REQUIRES API KEY]` cells; `tutorial_08` Part 8.
+**Optional with API key:** `tutorial_02` `[REQUIRES API KEY]` cells; `tutorial_08` Part 8 (run **8.1**, then **§1–§4**).
 
 **Part 8 expectations (if you use a key):**
 
-- **`§3 VERIFICATION (governed): PASS`** requires completed `tool_progress` **and** correct sum + `proof_token` in the governed reply.
-- **`FAIL` on §2–§4 is common** when the model refuses tools — treat as diagnostic; Parts 1–7 are authoritative.
+- **§1–§4 governed proofs** use **`planned_tool_call`** through `Orchestrator` (same as Part 7) — not model-initiated tool choice.
+- **`§N VERIFICATION (governed): PASS`** requires completed `tool_progress` (or ingress deny / `POLICY_BLOCKED` for §2) plus expected assistant text where applicable.
+- **8.5** (`NB_LIVE_MODEL_DRIVEN=1`, off by default) explores model-initiated tools — often **no `TOOL_INTENT`** on the delegating path; treat as diagnostic only.
 - Set `NB_LIVE_*=0` to skip blocks; align §3 operands with Part 4 via `NB_LIVE_MATH_A` / `NB_LIVE_MATH_B` when not using 11+33.
 
 ---
@@ -118,6 +119,7 @@ After editing notebook **content**, regenerate from builders (do not hand-edit J
 ```bash
 python notebooks/build_tutorials.py   # tutorials only
 python notebooks/build_checks.py      # checks + edges
+python notebooks/build_checks.py --execute   # regenerate + execute checks/edges (refreshes stdout evidence)
 ```
 
 Re-run affected notebooks to refresh committed outputs when you want evidence in the `.ipynb`.
@@ -136,7 +138,7 @@ Re-run affected notebooks to refresh committed outputs when you want evidence in
 
 ```bash
 python notebooks/build_tutorials.py
-python notebooks/build_checks.py
+python notebooks/build_checks.py          # add --execute to refresh check/edge outputs in one step
 ```
 
 Standards and ownership map: `docs/plans/notebook-standards.md`

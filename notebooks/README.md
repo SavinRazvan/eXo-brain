@@ -96,7 +96,7 @@ jupyter lab notebooks/
 | Script | Generates | Command |
 |---|---|---|
 | `build_tutorials.py` | `tutorial_01_*` … `tutorial_08_*` | `python notebooks/build_tutorials.py` |
-| `build_checks.py` | `check_01_*` … `check_04_*`, `edge_01_*`, `edge_02_*` | `python notebooks/build_checks.py` |
+| `build_checks.py` | `check_01_*` … `check_04_*`, `edge_01_*`, `edge_02_*` | `python notebooks/build_checks.py` (`--execute` to refresh outputs) |
 
 After regenerating, re-run notebook cells to refresh outputs, then commit the `.py` builder and `.ipynb` together.
 
@@ -148,7 +148,7 @@ three arithmetic live turns in one cell; division-by-zero observation). Policy d
 3. Wire `calculate_result` through registry, policy, executor, and SDK wrapper
 4. Live turns: add, multiply, subtract — see `[eXo-brain] calculate_result(...) → {result}` in stdout
 5. Live division-by-zero — **observe** model vs tool behaviour (not a formal envelope proof in this cell; see `edge_02` / Tutorial 04)
-6. HIGH-risk `planned_tool_call` demo without API key — deterministic path forced
+6. HIGH-risk `planned_tool_call` demo without API key — deterministic path forced (injected intent, not live model choice)
 
 **Key insight:** The `@function_tool` body is the integration seam; orchestration stays provider-neutral.
 
@@ -210,7 +210,8 @@ mutate a record and fail `verify_chain`; compute `compute_audit_chain_fingerprin
 
 **What you will do:** Wire timeline + `TenantQuotaManager`; session-aware adapter; simulate three turns
 (history growth); per-turn `timeline.entries_for(corr)`; quota allow/deny with `TENANT_QUOTA_EXCEEDED`;
-optional live OpenAI conversation.
+optional live OpenAI conversation (Part 6: three turns on one `session_id`; cross-turn SDK memory and
+tool proofs are **Tutorial 02** / **Tutorial 08**, not required here).
 
 **Key insight:** Session state lives in the adapter; timeline and quotas are provider-agnostic.
 
@@ -271,10 +272,11 @@ per kernel → `sum` and `proof_token`. Plain **a+b** (e.g. 44 for 11+33) withou
 
 **Part 4:** Prints handler JSON and **`[PASS] Part 4 local proof`** when sum/token match the kernel.
 
-**Part 8 (diagnostic):** Governed vs raw contrasts; **`§3 VERIFICATION (governed): PASS`** only when live path shows
-completed `tool_progress` **and** correct sum/token — **FAIL** is common when the model skips tools (Parts 1–7 remain ground truth).
+**Part 8 (optional live):** Run **8.1 setup**, then **§1–§4** cells. Governed proofs use **`planned_tool_call`**
+(same mechanism as Part 7) — §2–§4 do **not** depend on the model choosing tools. **8.5** (`NB_LIVE_MODEL_DRIVEN=1`,
+off by default) is model-driven diagnostic only; **8.6** prints the live summary table.
 
-**Part 8 env controls (default on; set `0`/`false`/`off` to skip):**
+**Part 8 env controls (default on unless noted; set `0`/`false`/`off` to skip):**
 
 | Variable | Default | Skips |
 |---|---|---|
@@ -283,12 +285,14 @@ completed `tool_progress` **and** correct sum/token — **FAIL** is common when 
 | `NB_LIVE_MATH` | on | §3 `safe_add_proven` / `sloppy_add_proven` |
 | `NB_LIVE_MATH_A` / `NB_LIVE_MATH_B` | 11 / 33 | §3 operands (match Part 4 kernel if re-testing 2+3) |
 | `NB_LIVE_CALC` | on | §4 governed `calculate_result` multiply |
-| `NB_LIVE_RAW_CALC_CONTRAST` | off | §4b optional raw broken multiply |
+| `NB_LIVE_RAW_CALC_CONTRAST` | off | §4 optional raw broken multiply |
+| `NB_LIVE_MODEL_DRIVEN` | off | §8.5 model-initiated diagnostic turns |
 
 **Requires:** `pip install -r requirements.txt` (contracts under `packages/eXo_adapters/…` or editable install).
 **`nest-asyncio`** in requirements for Jupyter async in Parts 7–8.
 
-**Parts map:** 1–2 risk + scenarios; 3 tenant overlay; 4 tools; 5 execution mode; 6 ingress; 7 stub orchestrator; 8 live.
+**Parts map:** 1–2 risk + scenarios; 3 tenant overlay; 4 tools; 5 execution mode; 6 ingress; 7 stub orchestrator;
+8 optional live (8.1 setup → §1–§4 `planned_tool_call` proofs → optional 8.5 model-driven → 8.6 summary).
 
 **Cross-read:** `docs/architecture/governed-execution-pipeline.md` (**Hands-on proof**)
 
@@ -308,7 +312,7 @@ Fast module smoke checks. Each opens with **purpose, prerequisites, related tuto
 | `check_01_core_orchestrator.ipynb` | HIGH-risk state-changing `planned_tool_call` through orchestrator | `run_complete` + `tool_progress` `state=completed`; `PASS: orchestrator deterministic tool path` |
 | `check_02_policy_middleware.ipynb` | `DeterministicFirstPolicyMiddleware` pre/post | `before_tool_call` allow; bad SUCCESS → `POLICY_POSTCHECK_FAILED`; `PASS: policy middleware checks` |
 | `check_03_runtime_adapter.ipynb` | `OpenAIAgentsRuntimeAdapter` health + planned tool intent | Healthy healthcheck + `tool_intent`; `PASS: runtime adapter planned tool-intent path` |
-| `check_04_tenant_and_limits.ipynb` | Quota + in-memory and SQLite rate limiters | `TENANT_QUOTA_EXCEEDED`; third request blocked on both limiters; `PASS: tenancy and limits checks` |
+| `check_04_tenant_and_limits.ipynb` | Quota + in-memory and SQLite rate limiters | `TENANT_QUOTA_EXCEEDED`; in-memory blocks 3rd request, SQLite (max=1) blocks 2nd; `PASS: tenancy and limits checks` |
 
 ---
 
