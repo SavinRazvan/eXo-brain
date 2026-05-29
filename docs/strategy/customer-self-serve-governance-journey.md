@@ -20,8 +20,9 @@ Notes:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `active` (baseline from product behavior; expand with customer-facing examples in follow-up edits) |
-| **Scope** | Tenant-scoped governance via public APIs |
+| **Status** | `active` |
+| **Last reviewed** | `2026-05-29` |
+| **Scope** | Tenant-scoped governance via public APIs (`/tenants/{tenant_id}/...`) |
 
 ## Product intent
 
@@ -29,14 +30,14 @@ Customers configure **tenant-scoped governance** via API without a required UI. 
 
 ## Journey stages (implemented today)
 
-| Stage | Customer action | API / code | Tier notes |
-|-------|-----------------|------------|------------|
-| 1 Bootstrap tenant | Register providers, tools, agents | `providers.py`, `tools.py`, `agents.py` | Foundation+ |
-| 2 Policy overlay | GET/PUT policy, apply templates | `tenants.py` (policy + template apply); `policy_templates.py` | Foundation+ |
-| 3 Ingress profile | Configure profiles, custom rules, classifier | `ingress_profiles.py`; tenant overlay keys | Pro+ features gated |
-| 4 Session + turn | Create session; SSE/WS/OpenAI gateway turn | `sessions.py`, `turns.py`, `openai_gateway.py` | Foundation+ |
-| 5 Observe | Audit list/export; runtime stats | `audit.py`, `runtime_control.py` | Enterprise for signed export |
-| 6 Iterate | Adjust overlay; re-run turns | Overlay store + hydration on startup | — |
+| Stage | Customer action | HTTP / code (see [customer-api-integration-guide.md](../api/customer-api-integration-guide.md)) | Tier notes |
+|-------|-----------------|----------------------------------------------------------------------------------------|------------|
+| 1 Bootstrap | Register providers (global), tools, agents | `POST /providers`; `POST /tenants/{tenant_id}/tools`; `POST /tenants/{tenant_id}/agents` | Foundation+ |
+| 2 Policy overlay | GET/PUT policy; apply templates | `GET/PUT /tenants/{tenant_id}/policy`; `POST .../policy/templates/{id}/apply` | Foundation+; templates Pro-gated |
+| 3 Ingress | Profiles, custom rules, classifier in overlay | `src/policies/ingress_*`; evaluated in `turns.py` before orchestrator | Pro+ where gated |
+| 4 Session + turn | Create session; SSE/WS or optional `/v1` | `POST /tenants/{tenant_id}/sessions`; `POST .../sessions/{id}/turns`; optional `POST /v1/chat/completions` + `X-eXo-Session-Id` | Foundation+ |
+| 5 Observe | Audit + runtime admin | `GET /tenants/{tenant_id}/admin/audit/*`; `.../admin/runtime/*` | Enterprise for signed export-file/verify |
+| 6 Iterate | Adjust overlay; re-run turns | `policy_overlay` store; `src/api/startup.py` hydration | — |
 
 ## Safe iteration (today vs planned)
 
@@ -45,7 +46,7 @@ Customers configure **tenant-scoped governance** via API without a required UI. 
 | Non-prod tenant | Supported — separate `tenant_id` | Safe environments |
 | Correlation-linked audit | `correlation_id` on turns/events | Feedback loop |
 | Classifier shadow | Ingress classifier routing evidence fields | Shadow mode |
-| Dry-run / simulation API | **Not implemented** — planned (IMP-06 / research stub `planned-docs/governance-preview-and-testing.STUB.md` under `_research_results/`) | Simulation |
+| Dry-run / simulation API | **Not implemented** — planned in-tree `docs/api/governance-preview-and-testing.md` (tracked in traceability-matrix) | Simulation |
 
 ## Configuration checklist (scope)
 
@@ -76,4 +77,8 @@ Customers configure **tenant-scoped governance** via API without a required UI. 
 
 ## Link bundle
 
-Start with `docs/README.md`, `README.md`, and `docs/plans/control-plane-product-alignment-plan.md` for vocabulary; keep this file aligned with `docs/strategy/entitlement-matrix.md` for tier semantics.
+- [docs/strategy/README.md](README.md) — strategy index  
+- [customer-api-integration-guide.md](../api/customer-api-integration-guide.md) — wire contracts  
+- [governed-execution-pipeline.md](../architecture/governed-execution-pipeline.md) — turn ordering  
+- [entitlement-matrix.md](entitlement-matrix.md) — tier semantics  
+- [control-plane-product-alignment-plan.md](../plans/control-plane-product-alignment-plan.md) — vocabulary

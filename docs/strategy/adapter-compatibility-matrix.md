@@ -19,7 +19,7 @@ Companion to [`adapter-strategy.md`](adapter-strategy.md) (packaging, certificat
 
 **Scope note:** these packages are **provider runtime adapters** (and contracts/SDK for building them) — **outbound** from eXo-brain to model providers. They are **not** the **customer bridge** (HTTP/SDK customers use to call the control plane); see `governed-execution-positioning.md` and [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 
-**Source location (2026-05-28):** canonical authoring and PyPI publish tree is **`SavinRazvan/eXo_adapters`** (vendored dev copy: `packages/repo_for_pipy/`). eXo-brain consumes wheels via `requirements.txt` + `requirements-adapters.txt`; `packages/eXo_adapters/` is deprecated for publish.
+**Source location (2026-05-29):** canonical GitHub repo **`SavinRazvan/eXo_adapters`**; in-tree dev mirror **`packages/eXo_adapters/`** (same layout as the public repo). eXo-brain consumes wheels via `requirements.txt` + `requirements-adapters.txt`. `scripts/dev/install_adapter_dependencies.sh` tries **PyPI first**, then editable install from `packages/eXo_adapters/packages/` (legacy path `packages/repo_for_pipy/` only if present).
 
 ## 1) Published packages (distributions)
 
@@ -72,7 +72,7 @@ M0 is defined in [`adapter-strategy.md` §19.6](adapter-strategy.md#196-incremen
 
 | Adapter package | Version | Conformance tests | External install smoke | Notes |
 |-----------------|---------|-------------------|-------------------------|-------|
-| `exo-adapter-echo` | 0.1.1 | `tests/packages/test_echo_adapter_conformance.py` | `scripts/dev/install_adapter_dependencies.sh` | Reference deterministic adapter; CI installs from PyPI or `packages/repo_for_pipy` |
+| `exo-adapter-echo` | 0.1.1 | `tests/packages/test_echo_adapter_conformance.py` | `scripts/dev/install_adapter_dependencies.sh` | Reference deterministic adapter; CI installs from PyPI or `packages/eXo_adapters/` |
 | `exo-adapter-openai` | 0.1.1 | `tests/packages/test_openai_adapter_conformance.py` | same | Provider SDK only in adapter wheel; not in base `requirements.txt` |
 
 **Lane A (two `base_url` configs):** API persistence + registration coverage — `tests/modules/api/test_slice_provider_registration.py::test_post_providers_two_distinct_openai_compatible_base_urls`.
@@ -94,3 +94,4 @@ Minimum evidence before claiming **GA** for a **new** provider adapter (aligns w
 | 2026-03-24 | §5 certification rows (echo/openai); §6 checklist rename; Lane A two-`base_url` test anchor. |
 | 2026-03-24 | §1 retitled (distributions); source-location note + `ai-adapters-sdk` / extraction handoff; §5–§6 aligned with move. |
 | 2026-05-28 | PyPI **0.1.1** lockstep; eXo_adapters canonical repo; operator install doc; contract drift test. |
+| 2026-05-29 | In-tree path `packages/eXo_adapters/`; handoff completion; align with install script fallback order. |

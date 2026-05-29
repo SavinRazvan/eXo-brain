@@ -58,6 +58,6 @@ Authoritative matrix: `docs/strategy/entitlement-matrix.md`.
 
 ## Documentation follow-ups
 
-- Copy-paste HTTP examples per step (or link to a dedicated customer API guide when published).
+- Copy-paste HTTP examples per step: [`docs/api/customer-api-integration-guide.md`](../api/customer-api-integration-guide.md) §15 (full paths under `/tenants/...`).
 - Explicit Foundation-only feature list with sample 403 responses.
 - Upgrade path bullets to Pro/Enterprise without duplicating `entitlement-matrix.md`.

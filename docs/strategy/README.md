@@ -3,121 +3,106 @@ File: README.md
 Path: docs/strategy/README.md
 Role: Index and reading order for strategic architecture goals and execution guardrails.
 Used By:
- - goal.md
- - core.md
- - adapter-strategy.md
- - monetization-strategy.md
- - governed-execution-positioning.md
- - entitlement-matrix.md
- - compliance-profile-matrix.md
- - deployment-models.md
- - interface-strategy.md
- - traceability-matrix.md
- - next-directions.md
- - execution-board-12-gaps.md
-Depends On:
  - AGENTS.md
+ - docs/README.md
+ - docs/plans/docs-inventory-master.md
+Depends On:
  - docs/plans/tenant-tool-execution-architecture.md
+ - docs/plans/control-plane-product-alignment-plan.md
 Notes:
- - Keep this index synchronized when adding or retiring docs/strategy documents.
+ - Keep synchronized when adding or retiring docs/strategy documents.
+ - Last reviewed: 2026-05-29
 -->
 
-# Architecture Goals Index
+# Strategy documentation
 
-## Governance Metadata
+## Governance metadata
 
-- Status: `active`
-- Owner: `Savin I. Razvan`
-- Version: `1.9.0`
-- Last Reviewed: `2026-04-01`
-- Review Cadence: `monthly`
-- Decision Scope: `Folder-level indexing, reading order, and strategy document governance for docs/strategy.`
+| Field | Value |
+|-------|-------|
+| **Status** | `active` |
+| **Owner** | Savin I. Razvan |
+| **Version** | `2.0.0` |
+| **Last reviewed** | `2026-05-29` |
+| **Review cadence** | Monthly (or on architecture-impacting slices) |
 
 ## Purpose
 
-This folder contains strategic documents that define product direction, non-negotiable boundaries, monetization posture, and operational traceability.
+Strategic documents define product direction, non-negotiable boundaries, monetization posture, and traceability to code/tests. They prevent direction drift while implementation evolves.
 
-These documents are intended to prevent direction drift while implementation evolves.
+**Canonical product model:** eXo-brain is the **control plane** for governed execution; **monetization targets safety and governance**, not raw model resale. **Repository boundary:** this repo is **control plane only** — adapter packages live in **`SavinRazvan/eXo_adapters`** (in-tree dev mirror: [`packages/eXo_adapters/`](../../packages/eXo_adapters/)). See **Repository boundary** in [`governed-execution-positioning.md`](governed-execution-positioning.md).
 
-**Canonical product model (2026-03-24):** eXo-brain is the **control plane** for governed execution; **monetization targets safety and governance**, not raw model resale. **Repository boundary:** the **eXo-brain repository** is **control plane only** (non-monorepo for adapters); adapter packages/SDK target **separate repos** — see **Repository boundary** in `governed-execution-positioning.md`. **North star** (AI as governed infrastructure; startups/orgs ship faster with API-enforced policy and audit) and the **enterprise four-layer separation of concerns** live in the same file. Unambiguous **integration surfaces** (provider runtime adapter outbound, control plane API, customer bridge including optional `/v1` and a future thin SDK) are defined there and in `goal.md` (section 5a). Executable cross-cutting plan: [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
+**Integration surfaces:** provider runtime adapters (southbound), control plane API (`/tenants/...` + global routes — [customer-api-integration-guide.md](../api/customer-api-integration-guide.md)), optional customer bridge `POST /v1/chat/completions`. Executable cross-cutting plan: [`control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 
-## Reading Order
+## Reading order
 
-1. `goal.md`  
-   Product north-star, problems solved, and platform boundary.
-2. `core.md`  
-   Core invariants, governance enforcement, and safety-critical architecture decisions.
-3. `adapter-strategy.md`  
-   Adapter ecosystem strategy, packaging, certification, and fallback behavior.  
-   **Companion:** `adapter-compatibility-matrix.md` (semver, published package versions, M0/Lane A status).
-4. `monetization-strategy.md`  
-   Monetization model, tier boundaries, and value capture strategy.
-5. `governed-execution-positioning.md`
-   Product definition, ICP focus, monetization boundary, and messaging guardrails.
-6. `entitlement-matrix.md`  
-   Feature-to-tier enforcement and evidence matrix for monetization operability.
-7. `compliance-profile-matrix.md`  
-   Phased compliance-readiness profiles and control/evidence mapping.
-8. `deployment-models.md`  
-   Deployment packaging and support boundaries by model and tier.
-9. `interface-strategy.md`  
-   API-first experience strategy and UI roadmap constraints.
+| # | Document | Role |
+|---|----------|------|
+| 1 | [goal.md](goal.md) | North star, problems solved, platform boundary |
+| 2 | [core.md](core.md) | Core invariants and non-bypassable governance |
+| 3 | [adapter-strategy.md](adapter-strategy.md) | Adapter ecosystem, lanes, certification |
+| 3b | [adapter-compatibility-matrix.md](adapter-compatibility-matrix.md) | **Published PyPI 0.1.1**, semver, M0 status |
+| 4 | [monetization-strategy.md](monetization-strategy.md) | Tiers, value capture, governance monetization |
+| 5 | [governed-execution-positioning.md](governed-execution-positioning.md) | ICP, messaging guardrails, four-layer model |
+| 6 | [entitlement-matrix.md](entitlement-matrix.md) | Feature ↔ tier ↔ enforcement ↔ tests |
+| 7 | [compliance-profile-matrix.md](compliance-profile-matrix.md) | Compliance waves and evidence mapping |
+| 8 | [deployment-models.md](deployment-models.md) | Deployment packaging and support boundaries |
+| 9 | [interface-strategy.md](interface-strategy.md) | API-first posture; Layer A/B; UI deferred |
 
-**Self-serve governance spine (read after `interface-strategy.md` when building customer onboarding, future UI, or policy iteration features):**
+**Self-serve governance spine** (after interface strategy when building onboarding or policy UX):
 
-- `customer-self-serve-governance-journey.md` — product contract, scope checklist, journey phases, agent rules.
-- `foundation-tier-adoption-checklist.md` — minimal Foundation API path.
-- [`../plans/governance-configuration-reference-model.md`](../plans/governance-configuration-reference-model.md) — configuration entities, dependencies, precedence, UI mapping table.
-- [`../api/governance-preview-and-testing.md`](../api/governance-preview-and-testing.md) — safe iteration patterns; planned simulation endpoints (§5).
-- [`../operations/governance-reason-code-catalog.md`](../operations/governance-reason-code-catalog.md) — reason-code maintenance contract.
+| Document | Role |
+|----------|------|
+| [customer-self-serve-governance-journey.md](customer-self-serve-governance-journey.md) | Product contract, journey stages, agent rules |
+| [foundation-tier-adoption-checklist.md](foundation-tier-adoption-checklist.md) | Minimal Foundation API path |
+| [governance-configuration-reference-model.md](../plans/governance-configuration-reference-model.md) | Config entities, precedence, UI mapping |
+| [customer-api-integration-guide.md](../api/customer-api-integration-guide.md) | **Wire-level** endpoints and examples |
+| [governed-execution-pipeline.md](../architecture/governed-execution-pipeline.md) | Canonical turn ordering |
+| **Planned in-tree:** `docs/api/governance-preview-and-testing.md`, `docs/operations/governance-reason-code-catalog.md` |
 
-10. `traceability-matrix.md`  
-   Decision-to-code and decision-to-test mapping for drift detection.
-11. `next-directions.md`  
-    Architecture-aligned priorities and next implementation slices. **Companion:** [`docs/plans/short-long-term-execution-plan.md`](../plans/short-long-term-execution-plan.md) — short vs long horizons, main UI as API consumer, diagrams (mirrored in root `README.md`).
-12. `execution-board-12-gaps.md`
-    Execution-ready implementation board for the 12 agreed priority gaps (phases, epics, tests, rollback).
+| # | Document | Role |
+|---|----------|------|
+| 10 | [traceability-matrix.md](traceability-matrix.md) | Decision → code → test anchors; known gaps |
+| 11 | [next-directions.md](next-directions.md) | Prioritized implementation directions |
+| 12 | [execution-board-12-gaps.md](execution-board-12-gaps.md) | Phased board for 12 priority gaps |
 
-## Update Policy
+**Horizons:** [short-long-term-execution-plan.md](../plans/short-long-term-execution-plan.md) (pilot vs platform maturity; main UI as API consumer).
 
-- Update strategic docs before or alongside architecture-impacting implementation slices.
-- Keep boundaries aligned with `AGENTS.md` and canonical operational plans.
-- Use `traceability-matrix.md` to verify each strategic decision still maps to concrete code/tests/APIs.
+## Document index (all files)
 
-## Change Control Rule
+| File | Topic |
+|------|--------|
+| [goal.md](goal.md) | Product goals |
+| [core.md](core.md) | Core strategy |
+| [adapter-strategy.md](adapter-strategy.md) | Adapter ecosystem |
+| [adapter-compatibility-matrix.md](adapter-compatibility-matrix.md) | Versions and certification table |
+| [monetization-strategy.md](monetization-strategy.md) | Monetization |
+| [governed-execution-positioning.md](governed-execution-positioning.md) | Positioning |
+| [entitlement-matrix.md](entitlement-matrix.md) | Entitlements |
+| [compliance-profile-matrix.md](compliance-profile-matrix.md) | Compliance |
+| [deployment-models.md](deployment-models.md) | Deployment |
+| [interface-strategy.md](interface-strategy.md) | Interfaces |
+| [customer-self-serve-governance-journey.md](customer-self-serve-governance-journey.md) | Self-serve journey |
+| [foundation-tier-adoption-checklist.md](foundation-tier-adoption-checklist.md) | Foundation adoption |
+| [traceability-matrix.md](traceability-matrix.md) | Traceability |
+| [next-directions.md](next-directions.md) | Next directions |
+| [execution-board-12-gaps.md](execution-board-12-gaps.md) | 12-gap execution board |
 
-- Any architecture-impacting strategy change must update:
-  - the affected strategy doc(s),
-  - `traceability-matrix.md`,
-  - this index when document set or reading order changes.
-- If there is uncertainty, mark the section as `Draft Decision` with owner and review date instead of leaving ambiguity.
+## Update policy
 
-## Scope Boundaries
+- Update strategy docs before or alongside architecture-impacting slices.
+- Keep boundaries aligned with `AGENTS.md` and [`tenant-tool-execution-architecture.md`](../plans/tenant-tool-execution-architecture.md).
+- Refresh [traceability-matrix.md](traceability-matrix.md) when decisions, routes, or tests change.
+- Sync [entitlement-matrix.md](entitlement-matrix.md) when tier gates move.
+- Run `python scripts/architecture/check_governance_consistency.py` when this index or tracked policy docs change.
 
-- These documents define strategy and constraints.
-- Detailed implementation contracts remain in module docs under `docs/modules/`.
-- Operational runbooks remain under `docs/operations/`.
+## Scope boundaries
 
-## Closure Snapshot (2026-03-12; product vocabulary 2026-03-24; self-serve spine 2026-04-01)
+- Strategy defines **what** and **why**; implementation contracts live in [`docs/modules/`](../modules/README.md) and [`docs/api/`](../api/README.md).
+- Operational runbooks: [`docs/operations/`](../operations/README.md).
 
-Now enforceable in strategy package:
-- governance metadata standardization across all docs/strategy docs,
-- entitlement matrix with enforceable vs planned capability flags,
-- compliance profile matrix with phased wave model,
-- deployment model strategy with support and tier posture,
-- cross-document traceability anchors.
-- **2026-03-24:** Canonical **control plane** + **integration surfaces** (provider runtime adapter, control plane API, customer bridge) documented across `docs/strategy/*`, `docs/plans/control-plane-product-alignment-plan.md`, `docs/architecture/ARCHITECTURE.md`, and `docs/architecture/workspace-architecture.md`.
-- **2026-04-01:** **Customer self-serve governance** narrative and implementer contracts: `customer-self-serve-governance-journey.md`, `foundation-tier-adoption-checklist.md`, `docs/plans/governance-configuration-reference-model.md`, `docs/api/governance-preview-and-testing.md`, `docs/operations/governance-reason-code-catalog.md`; `goal.md` §7a; `monetization-strategy.md` §10a (technical self-serve vs commercial claims).
+## Closure snapshot (baseline shipped vs planned)
 
-Still planned (not yet fully implemented in product controls):
-- adapter portfolio expansion execution across universal/native/service lanes with certification evidence automation,
-- runtime provider router depth (health/cost/policy-aware routing decisions),
-- advanced external classifier-routing depth and external signed-plugin package ingestion depth (baseline gate chain + profile/custom-rule/classifier shadow-enforce controls + signed plugin lifecycle baseline + policy-template/risk-profile APIs + entitlement hard-gating are implemented),
-- first-class approval action workflow for review-required escalation outcomes,
-- token-aware inference budget governance and MCP policy-depth controls (per-server tool filtering + credential scope policy),
-- deeper governance runtime diagnostics over profile-specific SLO baselines (profile-aware thresholds + per-profile release reporting are implemented),
-- deployment certification path for private/self-hosted support,
-- expanded compliance artifact catalog and profile-specific runbooks.
+**Shipped (representative):** control plane API with governed turns (SSE/WS), ingress gate chain, entitlements middleware, policy templates, packaged adapters on **PyPI 0.1.1**, optional `/v1` gateway, customer integration guide v1.9+, notebooks smoke path, partial OTLP/Prometheus export.
 
-For architecture-aligned next directions and slice priorities, see `next-directions.md`.
-For implementation sequencing and acceptance details for the 12 priority gaps, see `execution-board-12-gaps.md`.
+**Still planned / depth backlog:** customer bridge SDK, universal Lane A adapter package, runtime provider router, human approval action APIs, governance simulation API, MCP policy depth on default paths, token-aware inference budgets, deployment certification automation, full compliance packaging. Details: [traceability-matrix.md](traceability-matrix.md) §3, [next-directions.md](next-directions.md).

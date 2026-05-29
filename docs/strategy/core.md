@@ -25,7 +25,7 @@ Notes:
 - Status: `active`
 - Owner: `Savin I. Razvan`
 - Version: `1.2.0`
-- Last Reviewed: `2026-03-24`
+- Last Reviewed: `2026-05-29`
 - Review Cadence: `monthly`
 - Decision Scope: `Core-layer invariants, responsibility boundaries, and non-bypassable governance model.`
 

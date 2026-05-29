@@ -8,8 +8,8 @@ Used By:
  - AGENTS.md
  - docs/plans/tenant-tool-execution-architecture.md
 Depends On:
- - packages/exo-brain-core-contracts/* (transitional; target repo `ai-adapters-sdk`)
- - packages/exo-brain-adapter-sdk/* (transitional)
+ - packages/eXo_adapters/ (in-tree mirror of SavinRazvan/eXo_adapters)
+ - PyPI: exo-brain-core-contracts, exo-brain-adapter-sdk, exo-adapter-* (0.1.1)
  - src/runtime/*
  - src/core/*
  - src/policies/*
@@ -17,7 +17,7 @@ Depends On:
 Notes:
  - Keep aligned with API-first Option C.
  - Keep adapter packaging decisions compatible with contract versioning policy.
- - Adapter **package source** is **strategically out-of-repo** (`ai-adapters-sdk`); eXo-brain `packages/` is **transitional** — [`adapter-packages-extraction-handoff.md`](../plans/adapter-packages-extraction-handoff.md).
+ - Adapter **package source** is **`SavinRazvan/eXo_adapters`** (PyPI **0.1.1** shipped); in-tree `packages/eXo_adapters/` is a dev mirror — [`adapter-packages-extraction-handoff.md`](../plans/adapter-packages-extraction-handoff.md), [`exo_adapters_pypi_handoff.md`](../handoffs/exo_adapters_pypi_handoff.md).
 -->
 
 # Adapter Strategy
@@ -27,7 +27,7 @@ Notes:
 - Status: `active`
 - Owner: `Savin I. Razvan`
 - Version: `1.6.0`
-- Last Reviewed: `2026-03-24`
+- Last Reviewed: `2026-05-29`
 - Review Cadence: `monthly`
 - Decision Scope: `Provider adapter ecosystem boundaries, packaging policy, conformance, and rollout strategy.`
 

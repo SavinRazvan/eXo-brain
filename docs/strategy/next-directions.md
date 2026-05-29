@@ -27,7 +27,7 @@ Notes:
 - Status: `active`
 - Owner: `Savin I. Razvan`
 - Version: `1.11.0`
-- Last Reviewed: `2026-03-25`
+- Last Reviewed: `2026-05-29`
 - Review Cadence: `monthly`
 - Decision Scope: `Prioritized implementation directions derived from docs/strategy strategy docs.`
 
@@ -58,7 +58,7 @@ The **Tier 1–4** tables below are unchanged; the horizons doc maps them to **w
 | Direction | Why | References |
 |-----------|-----|------------|
 | **Finalize external package boundaries** | Adapters must be standalone; no monorepo-only imports. Core contracts + adapter SDK must be externalizable. | GOAL §11, TRACEABILITY §3 (full external adapter portability gap) |
-| **Complete `exo-adapter-openai` extraction** | Enables independent adapter distribution and partner ecosystem. First adapter sets the pattern. External install certification complete: all three packages install cleanly in an isolated venv with zero monorepo-relative imports; `scripts/packages/external_install_smoke.py` gates the external install path in CI. Next: publish certification automation (PyPI upload + version tagging). | TRACEABILITY §3, ADAPTER_STRATEGY §4 |
+| **Adapter packages on PyPI (core extraction)** | **Shipped (2026-05):** four lockstep wheels **0.1.1**; eXo-brain consumes via pip; dev mirror `packages/eXo_adapters/`. **Next:** publish automation hardening, optional removal of in-tree mirror, Lane A universal package. | [exo_adapters_pypi_handoff.md](../handoffs/exo_adapters_pypi_handoff.md), [adapter-compatibility-matrix.md](adapter-compatibility-matrix.md), TRACEABILITY §3 |
 | **Define adapter certification matrix** | Baseline and expansion providers require explicit conformance criteria, compatibility matrices, and release gates. | GOAL §14.2, ADAPTER_STRATEGY §3, §19 |
 | **Add northbound OpenAI-compatible gateway surface** | External apps need drop-in `/v1` compatibility while keeping internal orchestration contracts provider-neutral. | **MVP shipped** behind `EXO_ENABLE_OPENAI_COMPAT_GATEWAY` (`src/api/routers/openai_gateway.py`, `docs/archive/plans/northbound-v1-gateway.md`); optional hardening + broader OpenAI client parity remain. INTERFACE_STRATEGY Layer A2, TRACEABILITY |
 | **Customer bridge SDK (thin client, no bypass)** | Many teams want a library that inserts the control plane into their AI loop with the **same** policy/audit outcomes as REST/SSE — without re-implementing protocols. | `docs/plans/control-plane-product-alignment-plan.md` Phase L1, `governed-execution-positioning.md`, INTERFACE_STRATEGY Layer A2 |
@@ -95,7 +95,7 @@ The **Tier 1–4** tables below are unchanged; the horizons doc maps them to **w
 
 | Direction | Why | References |
 |-----------|-----|------------|
-| **Customer-facing API integration guide (chat/agents/workflow + governance ingress)** | Customers need explicit integration paths for OpenAI-compatible chat APIs, Agents SDK-style execution, orchestration workflows, and turn-level safety governance controls — baseline tier-aware guide delivered at `docs/api/customer-api-integration-guide.md`. | GOAL §14.3, INTERFACE_STRATEGY §2 |
+| **Customer-facing API integration guide (chat/agents/workflow + governance ingress)** | Delivered at [customer-api-integration-guide.md](../api/customer-api-integration-guide.md) (v1.9+, full `/tenants/...` paths). Maintain on route/schema changes. | GOAL §14.3, INTERFACE_STRATEGY §2 |
 | **Deployment certification and support-boundary automation** | Private/self-hosted support claims require explicit support and responsibility boundaries. | README §next slice, TRACEABILITY §3 (deployment model gap), DEPLOYMENT_MODELS |
 | **Add first-class OTel/Prometheus observability export path** | Enterprise operations commonly require standard telemetry sinks alongside current local/in-memory observability primitives. | TRACEABILITY §3, COMPLIANCE_PROFILE_MATRIX §3 |
 | **Codify compliance operations packaging per wave** | SOC2/GDPR, then HIPAA/PCI/public-sector readiness claims need runbooks, control narratives, and evidence packaging artifacts. | COMPLIANCE_PROFILE_MATRIX §3 |

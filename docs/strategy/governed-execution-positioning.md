@@ -244,7 +244,7 @@ Monetize assurance and deployment trust:
 
 ### Customer technical self-serve (configuration)
 
-Independent of sales motion, the product **expects customers to configure governance themselves** through the **control plane API**: tenant policy overlays, ingress profiles (within tier), tools, agents, provider registration, quotas, and audit consumption. Future UI is a **thin client** over those same contracts — see [`customer-self-serve-governance-journey.md`](customer-self-serve-governance-journey.md), [`../plans/governance-configuration-reference-model.md`](../plans/governance-configuration-reference-model.md), and [`../api/governance-preview-and-testing.md`](../api/governance-preview-and-testing.md).
+Independent of sales motion, the product **expects customers to configure governance themselves** through the **control plane API**: tenant policy overlays, ingress profiles (within tier), tools, agents, provider registration, quotas, and audit consumption. Future UI is a **thin client** over those same contracts — see [`customer-self-serve-governance-journey.md`](customer-self-serve-governance-journey.md), [`../plans/governance-configuration-reference-model.md`](../plans/governance-configuration-reference-model.md), [`../api/customer-api-integration-guide.md`](../api/customer-api-integration-guide.md). **Planned:** [`../api/governance-preview-and-testing.md`](../api/governance-preview-and-testing.md) (not in-tree yet).
 
 **Vocabulary:** “Shadow” may mean **classifier shadow mode** at ingress (observe without enforce from that gate) where entitled — it must **never** mean a **bypass** of Layer 2 policy or deterministic tool execution (see enterprise separation table: no shadow execution path around the trust plane).
 
