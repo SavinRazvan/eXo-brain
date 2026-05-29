@@ -165,6 +165,12 @@ else:
         print(f"  [{tag}] {label}")
         return ok
 
+    def _nb_turn_str_list(turn: dict[str, object], key: str) -> list[str]:
+        raw = turn.get(key)
+        if not isinstance(raw, list):
+            return []
+        return [str(item) for item in raw]
+
     def _nb_live_math_operands() -> tuple[int, int]:
         def _parse(name: str, default: int) -> int:
             raw = os.environ.get(name, "").strip()
@@ -367,10 +373,8 @@ else:
                 run_label="pol_planned",
                 planned_tool_call=planned_admin,
             )
-            intents = turn.get("tool_intents")
-            blocked = turn.get("policy_blocked")
-            il = intents if isinstance(intents, list) else []
-            bl = blocked if isinstance(blocked, list) else []
+            il = _nb_turn_str_list(turn, "tool_intents")
+            bl = _nb_turn_str_list(turn, "policy_blocked")
             checks.append(_nb_verify_line("admin_reset" in il, "tool_intent admin_reset from planned_tool_call"))
             checks.append(_nb_verify_line("admin_reset" in bl, "tool_progress POLICY_BLOCKED for admin_reset"))
         ok = bool(checks and all(checks))
@@ -439,8 +443,7 @@ else:
                 planned_tool_call=planned_math,
             )
             blob = str(turn.get("text", ""))
-            completed = turn.get("tools_completed")
-            cl = completed if isinstance(completed, list) else []
+            cl = _nb_turn_str_list(turn, "tools_completed")
             ran = "safe_add_proven" in cl
             checks.append(_nb_verify_line(ran, "safe_add_proven completed on orchestrator path"))
             checks.append(_nb_verify_line(ran and str(_math_sum) in blob, f"reply cites governed sum {_math_sum}"))
@@ -507,8 +510,7 @@ else:
                 planned_tool_call=planned_calc,
             )
             text = str(turn.get("text", ""))
-            completed = turn.get("tools_completed")
-            cl = completed if isinstance(completed, list) else []
+            cl = _nb_turn_str_list(turn, "tools_completed")
             ran = "calculate_result" in cl
             checks.append(_nb_verify_line(ran, "calculate_result completed on orchestrator path"))
             if ran:
@@ -558,8 +560,8 @@ else:
         p_calc = "Call calculate_result for 17 multiply 23. Reply with result field only."
 
         t_pol = await _governed_turn("sess_nb_md_pol", p_policy, run_label="md_pol")
-        il = t_pol.get("tool_intents") if isinstance(t_pol.get("tool_intents"), list) else []
-        bl = t_pol.get("policy_blocked") if isinstance(t_pol.get("policy_blocked"), list) else []
+        il = _nb_turn_str_list(t_pol, "tool_intents")
+        bl = _nb_turn_str_list(t_pol, "policy_blocked")
         _nb_verify_line(
             "admin_reset" in il and "admin_reset" in bl,
             "model-driven admin_reset intent + POLICY_BLOCKED (informational)",
@@ -567,11 +569,11 @@ else:
         )
 
         t_math = await _governed_turn("sess_nb_md_math", p_math, run_label="md_math")
-        cl = t_math.get("tools_completed") if isinstance(t_math.get("tools_completed"), list) else []
+        cl = _nb_turn_str_list(t_math, "tools_completed")
         _nb_verify_line("safe_add_proven" in cl, "model-driven safe_add_proven completed (informational)", level="WARN")
 
         t_calc = await _governed_turn("sess_nb_md_calc", p_calc, run_label="md_calc")
-        cl2 = t_calc.get("tools_completed") if isinstance(t_calc.get("tools_completed"), list) else []
+        cl2 = _nb_turn_str_list(t_calc, "tools_completed")
         _nb_verify_line("calculate_result" in cl2, "model-driven calculate_result completed (informational)", level="WARN")
 
     _nb8_run(_section_model_driven())
@@ -2063,6 +2065,8 @@ print("status           :", result.status)
 print("result           :", result.result)
 print("audit.correlation_id:", result.audit.correlation_id if result.audit else "MISSING")
 
+if result.audit is None:
+    raise RuntimeError("DeterministicToolExecutor must attach audit metadata with correlation_id")
 correlation_id = result.audit.correlation_id
 """),
 
