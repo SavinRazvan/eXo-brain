@@ -2,13 +2,19 @@
 File: module-hardening-slice-checklist.md
 Path: docs/roadmap/module-hardening-slice-checklist.md
 Role: Per-PR checklist for module hardening slices.
+Used By:
+ - docs/roadmap/enterprise-module-hardening-integration-plan.md
 Depends On:
  - docs/roadmap/enterprise-module-hardening-integration-plan.md
+ - docs/modules/README.md
+ - scripts/pr/prepare.py
+Notes:
+ - Last reviewed: 2026-05-29
 -->
 
 # Module Hardening Slice Checklist
 
-Use this checklist in each module-hardening PR to keep execution consistent and auditable. Preserve **control plane** enforcement (no policy bypass); **provider runtime adapters** stay southbound only per `docs/architecture/workspace-architecture.md`.
+Use this checklist in each module-hardening PR to keep execution consistent and auditable. Preserve **control plane** enforcement (no policy bypass); **provider runtime adapters** stay southbound only per [workspace-architecture.md](../architecture/workspace-architecture.md). Update the matching [docs/modules/*.md](../modules/README.md) when contracts change.
 
 ## Slice Header
 - Slice name:
@@ -42,17 +48,17 @@ Use this checklist in each module-hardening PR to keep execution consistent and 
 - [ ] Replay/retry tests added when behavior is stateful or high-impact
 
 ## E) Gates
-- [ ] `pytest -q` passes
-- [ ] `python scripts/architecture/validate_layers.py` passes
-- [ ] `python scripts/architecture/scan_forbidden_imports.py` passes
-- [ ] Relevant module subset tests pass
+- [ ] `python scripts/pr/prepare.py` gates green (or equivalent: `check_testing_artifacts.py`, `pytest -q`, `validate_layers.py`, `scan_forbidden_imports.py`)
+- [ ] `python scripts/architecture/check_governance_consistency.py` when governance/workflows/policy docs touched
+- [ ] Relevant module subset tests pass (`tests/modules/<area>/`)
+- [ ] Architecture-impacting: `alignment-audit.md` / `alignment-todos.md` refreshed ([alignment-audit-schema.md](alignment-audit-schema.md))
 
 ## F) Evidence + Docs
 - [ ] `.local/workflow-artifacts/pr/review.md` updated with findings and recommendation
 - [ ] `.local/workflow-artifacts/pr/prep.md` updated with gate evidence
 - [ ] `.local/workflow-artifacts/pr/merge.md` updated in merge phase with merge evidence and follow-ups
-- [ ] Docs updated for changed contracts/behaviors
-- [ ] CI workflow paths verified if tests/scripts moved
+- [ ] `docs/modules/*` and/or `docs/api/customer-api-integration-guide.md` updated for changed contracts
+- [ ] CI workflow paths verified if tests/scripts moved (`.github/workflows/`)
 
 ## G) Release Readiness Decision
 - [ ] READY for merge

@@ -3,6 +3,7 @@ File: enterprise-module-hardening-integration-plan.md
 Path: docs/roadmap/enterprise-module-hardening-integration-plan.md
 Role: Phased module hardening program for src/* with gates and integration verification.
 Used By:
+ - docs/roadmap/README.md
  - Platform maintainers, implementer agents
 Depends On:
  - docs/architecture/workspace-architecture.md
@@ -14,18 +15,22 @@ Notes:
 # Enterprise Module Hardening + Integration Plan
 
 ## Document Metadata
-- Status: Active
-- Owner: Platform Architecture
+- Status: Active (program tracker — not a “everything is TODO” map of product readiness)
+- Owner: Savin I. Razvan
 - Scope: `src/*`, `tests/modules/*`, CI architecture fitness workflows
-- Last Updated: 2026-03-24
+- Last reviewed: 2026-05-29
 - Related:
-  - `docs/architecture/mvp.md`
-  - `docs/runtime_contracts.md`
-  - `docs/mcp_integration.md`
+  - [docs/roadmap/README.md](README.md)
+  - [docs/architecture/mvp.md](../architecture/mvp.md)
+  - [docs/architecture/governed-execution-pipeline.md](../architecture/governed-execution-pipeline.md)
+  - [docs/modules/README.md](../modules/README.md)
+  - [docs/runtime_contracts.md](../runtime_contracts.md)
+  - [docs/mcp_integration.md](../mcp_integration.md)
+  - [docs/operations/adapter-installation.md](../operations/adapter-installation.md)
   - `AGENTS.md`
-  - `docs/roadmap/module-hardening-slice-checklist.md`
-  - `docs/strategy/governed-execution-positioning.md`
-  - `docs/plans/control-plane-product-alignment-plan.md`
+  - [module-hardening-slice-checklist.md](module-hardening-slice-checklist.md)
+  - [governed-execution-positioning.md](../strategy/governed-execution-positioning.md)
+  - [control-plane-product-alignment-plan.md](../plans/control-plane-product-alignment-plan.md)
 
 ## 1) Goal
 Harden each module with deterministic checks, structured logs, explicit error handlers, and integration verification while preserving provider-neutral architecture boundaries and the **control plane** as the non-bypassable enforcement layer (see `docs/strategy/governed-execution-positioning.md`).
@@ -35,14 +40,16 @@ Harden each module with deterministic checks, structured logs, explicit error ha
 - All state-changing/high-impact operations remain deterministic-first and policy-gated.
 - Correlation IDs propagate across core, runtime, policies, tools, and MCP execution paths.
 - Error envelopes are typed, consistent, and test-covered.
-- Tests and architecture checks pass:
+- Tests and merge gates pass (canonical order: `scripts/pr/prepare.py` `GATES`):
+  - `python scripts/pr/check_testing_artifacts.py`
   - `pytest -q`
   - `python scripts/architecture/validate_layers.py`
   - `python scripts/architecture/scan_forbidden_imports.py`
-- CI workflow targets and test paths remain aligned with `tests/modules/*`.
+- When governance/workflows/policy docs change: `python scripts/architecture/check_governance_consistency.py`
+- CI workflow targets and test paths remain aligned with `tests/modules/*` (see `.github/workflows/`).
 
 ## 3) Guardrails (Must Not Regress)
-- No provider SDK imports outside `src/runtime/*`.
+- No provider SDK imports outside runtime adapter modules (`src/runtime/*` and published packages loaded via `src/runtime/adapter_factory.py` — see [adapter-installation.md](../operations/adapter-installation.md)).
 - No provider-name branching in orchestration core.
 - No bypass for deterministic policy-governed state-changing/high-impact paths.
 - No cross-layer shortcuts that skip policy middleware.
@@ -81,7 +88,7 @@ Each slice follows:
 - Shared contracts stable and consumed by downstream modules without ambiguity.
 
 ### Phase 1 - Tools + Runtime Safety Core
-**Modules:** `src/tools`, `src/runtime`
+**Modules:** `src/tools`, `src/runtime`, packaged adapters (`packages/eXo_adapters/` / PyPI)
 
 **Objective**
 - Ensure tool execution and runtime adapters fail deterministically and observably.
@@ -90,10 +97,12 @@ Each slice follows:
 - Validate tool descriptor and call payloads.
 - Ensure runtime adapter exceptions map to stable internal event/error contracts.
 - Ensure fallback behavior is explicit when provider-native paths fail safety constraints.
+- Conformance for published adapters: `tests/packages/test_openai_adapter_conformance.py`, `tests/modules/runtime/test_packaged_adapter_e2e.py`.
 
 **Verification**
-- `pytest -q tests/modules/policies tests/modules/runtime tests/modules/observability/test_executor.py`
+- `pytest -q tests/modules/tools tests/modules/policies tests/modules/runtime tests/modules/observability/test_executor.py`
 - `pytest -q tests/modules/core/test_orchestrator_turn.py tests/modules/core/test_multi_adapter_workflow_parity.py`
+- `pytest -q tests/packages/` (adapter conformance when touching packaged refs)
 - Full gates
 
 **Exit Criteria**
@@ -191,16 +200,17 @@ Each slice follows:
 **Exit Criteria**
 - Governance and release artifacts are reliable and complete.
 
-### Phase 7 - End-to-End Stabilization
-**Modules:** cross-module + CI
+### Phase 7 - API + Cross-Module Stabilization
+**Modules:** `src/api`, `src/modules/*`, cross-cutting + CI
 
 **Objective**
-- Final confidence pass across architecture, CI, and operational behavior.
+- Final confidence pass across northbound API, composition root (`AppModules`), architecture CI, and operator docs.
 
 **Scope**
-- Confirm workflows reference current paths (`tests/modules/*`).
+- Confirm routers and `/tenants` mounts match [customer-api-integration-guide.md](../api/customer-api-integration-guide.md).
+- Confirm workflows reference current paths (`tests/modules/*`, notebooks CI when applicable).
 - Run repeated full-gate passes to detect flakiness.
-- Re-check docs and runbooks for changed behavior.
+- Re-check `docs/modules/*`, API docs, and runbooks for changed behavior.
 
 **Verification**
 - 2 consecutive green full-gate runs
@@ -212,10 +222,9 @@ Each slice follows:
 ## 6) Per-Slice Acceptance Gates
 For each PR slice, all must pass:
 - Module-level tests for touched areas
-- Full `pytest -q`
-- `python scripts/architecture/validate_layers.py`
-- `python scripts/architecture/scan_forbidden_imports.py`
-- Updated `.local/workflow-artifacts/pr/review.md` and `.local/workflow-artifacts/pr/prep.md`
+- `scripts/pr/prepare.py` gates (or equivalent manual run): testing-artifacts check, `pytest -q`, `validate_layers.py`, `scan_forbidden_imports.py`
+- Architecture-impacting PRs: alignment artifacts per [alignment-audit-schema.md](alignment-audit-schema.md) when required by workflow
+- Updated `.local/workflow-artifacts/pr/review.md`, `prep.md`, and `merge.md` through the maintainer PR workflow
 - Rollback/fallback notes captured in PR body
 
 ## 7) Rollback Strategy
@@ -231,16 +240,19 @@ For each PR slice, all must pass:
 - **Performance drift risk:** keep targeted baseline checks in core/runtime paths.
 
 ## 9) Tracking Table
+
+Update this table when a **program slice** branch merges. Baseline platform capabilities (governed API, adapters on PyPI, notebooks) may exist before a row moves off `planned`.
+
 | Slice | Module Group | Branch Name | Status | Tests | Arch Checks | PR |
 |---|---|---|---|---|---|---|
 | 0 | schemas/observability/policies | `feature/hardening-foundation` | planned | pending | pending | TBD |
-| 1 | tools/runtime | `feature/hardening-tools-runtime` | planned | pending | pending | TBD |
+| 1 | tools/runtime (+ packaged adapters) | `feature/hardening-tools-runtime` | planned | pending | pending | TBD |
 | 2 | mcp | `feature/hardening-mcp-boundary` | planned | pending | pending | TBD |
 | 3 | core/integration | `feature/hardening-core-integration` | planned | pending | pending | TBD |
 | 4 | persistence/resilience | `feature/hardening-persistence-resilience` | planned | pending | pending | TBD |
 | 5 | identity/access/tenancy/secrets | `feature/hardening-security-domain` | planned | pending | pending | TBD |
 | 6 | audit/compliance/release | `feature/hardening-audit-compliance` | planned | pending | pending | TBD |
-| 7 | end-to-end stabilization | `feature/hardening-e2e-stabilization` | planned | pending | pending | TBD |
+| 7 | api/modules + e2e stabilization | `feature/hardening-e2e-stabilization` | planned | pending | pending | TBD |
 
 ## 10) Final Definition of Done
 - All slices completed and merged through PR workflow.

@@ -3,12 +3,15 @@ File: alignment-audit-schema.md
 Path: docs/roadmap/alignment-audit-schema.md
 Role: Required fields and taxonomy for advisory alignment audit findings (.local/workflow-artifacts/alignment/).
 Used By:
+ - docs/roadmap/README.md
  - .cursor/skills/enterprise-architecture-audit/SKILL.md
  - enterprise-auditor alignment passes
+ - docs/operations/release-candidate-signoff-checklist.md
 Depends On:
  - docs/strategy/traceability-matrix.md
 Notes:
  - For product-boundary drift (control plane, customer bridge, provider runtime adapter), cite governed-execution-positioning + control-plane-product-alignment-plan as target paths.
+ - Last reviewed: 2026-05-29
 -->
 
 # Alignment Audit Schema
@@ -54,8 +57,10 @@ Standardize advisory audit findings so outputs from skills, rules checks, and ma
 
 ## Canonical Outputs
 
-- `.local/workflow-artifacts/alignment/alignment-audit.md`
-- `.local/workflow-artifacts/alignment/alignment-todos.md`
+- `.local/workflow-artifacts/alignment/alignment-audit.md` — start from [alignment-audit-report-template.md](alignment-audit-report-template.md)
+- `.local/workflow-artifacts/alignment/alignment-todos.md` — start from [alignment-todos-template.md](alignment-todos-template.md)
+
+**Focused alignment pass** (architecture-impacting PR, no full enterprise scorecard): `enterprise-auditor` writes only the two files above; scope is the PR’s touched docs/code/tests. See `.cursor/skills/enterprise-architecture-audit/SKILL.md` § “Focused alignment pass”. Index: [README.md](README.md).
 
 ## Precedence Rule (When Sources Conflict)
 
