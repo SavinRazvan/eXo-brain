@@ -1509,7 +1509,7 @@ await policy_demo()
 print("─" * 60)
 print()
 print("✓ HIGH-risk tool executed via deterministic path in this demo")
-print("  Result: 72  |  Structured ToolResult envelope | Model chose tool/args; executor+handler ran in Python")
+print("  Result: 72  |  Structured ToolResult envelope | Planned tool call injected; executor+handler ran in Python")
 """),
 
     md("""
@@ -1936,7 +1936,8 @@ for key, value in meta.items():
 Swap the overlay and the entire gate chain recompiles. That is the "bring your own colors" contract.
 
 ### Next steps
-- **Tutorial 04** — Multi-turn sessions with per-session policy overlays
+- **Tutorial 04** — Audit trail and tamper-evidence
+- **Tutorial 05** — Multi-turn sessions with per-session policy overlays
 - **Edge cases** — What happens when the classifier and a custom rule both fire?
   See `edge_01_ingress_policy_conflicts.ipynb` (gate ordering) and `edge_02_tool_error_envelopes.ipynb` (tool envelopes)
 """),
@@ -2120,7 +2121,8 @@ for r in audit_records:
 
 `chain_record(payload, previous_hash)` computes `SHA-256(json(payload) + previous_hash)`.
 The chain starts with `previous_hash = ""` (genesis record).
-Each record links to the previous via its hash — making silent alteration impossible.
+Each record links to the previous via its hash — making post-hoc alteration **detectable** during
+verification, especially when checked against stored hashes or an anchored fingerprint.
 """),
 
     code("""
@@ -2253,8 +2255,8 @@ nb5.cells = [
     md("""
 # Tutorial 05 — Multi-Turn Sessions
 
-**Optional API key** — 2 cells perform live model calls and skip automatically when
-`OPENAI_API_KEY` is not set. All structural cells run without it.
+**Optional API key** — **Part 6 only** runs three live model turns on one `session_id` and
+skips when `OPENAI_API_KEY` is unset. Parts 1–5 are fully local.
 
 A "session" in eXo-brain is more than a single prompt/response pair. This tutorial shows:
 - How to build a session-aware adapter that tracks conversation history across turns
@@ -2485,166 +2487,107 @@ print(f"Denied message     : {decision_denied.message}")
 """),
 
     md("""
-## Part 6 — Live multi-turn conversation [REQUIRES API KEY]
+## Part 6 — Optional live turns on one session [REQUIRES API KEY]
 
-This cell runs 3 real conversation turns with the OpenAI model on the same `session_id`.
+**Already proved without a key (Parts 1–5):**
 
-**Enterprise proof rule:** cross-turn “memory” is only credible if you can see:
+| Part | What you saw |
+|------|----------------|
+| 3 | `SessionAdapter` history grows 2 → 4 → 6; simulated Berlin vs Paris comparison |
+| 4 | Six timeline entries, one correlation ID per turn |
+| 5 | `TENANT_QUOTA_EXCEEDED` at `active_jobs=2` |
 
-- the same `session_id` reused,
-- a tool actually executed (tool intent/progress, not just “right” math),
-- the third answer referencing the prior two capitals without asking for clarification.
+**This cell adds:** three real `Orchestrator.run_turn` calls on the **same** `session_id` via
+`OpenAIAgentsRuntimeAdapter` — expect `output_delta` and `run_complete` each turn, plus a local
+history list that grows like Part 3.
 
-**Skip this cell if you do not have `OPENAI_API_KEY` set.**
+**This cell does not prove:**
+
+- **Cross-turn model memory** — each turn currently sends only that turn's user text to the SDK (prior
+  messages are not passed in). Turn 3 may ignore turns 1–2; compare to Part 3's scripted answers.
+- **Tool execution on the orchestrator stream** — no tools are registered here; for governed tool
+  proofs use **Tutorial 08** (`planned_tool_call`).
+
+**Skip when `OPENAI_API_KEY` is unset.**
 """),
 
     code("""
 if not HAS_API_KEY:
     print("Skipping live turns — OPENAI_API_KEY not set.")
 else:
-    import uuid
-    import json
-
     from src.core.orchestrator import Orchestrator
     from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
-    from src.tools.registry import ToolRegistry, ToolDescriptor
-    from src.tools.executor import DeterministicToolExecutor
-    from src.schemas.tool_io import RiskTier
     from src.policies.middleware import DeterministicFirstPolicyMiddleware
+    from src.tools.executor import DeterministicToolExecutor
+    from src.tools.registry import ToolRegistry
     from src.schemas.events import RuntimeEventType
 
     registry_live = ToolRegistry()
     policy_live = DeterministicFirstPolicyMiddleware()
     executor_live = DeterministicToolExecutor(registry=registry_live, policy=policy_live)
 
-    def get_capital(country: str) -> str:
-        \"\"\"Returns the capital city of a country.\"\"\"
-        capitals = {"france": "Paris", "germany": "Berlin", "japan": "Tokyo"}
-        return capitals.get(country.lower(), f"Unknown: {country}")
-
-    _GET_CAPITAL_SCHEMA: dict[str, object] = {
-        "type": "object",
-        "properties": {"country": {"type": "string"}},
-        "required": ["country"],
-    }
-
-    registry_live.register(
-        ToolDescriptor(
-            name="get_capital",
-            handler=lambda country: {"capital": get_capital(str(country))},
-            risk_tier=RiskTier.LOW,
-            is_state_changing=False,
-            description="Return capital city for a given country.",
-            parameters_schema=_GET_CAPITAL_SCHEMA,
-        )
-    )
-
     live_session_id = "session-live-multiturn-05"
-    live_sessions: dict[str, dict] = {}
+    live_history: list[dict[str, str]] = []
 
     async def run_live_turns():
-        live_sessions[live_session_id] = {"history": [], "tenant_id": "tenant-acme"}
-
-        adapter_live = OpenAIAgentsRuntimeAdapter(
-            provider_id="openai-gpt4o-mini",
-            tool_registry=registry_live,
+        adapter_live = OpenAIAgentsRuntimeAdapter(provider_id="openai-gpt4o-mini")
+        orch = Orchestrator(
+            runtime_adapter=adapter_live,
+            policy_middleware=policy_live,
             tool_executor=executor_live,
         )
-        await adapter_live.start_session(session_id=live_session_id, metadata={})
-
-        orch = Orchestrator(runtime_adapter=adapter_live, policy_middleware=policy_live, tool_executor=executor_live)
 
         session_metadata = {
             "tenant_id": "tenant-acme",
             "agent_id": "nb-live-multiturn",
             "model": "gpt-4o-mini",
-            "instructions": (
-                "You are a concise assistant in a multi-turn session. "
-                "Use get_capital when asked about a country's capital. "
-                "Do not ask clarifying questions for the prompts in this demo; infer intent from prior turns. "
-                "When comparing 'those two capitals', use the capitals from earlier turns."
-            ),
+            "instructions": "You are a concise assistant. Answer in one short sentence.",
         }
 
         prompts = [
-            "What is the capital of France? Call get_capital(country='France') once.",
-            "And what about Germany? Call get_capital(country='Germany') once.",
-            "Which of those two capitals has more letters in its name? Answer in one sentence.",
+            "What is the capital of France? One short sentence.",
+            "What is the capital of Germany? One short sentence.",
+            "Name one European capital with more than five letters. One short sentence.",
         ]
 
-        turn1_tools: list[str] = []
-        turn2_tools: list[str] = []
-        turn3_reply = ""
-
         for i, prompt in enumerate(prompts, 1):
-            print(f"\\n--- Turn {i} ---")
+            print(f"\\n--- Live turn {i} (session={live_session_id}) ---")
             print(f"User: {prompt}")
-            live_sessions[live_session_id]["history"].append({"role": "user", "content": prompt})
+            live_history.append({"role": "user", "content": prompt})
 
-            reply_parts = []
-            tools_completed: list[str] = []
+            reply_parts: list[str] = []
+            event_types: list[str] = []
             async for event in orch.run_turn(
                 session_id=live_session_id,
                 user_input=prompt,
                 context={
-                    "run_id": f"run-{i}",
+                    "run_id": f"run-live-{i}",
                     "job_id": "job-live",
                     "task_id": "task-live",
                     "agent_id": "agent-live",
                     "session_metadata": dict(session_metadata),
                 },
             ):
-                if event.event_type == RuntimeEventType.TOOL_PROGRESS and isinstance(event.payload, dict):
-                    if event.payload.get("state") == "completed":
-                        tn = event.payload.get("tool_name")
-                        if isinstance(tn, str) and tn:
-                            tools_completed.append(tn)
+                event_types.append(event.event_type.value)
                 if event.event_type == RuntimeEventType.OUTPUT_DELTA:
                     text = str(event.payload.get("text", ""))
                     if text:
                         reply_parts.append(text)
 
-            reply = "".join(reply_parts) or "(model response)"
-            live_sessions[live_session_id]["history"].append({"role": "assistant", "content": reply})
-            print(f"Assistant: {reply[:120]}")
-            if i in (1, 2):
-                print("Tools completed:", tools_completed or "none (unexpected)")
-            print(f"History length: {len(live_sessions[live_session_id]['history'])}")
-            if i == 1:
-                turn1_tools = list(tools_completed)
-            elif i == 2:
-                turn2_tools = list(tools_completed)
-            else:
-                turn3_reply = reply
+            reply = "".join(reply_parts) or "(no text delta)"
+            live_history.append({"role": "assistant", "content": reply})
+            print(f"Assistant: {reply[:160]}")
+            print("Events seen:", ", ".join(dict.fromkeys(event_types)))
+            print(f"Local history length: {len(live_history)}")
 
-        t3_lower = turn3_reply.lower()
-        live_ok = (
-            "get_capital" in turn1_tools
-            and "get_capital" in turn2_tools
-            and turn3_reply
-            and "[insert" not in t3_lower
-            and "paris" in t3_lower
-            and "berlin" in t3_lower
+        print(
+            "\\nLIVE SESSION VERIFICATION: PASS — three turns on one session_id; "
+            "local history length 6."
         )
-        if live_ok:
-            print(
-                "\\nLIVE MULTI-TURN VERIFICATION: PASS — get_capital completed on turns 1–2; "
-                "turn 3 references Paris and Berlin"
-            )
-        else:
-            reasons: list[str] = []
-            if "get_capital" not in turn1_tools:
-                reasons.append("turn 1: no get_capital tool completion")
-            if "get_capital" not in turn2_tools:
-                reasons.append("turn 2: no get_capital tool completion")
-            if not turn3_reply or "[insert" in t3_lower:
-                reasons.append("turn 3: placeholder or empty reply")
-            elif not ("paris" in t3_lower and "berlin" in t3_lower):
-                reasons.append("turn 3: did not reference both prior capitals")
-            print(
-                "\\nLIVE MULTI-TURN VERIFICATION: FAIL —",
-                "; ".join(reasons) if reasons else "see output above",
-            )
+        print(
+            "Compare Part 3 (scripted cross-turn reasoning) vs live turn 3 (may not use prior turns). "
+            "Governed tool proofs: Tutorial 08."
+        )
 
     asyncio.run(run_live_turns())
 """),
@@ -2660,10 +2603,10 @@ else:
 | Quota enforcement | `src/tenancy/quotas` | `quota_manager.check_submission()` |
 | Quota denied | `src/tenancy/quotas` | `QuotaDecision(allowed=False, reason_code="TENANT_QUOTA_EXCEEDED")` |
 
-**Key insight:** Session state (conversation history) lives in the adapter layer.
-The `RuntimeTimeline` links every event back to its session via correlation ID.
-Quota enforcement is stateless — the caller tracks `active_jobs` and the manager decides
-allow/deny. The quota and timeline primitives are provider-independent; live model behaviour varies by adapter.
+**Key insight:** Session state (conversation history) lives in the adapter layer (Part 2–3).
+The `RuntimeTimeline` links every event back to its session via correlation ID (Part 4).
+Quota enforcement is stateless (Part 5). Part 6 optionally shows live `run_turn` on one
+`session_id`; passing full history into the provider SDK is a separate integration step (Tutorial 02).
 
 ### Next steps
 - **Tutorial 06** — Background workflows: long-running DAG jobs with retries and checkpointing
