@@ -1,0 +1,22 @@
+# Composite action: PyPI-first deps with eXo_adapters git fallback until pinned wheels are on PyPI.
+name: Install Python dependencies
+description: Install requirements.txt; fall back to editable SavinRazvan/eXo_adapters when PyPI lacks the pin.
+inputs:
+  adapter-ref:
+    description: Git ref for SavinRazvan/eXo_adapters (must match requirements.txt adapter pin)
+    required: false
+    default: v0.1.2
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v6
+      with:
+        repository: SavinRazvan/eXo_adapters
+        ref: ${{ inputs.adapter-ref }}
+        path: eXo_adapters
+    - shell: bash
+      run: python -m pip install --upgrade pip
+    - shell: bash
+      env:
+        EXO_ADAPTERS_ROOT: ${{ github.workspace }}/eXo_adapters
+      run: bash scripts/dev/install_adapter_dependencies.sh

@@ -7,7 +7,7 @@
 #  - requirements.txt
 # Notes:
 #  - Not a production or enterprise deployment template.
-#  - Adapter wheels install from PyPI only (EXO_ADAPTERS_PYPI_ONLY=1); no in-tree or sibling checkout.
+#  - Adapter wheels: PyPI-first; clones SavinRazvan/eXo_adapters at v0.1.2 when PyPI lacks the pin.
 #  - Set EXO_ENV and secrets via orchestrator env, not baked into the image.
 
 FROM python:3.12-slim AS runtime
@@ -16,16 +16,20 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV EXO_ADAPTERS_PYPI_ONLY=1
+
+ARG EXO_ADAPTERS_GIT_REF=v0.1.2
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
 COPY scripts/dev/install_adapter_dependencies.sh ./scripts/dev/install_adapter_dependencies.sh
-RUN chmod +x scripts/dev/install_adapter_dependencies.sh \
-    && ./scripts/dev/install_adapter_dependencies.sh
+RUN git clone --depth 1 --branch "${EXO_ADAPTERS_GIT_REF}" \
+        https://github.com/SavinRazvan/eXo_adapters.git /tmp/eXo_adapters \
+    && chmod +x scripts/dev/install_adapter_dependencies.sh \
+    && EXO_ADAPTERS_ROOT=/tmp/eXo_adapters ./scripts/dev/install_adapter_dependencies.sh \
+    && rm -rf /tmp/eXo_adapters
 
 COPY . .
 

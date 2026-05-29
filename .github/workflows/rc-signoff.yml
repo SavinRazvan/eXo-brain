@@ -14,7 +14,6 @@ name: rc-signoff
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  EXO_ADAPTERS_PYPI_ONLY: "1"
 
 on:
   pull_request:
@@ -45,10 +44,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          bash scripts/dev/install_adapter_dependencies.sh
+      - uses: ./.github/actions/install-python-deps
 
       - name: Run one-command release-candidate signoff
         run: make rc-signoff

@@ -23,7 +23,12 @@ Notes:
 
 Development / CI: `bash scripts/dev/install_adapter_dependencies.sh` (PyPI via `requirements.txt`).
 
-Docker images run the same script during build.
+When PyPI does not yet ship the pinned release (e.g. **0.1.2** before publish), CI and Docker
+clone [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) at the matching
+git tag and install editable wheels via `EXO_ADAPTERS_ROOT`. Set `EXO_ADAPTERS_PYPI_ONLY=1` only
+after all four wheels are on PyPI.
+
+Docker images use the same install script with a git checkout during build until PyPI catches up.
 
 ## Canonical `adapter_class_ref` values
 
