@@ -2,51 +2,59 @@
 #
 # File: install_requirements_with_sibling_exo_adapters.sh
 # Path: scripts/dev/install_requirements_with_sibling_exo_adapters.sh
-# Role: Install exo-brain-core-contracts from a local path, then install remaining requirements without duplicating that pin.
+# Role: Install eXo-brain deps; optionally override adapter packages from a sibling eXo_adapters checkout.
 # Used By:
-#  - Maintainers when requirements.txt git URL is unreachable, or when overriding with a custom eXo_adapters checkout.
+#  - Adapter maintainers developing wheels alongside the control plane
 # Depends On:
 #  - bash, pip, requirements.txt at repo root
 # Notes:
-#  - Prefers in-tree bundle: packages/eXo_adapters/packages/exo-brain-core-contracts (same as default requirements.txt -e line).
-#  - Otherwise: sibling eXo_adapters (../eXo_adapters). Override: EXO_ADAPTERS_ROOT=/path/to/eXo_adapters repo root.
-#  - WSL: Windows UNC for sibling is the same tree as $HOME/.../eXo_adapters in Linux.
+#  - Default: pip install -r requirements.txt (PyPI pins).
+#  - Override: EXO_ADAPTERS_ROOT=/path/to/eXo_adapters for editable installs from that repo.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REQ="${ROOT}/requirements.txt"
-INTREE_CONTRACTS="${ROOT}/packages/eXo_adapters/packages/exo-brain-core-contracts"
 SIBLING_ROOT="${ROOT}/../eXo_adapters"
-SIBLING_CONTRACTS="${SIBLING_ROOT}/packages/exo-brain-core-contracts"
-
-if [[ -n "${EXO_ADAPTERS_ROOT:-}" ]]; then
-  CONTRACTS_PKG="${EXO_ADAPTERS_ROOT}/packages/exo-brain-core-contracts"
-elif [[ -d "$INTREE_CONTRACTS" ]]; then
-  CONTRACTS_PKG="$INTREE_CONTRACTS"
-elif [[ -d "$SIBLING_CONTRACTS" ]]; then
-  CONTRACTS_PKG="$SIBLING_CONTRACTS"
-else
-  echo "error: exo-brain-core-contracts not found at:" >&2
-  echo "  $INTREE_CONTRACTS (in-tree) or $SIBLING_CONTRACTS (sibling)" >&2
-  echo "  Set EXO_ADAPTERS_ROOT to a clone root that contains packages/exo-brain-core-contracts." >&2
-  exit 1
-fi
 
 if [[ ! -f "$REQ" ]]; then
   echo "error: missing $REQ" >&2
   exit 1
 fi
 
-echo "Installing editable exo-brain-core-contracts from: $CONTRACTS_PKG"
-python -m pip install -e "$CONTRACTS_PKG"
+python -m pip install --upgrade pip
 
-# Install everything else; skip the contracts pin line(s) (already satisfied by -e).
+if [[ -n "${EXO_ADAPTERS_ROOT:-}" ]]; then
+  ADAPTERS_ROOT="$EXO_ADAPTERS_ROOT"
+elif [[ -d "${SIBLING_ROOT}/packages/exo-brain-core-contracts" ]]; then
+  ADAPTERS_ROOT="$SIBLING_ROOT"
+else
+  echo "Installing from PyPI (requirements.txt)"
+  python -m pip install -r "$REQ"
+  echo "Done. Verify: python -c \"import exo_brain_core_contracts, exo_adapter_openai; print('ok')\""
+  exit 0
+fi
+
+PKG_ROOT="${ADAPTERS_ROOT}/packages"
+for pkg in exo-brain-core-contracts exo-brain-adapter-sdk exo-adapter-echo exo-adapter-openai; do
+  if [[ ! -f "${PKG_ROOT}/${pkg}/pyproject.toml" ]]; then
+    echo "error: missing ${PKG_ROOT}/${pkg}/pyproject.toml" >&2
+    exit 1
+  fi
+done
+
 TMP_REQ="$(mktemp)"
 trap 'rm -f "$TMP_REQ"' EXIT
-grep -vE '^(-e \./packages/eXo_adapters/packages/exo-brain-core-contracts|exo-brain-core-contracts @ git)' "$REQ" >"$TMP_REQ"
+grep -vE '^exo-(brain-core-contracts|brain-adapter-sdk|adapter-echo|adapter-openai)' "$REQ" >"$TMP_REQ"
 
-echo "Installing remaining dependencies from requirements.txt (git contracts line skipped)"
+echo "Installing control-plane deps (adapter pins skipped; editable installs follow)"
 python -m pip install -r "$TMP_REQ"
+
+echo "Installing editable adapter packages from: ${PKG_ROOT}"
+python -m pip install \
+  -e "${PKG_ROOT}/exo-brain-core-contracts" \
+  -e "${PKG_ROOT}/exo-brain-adapter-sdk" \
+  -e "${PKG_ROOT}/exo-adapter-echo" \
+  -e "${PKG_ROOT}/exo-adapter-openai"
 
 echo "Done. Verify: python -c \"import exo_brain_core_contracts; print(exo_brain_core_contracts.__file__)\""

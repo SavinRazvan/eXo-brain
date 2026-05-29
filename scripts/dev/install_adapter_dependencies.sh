@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
-# Install eXo-brain requirements plus adapter ecosystem packages (PyPI or local fallback).
+# File: install_adapter_dependencies.sh
+# Path: scripts/dev/install_adapter_dependencies.sh
+# Role: Install requirements.txt including all four SavinRazvan/eXo_adapters PyPI wheels.
+# Used By:
+#  - CI, Dockerfile, local dev
+# Notes:
+#  - Verifies installed versions match requirements.txt pins.
+#  - Falls back to editable sibling ../eXo_adapters when PyPI lacks the pinned release.
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -10,60 +18,73 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
   PYTHON=python
 fi
 
-"$PYTHON" -m pip install --upgrade pip
+SIBLING="${EXO_ADAPTERS_ROOT:-$ROOT/../eXo_adapters}"
+SIBLING_PKG="${SIBLING}/packages"
 
-TMP_REQ="$(mktemp)"
-grep -v '^exo-brain-core-contracts' requirements.txt | grep -v '^#.*exo-brain-core-contracts' >"$TMP_REQ" || true
-"$PYTHON" -m pip install -r "$TMP_REQ"
-rm -f "$TMP_REQ"
+verify_adapter_pins() {
+  "$PYTHON" <<'PY'
+import re
+import sys
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
-_install_editable_if_present() {
-  local label="$1"
-  shift
-  for path in "$@"; do
-    if [[ -f "${path}/pyproject.toml" ]]; then
-      echo "Installing ${label} from ${path}"
-      "$PYTHON" -m pip install -e "${path}"
-      return 0
-    fi
-  done
-  return 1
+req = (Path("requirements.txt").read_text(encoding="utf-8"))
+packages = (
+    "exo-brain-core-contracts",
+    "exo-brain-adapter-sdk",
+    "exo-adapter-echo",
+    "exo-adapter-openai",
+)
+errors: list[str] = []
+for pkg in packages:
+    match = re.search(rf"^{re.escape(pkg)}==(\S+)", req, re.MULTILINE)
+    if not match:
+        errors.append(f"missing pin for {pkg} in requirements.txt")
+        continue
+    pinned = match.group(1)
+    try:
+        installed = version(pkg)
+    except PackageNotFoundError:
+        errors.append(f"{pkg} not installed")
+        continue
+    if installed != pinned:
+        errors.append(f"{pkg} installed {installed!r} != pinned {pinned!r}")
+if errors:
+    print("Adapter pin verification failed:", file=sys.stderr)
+    for err in errors:
+        print(f"  - {err}", file=sys.stderr)
+    sys.exit(1)
+print("Adapter wheels OK (all four distributions match requirements.txt pins)")
+PY
 }
 
-if "$PYTHON" -m pip install "exo-brain-core-contracts==0.1.1"; then
-  echo "Installed exo-brain-core-contracts from PyPI"
-elif _install_editable_if_present "exo-brain-core-contracts" \
-  packages/eXo_adapters/packages/exo-brain-core-contracts \
-  packages/repo_for_pipy/packages/exo-brain-core-contracts; then
-  :
-else
-  echo "ERROR: exo-brain-core-contracts not on PyPI and no local package tree found" >&2
-  exit 1
-fi
-
-if "$PYTHON" -m pip install -r requirements-adapters.txt; then
-  echo "Installed adapter packages from PyPI"
-else
-  adapter_roots=(
-    packages/eXo_adapters/packages
-    packages/repo_for_pipy/packages
-  )
-  installed_adapters=false
-  for root in "${adapter_roots[@]}"; do
-    if [[ -f "${root}/exo-adapter-openai/pyproject.toml" ]]; then
-      echo "Installing adapter packages from ${root}"
-      "$PYTHON" -m pip install \
-        -e "${root}/exo-brain-adapter-sdk" \
-        -e "${root}/exo-adapter-echo" \
-        -e "${root}/exo-adapter-openai"
-      installed_adapters=true
-      break
-    fi
-  done
-  if [[ "${installed_adapters}" != true ]]; then
-    echo "ERROR: adapter packages not on PyPI and no local adapter package tree found" >&2
-    exit 1
+install_editable_sibling() {
+  if [[ ! -f "${SIBLING_PKG}/exo-brain-core-contracts/pyproject.toml" ]]; then
+    echo "error: sibling eXo_adapters not found at ${SIBLING_PKG}" >&2
+    return 1
   fi
+  TMP_REQ="$(mktemp)"
+  trap 'rm -f "$TMP_REQ"' RETURN
+  grep -vE '^exo-(brain-core-contracts|brain-adapter-sdk|adapter-echo|adapter-openai)' requirements.txt >"$TMP_REQ"
+  echo "Installing control-plane deps (adapter pins deferred for editable installs)"
+  "$PYTHON" -m pip install -r "$TMP_REQ"
+  echo "Installing editable adapter packages from ${SIBLING_PKG}"
+  "$PYTHON" -m pip install \
+    -e "${SIBLING_PKG}/exo-brain-core-contracts" \
+    -e "${SIBLING_PKG}/exo-brain-adapter-sdk" \
+    -e "${SIBLING_PKG}/exo-adapter-echo" \
+    -e "${SIBLING_PKG}/exo-adapter-openai"
+}
+
+"$PYTHON" -m pip install --upgrade pip
+"$PYTHON" -m pip install -r requirements.txt || true
+
+if verify_adapter_pins; then
+  "$PYTHON" -c "import exo_brain_core_contracts, exo_brain_adapter_sdk, exo_adapter_openai, exo_adapter_echo"
+  exit 0
 fi
 
-"$PYTHON" -c "import exo_brain_core_contracts, exo_adapter_openai, exo_adapter_echo"
+echo "PyPI install did not satisfy adapter pins; trying editable sibling at ${SIBLING}" >&2
+install_editable_sibling
+verify_adapter_pins
+"$PYTHON" -c "import exo_brain_core_contracts, exo_brain_adapter_sdk, exo_adapter_openai, exo_adapter_echo"
