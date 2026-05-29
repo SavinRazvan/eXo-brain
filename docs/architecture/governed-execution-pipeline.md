@@ -77,8 +77,28 @@ For **ingress** policy, a non-`ALLOW` ingress decision (including **`ESCALATE`**
 
 **Human approve/reject lifecycle** for escalations is **planned**; see [`docs/strategy/traceability-matrix.md`](../strategy/traceability-matrix.md) (Human approval workflow surface).
 
+## Hands-on proof: why deterministic tools matter
+
+The governed lab notebook [`notebooks/tutorial_08_governed_execution_sandbox.ipynb`](../../notebooks/tutorial_08_governed_execution_sandbox.ipynb) includes a deliberate **anti-guessing** demo (Part **4** locally, Part **8** §3 optional live):
+
+| What the model sees | What only the handler knows |
+|---------------------|-----------------------------|
+| Tool arguments **`a`** and **`b`** (e.g. 11 and 33) | A per-kernel **`random_operand`** derived from `NB_FORMULA_SECRET` |
+| — | **`sum = a + b + random_operand`** and an unpredictable **`proof_token`** |
+
+**Value for product and security conversations:**
+
+1. **Plain mental math is wrong on purpose** — answering **44** for “11+33” without calling the tool proves the model **did not** use your governed runtime.
+2. **Deterministic execution is the source of truth** — policy + `DeterministicToolExecutor` run **your** Python handler; the model only narrates typed **`ToolResult`** JSON.
+3. **Governed vs raw contrast (Part 8)** — the same prompt through ingress → orchestrator → executor vs a notebook-only raw Agents tool shows ingress blocking, policy deny, correct sum+proof vs **`sloppy_add_proven`** (wrong sum, static fake proof).
+
+Regenerate the notebook from [`notebooks/build_tutorials.py`](../../notebooks/build_tutorials.py) after editing the lab; see [`notebooks/README.md`](../../notebooks/README.md) and [`notebooks/EVALUATOR_GUIDE.md`](../../notebooks/EVALUATOR_GUIDE.md).
+
+**Enterprise acceptance (Part 4 local, Part 8 §3 live):** Part 4 prints **`[PASS] Part 4 local proof`** when handler JSON matches the kernel baseline. With **`OPENAI_API_KEY`**, Part 8 §3 prints **`§3 VERIFICATION (governed): PASS`** only when the orchestrator completes **`safe_add_proven`** on the deterministic path and the assistant cites your kernel **`sum`** and **`proof_token`** (not plain **a+b**). Override operands via **`NB_LIVE_MATH_A`** / **`NB_LIVE_MATH_B`** when needed.
+
 ## Related documents
 
 - [`docs/api/customer-api-integration-guide.md`](../api/customer-api-integration-guide.md) — wire-level turn and tier behavior.
 - [`docs/strategy/traceability-matrix.md`](../strategy/traceability-matrix.md) — row-level code and test anchors.
 - [`docs/plans/tenant-tool-execution-architecture.md`](../plans/tenant-tool-execution-architecture.md) — tool platform and slice status.
+- [`notebooks/tutorial_08_governed_execution_sandbox.ipynb`](../../notebooks/tutorial_08_governed_execution_sandbox.ipynb) — story-driven lab with the three-operand **`safe_add_proven`** proof (see **Hands-on proof** above).

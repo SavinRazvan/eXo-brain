@@ -251,11 +251,20 @@ give operators visibility and control over multi-tenant resource sharing.
 
 **Purpose:** **Story + code** governance lab — each part explains *why* a layer exists (ingress, policy,
 deterministic tools, execution mode), what to edit, and how to read stdout. Opens with **For non-technical
-readers** (executive path + jargon cheat sheet). Optional **Part 8** runs a
-**live** `OPENAI_API_KEY` **governed vs raw** demos: ingress block vs model-always-runs, tenant **deny**
-on `admin_reset` vs ungoverned tool execution, **`safe_add_proven`** (random per-kernel `proof_token`)
-vs raw **`sloppy_add_proven`**, plus a governed-only live **`calculate_result`** multiply (same tool
-contract as **Tutorial 02**) — still calling **ingress first** on the governed side.
+readers** (executive path + jargon cheat sheet).
+
+**Why this notebook exists (value prop):** LLMs can **guess** plausible answers. Governed execution means
+**money-moving math and proofs** come from **your handler** behind policy + `DeterministicToolExecutor`, not
+from model memory. The flagship demo is **`safe_add_proven`**: the model only supplies **`a`** and **`b`**;
+the handler adds a **hidden `random_operand`** (per kernel) so **`sum = a + b + random_operand`**. Anyone
+who answers plain **a+b** (e.g. **44** for 11+33) without the tool JSON did **not** use your trust boundary.
+Part **4** prints the JSON locally and **`[PASS] Part 4 local proof`** when sum/token match the kernel.
+Optional **Part 8** §3 runs **`[PASS]`/`[FAIL]`** verification against that same kernel (default **11+33**;
+use **`NB_LIVE_MATH_A`/`B`** to match a **2+3** re-test), next to a raw **`sloppy_add_proven`** anti-example.
+
+Optional **Part 8** also runs **governed vs raw** contrasts: ingress block, tenant **deny** on
+`admin_reset`, the math proof above, and governed **`calculate_result`** multiply (Tutorial 02 contract) —
+ingress runs first on the governed side.
 
 **API key required:** **No** for Parts 1–7. **Part 8** uses `OPENAI_API_KEY` if set (otherwise prints skip).
 **Part 8 cost controls:** `NB_LIVE_INGRESS`, `NB_LIVE_POLICY`, `NB_LIVE_MATH`, `NB_LIVE_CALC` (default on;
@@ -273,14 +282,15 @@ already running (Parts 7–8).
 1. Read the **beginner checklist**, **map**, and **deterministic vs provider-native** narrative, then bootstrap paths.
 2. Tune `USER_RISK` → probe synthetic `SCENARIOS` twice (**strict vs relaxed** risk gates).
 3. Set `USER_OVERLAY` → compare **global-only** vs **tenant overlay** on the same probe call.
-4. Register `USER_TOOLS` (including **`calculate_result`** like Tutorial 02) → `DeterministicToolExecutor` + metrics.
+4. Register `USER_TOOLS` → run **`safe_add_proven`** and read **`random_operand` / `sum` / `proof_token`** in stdout (three-operand proof); also **`calculate_result`** (Tutorial 02 parity).
 5. Sweep `CAPABILITY_VARIANTS` → `select_execution_mode`.
 6. Edit `INGRESS_OVERLAY` → `evaluate_prompt` / gate chain.
 7. Stub orchestrator stream → `planned_tool_call` (no API key).
 8. Optional live turn → real adapter + same registry/executor; ingress gate on user text first.
 
-**Key insight:** Policy **escalate** / **deny** stop handler execution on the tool path; ingress **non-ALLOW**
-stops before orchestration on the real API path — see `docs/architecture/governed-execution-pipeline.md`.
+**Key insights:** (1) **`safe_add_proven`** — deterministic handler is the only source of the true sum and proof.
+(2) Policy **escalate** / **deny** stop handler execution on the tool path; ingress **non-ALLOW** stops before
+orchestration on the real API path — see `docs/architecture/governed-execution-pipeline.md` (**Hands-on proof** section).
 
 **Modules covered:** `src/policies/risk_gates`, `src/policies/middleware`, `src/tenancy/policy_overlay`,
 `src/tools/registry`, `src/tools/executor`, `src/observability/metrics`, `src/runtime/capability_map`,

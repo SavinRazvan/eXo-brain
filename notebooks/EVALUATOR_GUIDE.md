@@ -16,6 +16,9 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 
 **You learn:** governance is layered (ingress → policy → deterministic tools), not a single filter.
 
+**Proof demo (no key):** In `tutorial_08` Part **4**, read the **`safe_add_proven JSON`** line — sum includes a
+kernel-only **`random_operand`** the model never sees in the prompt. Plain **2+3=5** or **11+33=44** is wrong by design.
+
 ---
 
 ## 90-minute technical evaluation (no API key)
@@ -26,9 +29,11 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 | 2 | `tutorial_03_bring_your_own_config.ipynb` | 20 min |
 | 3 | `tutorial_04_audit_trail.ipynb` | 15 min |
 | 4 | `edge_02_tool_error_envelopes.ipynb` | 10 min |
-| 5 | `tutorial_08` Parts 1–7 | 25 min |
+| 5 | `tutorial_08` Parts 1–7 (emphasize **Part 4** `safe_add_proven`) | 25 min |
 
-**Optional with API key:** `tutorial_02` live cells, `tutorial_08` Part 8 (set `NB_LIVE_*=0` to skip blocks).
+**Optional with API key:** `tutorial_02` live cells, `tutorial_08` Part 8 — §3 must print
+**`§3 VERIFICATION (governed): PASS`** (tool completed + sum + `proof_token`); set `NB_LIVE_*=0` to skip blocks.
+Align operands with Part 4 via `NB_LIVE_MATH_A` / `NB_LIVE_MATH_B` when not using 11+33.
 
 ---
 
