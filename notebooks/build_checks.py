@@ -394,8 +394,9 @@ def build_check_04_tenant_and_limits() -> nbf.NotebookNode:
                 modules="`src/tenancy/quotas`, `src/tenancy/rate_limiter`",
                 tutorial="`tutorial_05_multi_turn_sessions.ipynb`",
                 pass_means=(
-                    "Quota denial prints `TENANT_QUOTA_EXCEEDED`; both limiters block the third "
-                    "request; `PASS: tenancy and limits checks`."
+                    "Quota denial prints `TENANT_QUOTA_EXCEEDED`; in-memory limiter blocks the third "
+                    "request; SQLite limiter (max_requests=1) blocks the second request; "
+                    "`PASS: tenancy and limits checks`."
                 ),
                 troubleshooting=(
                     "If SQLite limiter fails on permissions, confirm temp directory is writable. "
