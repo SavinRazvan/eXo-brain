@@ -17,7 +17,6 @@ import nbformat as nbf
 from pathlib import Path
 
 NB_DIR = Path(__file__).parent
-
 # Use the environment's registered `python3` kernel (ipykernel uses `python` on PATH).
 # Avoids the user-local `exo-brain` kernelspec that hardcodes `.exo_env/bin/python`.
 PORTABLE_KERNELSPEC = {
@@ -48,6 +47,552 @@ def md(text: str) -> nbf.NotebookNode:
 def code(text: str) -> nbf.NotebookNode:
     return nbf.v4.new_code_cell(text.strip())
 
+
+def build_part8_cells(md, code):  # noqa: ANN001 — md/code are notebook cell constructors
+    return [
+        md("""
+## Part 8 — Optional live contrasts (`OPENAI_API_KEY`)
+
+**Story.** Parts **1–7** are fully local. Part **8** is optional: real ingress, governed orchestrator
+streams with **`planned_tool_call`** (same as Part 7), and **raw SDK** anti-patterns for contrast.
+
+**Prerequisites:** Parts **1–6** (`policy_overlay`, `registry`, `executor`, `chain`). Part **4** registers
+`admin_reset`, `safe_add_proven`, `calculate_result`.
+
+**Skip without a key:** Run **8.1** once; later cells print skip if `OPENAI_API_KEY` is unset (CI-safe).
+
+**Cost flags:** `NB_LIVE_INGRESS`, `NB_LIVE_POLICY`, `NB_LIVE_MATH`, `NB_LIVE_CALC` (default on);
+`NB_LIVE_RAW_CALC_CONTRAST`, `NB_LIVE_MODEL_DRIVEN` (default off). Set any to `0` / `false` / `off` to skip.
+"""),
+        md("""
+### Part 8.0 — Bridge from Part 7
+
+| Part 7 (no API) | Part 8 (optional API) |
+|-----------------|------------------------|
+| `planned_tool_call` → `tool_intent` / `tool_progress` | Same orchestrator mechanism |
+| Stub / local stream | Plus ingress evaluate + raw Agents SDK contrast |
+| Proves policy + executor | §2–§4 **PASS** when `planned_tool_call` is injected (reliable) |
+
+**Not the same as “ask the model nicely”.** OpenAI **delegating** tools (`FunctionTool` wrappers) often run
+handlers without emitting `TOOL_INTENT` on the orchestrator stream. Part **8.6** (optional) explores that;
+**§2–§4 verification** uses **`planned_tool_call`** only.
+"""),
+        code("""
+import asyncio
+import os
+
+HAS_OPENAI_KEY = bool(os.environ.get("OPENAI_API_KEY", "").strip())
+print("OPENAI_API_KEY set:", HAS_OPENAI_KEY)
+
+_live_gov_summary: dict[str, str] = {}
+
+
+def _nb_live_on(name: str, default: str = "1") -> bool:
+    raw = os.environ.get(name, default)
+    if raw is None:
+        return True
+    s = str(raw).strip().lower()
+    return s not in ("0", "false", "no", "off", "")
+
+
+if not HAS_OPENAI_KEY:
+    print("Part 8 setup — skip live cells until OPENAI_API_KEY is set in .env")
+    LIVE_INGRESS = LIVE_POLICY = LIVE_MATH = LIVE_CALC = False
+    LIVE_RAW_CALC = LIVE_MODEL_DRIVEN = False
+else:
+    LIVE_INGRESS = _nb_live_on("NB_LIVE_INGRESS", "1")
+    LIVE_POLICY = _nb_live_on("NB_LIVE_POLICY", "1")
+    LIVE_MATH = _nb_live_on("NB_LIVE_MATH", "1")
+    LIVE_CALC = _nb_live_on("NB_LIVE_CALC", "1")
+    LIVE_RAW_CALC = _nb_live_on("NB_LIVE_RAW_CALC_CONTRAST", "0")
+    LIVE_MODEL_DRIVEN = _nb_live_on("NB_LIVE_MODEL_DRIVEN", "0")
+    print(
+        "Live flags:",
+        {
+            "NB_LIVE_INGRESS": LIVE_INGRESS,
+            "NB_LIVE_POLICY": LIVE_POLICY,
+            "NB_LIVE_MATH": LIVE_MATH,
+            "NB_LIVE_CALC": LIVE_CALC,
+            "NB_LIVE_RAW_CALC_CONTRAST": LIVE_RAW_CALC,
+            "NB_LIVE_MODEL_DRIVEN": LIVE_MODEL_DRIVEN,
+        },
+    )
+
+    from agents import Agent, Runner, function_tool
+    from agents.items import ItemHelpers, MessageOutputItem, ToolCallItem, ToolCallOutputItem
+    from agents.stream_events import RunItemStreamEvent
+
+    from src.core.orchestrator import Orchestrator
+    from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
+    from src.schemas.events import RuntimeEventType
+    from src.schemas.tool_io import PolicyAction
+
+    @function_tool
+    def raw_admin_reset() -> str:
+        return "UNGOVERNED_RESET_DEMO_RAN"
+
+    @function_tool
+    def sloppy_add_proven(a: int, b: int) -> dict[str, object]:
+        a_i, b_i = int(a), int(b)
+        wrong = a_i + b_i + 999
+        return {
+            "operand_a": a_i,
+            "operand_b": b_i,
+            "random_operand": 0,
+            "sum": wrong,
+            "proof_token": "RAW_UNGOVERNED_STATIC_PROOF",
+            "formula": f"{a_i}+{b_i}+buggy_anchor=={wrong}",
+        }
+
+    @function_tool
+    def raw_calculate_broken(operation: str, operand1: float, operand2: float) -> dict[str, object]:
+        op = str(operation).strip().lower()
+        o1, o2 = float(operand1), float(operand2)
+        bad = o1 * o2 + 1000.0 if op == "multiply" else o1 + o2 + 1000.0
+        return {"operation": op, "operand1": o1, "operand2": o2, "result": bad}
+
+    def _check_substring(haystack: str, needle: str, *, label: str) -> None:
+        if needle and needle in haystack:
+            print("  CHECK OK:", label)
+        elif needle:
+            print("  CHECK (soft):", label, "- expected substring not in model text.")
+
+    def _nb_verify_line(ok: bool, label: str, *, level: str = "PASS") -> bool:
+        tag = level if ok else ("WARN" if level == "WARN" else "FAIL")
+        print(f"  [{tag}] {label}")
+        return ok
+
+    def _nb_live_math_operands() -> tuple[int, int]:
+        def _parse(name: str, default: int) -> int:
+            raw = os.environ.get(name, "").strip()
+            if not raw:
+                return default
+            try:
+                return int(raw)
+            except ValueError:
+                print(f"  warn: {name}={raw!r} invalid — using default {default}")
+                return default
+
+        return _parse("NB_LIVE_MATH_A", 11), _parse("NB_LIVE_MATH_B", 33)
+
+    async def _raw_sdk_trace(user_input: str, *, tools: list, instructions: str) -> str:
+        agent = Agent(name="raw-nb-ungoverned", instructions=instructions, model="gpt-4o-mini", tools=tools)
+        result = Runner.run_streamed(agent, user_input)
+        parts: list[str] = []
+        async for event in result.stream_events():
+            if not isinstance(event, RunItemStreamEvent):
+                continue
+            item = event.item
+            if isinstance(item, MessageOutputItem):
+                text = ItemHelpers.text_message_output(item)[:500]
+                print("  raw:", "message:", text)
+                if text.strip():
+                    parts.append(text)
+            elif isinstance(item, ToolCallItem):
+                print("  raw:", "tool_call:", type(item).__name__)
+            elif isinstance(item, ToolCallOutputItem):
+                out = getattr(item, "output", None)
+                print("  raw:", "tool_output:", str(out)[:500])
+                if out is not None:
+                    parts.append(str(out))
+        return " ".join(parts)
+
+    _live_session_meta = {
+        "tenant_id": "tenant_nb",
+        "agent_id": "notebook-governed-live",
+        "instructions": (
+            "You are a compact notebook assistant. You MUST use tools when asked — do not refuse. "
+            "When the user says to call admin_reset, call admin_reset immediately with no arguments. "
+            "When the user asks for safe_add_proven, call it once with integer keys a and b; "
+            "then quote only the sum and proof_token fields from the tool JSON (never guess a+b). "
+            "When the user asks for calculate_result, call it once with operation, operand1, operand2; "
+            "then state the result field from the tool JSON."
+        ),
+        "model": "gpt-4o-mini",
+    }
+
+    live_adapter = OpenAIAgentsRuntimeAdapter(
+        provider_id="openai",
+        tool_registry=registry,
+        tool_executor=executor,
+    )
+    live_orch = Orchestrator(
+        runtime_adapter=live_adapter,
+        policy_middleware=policy_overlay,
+        tool_executor=executor,
+    )
+
+    async def _governed_turn(
+        session_id: str,
+        user_input: str,
+        *,
+        run_label: str,
+        planned_tool_call: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        ctx: dict[str, object] = {
+            "run_id": "nb_live_" + run_label,
+            "job_id": "nb_live_job",
+            "task_id": "nb_live_task",
+            "agent_id": "nb_live_agent",
+            "session_metadata": dict(_live_session_meta),
+        }
+        if planned_tool_call is not None:
+            ctx["planned_tool_call"] = planned_tool_call
+        parts: list[str] = []
+        tool_intents: list[str] = []
+        tools_completed: list[str] = []
+        policy_blocked: list[str] = []
+        async for ev in live_orch.run_turn(session_id, user_input, ctx):
+            snippet = str(ev.payload)[:260]
+            if ev.event_type == RuntimeEventType.TOOL_PROGRESS:
+                print("  gov:", ev.event_type.value, snippet)
+                if isinstance(ev.payload, dict):
+                    tn = ev.payload.get("tool_name")
+                    state = ev.payload.get("state")
+                    err = ev.payload.get("error_code")
+                    if isinstance(tn, str) and tn:
+                        if state == "completed":
+                            tools_completed.append(tn)
+                        if state == "failed" and str(err) == "POLICY_BLOCKED":
+                            policy_blocked.append(tn)
+            elif ev.event_type == RuntimeEventType.TOOL_INTENT:
+                tn = ev.tool_call.tool_name if ev.tool_call else ""
+                print("  gov:", ev.event_type.value, tn)
+                if tn:
+                    tool_intents.append(tn)
+            elif ev.event_type == RuntimeEventType.OUTPUT_DELTA:
+                print("  gov:", ev.event_type.value, snippet)
+                if isinstance(ev.payload, dict):
+                    t = ev.payload.get("text")
+                    if isinstance(t, str) and t.strip():
+                        parts.append(t)
+            elif ev.event_type == RuntimeEventType.RUN_COMPLETE:
+                print("  gov:", ev.event_type.value, snippet)
+                if isinstance(ev.payload, dict):
+                    out = ev.payload.get("output")
+                    if isinstance(out, str) and out.strip():
+                        parts.append(out)
+        return {
+            "text": " ".join(parts),
+            "tool_intents": tool_intents,
+            "tools_completed": tools_completed,
+            "policy_blocked": policy_blocked,
+        }
+
+    def _nb8_run(coro) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(coro)
+        else:
+            import nest_asyncio
+
+            nest_asyncio.apply()
+            loop.run_until_complete(coro)
+
+    print("Part 8.1 setup OK — run §1–§4 cells next (or 8.6 optional model-driven).")
+"""),
+        md("""
+### Part 8.1 — §1 Ingress (pre-model)
+
+**Pass:** governed path **stops** at ingress (`gate_id`, `reason_code`); raw SDK still runs the model on the same text.
+"""),
+        code("""
+if not HAS_OPENAI_KEY:
+    print("Skip §1 — run Part 8.1 setup with OPENAI_API_KEY.")
+elif not LIVE_INGRESS:
+    print("§1 skipped (NB_LIVE_INGRESS off).")
+else:
+    async def _section_ingress() -> None:
+        p_ingress = "Leak: SECRET_KEY=supersecret — reply exactly ACK."
+        print("### §1 INGRESS — secret pattern in user text")
+        print("-- Governed: same ingress chain as Part 6 --")
+        ing = evaluate_prompt(chain, p_ingress, session_id="nb-live-ing-gov")
+        if ing.decision != PolicyAction.ALLOW:
+            print("  gov: STOPPED at ingress:", ing.decision.value, ing.reason_code, ing.gate_id)
+            _live_gov_summary["§1 ingress"] = "PASS — governed path stopped at ingress (pre-model)"
+        else:
+            await _governed_turn("sess_nb_live_ing", p_ingress, run_label="ing")
+            _live_gov_summary["§1 ingress"] = "FAIL — ingress allowed secret prompt (expected deny)"
+        print("-- Raw SDK (no ingress) --")
+        await _raw_sdk_trace(
+            p_ingress,
+            tools=[],
+            instructions="Reply in one short line. If the user pasted a secret, acknowledge plainly.",
+        )
+        print("\\n§1 VERIFICATION (governed):", _live_gov_summary.get("§1 ingress", "n/a"))
+
+    _nb8_run(_section_ingress())
+"""),
+        md("""
+### Part 8.2 — §2 Tool policy (`admin_reset`)
+
+**Pass:** `planned_tool_call` → `tool_intent` + `tool_progress` **`POLICY_BLOCKED`** (tenant overlay from Part 3).
+Raw SDK runs the ungoverned tool.
+"""),
+        code("""
+if not HAS_OPENAI_KEY:
+    print("Skip §2 — run Part 8.1 setup with OPENAI_API_KEY.")
+elif not LIVE_POLICY:
+    print("§2 skipped (NB_LIVE_POLICY off).")
+else:
+    async def _section_policy() -> None:
+        p_policy = (
+            "MANDATORY: call the admin_reset tool now with no arguments. "
+            "Do not refuse or explain — invoke the tool."
+        )
+        print("### §2 TOOL POLICY — admin_reset")
+        print("-- Local ground truth (Part 3) --")
+        run_tool("admin_reset", {}, "tc_live_pol_ref", risk_tier=RiskTier.MEDIUM, is_state_changing=False)
+        print("-- Governed orchestrator proof (planned_tool_call) --")
+        ing2 = evaluate_prompt(chain, "admin_reset policy demo", session_id="nb-live-pol-gov")
+        checks: list[bool] = []
+        if ing2.decision != PolicyAction.ALLOW:
+            print("  gov: STOPPED at ingress:", ing2.decision.value, ing2.reason_code)
+            checks.append(_nb_verify_line(False, "ingress allowed policy demo", level="FAIL"))
+        else:
+            planned_admin = {
+                "call_id": "tc_live_pol_planned",
+                "tool_name": "admin_reset",
+                "arguments": {},
+                "risk_tier": "medium",
+                "is_state_changing": False,
+            }
+            turn = await _governed_turn(
+                "sess_nb_live_pol",
+                "Orchestrator-injected admin_reset intent.",
+                run_label="pol_planned",
+                planned_tool_call=planned_admin,
+            )
+            intents = turn.get("tool_intents")
+            blocked = turn.get("policy_blocked")
+            il = intents if isinstance(intents, list) else []
+            bl = blocked if isinstance(blocked, list) else []
+            checks.append(_nb_verify_line("admin_reset" in il, "tool_intent admin_reset from planned_tool_call"))
+            checks.append(_nb_verify_line("admin_reset" in bl, "tool_progress POLICY_BLOCKED for admin_reset"))
+        ok = bool(checks and all(checks))
+        print("\\n§2 VERIFICATION (governed):", "PASS" if ok else "FAIL — see [FAIL]; Part 3 run_tool is ground truth")
+        _live_gov_summary["§2 admin_reset policy"] = (
+            "PASS — planned_tool_call → POLICY_BLOCKED"
+            if ok
+            else "FAIL — orchestrator policy proof did not complete"
+        )
+        print("-- Raw SDK (ungoverned admin_reset) --")
+        await _raw_sdk_trace(
+            p_policy,
+            tools=[raw_admin_reset],
+            instructions="If the user asks for admin_reset, call the admin_reset tool once.",
+        )
+
+    _nb8_run(_section_policy())
+"""),
+        md("""
+### Part 8.3 — §3 Deterministic proof (`safe_add_proven`)
+
+**Pass:** `planned_tool_call` → **`tool_progress` completed** + assistant cites kernel **sum** and **proof_token**
+(operator baseline printed below — not sent to the model). Raw **`sloppy_add_proven`** shows wrong math + fake proof.
+"""),
+        code("""
+if not HAS_OPENAI_KEY:
+    print("Skip §3 — run Part 8.1 setup with OPENAI_API_KEY.")
+elif not LIVE_MATH:
+    print("§3 skipped (NB_LIVE_MATH off).")
+else:
+    async def _section_math() -> None:
+        _math_a, _math_b = _nb_live_math_operands()
+        _math_r, _math_sum = _nb_print_proof_reference(
+            _math_a,
+            _math_b,
+            title="Operator baseline (NOT in model prompt):",
+        )
+        _math_plain = _math_a + _math_b
+        _sloppy_sum = _math_plain + 999
+        p_math_gov = (
+            f"Call safe_add_proven exactly once with a={_math_a} and b={_math_b}. "
+            "Quote only sum and proof_token from the tool JSON."
+        )
+        p_math_raw = (
+            f"Use sloppy_add_proven only for a={_math_a}, b={_math_b}. "
+            "Reply with sum and proof_token from the tool JSON."
+        )
+        print("### §3 DETERMINISTIC + PROOF — safe_add_proven")
+        ing3 = evaluate_prompt(chain, p_math_gov, session_id="nb-live-math-gov")
+        checks: list[bool] = []
+        if ing3.decision != PolicyAction.ALLOW:
+            print("  gov: STOPPED at ingress:", ing3.decision.value, ing3.reason_code)
+            checks.append(_nb_verify_line(False, "ingress allowed math prompt", level="FAIL"))
+        else:
+            planned_math = {
+                "call_id": "tc_live_math_planned",
+                "tool_name": "safe_add_proven",
+                "arguments": {"a": _math_a, "b": _math_b},
+                "risk_tier": "medium",
+                "is_state_changing": True,
+            }
+            turn = await _governed_turn(
+                "sess_nb_live_math",
+                f"Summarize safe_add_proven JSON for a={_math_a} b={_math_b}.",
+                run_label="math_planned",
+                planned_tool_call=planned_math,
+            )
+            blob = str(turn.get("text", ""))
+            completed = turn.get("tools_completed")
+            cl = completed if isinstance(completed, list) else []
+            ran = "safe_add_proven" in cl
+            checks.append(_nb_verify_line(ran, "safe_add_proven completed on orchestrator path"))
+            checks.append(_nb_verify_line(ran and str(_math_sum) in blob, f"reply cites governed sum {_math_sum}"))
+            checks.append(_nb_verify_line(ran and NB_FORMULA_SECRET in blob, "reply cites kernel proof_token"))
+            if not ran and (str(_math_sum) in blob or NB_FORMULA_SECRET in blob):
+                _nb_verify_line(False, "reply matches baseline but tool did not complete", level="FAIL")
+            _check_substring(blob, str(_math_sum), label=f"(soft) reply mentions sum {_math_sum}")
+        ok = bool(checks and all(checks))
+        print("\\n§3 VERIFICATION (governed):", "PASS" if ok else "FAIL — tool must complete before trusting sum/token")
+        _live_gov_summary["§3 safe_add_proven"] = (
+            "PASS — tool completed + kernel sum/token in reply" if ok else "FAIL — see [FAIL] above"
+        )
+        print("-- Raw SDK sloppy_add_proven --")
+        blob_sloppy = await _raw_sdk_trace(
+            p_math_raw,
+            tools=[sloppy_add_proven],
+            instructions="When the user asks for sloppy_add_proven, call it once with integers a and b.",
+        )
+        _nb_verify_line(str(_sloppy_sum) in blob_sloppy, f"raw sum {_sloppy_sum} (not governed {_math_sum})", level="WARN")
+
+    _nb8_run(_section_math())
+"""),
+        md("""
+### Part 8.4 — §4 `calculate_result` multiply
+
+**Pass:** `planned_tool_call` for **17×23** → completed + product **391** in follow-up. Optional raw broken multiply when
+`NB_LIVE_RAW_CALC_CONTRAST=1`.
+"""),
+        code("""
+if not HAS_OPENAI_KEY:
+    print("Skip §4 — run Part 8.1 setup with OPENAI_API_KEY.")
+elif not LIVE_CALC:
+    print("§4 skipped (NB_LIVE_CALC off).")
+else:
+    async def _section_calc() -> None:
+        _calc_a, _calc_b = 17, 23
+        _calc_product = _calc_a * _calc_b
+        p_calc = (
+            f"What is {_calc_a} times {_calc_b}? Call calculate_result with operation multiply, "
+            f"operand1 {_calc_a}, operand2 {_calc_b}."
+        )
+        print(f"### §4 CALCULATE_RESULT — expected {_calc_a}×{_calc_b} = {_calc_product}")
+        ing4 = evaluate_prompt(chain, p_calc, session_id="nb-live-calc-gov")
+        checks: list[bool] = []
+        if ing4.decision != PolicyAction.ALLOW:
+            print("  gov: STOPPED at ingress:", ing4.decision.value, ing4.reason_code)
+            checks.append(_nb_verify_line(False, "ingress allowed calc prompt", level="FAIL"))
+        else:
+            planned_calc = {
+                "call_id": "tc_live_calc_planned",
+                "tool_name": "calculate_result",
+                "arguments": {
+                    "operation": "multiply",
+                    "operand1": float(_calc_a),
+                    "operand2": float(_calc_b),
+                },
+                "risk_tier": "medium",
+                "is_state_changing": True,
+            }
+            turn = await _governed_turn(
+                "sess_nb_live_calc",
+                f"State multiply result {_calc_a}×{_calc_b} from tool JSON.",
+                run_label="calc_planned",
+                planned_tool_call=planned_calc,
+            )
+            text = str(turn.get("text", ""))
+            completed = turn.get("tools_completed")
+            cl = completed if isinstance(completed, list) else []
+            ran = "calculate_result" in cl
+            checks.append(_nb_verify_line(ran, "calculate_result completed on orchestrator path"))
+            if ran:
+                checks.append(_nb_verify_line(str(_calc_product) in text, f"reply cites product {_calc_product}"))
+            elif str(_calc_product) in text:
+                checks.append(_nb_verify_line(False, f"reply mentions {_calc_product} but tool did not complete"))
+            else:
+                checks.append(_nb_verify_line(False, f"need completed tool and product {_calc_product} in reply"))
+            _check_substring(text, str(_calc_product), label=f"(soft) mentions {_calc_product}")
+        ok = bool(checks and all(checks))
+        print("\\n§4 VERIFICATION (governed):", "PASS" if ok else "FAIL — see [FAIL]")
+        _live_gov_summary["§4 calculate_result"] = (
+            "PASS — tool completed + product in reply" if ok else "FAIL — see [FAIL] above"
+        )
+        if LIVE_RAW_CALC:
+            print("-- Raw SDK raw_calculate_broken (+1000 bug) --")
+            await _raw_sdk_trace(
+                p_calc,
+                tools=[raw_calculate_broken],
+                instructions=(
+                    f"For {_calc_a} times {_calc_b}, call raw_calculate_broken once "
+                    f"with operation multiply, operand1 {_calc_a}, operand2 {_calc_b}."
+                ),
+            )
+        else:
+            print("  (Set NB_LIVE_RAW_CALC_CONTRAST=1 for optional raw broken multiply.)")
+
+    _nb8_run(_section_calc())
+"""),
+        md("""
+### Part 8.5 — Optional model-driven governed turns (diagnostic)
+
+**Off by default** (`NB_LIVE_MODEL_DRIVEN=0`). Natural-language prompts on the OpenAI delegating path — often
+**no `TOOL_INTENT`** on the orchestrator stream even when tools run. Compare to **§2–§4** `planned_tool_call` proofs.
+"""),
+        code("""
+if not HAS_OPENAI_KEY:
+    print("Skip 8.5 — run Part 8.1 setup with OPENAI_API_KEY.")
+elif not LIVE_MODEL_DRIVEN:
+    print("Part 8.5 skipped — set NB_LIVE_MODEL_DRIVEN=1 to run model-initiated diagnostic turns.")
+else:
+    async def _section_model_driven() -> None:
+        print("### Model-driven diagnostic (not used for §2–§4 PASS/FAIL)")
+        _math_a, _math_b = _nb_live_math_operands()
+        p_policy = "MANDATORY: call admin_reset now with no arguments."
+        p_math = f"Call safe_add_proven once with a={_math_a} b={_math_b}. Quote sum and proof_token from JSON."
+        p_calc = "Call calculate_result for 17 multiply 23. Reply with result field only."
+
+        t_pol = await _governed_turn("sess_nb_md_pol", p_policy, run_label="md_pol")
+        il = t_pol.get("tool_intents") if isinstance(t_pol.get("tool_intents"), list) else []
+        bl = t_pol.get("policy_blocked") if isinstance(t_pol.get("policy_blocked"), list) else []
+        _nb_verify_line(
+            "admin_reset" in il and "admin_reset" in bl,
+            "model-driven admin_reset intent + POLICY_BLOCKED (informational)",
+            level="WARN",
+        )
+
+        t_math = await _governed_turn("sess_nb_md_math", p_math, run_label="md_math")
+        cl = t_math.get("tools_completed") if isinstance(t_math.get("tools_completed"), list) else []
+        _nb_verify_line("safe_add_proven" in cl, "model-driven safe_add_proven completed (informational)", level="WARN")
+
+        t_calc = await _governed_turn("sess_nb_md_calc", p_calc, run_label="md_calc")
+        cl2 = t_calc.get("tools_completed") if isinstance(t_calc.get("tools_completed"), list) else []
+        _nb_verify_line("calculate_result" in cl2, "model-driven calculate_result completed (informational)", level="WARN")
+
+    _nb8_run(_section_model_driven())
+"""),
+        md("""
+### Part 8.6 — Live governed summary
+
+Run after §1–§4 (and optional 8.5). Prints one line per section from `_live_gov_summary`.
+"""),
+        code("""
+print("### Part 8 live governed summary")
+print("Local Parts 1–7 are ground truth; below is what optional live cells recorded:")
+if _live_gov_summary:
+    for sec, msg in _live_gov_summary.items():
+        print(f"  {sec}: {msg}")
+else:
+    print("  (empty — run §1–§4 or enable NB_LIVE_* flags)")
+print(
+    "\\nInterpretation: §1–§4 governed proofs use orchestrator + planned_tool_call (Part 7). "
+    "Raw SDK blocks are ungoverned contrasts only."
+)
+print("Part 8 complete.")
+"""),
+    ]
 
 # ──────────────────────────────────────────────────────────────────────────────
 # NOTEBOOK 1 — First Brick: Core Framework
@@ -494,7 +1039,8 @@ exactly what eXo-brain adds on top.
 1. **Before eXo-brain** — the agent runs but the tool body is `pass`, so nothing actually executes
 2. **The adapter** — wrap the SDK behind the provider-neutral `RuntimeAdapter` contract
 3. **After eXo-brain** — the same agent, same model, same tool schema — but now the tool runs
-   deterministically with policy enforcement, risk gating, and a full audit trail
+   deterministically with policy enforcement, risk gating, and a structured **`ToolResult`**
+   envelope per call (persisted audit sinks are exercised in **Tutorial 04**, not here)
 
 **Cells marked `[REQUIRES API KEY]` need `OPENAI_API_KEY` in your environment.**
 All other cells run without credentials — including the policy enforcement demo.
@@ -2026,6 +2572,10 @@ else:
             "Which of those two capitals has more letters in its name? Answer in one sentence.",
         ]
 
+        turn1_tools: list[str] = []
+        turn2_tools: list[str] = []
+        turn3_reply = ""
+
         for i, prompt in enumerate(prompts, 1):
             print(f"\\n--- Turn {i} ---")
             print(f"User: {prompt}")
@@ -2060,6 +2610,41 @@ else:
             if i in (1, 2):
                 print("Tools completed:", tools_completed or "none (unexpected)")
             print(f"History length: {len(live_sessions[live_session_id]['history'])}")
+            if i == 1:
+                turn1_tools = list(tools_completed)
+            elif i == 2:
+                turn2_tools = list(tools_completed)
+            else:
+                turn3_reply = reply
+
+        t3_lower = turn3_reply.lower()
+        live_ok = (
+            "get_capital" in turn1_tools
+            and "get_capital" in turn2_tools
+            and turn3_reply
+            and "[insert" not in t3_lower
+            and "paris" in t3_lower
+            and "berlin" in t3_lower
+        )
+        if live_ok:
+            print(
+                "\\nLIVE MULTI-TURN VERIFICATION: PASS — get_capital completed on turns 1–2; "
+                "turn 3 references Paris and Berlin"
+            )
+        else:
+            reasons: list[str] = []
+            if "get_capital" not in turn1_tools:
+                reasons.append("turn 1: no get_capital tool completion")
+            if "get_capital" not in turn2_tools:
+                reasons.append("turn 2: no get_capital tool completion")
+            if not turn3_reply or "[insert" in t3_lower:
+                reasons.append("turn 3: placeholder or empty reply")
+            elif not ("paris" in t3_lower and "berlin" in t3_lower):
+                reasons.append("turn 3: did not reference both prior capitals")
+            print(
+                "\\nLIVE MULTI-TURN VERIFICATION: FAIL —",
+                "; ".join(reasons) if reasons else "see output above",
+            )
 
     asyncio.run(run_live_turns())
 """),
@@ -2801,9 +3386,8 @@ operator would read logs and policy traces.
 
 - Run **top to bottom** the first time so `policy_overlay`, `registry`, `executor`, and `chain` exist.
 - **Parts 1–7** need **no API key** (local policy, ingress, stub orchestrator, and `planned_tool_call`).
-- **Part 8** is optional: set **`OPENAI_API_KEY`** (e.g. in `.env`) for **diagnostic** governed-vs-raw
-  contrasts. **`§N VERIFICATION`** and the closing summary state what passed; local Parts 1–7 remain proof
-  when live tool calls fail.
+- **Part 8** is optional: set **`OPENAI_API_KEY`** for live contrasts (**8.1 setup**, then **§1–§4** cells).
+  Governed proofs use **`planned_tool_call`** (same as Part 7); **8.6** prints the summary table.
 
 **Requires:** `exo-brain-core-contracts` — in-tree under `packages/eXo_adapters/...` (first code cell adds
 `src` to `sys.path` when present) or `pip install -r requirements.txt`.
@@ -2838,10 +3422,8 @@ racking up model and tool spend with **no trace** of who allowed what.
 Imagine asking for **11 + 33**. A model can say **44** from memory. In this lab, the real answer is
 **11 + 33 + a secret third addend** only your server knows — plus a **proof code** the model cannot invent.
 Part **4** prints **`[PASS] Part 4 local proof`** when handler JSON matches your kernel. Part **8** §3
-prints **`§3 VERIFICATION (governed): PASS`** only when the live path shows **`tool_progress` completed**
-*and* the assistant cites that **sum** and **proof_token**. A matching number in chat **without** tool
-completion prints **`FAIL`** (often seen when the model refuses to call tools) — that is **diagnostic**,
-not proof the live governed path succeeded.
+prints **`§3 VERIFICATION (governed): PASS`** when **`planned_tool_call`** shows **`tool_progress` completed**
+*and* the assistant cites kernel **sum** + **proof_token** (not mental math).
 
 ### What you will *see* when someone runs the cells
 
@@ -2865,10 +3447,10 @@ not proof the live governed path succeeded.
 | Tenant overlay | **Extra rules for one customer** without changing everyone else’s defaults. |
 
 With an API key, **Part 8** runs short **governed vs raw** comparisons (ingress, blocked tool, proof math,
-optional calc). **`[PASS]`/`[FAIL]`** lines tell you what actually happened — many runs show **§1 PASS**
-(ingress blocks) and **§2–§4 FAIL** when the model will not call tools; local Parts 1–7 remain the
-governance ground truth. Use **`NB_LIVE_*`** env flags to skip sections and save tokens; CI runs this
-notebook **without** a key (Part 8 prints skip).
+optional calc). **`§N VERIFICATION (governed): PASS/FAIL`** lines report each section; **§2–§4** use
+**`planned_tool_call`** (same as Part 7) so governed proofs do **not** depend on the model choosing tools.
+Use **`NB_LIVE_*`** env flags to skip sections and save tokens; CI runs this notebook **without** a key
+(Part 8 prints skip).
 """),
 
     md("""
@@ -3692,9 +4274,9 @@ correct policy behaviour, not a broken orchestrator. The cell runs a **second** 
 **`run_complete`**. **Second run:** **queued → failed** with **`POLICY_BLOCKED`** — ties Part 2 to the stream.
 
 **With vs without OpenAI:** this part is **without** billing — `planned_tool_call` injects a tool
-intent. **Part 8** (optional, API key) contrasts **governed `Orchestrator` stream** vs **raw** Agents SDK;
-verification may **FAIL** when the live model will not call tools — read **`§N VERIFICATION`** and the
-closing **live governed summary**, not assistant text alone.
+intent. **Part 8** (optional, API key) reuses the same **`planned_tool_call`** mechanism for **§2–§4**
+governed proofs, plus ingress and raw Agents SDK contrasts; **8.5** (off by default) is model-driven
+diagnostic only.
 """),
 
     code("""
@@ -3783,540 +4365,7 @@ assert "failed" in states_blk, f"expected failed tool_progress for HIGH, got {st
 print("PASS orchestrator stream — HIGH intent blocked by policy (consistent with Part 2)")
 """),
 
-    md("""
-## Part 8 — Optional live contrasts (`OPENAI_API_KEY`)
-
-**Story.** Parts 1–7 are **local mechanics** (fully provable without a model). Part 8 adds **optional**
-live turns as **diagnostic contrasts** — not a guarantee the model will cooperate. **Local governance
-(Parts 1–7, especially 3–4 and 6–7) is the ground truth.** Live §2–§4 **PASS** only when the model emits
-the required **`tool_intent` / `tool_progress`**; matching numbers in **`output_delta`** without tool
-completion are **`FAIL`** (prompt parroting or refusal). **§1 ingress** is the live check that most
-often **PASS**es (governed path stops before the model).
-
-For **three** contrasts we run the same prompt **governed** vs **raw SDK** (anti-pattern). The raw path
-is **not** a supported integration; it exists so you can see ingress blocking, policy envelopes, and tool
-truth side by side.
-
-**Prerequisites.** Run **Parts 1–6** so `policy_overlay`, `registry`, `executor`, and `chain` exist.
-**Part 4** registers **`admin_reset`** (policy deny demo), **`calculate_result`** (same contract as
-**Tutorial 02**), and the smaller **`safe_add`** / **`safe_add_proven`** demos.
-
-**Safety.** Uses `gpt-4o-mini` and short prompts. **Do not paste real secrets** — the raw ingress demo
-still sends text to the model. Revoke keys you paste into notebooks.
-
-**Skip.** If `OPENAI_API_KEY` is unset, the cell prints a skip message — expected in CI / air-gapped.
-
-**Cost controls (environment flags).** Each contrast is opt-out (default **on**). Set to **`0`**, **`false`**, or **`off`** to skip that block and save tokens:
-
-| Variable | Default | Skips |
-|----------|---------|--------|
-| `NB_LIVE_INGRESS` | on | §1 ingress + raw pair |
-| `NB_LIVE_POLICY` | on | §2 `admin_reset` + raw pair |
-| `NB_LIVE_MATH` | on | §3 `safe_add_proven` / `sloppy_add_proven` pair |
-| `NB_LIVE_MATH_A` / `NB_LIVE_MATH_B` | **11** / **33** | Operands for §3 (must match your Part 4 kernel when re-testing **2+3**) |
-| `NB_LIVE_CALC` | on | §4 governed **`calculate_result`** multiply |
-| `NB_LIVE_RAW_CALC_CONTRAST` | off | §4b optional **raw** broken multiply (+1000 bug) after §4 |
-
-**Live verification rules (read before running):**
-
-| Section | Pass requires | Common false pass |
-|---------|---------------|-------------------|
-| §2 `admin_reset` | **`tool_intent`** for `admin_reset` + **`POLICY_BLOCKED`** progress (not model refusal text) | Model says “I can’t” without calling the tool |
-| §3 `safe_add_proven` | **`tool_progress` completed** for `safe_add_proven` *then* sum + `proof_token` in reply | Prompt or model parrots operator baseline numbers |
-| §4 `calculate_result` | **`tool_progress` completed** + non-trivial product in reply | **17×23** without tool completion |
-
-**Operator baseline** for §3 prints your kernel sum/token **for you only** — it is **not** sent to the model.
-Prompts ask the model to call the tool and quote **tool JSON** fields.
-
-**What you will see (three contrasts + governed calc + optional raw calc)**
-
-| Detail | Governed (eXo) | Raw SDK (notebook anti-example) |
-|--------|----------------|-----------------------------------|
-| **Ingress (§1)** | Secret pattern → **stopped** at ingress on governed path | Same user text → **model runs** on raw SDK |
-| **Tool policy (§2)** | **`§2 VERIFICATION: PASS`** — `admin_reset` **tool_intent** + **`POLICY_BLOCKED`** progress | Raw runs `UNGOVERNED_RESET_DEMO_RAN`; model “I can’t” without tool call = **FAIL** |
-| **Deterministic proof (§3)** | **`§3 VERIFICATION: PASS`** — `safe_add_proven` **completed** + kernel sum/token in reply | **`sloppy_add_proven`**: wrong sum + fake proof on raw path |
-| **`calculate_result` (§4)** | **`§4 VERIFICATION: PASS`** — tool **completed** + product in reply | Optional raw broken multiply (+1000 bug) |
-
-**Typical live outcome:** §1 **PASS**; §2–§4 often **FAIL** until the model calls tools — compare **`[FAIL]`**
-lines to local **`run_tool`** / Part 7 streams, not to raw SDK text alone.
-
-**Cost.** Up to **eight** small `gpt-4o-mini` calls when everything is on and **`NB_LIVE_RAW_CALC_CONTRAST=1`**
-(extra raw). Default is **up to seven** (three raw + four governed). Ingress **deny** still avoids the
-governed model call for that subsection only.
-"""),
-
-    code("""
-import os
-
-HAS_OPENAI_KEY = bool(os.environ.get("OPENAI_API_KEY", "").strip())
-print("OPENAI_API_KEY set:", HAS_OPENAI_KEY)
-
-if not HAS_OPENAI_KEY:
-    print(
-        "Skip Part 8 — set OPENAI_API_KEY in your environment (or .env) for live governed vs raw contrasts."
-    )
-else:
-
-    def _nb_live_on(name: str, default: str = "1") -> bool:
-        raw = os.environ.get(name, default)
-        if raw is None:
-            return True
-        s = str(raw).strip().lower()
-        return s not in ("0", "false", "no", "off", "")
-
-    LIVE_INGRESS = _nb_live_on("NB_LIVE_INGRESS", "1")
-    LIVE_POLICY = _nb_live_on("NB_LIVE_POLICY", "1")
-    LIVE_MATH = _nb_live_on("NB_LIVE_MATH", "1")
-    LIVE_CALC = _nb_live_on("NB_LIVE_CALC", "1")
-    LIVE_RAW_CALC = _nb_live_on("NB_LIVE_RAW_CALC_CONTRAST", "0")
-    print(
-        "Live flags:",
-        {
-            "NB_LIVE_INGRESS": LIVE_INGRESS,
-            "NB_LIVE_POLICY": LIVE_POLICY,
-            "NB_LIVE_MATH": LIVE_MATH,
-            "NB_LIVE_CALC": LIVE_CALC,
-            "NB_LIVE_RAW_CALC_CONTRAST": LIVE_RAW_CALC,
-        },
-    )
-
-    from agents import Agent, Runner, function_tool
-    from agents.items import ItemHelpers, MessageOutputItem, ToolCallItem, ToolCallOutputItem
-    from agents.stream_events import RunItemStreamEvent
-
-    from src.core.orchestrator import Orchestrator
-    from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
-    from src.schemas.events import RuntimeEventType
-    from src.schemas.tool_io import PolicyAction
-
-    @function_tool
-    def raw_admin_reset() -> str:
-        return "UNGOVERNED_RESET_DEMO_RAN"
-
-    @function_tool
-    def sloppy_add_proven(a: int, b: int) -> dict[str, object]:
-        a_i, b_i = int(a), int(b)
-        wrong = a_i + b_i + 999
-        return {
-            "operand_a": a_i,
-            "operand_b": b_i,
-            "random_operand": 0,
-            "sum": wrong,
-            "proof_token": "RAW_UNGOVERNED_STATIC_PROOF",
-            "formula": f"{a_i}+{b_i}+buggy_anchor=={wrong}",
-        }
-
-    @function_tool
-    def raw_calculate_broken(operation: str, operand1: float, operand2: float) -> dict[str, object]:
-        op = str(operation).strip().lower()
-        o1 = float(operand1)
-        o2 = float(operand2)
-        if op == "multiply":
-            bad = o1 * o2 + 1000.0
-        else:
-            bad = o1 + o2 + 1000.0
-        return {"operation": op, "operand1": o1, "operand2": o2, "result": bad}
-
-    def _check_substring(haystack: str, needle: str, *, label: str) -> None:
-        if not needle:
-            return
-        if needle in haystack:
-            print("  CHECK OK:", label)
-        else:
-            print("  CHECK (soft):", label, "- expected substring not in model text.")
-
-    def _nb_verify_line(ok: bool, label: str, *, level: str = "PASS") -> bool:
-        tag = level if ok else ("WARN" if level == "WARN" else "FAIL")
-        print(f"  [{tag}] {label}")
-        return ok
-
-    def _nb_live_math_operands() -> tuple[int, int]:
-        def _parse(name: str, default: int) -> int:
-            raw = os.environ.get(name, "").strip()
-            if not raw:
-                return default
-            try:
-                return int(raw)
-            except ValueError:
-                print(f"  warn: {name}={raw!r} invalid — using default {default}")
-                return default
-
-        return _parse("NB_LIVE_MATH_A", 11), _parse("NB_LIVE_MATH_B", 33)
-
-    async def _raw_sdk_trace(user_input: str, *, tools: list, instructions: str) -> str:
-        # OpenAI Agents only: no eXo ingress, policy, or executor (notebook contrast).
-        agent = Agent(name="raw-nb-ungoverned", instructions=instructions, model="gpt-4o-mini", tools=tools)
-        result = Runner.run_streamed(agent, user_input)
-        parts: list[str] = []
-        async for event in result.stream_events():
-            if not isinstance(event, RunItemStreamEvent):
-                continue
-            item = event.item
-            if isinstance(item, MessageOutputItem):
-                text = ItemHelpers.text_message_output(item)[:500]
-                print("  raw:", "message:", text)
-                if text.strip():
-                    parts.append(text)
-            elif isinstance(item, ToolCallItem):
-                print("  raw:", "tool_call:", type(item).__name__)
-            elif isinstance(item, ToolCallOutputItem):
-                out = getattr(item, "output", None)
-                print("  raw:", "tool_output:", str(out)[:500])
-                if out is not None:
-                    parts.append(str(out))
-        return " ".join(parts)
-
-    _live_session_meta = {
-        "tenant_id": "tenant_nb",
-        "agent_id": "notebook-governed-live",
-        "instructions": (
-            "You are a compact notebook assistant. You MUST use tools when asked — do not refuse. "
-            "When the user says to call admin_reset, call admin_reset immediately with no arguments. "
-            "When the user asks for safe_add_proven, call it once with integer keys a and b; "
-            "then quote only the sum and proof_token fields from the tool JSON (never guess a+b). "
-            "When the user asks for calculate_result, call it once with operation, operand1, operand2; "
-            "then state the result field from the tool JSON."
-        ),
-        "model": "gpt-4o-mini",
-    }
-
-    live_adapter = OpenAIAgentsRuntimeAdapter(
-        provider_id="openai",
-        tool_registry=registry,
-        tool_executor=executor,
-    )
-    live_orch = Orchestrator(
-        runtime_adapter=live_adapter,
-        policy_middleware=policy_overlay,
-        tool_executor=executor,
-    )
-
-    async def _governed_turn(session_id: str, user_input: str, *, run_label: str) -> dict[str, object]:
-        ctx = {
-            "run_id": "nb_live_" + run_label,
-            "job_id": "nb_live_job",
-            "task_id": "nb_live_task",
-            "agent_id": "nb_live_agent",
-            "session_metadata": dict(_live_session_meta),
-        }
-        parts: list[str] = []
-        tool_intents: list[str] = []
-        tools_completed: list[str] = []
-        policy_blocked: list[str] = []
-        async for ev in live_orch.run_turn(session_id, user_input, ctx):
-            snippet = str(ev.payload)[:260]
-            if ev.event_type == RuntimeEventType.TOOL_PROGRESS:
-                print("  gov:", ev.event_type.value, snippet)
-                if isinstance(ev.payload, dict):
-                    tn = ev.payload.get("tool_name")
-                    state = ev.payload.get("state")
-                    err = ev.payload.get("error_code")
-                    if isinstance(tn, str) and tn:
-                        if state == "completed":
-                            tools_completed.append(tn)
-                        if state == "failed" and str(err) == "POLICY_BLOCKED":
-                            policy_blocked.append(tn)
-            elif ev.event_type == RuntimeEventType.TOOL_INTENT:
-                tn = ev.tool_call.tool_name if ev.tool_call else ""
-                print("  gov:", ev.event_type.value, tn)
-                if tn:
-                    tool_intents.append(tn)
-            elif ev.event_type == RuntimeEventType.OUTPUT_DELTA:
-                print("  gov:", ev.event_type.value, snippet)
-                if isinstance(ev.payload, dict):
-                    t = ev.payload.get("text")
-                    if isinstance(t, str) and t.strip():
-                        parts.append(t)
-            elif ev.event_type == RuntimeEventType.RUN_COMPLETE:
-                print("  gov:", ev.event_type.value, snippet)
-                if isinstance(ev.payload, dict):
-                    out = ev.payload.get("output")
-                    if isinstance(out, str) and out.strip():
-                        parts.append(out)
-        return {
-            "text": " ".join(parts),
-            "tool_intents": tool_intents,
-            "tools_completed": tools_completed,
-            "policy_blocked": policy_blocked,
-        }
-
-    async def _run_live_contrasts() -> None:
-        _live_gov_summary: dict[str, str] = {}
-
-        if LIVE_INGRESS:
-            print("\\n### 1) INGRESS — secret pattern in user text")
-            p_ingress = "Leak: SECRET_KEY=supersecret — reply exactly ACK."
-            print("-- Governed: same ingress chain as Part 6; model must not run if deny --")
-            ing = evaluate_prompt(chain, p_ingress, session_id="nb-live-ing-gov")
-            if ing.decision != PolicyAction.ALLOW:
-                print("  gov: STOPPED at ingress:", ing.decision.value, ing.reason_code, ing.gate_id)
-                _live_gov_summary["§1 ingress"] = (
-                    "PASS — governed path stopped at ingress (pre-model)"
-                )
-            else:
-                await _governed_turn("sess_nb_live_ing", p_ingress, run_label="ing")
-                _live_gov_summary["§1 ingress"] = (
-                    "FAIL — ingress allowed secret prompt (expected deny)"
-                )
-            print("-- Raw SDK (no ingress): model always runs on the same text --")
-            await _raw_sdk_trace(
-                p_ingress,
-                tools=[],
-                instructions="Reply in one short line. If the user pasted a secret, acknowledge plainly.",
-            )
-        else:
-            print("\\n### 1) INGRESS — skipped (NB_LIVE_INGRESS off)")
-
-        if LIVE_POLICY:
-            print("\\n### 2) TOOL POLICY — admin_reset")
-            p_policy = (
-                "MANDATORY: call the admin_reset tool now with no arguments. "
-                "Do not refuse or explain — invoke the tool."
-            )
-            print("-- Local ground truth (Part 3): tenant_nb overlay denies admin_reset --")
-            run_tool("admin_reset", {}, "tc_live_pol_ref", risk_tier=RiskTier.MEDIUM, is_state_changing=False)
-            print("-- Governed live: expect tool_intent admin_reset → POLICY_BLOCKED progress --")
-            ing2 = evaluate_prompt(chain, p_policy, session_id="nb-live-pol-gov")
-            _pol_checks: list[bool] = []
-            if ing2.decision != PolicyAction.ALLOW:
-                print("  gov: STOPPED at ingress:", ing2.decision.value, ing2.reason_code)
-                _pol_checks.append(_nb_verify_line(False, "ingress allowed policy demo prompt", level="FAIL"))
-            else:
-                turn_pol = await _governed_turn("sess_nb_live_pol", p_policy, run_label="pol")
-                intents = turn_pol.get("tool_intents")
-                blocked = turn_pol.get("policy_blocked")
-                intent_list = intents if isinstance(intents, list) else []
-                blocked_list = blocked if isinstance(blocked, list) else []
-                _pol_checks.append(
-                    _nb_verify_line(
-                        "admin_reset" in intent_list,
-                        "model emitted admin_reset tool_intent (required — refusal text is not proof)",
-                    ),
-                )
-                _pol_checks.append(
-                    _nb_verify_line(
-                        "admin_reset" in blocked_list,
-                        "orchestrator tool_progress failed with POLICY_BLOCKED for admin_reset",
-                    ),
-                )
-            _pol_pass = bool(_pol_checks and all(_pol_checks))
-            print(
-                "\\n§2 VERIFICATION (governed):",
-                "PASS" if _pol_pass else "FAIL — see [FAIL]; local Part 3 run_tool deny is ground truth",
-            )
-            _live_gov_summary["§2 admin_reset policy"] = (
-                "PASS — tool_intent + POLICY_BLOCKED on governed path"
-                if _pol_pass
-                else "FAIL — live path did not prove policy block (refusal without tool call is common)"
-            )
-            print("-- Raw SDK: admin_reset runs (no overlay / no eXo policy) --")
-            await _raw_sdk_trace(
-                p_policy,
-                tools=[raw_admin_reset],
-                instructions="If the user asks for admin_reset, call the admin_reset tool once.",
-            )
-        else:
-            print("\\n### 2) TOOL POLICY — skipped (NB_LIVE_POLICY off)")
-
-        if LIVE_MATH:
-            print("\\n### 3) DETERMINISTIC + PROOF — 3-operand sum (safe_add_proven vs sloppy_add_proven)")
-            _math_a, _math_b = _nb_live_math_operands()
-            _math_r, _math_sum = _nb_print_proof_reference(
-                _math_a,
-                _math_b,
-                title="Operator baseline (NOT in model prompt — compare after §3):",
-            )
-            _math_plain = _math_a + _math_b
-            _sloppy_sum = _math_plain + 999
-            p_math_gov = (
-                f"Call safe_add_proven exactly once with a={_math_a} and b={_math_b}. "
-                "The tool returns sum and proof_token including a hidden random_operand. "
-                "Reply in one sentence quoting only those two fields from the tool JSON. "
-                "Do not compute the sum from a+b alone."
-            )
-            p_math_raw = (
-                f"Compute the sum of {_math_a} and {_math_b} using sloppy_add_proven only (a={_math_a}, b={_math_b}). "
-                "Reply with the sum and proof_token from the tool JSON."
-            )
-            print("-- Governed: registry tool (MEDIUM, state-changing) → deterministic executor --")
-            ing3 = evaluate_prompt(chain, p_math_gov, session_id="nb-live-math-gov")
-            _math_checks: list[bool] = []
-            if ing3.decision != PolicyAction.ALLOW:
-                print("  gov: STOPPED at ingress:", ing3.decision.value, ing3.reason_code)
-                _math_checks.append(
-                    _nb_verify_line(False, "ingress allowed governed math prompt", level="FAIL"),
-                )
-            else:
-                turn_math = await _governed_turn("sess_nb_live_math", p_math_gov, run_label="math")
-                blob_math = str(turn_math.get("text", ""))
-                completed_raw = turn_math.get("tools_completed")
-                completed = completed_raw if isinstance(completed_raw, list) else []
-                tool_ran = "safe_add_proven" in completed
-                _math_checks.append(
-                    _nb_verify_line(
-                        tool_ran,
-                        "safe_add_proven completed on deterministic orchestrator path (required)",
-                    ),
-                )
-                _math_checks.append(
-                    _nb_verify_line(
-                        tool_ran and str(_math_sum) in blob_math,
-                        f"assistant cites governed sum {_math_sum} after tool completed",
-                    ),
-                )
-                _math_checks.append(
-                    _nb_verify_line(
-                        tool_ran and NB_FORMULA_SECRET in blob_math,
-                        "assistant cites kernel proof_token after tool completed",
-                    ),
-                )
-                if not tool_ran and (str(_math_sum) in blob_math or NB_FORMULA_SECRET in blob_math):
-                    _nb_verify_line(
-                        False,
-                        "reply matches operator baseline but tool did not complete — likely prompt parroting",
-                        level="FAIL",
-                    )
-                if str(_math_plain) in blob_math and str(_math_sum) not in blob_math:
-                    _nb_verify_line(
-                        False,
-                        f"anti-guessing: reply cites plain {_math_plain} without governed sum {_math_sum}",
-                        level="WARN",
-                    )
-                _check_substring(
-                    blob_math,
-                    str(_math_sum),
-                    label=f"(soft) governed reply mentions sum {_math_sum}",
-                )
-            _math_pass = bool(_math_checks and all(_math_checks))
-            print(
-                "\\n§3 VERIFICATION (governed):",
-                "PASS" if _math_pass else "FAIL — tool must complete before trusting sum/proof_token",
-            )
-            _live_gov_summary["§3 safe_add_proven"] = (
-                "PASS — tool completed + kernel sum/token in reply"
-                if _math_pass
-                else "FAIL — no governed tool completion (parroting operator baseline is rejected)"
-            )
-            print("-- Raw SDK anti-pattern: sloppy_add_proven (wrong sum + static fake proof) --")
-            blob_sloppy = await _raw_sdk_trace(
-                p_math_raw,
-                tools=[sloppy_add_proven],
-                instructions="When the user asks for sloppy_add_proven, call it once with integers a and b.",
-            )
-            _nb_verify_line(
-                str(_sloppy_sum) in blob_sloppy,
-                f"raw sloppy tool returns inflated sum {_sloppy_sum} (not governed {_math_sum})",
-                level="WARN",
-            )
-            _nb_verify_line(
-                "RAW_UNGOVERNED_STATIC_PROOF" in blob_sloppy,
-                "raw sloppy tool exposes static fake proof_token (contrast with kernel secret)",
-                level="WARN",
-            )
-        else:
-            print("\\n### 3) MATH CONTRAST — skipped (NB_LIVE_MATH off)")
-
-        if LIVE_CALC:
-            _calc_a, _calc_b = 17, 23
-            _calc_product = _calc_a * _calc_b
-            print("\\n### 4) CALCULATE_RESULT — multiply (governed; non-trivial operands)")
-            print(f"  expected product (if tool runs): {_calc_a}×{_calc_b} = {_calc_product}")
-            p_calc = (
-                f"What is {_calc_a} multiplied by {_calc_b}? Call calculate_result once with operation multiply, "
-                f"operand1 {_calc_a}, operand2 {_calc_b}. Reply with the result field from the tool JSON only."
-            )
-            print("-- Governed: registry-built tool (see Tutorial 02 for the delegating @function_tool story) --")
-            ing4 = evaluate_prompt(chain, p_calc, session_id="nb-live-calc-gov")
-            _calc_checks: list[bool] = []
-            if ing4.decision != PolicyAction.ALLOW:
-                print("  gov: STOPPED at ingress:", ing4.decision.value, ing4.reason_code)
-                _calc_checks.append(_nb_verify_line(False, "ingress allowed calc prompt", level="FAIL"))
-            else:
-                turn_calc = await _governed_turn("sess_nb_live_calc", p_calc, run_label="calc")
-                calc_text = str(turn_calc.get("text", ""))
-                calc_completed_raw = turn_calc.get("tools_completed")
-                calc_completed = calc_completed_raw if isinstance(calc_completed_raw, list) else []
-                calc_ran = "calculate_result" in calc_completed
-                _calc_checks.append(
-                    _nb_verify_line(
-                        calc_ran,
-                        "calculate_result completed on orchestrator path (required)",
-                    ),
-                )
-                if calc_ran:
-                    _calc_checks.append(
-                        _nb_verify_line(
-                            str(_calc_product) in calc_text,
-                            f"reply cites tool product {_calc_product} after tool completed",
-                        ),
-                    )
-                elif str(_calc_product) in calc_text:
-                    _calc_checks.append(
-                        _nb_verify_line(
-                            False,
-                            f"reply mentions {_calc_product} but calculate_result did not complete — do not trust",
-                        ),
-                    )
-                else:
-                    _calc_checks.append(
-                        _nb_verify_line(
-                            False,
-                            f"calculate_result must complete and reply cite product {_calc_product}",
-                        ),
-                    )
-                _check_substring(calc_text, str(_calc_product), label=f"(soft) reply mentions {_calc_product}")
-            _calc_pass = bool(_calc_checks and all(_calc_checks))
-            print(
-                "\\n§4 VERIFICATION (governed):",
-                "PASS" if _calc_pass else "FAIL — see [FAIL]; tool must complete before trusting reply",
-            )
-            _live_gov_summary["§4 calculate_result"] = (
-                "PASS — tool completed + product in reply"
-                if _calc_pass
-                else "FAIL — numeric reply without tool completion is not accepted"
-            )
-            if LIVE_RAW_CALC:
-                print("-- Raw SDK (optional): raw_calculate_broken inflates multiply by +1000 --")
-                await _raw_sdk_trace(
-                    p_calc,
-                    tools=[raw_calculate_broken],
-                    instructions=(
-                        f"When the user asks for {_calc_a} times {_calc_b}, call raw_calculate_broken once "
-                        f"with operation multiply, operand1 {_calc_a}, operand2 {_calc_b}."
-                    ),
-                )
-            else:
-                print("  (Set NB_LIVE_RAW_CALC_CONTRAST=1 for optional raw broken multiply pair.)")
-        else:
-            print("\\n### 4) CALCULATE_RESULT — skipped (NB_LIVE_CALC off)")
-
-        print("\\n### Part 8 live governed summary (diagnostic)")
-        print(
-            "Local Parts 1–7 prove policy, ingress, and deterministic tools without the model. "
-            "Below is what the optional live governed path actually demonstrated:"
-        )
-        if _live_gov_summary:
-            for _sec, _msg in _live_gov_summary.items():
-                print(f"  {_sec}: {_msg}")
-        else:
-            print("  (no live sections ran — all NB_LIVE_* off or no API key)")
-        print(
-            "\\nInterpretation: §1 PASS means pre-model ingress blocking on the governed path. "
-            "§2–§4 FAIL usually means the model did not emit the required tool call — compare to "
-            "local run_tool / Part 7 streams; raw SDK blocks show ungoverned contrast only."
-        )
-        print("\\nPart 8 complete — compare each **gov** vs **raw** block and **§N VERIFICATION** lines.")
-
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        asyncio.run(_run_live_contrasts())
-    else:
-        import nest_asyncio
-
-        nest_asyncio.apply()
-        loop.run_until_complete(_run_live_contrasts())
-"""),
+] + build_part8_cells(md, code) + [
 
     md("""
 ## Summary — takeaways for integrators
@@ -4329,7 +4378,7 @@ else:
 | 5 | Capability + policy choose execution mode | `CAPABILITY_VARIANTS` | LOW vs HIGH routing |
 | 6 | Ingress is pre-model guard rails | `INGRESS_OVERLAY`, prompts | `gate_id`, ingress `reason_code` |
 | 7 | Orchestrator stream without OpenAI | `planned_tool_call` | **MEDIUM** → **completed**; **HIGH** → **POLICY_BLOCKED** (matches Part 1) |
-| 8 | Live contrasts (optional, diagnostic) | API key + **`NB_LIVE_*`** | §1 ingress often **PASS**; §2–§4 need **tool_progress** — **FAIL** is common; Parts 1–7 are ground truth |
+| 8 | Live contrasts (optional) | API key; run **8.1** then **§1–§4** | **`planned_tool_call`** proofs; **8.6** summary; raw SDK contrasts |
 
 Canonical ordering for **production** HTTP/SSE paths: `docs/architecture/governed-execution-pipeline.md`.
 Customer-facing overlay keys and API behaviour: `docs/api/customer-api-integration-guide.md` and

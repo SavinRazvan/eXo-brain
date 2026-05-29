@@ -2,17 +2,40 @@
 
 Interactive notebooks for exploring, validating, and demonstrating eXo-brain's core modules.
 They complement the automated test suite (`tests/`) — notebooks provide narrative context,
-live outputs, and hands-on exploration that pytest tests do not.
+live outputs, and hands-on exploration that pytest does not.
 
 **New here?** Start with `tutorial_01` → `tutorial_02` → `tutorial_03` → `tutorial_04` in order.
 Each tutorial builds on the previous one. `tutorial_05`, `tutorial_06`, and `tutorial_07` are
 standalone deep-dives you can run in any order after `tutorial_03`. **`tutorial_08`** is a
 **governed-execution lab** (story + code): edit policy, ingress, and tool knobs, read stdout like
-operator traces, and optionally run a **live** governed turn with `OPENAI_API_KEY`. The `check_` notebooks are
-independent smoke tests you can run any time to confirm a module is working correctly.
-The `edge_` notebooks explore boundary conditions and failure modes.
+operator traces, and optionally run **live** governed contrasts with `OPENAI_API_KEY`. The `check_`
+notebooks are independent smoke tests (~5 seconds each). The `edge_` notebooks are deterministic
+boundary proofs.
 
 **Evaluator time-boxed paths:** [EVALUATOR_GUIDE.md](EVALUATOR_GUIDE.md) (15 min / 90 min / security / maintainer smoke).
+
+**Canonical standards:** [docs/plans/notebook-standards.md](../docs/plans/notebook-standards.md) (structure, regeneration, CI).
+
+---
+
+## Inventory (14 notebooks)
+
+| Notebook | Category | API key | Typical runtime |
+|---|---|---|---|
+| `tutorial_01_core_framework.ipynb` | tutorial | No | ~25 min |
+| `tutorial_02_openai_adapter.ipynb` | tutorial | Optional (3 cells) | ~30 min |
+| `tutorial_03_bring_your_own_config.ipynb` | tutorial | No | ~20 min |
+| `tutorial_04_audit_trail.ipynb` | tutorial | No | ~15 min |
+| `tutorial_05_multi_turn_sessions.ipynb` | tutorial | Optional (Part 6) | ~20 min |
+| `tutorial_06_background_workflows.ipynb` | tutorial | No | ~20 min |
+| `tutorial_07_governance_and_anomaly.ipynb` | tutorial | No | ~15 min |
+| `tutorial_08_governed_execution_sandbox.ipynb` | tutorial | No (Parts 1–7); Part 8 optional | ~15–25 min |
+| `check_01_core_orchestrator.ipynb` | check | No | under 5 s |
+| `check_02_policy_middleware.ipynb` | check | No | under 5 s |
+| `check_03_runtime_adapter.ipynb` | check | No | under 5 s |
+| `check_04_tenant_and_limits.ipynb` | check | No | under 5 s |
+| `edge_01_ingress_policy_conflicts.ipynb` | edge | No | under 3 min |
+| `edge_02_tool_error_envelopes.ipynb` | edge | No | under 2 min |
 
 ---
 
@@ -29,47 +52,57 @@ The `edge_` notebooks explore boundary conditions and failure modes.
 | `edge_` | Edge case / failure / boundary condition exploration |
 
 Rules:
+
 - Numbers are sequential **within each category** (no cross-category collisions).
 - Slugs are lowercase with underscores.
-- Each notebook must be listed in this README index.
-- Each notebook must have a corresponding builder function in the matching build script.
-- Outputs may be committed when they serve as reference evidence (tutorials); clear them otherwise.
+- Each notebook must be listed in this README index and have a builder in the matching build script.
+- **Content source of truth:** `build_tutorials.py` / `build_checks.py` — regenerate `.ipynb` after edits.
+- Outputs may be committed when they serve as reference evidence (tutorials); clear stale outputs before commit when content changed.
 
 ---
 
 ## How to Run
 
-**Kernel:** Use the project venv (`.venv` or `.exo_env`) — select a **Python 3.12** kernel whose
-`sys.prefix` points at that environment before running any notebook.
+**Environment:** Python **3.12+**, project virtualenv (`.venv` recommended), dependencies from repo root:
 
 ```bash
-# Activate the venv first (example: .venv)
-source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-# Install the kernel if not already registered
+**Kernel:** Select the Jupyter kernel backed by that venv. Generated notebooks use a portable kernelspec
+(`display_name`: **Python 3 (eXo-brain venv)**, `name`: **`python3`**) — not a hardcoded `.exo_env` path.
+Optional registration:
+
+```bash
 python -m ipykernel install --user --name=exo-brain --display-name "eXo-brain (.venv)"
+```
 
-# Launch Jupyter
+**Launch:**
+
+```bash
 jupyter lab notebooks/
 ```
 
-All notebooks run **top-to-bottom**. Cells marked `[REQUIRES API KEY]` skip automatically
-when `OPENAI_API_KEY` is not set — everything else runs without a live API key.
+**Execution:** Run **top to bottom** the first time. Bootstrap cells add the repo root and, when present,
+`packages/eXo_adapters/packages/exo-brain-core-contracts/src` to `sys.path`.
+
+**API keys:** Cells marked **`[REQUIRES API KEY]`** (or tutorial Part 8) skip gracefully when
+`OPENAI_API_KEY` is unset. Everything else is deterministic and needs no live provider.
 
 ---
 
 ## Build Scripts
 
-Build scripts are the **source of truth** for notebook content. The `.ipynb` files on disk
-are generated output — always edit the build script, then regenerate. Never edit `.ipynb` files directly.
-
-| Script | Generates | Run command |
+| Script | Generates | Command |
 |---|---|---|
-| `build_tutorials.py` | `tutorial_01_*` through `tutorial_08_*` | `python notebooks/build_tutorials.py` |
-| `build_checks.py` | `check_01_*` through `check_04_*`, `edge_01_*`, `edge_02_*` | `python notebooks/build_checks.py` |
+| `build_tutorials.py` | `tutorial_01_*` … `tutorial_08_*` | `python notebooks/build_tutorials.py` |
+| `build_checks.py` | `check_01_*` … `check_04_*`, `edge_01_*`, `edge_02_*` | `python notebooks/build_checks.py` |
 
-After regenerating, re-run the notebook cells to refresh outputs, then commit both
-the `.py` script and the `.ipynb` file.
+After regenerating, re-run notebook cells to refresh outputs, then commit the `.py` builder and `.ipynb` together.
+
+**CI:** In `.github/workflows/architecture-fitness.yml`, job **`automated_test_suite`** runs
+`jupyter nbconvert --execute` on **`tutorial_08_governed_execution_sandbox.ipynb`** with
+`OPENAI_API_KEY` empty (Part 8 skips live calls). Triggered on PRs that touch `notebooks/**` (among other paths).
 
 ---
 
@@ -77,146 +110,129 @@ the `.py` script and the `.ipynb` file.
 
 ### Tutorials
 
-Narrative walkthroughs in learning order. Run top-to-bottom. No API key required unless noted.
+Narrative walkthroughs. Run top-to-bottom unless noted.
 
 ---
 
 #### `tutorial_01_core_framework.ipynb`
 
-**Purpose:** Understand how eXo-brain is structured and why it was built this way. Run a complete
-orchestrated turn and a multi-node background job with full observability evidence.
+**Purpose:** How eXo-brain is structured; run a single orchestrated turn and a two-node background DAG with observability.
 
-**API key required:** No — everything runs in-process with in-memory adapters.
+**API key:** No — in-process adapters only.
 
-**What you will do inside:**
-1. Register a tool in `ToolRegistry` with a risk tier and `is_state_changing=True`
+**What you will do:**
+
+1. Register a tool in `ToolRegistry` (HIGH risk, `is_state_changing=True`)
 2. Wire `Orchestrator` with `DeterministicFirstPolicyMiddleware` and `DeterministicToolExecutor`
-3. Inject a `planned_tool_call` into a turn context and run it — watch the event stream
-4. Understand each event: `TOOL_INTENT`, `TOOL_PROGRESS`, `OUTPUT_DELTA`, `RUN_COMPLETE`
-5. Build a two-node DAG (`fetch → process`) with `BackgroundRuntime`
-6. Inspect node outcomes, `RuntimeMetrics` counters, `RuntimeTimeline` event log, and structured logs
+3. Inject `planned_tool_call` and stream events: `TOOL_INTENT`, `TOOL_PROGRESS`, `OUTPUT_DELTA`, `RUN_COMPLETE`
+4. Build a `fetch → process` DAG with `BackgroundRuntime`; inspect outcomes, metrics, timeline, logs
 
-**Key insight:** The model emits intent. eXo-brain executes it — deterministically, with audit trail.
+**Key insight:** Model output is intent; eXo-brain executes deterministically with an audit trail.
 
-**Modules covered:** `src/core/orchestrator`, `src/core/background_runtime`, `src/core/scheduler`,
-`src/core/task_graph`, `src/core/worker_pool`, `src/policies/middleware`, `src/tools/executor`,
-`src/tools/registry`, `src/observability/*`
+**Modules:** `src/core/orchestrator`, `src/core/background_runtime`, `src/core/scheduler`, `src/core/task_graph`,
+`src/core/worker_pool`, `src/policies/middleware`, `src/tools/executor`, `src/tools/registry`, `src/observability/*`
 
 ---
 
 #### `tutorial_02_openai_adapter.ipynb`
 
-**Purpose:** See exactly what eXo-brain adds on top of the OpenAI Agents SDK, starting from
-real agent code exported by OpenAI Agent Builder.
+**Purpose:** What eXo-brain adds on top of the OpenAI Agents SDK, starting from Agent Builder–style agent code.
 
-**API key required:** Optional — 3 live cells require it; all other cells including the policy demo run without it.
+**API key:** Optional — **three** markdown sections marked `[REQUIRES API KEY]` (original `pass` tool demo;
+three arithmetic live turns in one cell; division-by-zero observation). Policy demo and adapter wiring run without a key.
 
-**What you will do inside:**
-1. Run the original agent with a `pass` tool body — observe the model hallucinating because it gets `None` back
-2. Understand the **delegating wrapper** pattern: `@function_tool` body calls `executor.execute()` instead of doing work itself
-3. Wire `calculate_result` into eXo-brain: real handler in `ToolRegistry`, policy + executor, delegating SDK wrapper
-4. Run 3 live turns (add, multiply, subtract) and see `[eXo-brain] calculate_result(...) → {result}` in the output
-5. Run a division-by-zero turn — see `ValueError` caught and returned as a structured error envelope
-6. Run a HIGH-risk version of the same tool without an API key — confirms DETERMINISTIC mode is forced
+**What you will do:**
 
-**Key insight:** The `@function_tool` body is the integration seam. Everything else is already provider-neutral.
+1. Run the original agent with `pass` tool body — model may guess when it receives `None`
+2. Learn the **delegating wrapper**: `@function_tool` body calls `executor.execute()`
+3. Wire `calculate_result` through registry, policy, executor, and SDK wrapper
+4. Live turns: add, multiply, subtract — see `[eXo-brain] calculate_result(...) → {result}` in stdout
+5. Live division-by-zero — **observe** model vs tool behaviour (not a formal envelope proof in this cell; see `edge_02` / Tutorial 04)
+6. HIGH-risk `planned_tool_call` demo without API key — deterministic path forced
 
-**Modules covered:** `src/runtime/openai_agents_runtime`, `src/runtime/runtime_adapter`,
-`src/runtime/capability_map`, `src/core/orchestrator`, `src/policies/middleware`,
-`src/tools/executor`, `src/tools/registry`, `src/schemas/events`, `src/schemas/tool_io`
+**Key insight:** The `@function_tool` body is the integration seam; orchestration stays provider-neutral.
+
+**Modules:** `src/runtime/openai_agents_runtime`, `src/runtime/runtime_adapter`, `src/runtime/capability_map`,
+`src/core/orchestrator`, `src/policies/middleware`, `src/tools/executor`, `src/tools/registry`,
+`src/schemas/events`, `src/schemas/tool_io`
+
+**Related check:** `check_03_runtime_adapter.ipynb`
 
 ---
 
 #### `tutorial_03_bring_your_own_config.ipynb`
 
-**Purpose:** Configure eXo-brain's ingress policy layer for your own deployment without touching
-any framework code — choose your posture, write your rules, see live gate decisions.
+**Purpose:** Configure ingress policy via overlay dicts — no framework code changes.
 
-**API key required:** No — fully deterministic, no model calls.
+**API key:** No.
 
-**What you will do inside:**
-1. Compare `baseline` / `strict` / `hardened` ingress profiles side-by-side (char limits, blocked phrases)
-2. Build a plain Python overlay dict — set profile, classifier mode/threshold/signals, and custom rules
-3. Compile it into a live `IngressGateChain` with one function call
-4. Run 10 representative prompts (normal, injection, competitor, legal, oversized) and see ALLOW/DENY/ESCALATE decisions
-5. Switch the classifier from `shadow` (log only) to `enforce` (block) and observe the difference
-6. Apply a packaged governance template (`data-perimeter-v1`), extend it with your own custom rules on top
-7. Inspect `chain.policy_metadata()` — the structured governance audit payload logged at session start
+**What you will do (Parts 1–7):**
 
-**Key insight:** You only edit a Python dict. The gate chain recompiles from it. Nothing in the core changes.
+1. Compare `baseline` / `strict` / `hardened` profiles (limits, blocked phrases)
+2. Build and compile a Python overlay into `IngressGateChain`
+3. Run **nine** representative prompts in Part 4 (normal, injection, competitor, legal, oversized)
+4. Switch classifier `shadow` → `enforce` — Part 5 (enforce may **escalate**, not only deny)
+5. Apply template `data-perimeter-v1` and extend with custom rules — Part 6
+6. Inspect `chain.policy_metadata()` — Part 7
 
-**Modules covered:** `src/policies/ingress_gates`, `src/policies/ingress_profiles`, `src/policies/policy_templates`
+**Key insight:** Edit a dict; the gate chain recompiles. Core code stays unchanged.
+
+**Modules:** `src/policies/ingress_gates`, `src/policies/ingress_profiles`, `src/policies/policy_templates`
+
+**Related edge:** `edge_01_ingress_policy_conflicts.ipynb`
 
 ---
 
 #### `tutorial_04_audit_trail.ipynb`
 
-**Purpose:** Understand how every tool call in eXo-brain produces a correlation-linked audit record,
-and how the SHA-256 hash chain makes it cryptographically impossible to silently alter audit history.
+**Purpose:** Correlation-linked audit records and SHA-256 hash-chain tamper detection.
 
-**API key required:** No — fully deterministic, no model calls.
+**API key:** No.
 
-**What you will do inside:**
-1. Wire `InMemoryAuditStore` + `ToolAuditPipeline` + `StructuredLogger` — the three components of the audit infrastructure
-2. Execute a tool via `DeterministicToolExecutor` and capture `ToolResult.audit.correlation_id`
-3. Emit a `tool.executed` audit event via `ToolAuditPipeline.emit()` and query it back from the store
-4. Build a 3-record SHA-256 hash chain manually with `chain_record(payload, previous_hash)` — show `previous_hash → record_hash` links
-5. Call `verify_chain(records)` → `True` — chain is intact
-6. Mutate one record's payload and call `verify_chain` again → `False` — tamper detected
-7. Serialize the chain and call `compute_audit_chain_fingerprint(records_as_dicts)` → `(chain_valid=True, last_hash)`
+**What you will do (Parts 1–7):** Wire `InMemoryAuditStore`, `ToolAuditPipeline`, `StructuredLogger`;
+execute via `DeterministicToolExecutor`; emit and query events; build and verify a 3-record chain;
+mutate a record and fail `verify_chain`; compute `compute_audit_chain_fingerprint`.
 
-**Key insight:** Every tool call produces a correlation-linked audit record. The SHA-256 hash chain
-makes it cryptographically impossible to silently alter audit history — any mutation is detected
-immediately by `verify_chain`.
+**Key insight:** Audit history is linked and tamper-evident.
 
-**Modules covered:** `src/audit/trail`, `src/persistence/audit_store`, `src/observability/tool_audit`,
+**Modules:** `src/audit/trail`, `src/persistence/audit_store`, `src/observability/tool_audit`,
 `src/observability/logging`, `src/compliance/evidence_bundle`, `src/tools/executor`
+
+**Related edge:** `edge_02_tool_error_envelopes.ipynb`
 
 ---
 
 #### `tutorial_05_multi_turn_sessions.ipynb`
 
-**Purpose:** Understand how session state, conversation history, timeline correlation, and quota
-enforcement work together across multiple turns of a conversation.
+**Purpose:** Session history, timeline correlation, and quota enforcement across turns.
 
-**API key required:** Optional — 1 live cell requires it; all structural cells run without it.
+**API key:** Optional — Part 6 live multi-turn only.
 
-**What you will do inside:**
-1. Wire `RuntimeTimeline` + `TenantQuotaManager` + `StructuredLogger` alongside the adapter
-2. Build a minimal `SessionAdapter` that tracks conversation history per session in-memory
-3. Simulate 3 turns — show history growing from 0 → 2 → 4 → 6 entries after each turn
-4. Record timeline events with per-turn correlation IDs — call `timeline.entries_for(corr)` to retrieve per-turn traces
-5. Call `quota_manager.check_submission(tenant_id, active_jobs=0)` → `QuotaDecision(allowed=True)`
-6. Call `quota_manager.check_submission(tenant_id, active_jobs=2)` → `QuotaDecision(allowed=False, reason_code="TENANT_QUOTA_EXCEEDED")`
-7. (Optional) Run 3 live conversation turns with the real OpenAI model — watch history grow after each turn
+**What you will do:** Wire timeline + `TenantQuotaManager`; session-aware adapter; simulate three turns
+(history growth); per-turn `timeline.entries_for(corr)`; quota allow/deny with `TENANT_QUOTA_EXCEEDED`;
+optional live OpenAI conversation.
 
-**Key insight:** Session state (conversation history) lives in the adapter layer. The `RuntimeTimeline`
-links every event back to its session via correlation ID. Quota enforcement is stateless — the caller
-tracks `active_jobs` and the manager decides allow/deny. Both work across any provider adapter.
+**Key insight:** Session state lives in the adapter; timeline and quotas are provider-agnostic.
 
-**Modules covered:** `src/observability/timeline`, `src/tenancy/quotas`, `src/runtime/openai_agents_runtime`,
+**Modules:** `src/observability/timeline`, `src/tenancy/quotas`, `src/runtime/openai_agents_runtime`,
 `src/observability/logging`, `src/observability/metrics`
+
+**Related check:** `check_04_tenant_and_limits.ipynb`
 
 ---
 
 #### `tutorial_06_background_workflows.ipynb`
 
-**Purpose:** Learn how to run long-lived workflows as background DAG jobs with automatic retries,
-structured failure outcomes, and checkpoint-based resume without re-executing completed nodes.
+**Purpose:** Background DAG jobs with failure outcomes, retries, and checkpoint resume.
 
-**API key required:** No — fully deterministic, no model calls.
+**API key:** No.
 
-**What you will do inside:**
-1. Build a 4-node DAG (`fetch → validate → enrich → publish`) using `TaskGraph` and async `TaskNode` handlers
-2. Wire `TaskScheduler` + `BackgroundRuntime` + `WorkerPool`, submit the job, and inspect all 4 `TaskOutcome` objects
-3. Replace `validate` with a handler that raises `ValueError` — show `outcome.status == FAILED` and job halts
-4. Use `TaskNode(retry_limit=2)` with a flaky handler (fails twice, succeeds third) — show `outcome.attempts == 3`
-5. Pre-populate `InMemoryCheckpointStore` with `fetch` marked `COMPLETED`, then submit the job — the scheduler seeds the result with the checkpoint output and threads it into `validate`'s dependency map
+**What you will do (Parts 1–5):** Four-node DAG `fetch → validate → enrich → publish`; failure halts job;
+`retry_limit=2` flaky node (`attempts == 3`); resume with `InMemoryCheckpointStore` seeding completed `fetch`.
 
-**Key insight:** Failure is structured, not silent. Retries are declarative. Checkpoints enable resume
-without re-executing completed nodes — which matters for expensive or side-effecting tasks.
+**Key insight:** Failure is structured; checkpoints avoid redoing expensive nodes.
 
-**Modules covered:** `src/core/background_runtime`, `src/core/scheduler`, `src/core/task_graph`,
+**Modules:** `src/core/background_runtime`, `src/core/scheduler`, `src/core/task_graph`,
 `src/core/checkpoint_store`, `src/core/worker_pool`, `src/persistence/contracts`,
 `src/observability/logging`, `src/observability/metrics`, `src/observability/timeline`
 
@@ -224,161 +240,134 @@ without re-executing completed nodes — which matters for expensive or side-eff
 
 #### `tutorial_07_governance_and_anomaly.ipynb`
 
-**Purpose:** Understand the two independent governance layers in eXo-brain: advisory anomaly detection
-(flags bad tenant metrics) and deterministic fair admission control (enforces concurrency fairness).
+**Purpose:** Advisory anomaly detection vs deterministic fair admission (independent of ingress).
 
-**API key required:** No — fully deterministic, no model calls.
+**API key:** No.
 
-**What you will do inside:**
-1. Understand the BYOC governance model — what it means for multiple tenants to share infrastructure
-2. Define metric snapshots for 3 tenants: `tenant-a` (healthy), `tenant-b` (healthy), `tenant-c` (anomalous)
-3. Call `detect_governance_anomalies(...)` for each — empty list for a/b, 3 findings for c (`BYOC_COST_UTILIZATION_SPIKE`, `BYOC_REJECTION_RATE_SPIKE`, `BYOC_REJECTION_REASON_DOMINANCE`)
-4. Wire `ByocFairAdmissionCoordinator(max_inflight_global=3)` — acquire 3 slots (all succeed), 4th times out → `None`
-5. Inspect `coordinator.stats()` — show `fair_admission_inflight_total` and `fair_admission_pending_total`
-6. Call `coordinator.release(token)` — slot becomes available; show next `acquire()` succeeds
-7. Use `TenantPolicyOverlayStore` — set different overlays per tenant, retrieve and compare them
+**What you will do (Parts 1–7, including 6b):**
 
-**Key insight:** Anomaly detection is advisory — it never blocks. Fair admission is deterministic —
-it blocks when the global limit is hit. Both are independent of the ingress gate chain. Together they
-give operators visibility and control over multi-tenant resource sharing.
+1. Metric snapshots for `tenant-a` / `tenant-b` (healthy) and `tenant-c` (anomalous)
+2. `detect_governance_anomalies` — tenant-c typically yields **three** codes:
+   `BYOC_COST_UTILIZATION_SPIKE`, `BYOC_REJECTION_RATE_SPIKE`, `BYOC_REJECTION_REASON_DOMINANCE`
+3. `ByocFairAdmissionCoordinator(max_inflight_global=3)` — fourth `acquire` → `None`; `release` frees a slot
+4. Part **6b** — background thread blocked in `acquire()` wakes on `release()`
+5. `TenantPolicyOverlayStore` — per-tenant overlays
 
-**Modules covered:** `src/policies/governance_anomaly_detector`, `src/policies/byoc_fairness`,
-`src/tenancy/policy_overlay`
+**Key insight:** Anomaly detection advises; fair admission enforces global inflight caps.
+
+**Modules:** `src/policies/governance_anomaly_detector`, `src/policies/byoc_fairness`, `src/tenancy/policy_overlay`
 
 ---
 
 #### `tutorial_08_governed_execution_sandbox.ipynb`
 
-**Purpose:** **Story + code** governance lab — each part explains *why* a layer exists (ingress, policy,
-deterministic tools, execution mode), what to edit, and how to read stdout. Opens with **For non-technical
-readers** (executive path + jargon cheat sheet).
+**Purpose:** Story-driven governance lab — ingress, risk policy, deterministic tools, execution mode,
+stub orchestrator, optional live contrasts.
 
-**Why this notebook exists (value prop):** LLMs can **guess** plausible answers. Governed execution means
-**money-moving math and proofs** come from **your handler** behind policy + `DeterministicToolExecutor`, not
-from model memory. The flagship demo is **`safe_add_proven`**: the model only supplies **`a`** and **`b`**;
-the handler adds a **hidden `random_operand`** (per kernel) so **`sum = a + b + random_operand`**. Anyone
-who answers plain **a+b** (e.g. **44** for 11+33) without the tool JSON did **not** use your trust boundary.
-Part **4** prints the JSON locally and **`[PASS] Part 4 local proof`** when sum/token match the kernel.
-Optional **Part 8** §3 runs **`[PASS]`/`[FAIL]`** verification against that same kernel (default **11+33**;
-use **`NB_LIVE_MATH_A`/`B`** to match a **2+3** re-test), next to a raw **`sloppy_add_proven`** anti-example.
+**API key:** **No** for Parts 1–7. **Part 8** optional when `OPENAI_API_KEY` is set (otherwise skip text).
 
-Optional **Part 8** also runs **governed vs raw** contrasts: ingress block, tenant **deny** on
-`admin_reset`, the math proof above, and governed **`calculate_result`** multiply (Tutorial 02 contract) —
-ingress runs first on the governed side.
+**Flagship proof — `safe_add_proven`:** Model supplies `a` and `b`; handler adds hidden `random_operand`
+per kernel → `sum` and `proof_token`. Plain **a+b** (e.g. 44 for 11+33) without tool JSON is **not** the trust boundary.
 
-**API key required:** **No** for Parts 1–7. **Part 8** uses `OPENAI_API_KEY` if set (otherwise prints skip).
-**Part 8 cost controls:** `NB_LIVE_INGRESS`, `NB_LIVE_POLICY`, `NB_LIVE_MATH`, `NB_LIVE_CALC` (default on;
-set to `0`/`false`/`off` to skip a block), plus optional `NB_LIVE_RAW_CALC_CONTRAST=1` for an extra raw
-multiply bug demo.
+**Part 4:** Prints handler JSON and **`[PASS] Part 4 local proof`** when sum/token match the kernel.
 
-**CI:** `architecture-fitness` runs `jupyter nbconvert --execute` on this notebook with an empty API key
-(Part 8 skips live calls).
+**Part 8 (diagnostic):** Governed vs raw contrasts; **`§3 VERIFICATION (governed): PASS`** only when live path shows
+completed `tool_progress` **and** correct sum/token — **FAIL** is common when the model skips tools (Parts 1–7 remain ground truth).
 
-**Requires** `pip install -r requirements.txt` from repo root (editable `exo-brain-core-contracts` under
-`packages/eXo_adapters/`). **`nest-asyncio`** is in `requirements.txt` for Jupyter when a loop is
-already running (Parts 7–8).
+**Part 8 env controls (default on; set `0`/`false`/`off` to skip):**
 
-**What you will do inside:**
-1. Read the **beginner checklist**, **map**, and **deterministic vs provider-native** narrative, then bootstrap paths.
-2. Tune `USER_RISK` → probe synthetic `SCENARIOS` twice (**strict vs relaxed** risk gates).
-3. Set `USER_OVERLAY` → compare **global-only** vs **tenant overlay** on the same probe call.
-4. Register `USER_TOOLS` → run **`safe_add_proven`** and read **`random_operand` / `sum` / `proof_token`** in stdout (three-operand proof); also **`calculate_result`** (Tutorial 02 parity).
-5. Sweep `CAPABILITY_VARIANTS` → `select_execution_mode`.
-6. Edit `INGRESS_OVERLAY` → `evaluate_prompt` / gate chain.
-7. Stub orchestrator stream → `planned_tool_call` (no API key).
-8. Optional live turn → real adapter + same registry/executor; ingress gate on user text first.
+| Variable | Default | Skips |
+|---|---|---|
+| `NB_LIVE_INGRESS` | on | §1 ingress + raw pair |
+| `NB_LIVE_POLICY` | on | §2 `admin_reset` + raw pair |
+| `NB_LIVE_MATH` | on | §3 `safe_add_proven` / `sloppy_add_proven` |
+| `NB_LIVE_MATH_A` / `NB_LIVE_MATH_B` | 11 / 33 | §3 operands (match Part 4 kernel if re-testing 2+3) |
+| `NB_LIVE_CALC` | on | §4 governed `calculate_result` multiply |
+| `NB_LIVE_RAW_CALC_CONTRAST` | off | §4b optional raw broken multiply |
 
-**Key insights:** (1) **`safe_add_proven`** — deterministic handler is the only source of the true sum and proof.
-(2) Policy **escalate** / **deny** stop handler execution on the tool path; ingress **non-ALLOW** stops before
-orchestration on the real API path — see `docs/architecture/governed-execution-pipeline.md` (**Hands-on proof** section).
+**Requires:** `pip install -r requirements.txt` (contracts under `packages/eXo_adapters/…` or editable install).
+**`nest-asyncio`** in requirements for Jupyter async in Parts 7–8.
 
-**Modules covered:** `src/policies/risk_gates`, `src/policies/middleware`, `src/tenancy/policy_overlay`,
+**Parts map:** 1–2 risk + scenarios; 3 tenant overlay; 4 tools; 5 execution mode; 6 ingress; 7 stub orchestrator; 8 live.
+
+**Cross-read:** `docs/architecture/governed-execution-pipeline.md` (**Hands-on proof**)
+
+**Modules:** `src/policies/risk_gates`, `src/policies/middleware`, `src/tenancy/policy_overlay`,
 `src/tools/registry`, `src/tools/executor`, `src/observability/metrics`, `src/runtime/capability_map`,
-`src/runtime/mode_selector`, `src/policies/ingress_gates`, `src/core/orchestrator`,
-`src/runtime/openai_agents_runtime`
+`src/runtime/mode_selector`, `src/policies/ingress_gates`, `src/core/orchestrator`, `src/runtime/openai_agents_runtime`
 
 ---
 
 ### Checks
 
-Module smoke checks — deterministic, no API key, run top-to-bottom in under 5 seconds each.
-Each check notebook includes **purpose, prerequisites, related tutorial, PASS criteria, and troubleshooting**
-in the first markdown cell (enterprise-friendly packaging, not just internal asserts).
+Fast module smoke checks. Each opens with **purpose, prerequisites, related tutorial, PASS means, troubleshooting**
+(generated by `build_checks.py`).
 
 | File | What it checks | PASS condition |
 |---|---|---|
-| `check_01_core_orchestrator.ipynb` | `Orchestrator` routes a HIGH-risk state-changing tool call through the deterministic path | `RUN_COMPLETE` event received + `TOOL_PROGRESS` shows `state=completed` |
-| `check_02_policy_middleware.ipynb` | `DeterministicFirstPolicyMiddleware` pre- and post-check paths | `before_tool_call` returns ALLOW for LOW-risk; `after_tool_call` returns `POLICY_POSTCHECK_FAILED` when success payload is missing |
-| `check_03_runtime_adapter.ipynb` | `OpenAIAgentsRuntimeAdapter` session lifecycle and turn events | `healthcheck` returns healthy; `run_turn` with `planned_tool_call` emits `TOOL_INTENT` event |
-| `check_04_tenant_and_limits.ipynb` | Quota and rate-limiter enforcement | `TenantQuotaManager` raises `TENANT_QUOTA_EXCEEDED`; in-memory and SQLite limiters both enforce sliding-window limits |
-
-**Modules covered per check:**
-
-- `check_01`: `src/core/orchestrator`, `src/policies/middleware`, `src/runtime/openai_agents_runtime`, `src/tools/executor`, `src/tools/registry`
-- `check_02`: `src/policies/middleware`, `src/schemas/tool_io`
-- `check_03`: `src/runtime/openai_agents_runtime`, `src/schemas/events`
-- `check_04`: `src/tenancy/quotas`, `src/tenancy/rate_limiter`
+| `check_01_core_orchestrator.ipynb` | HIGH-risk state-changing `planned_tool_call` through orchestrator | `run_complete` + `tool_progress` `state=completed`; `PASS: orchestrator deterministic tool path` |
+| `check_02_policy_middleware.ipynb` | `DeterministicFirstPolicyMiddleware` pre/post | `before_tool_call` allow; bad SUCCESS → `POLICY_POSTCHECK_FAILED`; `PASS: policy middleware checks` |
+| `check_03_runtime_adapter.ipynb` | `OpenAIAgentsRuntimeAdapter` health + planned tool intent | Healthy healthcheck + `tool_intent`; `PASS: runtime adapter planned tool-intent path` |
+| `check_04_tenant_and_limits.ipynb` | Quota + in-memory and SQLite rate limiters | `TENANT_QUOTA_EXCEEDED`; third request blocked on both limiters; `PASS: tenancy and limits checks` |
 
 ---
 
 ### Edge Cases
 
-Boundary condition and failure mode explorations. Fully deterministic — no API key, no external calls.
-Run top-to-bottom. Each notebook targets a specific edge behavior and asserts it is correct.
+Deterministic scenario notebooks. Final line: **`All edge_XX scenarios: PASS`**.
 
 ---
 
 #### `edge_01_ingress_policy_conflicts.ipynb`
 
-**Purpose:** Prove that the ingress gate chain is deterministic when multiple gates could fire for
-the same input — first non-ALLOW wins, always.
+**Purpose:** First non-ALLOW wins when multiple gates could apply.
 
-**API key required:** No — fully deterministic. Target runtime: under 3 minutes.
+**API key:** No. Target: **under 3 minutes**.
 
-**What you will do inside:**
-1. Configure an overlay where both the classifier (shadow mode) and a custom rule target the same phrase
-2. Run the prompt — show `CustomRulesGate` fires (shadow classifier passes through; only custom rule denies)
-3. Switch classifier to `enforce` mode — show `ClassifierHeuristicGate` fires first (it precedes `CustomRulesGate`)
-4. Use a phrase that only a custom rule matches (classifier threshold too high) — show only `CustomRulesGate` fires
-5. Use a prompt injection phrase also matched by a custom rule — show `PromptInjectionHeuristicGate` fires first (it precedes `CustomRulesGate`)
-6. Run a clean prompt — confirm `ALLOW` is returned with no gate firing
+**Scenarios (5):**
 
-**Key insight:** Gate ordering is fixed: `EmptyInput → MaxChars → ClassifierHeuristic → PromptInjectionHeuristic → CustomRules`.
-First non-ALLOW wins. Shadow mode never blocks — it marks `classifier_shadow_triggered=True` and passes through.
+1. Shadow classifier + custom rule both match → `ingress-custom-rules` DENY (shadow does not block)
+2. Enforce classifier → `ingress-classifier-heuristic` before custom rules
+3. Custom rule only (classifier threshold too high)
+4. Injection phrase + custom rule → `ingress-prompt-injection-heuristic` first
+5. Clean prompt → ALLOW
 
-**Modules covered:** `src/policies/ingress_gates`, `src/policies/ingress_profiles`
+**Gate order:** `EmptyInput → MaxChars → ClassifierHeuristic → PromptInjectionHeuristic → CustomRules`
+
+**Modules:** `src/policies/ingress_gates`, `src/policies/ingress_profiles`
 
 ---
 
 #### `edge_02_tool_error_envelopes.ipynb`
 
-**Purpose:** Prove that `DeterministicToolExecutor` is a safety boundary — regardless of how a tool
-fails, the model always receives a structured `ToolResult` envelope, never a raw exception.
+**Purpose:** `DeterministicToolExecutor` always returns typed `ToolResult` — no raw exceptions to the model.
 
-**API key required:** No — fully deterministic. Target runtime: under 2 minutes.
+**API key:** No. Target: **under 2 minutes**.
 
-**What you will do inside:**
-1. Register 3 tools: one raises `ValueError`, one raises `RuntimeError`, one returns a valid `dict`
-2. Execute the two failing tools through `executor.execute()` — assert `result.status == ToolStatus.ERROR` for both
-3. Inspect `result.error` (`NormalizedError`) — show `code`, `category`, `message`, `retryable`; confirm `result.result is None`
-4. Execute a tool that was never registered — show `error.code == "TOOL_NOT_FOUND"`
-5. Execute the success tool — show `result.status == SUCCESS`, `result.result` populated, `audit.correlation_id` non-empty
-6. Pass a `ToolCallContext` with `schema_version="0.9"` — show `error.code == "TOOL_CALL_VALIDATION_ERROR"` before the handler is even called
+**Parts:**
 
-**Key insight:** The executor is a safety boundary — exceptions never leak to the model raw.
-Every outcome is a typed `ToolResult` with `status`, `error`, and `audit` fields.
+| Part | Demonstrates |
+|---|---|
+| 1 | Register failing and success handlers |
+| 2 | `ValueError` / `RuntimeError` → `ERROR` envelopes |
+| 3 | `NormalizedError` fields; no stack in `result` |
+| 4 | Unregistered tool → `TOOL_NOT_FOUND` |
+| 5 | Success → `doubled=42`, `audit.correlation_id` |
+| 6 | `schema_version="0.9"` → `TOOL_CALL_VALIDATION_ERROR` |
 
-**Modules covered:** `src/tools/executor`, `src/tools/registry`, `src/schemas/tool_io`, `src/policies/middleware`
+**Note:** `BLOCKED`, `TIMEOUT`, `CANCELLED` share the same shape but are covered in policy/orchestrator paths elsewhere.
+
+**Modules:** `src/tools/executor`, `src/tools/registry`, `src/schemas/tool_io`, `src/policies/middleware`
 
 ---
 
 ## Rules for Adding a New Notebook
 
-1. Pick the right category: `tutorial_` / `check_` / `edge_`
-2. Pick the next sequential number **in that category** (check existing files)
-3. Name it: `<category>_<NN>_<slug>.ipynb`
-4. Add a builder function to the matching build script (`build_tutorials.py` or `build_checks.py`)
-5. Add a full entry to this README index — include purpose, API key requirement, and section-by-section breakdown
-6. For `check_` notebooks: keep them deterministic, no API key, assert + print PASS
-7. For `tutorial_` notebooks: narrative first — explain what and why before showing code
-8. Commit the build script + notebook + README update together
+1. Pick category: `tutorial_` / `check_` / `edge_`
+2. Next sequential number **in that category**
+3. Name: `<category>_<NN>_<slug>.ipynb`
+4. Add builder to `build_tutorials.py` or `build_checks.py`
+5. Update this README, `EVALUATOR_GUIDE.md` if evaluator-facing, and `docs/plans/notebook-standards.md` ownership table
+6. **Checks/edges:** deterministic, assert + explicit PASS lines, no API key
+7. **Tutorials:** story before code; skip guards for optional live sections
+8. Commit builder + `.ipynb` + doc updates together

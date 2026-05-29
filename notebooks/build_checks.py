@@ -15,13 +15,16 @@ Depends On:
  - textwrap
 Notes:
  - Generates notebooks idempotently; rerun after content updates.
- - Does not preserve existing cell outputs; re-run the notebook to refresh them.
+ - Does not preserve existing cell outputs; pass `--execute` to refresh them in one step.
  - Bootstrap cells prepend vendored `exo-brain-core-contracts` `src` when present under
    `packages/eXo_adapters/`.
 """
 
 from __future__ import annotations
 
+import argparse
+import subprocess
+import sys
 from pathlib import Path
 import textwrap
 
@@ -972,7 +975,34 @@ A `ToolCallContext` with `schema_version != "1.0"` fails validation before execu
     return nb
 
 
+def _execute_notebook(path: Path) -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "jupyter",
+            "nbconvert",
+            "--to",
+            "notebook",
+            "--execute",
+            str(path),
+            "--inplace",
+            "--ExecutePreprocessor.timeout=120",
+        ],
+        check=True,
+    )
+    print(f"executed: {path}")
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate check/edge notebooks from source.")
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Execute each notebook after writing (refreshes committed stdout evidence).",
+    )
+    args = parser.parse_args()
+
     outputs: list[tuple[Path, nbf.NotebookNode]] = [
         (NB_DIR / "check_01_core_orchestrator.ipynb", build_check_01_core_orchestrator()),
         (NB_DIR / "check_02_policy_middleware.ipynb", build_check_02_policy_middleware()),
@@ -984,6 +1014,8 @@ def main() -> None:
     for path, notebook in outputs:
         nbf.write(notebook, path)
         print(f"wrote: {path}")
+        if args.execute:
+            _execute_notebook(path)
 
 
 if __name__ == "__main__":
