@@ -13,6 +13,7 @@ name: release-candidate
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  EXO_ADAPTERS_PYPI_ONLY: "1"
 
 on:
   workflow_run:

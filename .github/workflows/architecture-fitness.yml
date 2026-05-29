@@ -17,6 +17,7 @@ name: architecture-fitness
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   COV_FAIL_UNDER: "95"
+  EXO_ADAPTERS_PYPI_ONLY: "1"
 
 on:
   pull_request:

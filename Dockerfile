@@ -7,6 +7,7 @@
 #  - requirements.txt
 # Notes:
 #  - Not a production or enterprise deployment template.
+#  - Adapter wheels install from PyPI only (EXO_ADAPTERS_PYPI_ONLY=1); no in-tree or sibling checkout.
 #  - Set EXO_ENV and secrets via orchestrator env, not baked into the image.
 
 FROM python:3.12-slim AS runtime
@@ -15,6 +16,7 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV EXO_ADAPTERS_PYPI_ONLY=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
