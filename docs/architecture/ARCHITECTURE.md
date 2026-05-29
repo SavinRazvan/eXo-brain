@@ -22,7 +22,7 @@ Notes:
 
 # System architecture (consolidated map)
 
-This document ties together **runtime layers** (`src/*`), the **modular monolith** contract (`src/modules/*`), **extracted packages**, the **data plane**, and **canonical plans** under `docs/plans/`. Use it as a single map; deep dives stay in the linked files.
+This document ties together **runtime layers** (`src/*`), the **modular monolith** contract (`src/modules/*`), **PyPI adapter packages**, the **data plane**, and **canonical plans** under `docs/plans/`. Use it as a single map; deep dives stay in the linked files.
 
 ---
 
@@ -32,7 +32,7 @@ This document ties together **runtime layers** (`src/*`), the **modular monolith
 |----------------|----------|
 | **Modular monolith** | Single deployable (FastAPI app); module boundaries and import rules in [`workspace-architecture.md`](workspace-architecture.md), enforced via [`src/modules/contracts.py`](../../src/modules/contracts.py) and [`scripts/architecture/validate_layers.py`](../../scripts/architecture/validate_layers.py). |
 | **Provider-neutral core** | Orchestration and policy avoid provider SDKs; adapters implement [`RuntimeAdapter`](../../src/runtime/runtime_adapter.py). See [`scan_forbidden_imports.py`](../../scripts/architecture/scan_forbidden_imports.py). |
-| **Northbound vs southbound** | **Northbound:** HTTP API (`src/api/*`) — **control plane** ingress plus optional **customer bridge** `/v1` (OpenAI-shaped, feature flag). **Southbound:** **provider runtime adapters** (`src/runtime/*`, `packages/exo-adapter-*`). Product vocabulary: [`governed-execution-positioning.md`](../strategy/governed-execution-positioning.md), [`control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md). See root [`README.md`](../../README.md) “Adapter vs gateway boundary”. |
+| **Northbound vs southbound** | **Northbound:** HTTP API (`src/api/*`) — **control plane** ingress plus optional **customer bridge** `/v1` (OpenAI-shaped, feature flag). **Southbound:** **provider runtime adapters** (`src/runtime/*` + PyPI `exo-adapter-*`). Product vocabulary: [`governed-execution-positioning.md`](../strategy/governed-execution-positioning.md), [`control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md). See root [`README.md`](../../README.md) “Adapter vs gateway boundary”. |
 | **Deterministic-first tools** | Model emits tool intent; side effects run through policy-wrapped deterministic execution ([`src/tools/executor.py`](../../src/tools/executor.py), [`src/policies/middleware.py`](../../src/policies/middleware.py)). |
 
 ### 1.1 Execution horizons (short vs long term)
@@ -227,7 +227,7 @@ flowchart TB
 | **4** | **Session and tenant runtime** | Per-tenant tool/agent/policy registries, session handles, run control, rate limits | `src/runtime/tenant_runtime.py`, `src/core/session_store.py`, `src/core/run_control_registry.py`, session routers |
 | **5** | **Control plane orchestration** | Provider-neutral turn pipeline, host adapter, orchestrator, background runtime / scheduler | `src/integration/`, `src/core/orchestrator.py`, `src/core/background_runtime.py` |
 | **6** | **Policy and tool execution** | Before/after tool policy, deterministic execution, sandbox, BYOC connector, MCP tools | `src/policies/middleware.py`, `src/tools/`, `src/mcp/` |
-| **7** | **Adapter plane** | Registry, factory loading, `RuntimeAdapter` implementations; portable packages | `src/config/provider_registry.py`, `src/runtime/adapter_factory.py`, `src/runtime/*adapter*`, `packages/exo-adapter-*`, contracts in `packages/exo-brain-core-contracts` |
+| **7** | **Adapter plane** | Registry, factory loading, `RuntimeAdapter` implementations; PyPI packages | `src/config/provider_registry.py`, `src/runtime/adapter_factory.py`, `src/runtime/*adapter*`, PyPI `exo-adapter-*` + `exo-brain-core-contracts` |
 | **8** | **Southbound providers** | Customer-chosen model endpoints and protocols (outside your governance boundary) | Network egress from adapter implementations only |
 | **9** | **Persistence** | SQLite default stores, optional shared control-state SQLite, BYOC stores; memory in tests | `src/persistence/`, `src/api/bootstrap.py` |
 | **10** | **Evidence and observability** | Structured logs, metrics, traces, tool/turn audit, optional Prometheus/OTLP, compliance evidence helpers | `src/observability/`, `src/audit/`, `src/compliance/` (bundle/evidence paths per `contracts.py`), `src/api/routers/prometheus_metrics.py`, `src/api/routers/audit.py` |
@@ -335,7 +335,7 @@ Each row is a **named module** with a **public service** and **allowed dependenc
 | Module | Owns (doctrine) | Public entry | Typical `src/` homes (also mapped in contracts) |
 |--------|-----------------|--------------|--------------------------------------------------|
 | **shared_kernel** | Immutable schemas, shared reason codes | `src.schemas` (+ identity contracts) | `src/schemas/`, `src/identity/contracts.py` (per `contracts.py`) |
-| **adapter_contracts** | Runtime + tool execution adapter interfaces | `RuntimeAdapter`, `ToolExecutionAdapter` surfaces | `packages/exo-brain-core-contracts`, `src/runtime/runtime_adapter.py`, `src/tools/execution_adapter.py` |
+| **adapter_contracts** | Runtime + tool execution adapter interfaces | `RuntimeAdapter`, `ToolExecutionAdapter` surfaces | PyPI `exo-brain-core-contracts`, `src/runtime/runtime_adapter.py`, `src/tools/execution_adapter.py` |
 | **identity_access** | Authn, API keys, RBAC, admin trust | `src.modules.identity_access.service` | `src/identity/`, `src/access_control/`, `src/api/middleware/auth.py` |
 | **tenant_governance** | Overlays, rate limits, quotas, entitlements, fairness | `src.modules.tenant_governance.service` | `src/tenancy/`, `src/policies/` |
 | **provider_management** | Provider registration, protocol typing, adapter lookup | `src.modules.provider_management.service` | `src/config/provider_registry.py`, `src/runtime/adapter_factory.py` |
@@ -408,16 +408,18 @@ flowchart BT
 
 ---
 
-## 7. Packages (repository layout)
+## 7. Adapter packages (PyPI)
 
-| Package | Role | Boundary |
+| Distribution | Role | Boundary |
 |---------|------|----------|
-| **`packages/exo-brain-core-contracts`** | Shared runtime/event/tool IO types | No provider SDK |
-| **`packages/exo-brain-adapter-sdk`** | Adapter author helpers + conformance checks | May depend on core-contracts only |
-| **`packages/exo-adapter-openai`** | OpenAI-oriented adapter implementation | Must not import `src.*` (enforced by forbidden-import scan) |
-| **`packages/exo-adapter-echo`** | Second adapter for parity/conformance tests | Same monorepo-import rule |
+| **`exo-brain-core-contracts`** | Shared runtime/event/tool IO types | No provider SDK |
+| **`exo-brain-adapter-sdk`** | Adapter author helpers + conformance checks | May depend on core-contracts only |
+| **`exo-adapter-openai`** | OpenAI-oriented adapter implementation | Must not import `src.*` (enforced in eXo_adapters + eXo-brain conformance tests) |
+| **`exo-adapter-echo`** | Second adapter for parity/conformance tests | Same portability rule |
 
-External install smoke: [`scripts/packages/external_install_smoke.py`](../../scripts/packages/external_install_smoke.py).
+**Authoring repo:** [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters). **Install:** `requirements.txt` lockstep pins (currently **0.1.2**).
+
+External install smoke (eXo-brain): [`scripts/packages/external_install_smoke.py`](../../scripts/packages/external_install_smoke.py).
 
 ---
 

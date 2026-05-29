@@ -27,7 +27,7 @@ Notes:
    - `gh pr view --json number,url,headRefName,state,mergeStateStatus`
 5. **Prepare + CI parity (before merge / push)** — **first four commands match `scripts/pr/prepare.py` `GATES` exactly (see `agent-workflow-procedures.md` §3):**
    - `python scripts/pr/check_testing_artifacts.py`
-   - `python -m pytest -q` (CI also enforces coverage threshold; use `pytest --cov=src ...` when touching risky areas)
+   - `python -m pytest -q` (CI also enforces **95%** `src/**` coverage via `COV_FAIL_UNDER`; use `pytest --cov=src --cov-fail-under=95` when touching risky areas)
    - `python scripts/architecture/validate_layers.py`
    - `python scripts/architecture/scan_forbidden_imports.py`
    - then **`python scripts/architecture/check_governance_consistency.py`** (CI job; run locally when changing governance/workflows)

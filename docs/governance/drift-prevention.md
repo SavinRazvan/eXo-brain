@@ -29,7 +29,7 @@ Order and commands: **`scripts/pr/prepare.py`** (`GATES`):
 
 Additionally when changing governance, workflows, `.cursor/`, `.agents/`, or tracked policy docs: **`python scripts/architecture/check_governance_consistency.py`**.
 
-Substantive `src/**` work: project standard **`pytest --cov=src --cov-fail-under=100`** before merge (see `AGENTS.md`).
+Substantive `src/**` work: project standard **`pytest --cov=src --cov-fail-under=95`** before merge (see `AGENTS.md`; CI enforces the same floor via `COV_FAIL_UNDER` in `architecture-fitness.yml`).
 
 ## After changing workflow gates or artifact paths
 

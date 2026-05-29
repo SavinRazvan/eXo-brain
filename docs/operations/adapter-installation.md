@@ -18,10 +18,10 @@ Notes:
 
 | Install surface | Contents |
 |-----------------|----------|
-| `pip install -r requirements.txt` | Control plane + **`exo-brain-core-contracts==0.1.1`** (no provider SDKs) |
-| `pip install -r requirements-adapters.txt` | **`exo-brain-adapter-sdk`**, **`exo-adapter-openai`**, **`exo-adapter-echo`** at **0.1.1** |
+| `pip install -r requirements.txt` | Control plane + all four adapter distributions (lockstep pin in file) |
+| `pip install -r requirements-adapters.txt` | All four adapter distributions only (same pins as above) |
 
-Development / CI without PyPI: `bash scripts/dev/install_adapter_dependencies.sh` (PyPI first, editable fallback from `packages/repo_for_pipy/`).
+Development / CI: `bash scripts/dev/install_adapter_dependencies.sh` (PyPI via `requirements.txt`).
 
 Docker images run the same script during build.
 
@@ -41,7 +41,7 @@ Register via `POST /providers` (see [`foundation-tier-adoption-checklist.md`](..
 
 ## Version pairing
 
-Adapter distributions **0.1.1** are tested with eXo-brain **v0.1.0+**. See [`adapter-compatibility-matrix.md`](../strategy/adapter-compatibility-matrix.md) before bumping pins.
+Adapter distributions are tested with eXo-brain **v0.1.0+**. See [`adapter-compatibility-matrix.md`](../strategy/adapter-compatibility-matrix.md) before bumping pins.
 
 ## Maintainer releases
 
@@ -59,7 +59,7 @@ export EXO_RUN_LIVE_OPENAI=1
 pytest tests/modules/runtime/test_openai_live_integration.py -q
 ```
 
-## OpenAI adapter behavior (0.1.1+)
+## OpenAI adapter behavior (0.1.2+)
 
 - **Governed tools:** `FunctionTool` bodies delegate to eXo-brain’s executor (no duplicate `TOOL_INTENT` from the Agents stream when registry + executor are wired).
 - **After orchestrator tool execution:** `submit_tool_results` calls the model again with formatted tool results when `OPENAI_API_KEY` is set.

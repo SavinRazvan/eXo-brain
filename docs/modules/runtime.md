@@ -7,7 +7,7 @@ Used By:
  - Maintainers modifying provider adapters and runtime mode selection
 Depends On:
  - src/runtime/
- - packages/eXo_adapters/ (published adapter source; in-tree copy)
+ - SavinRazvan/eXo_adapters (PyPI)
  - tests/modules/runtime/
  - tests/packages/
 Notes:
@@ -26,17 +26,17 @@ Notes:
 ## Primary Code Paths
 
 - `src/runtime/runtime_adapter.py` — canonical adapter interface
-- `src/runtime/adapter_factory.py` — `adapter_class_ref` resolution (in-repo + PyPI entry points)
+- `src/runtime/adapter_factory.py` — `adapter_class_ref` resolution (PyPI entry points)
 - `src/runtime/capability_map.py` — capability handshake for routing
 - `src/runtime/mode_selector.py` — deterministic vs provider-native mode (capability + policy)
 - `src/runtime/tenant_runtime.py` — per-tenant registry composition (tools, agents, adapter instance)
 - `src/runtime/tool_wiring.py` — bind tools to runtime execution
-- `src/runtime/openai_agents_runtime.py` — in-repo OpenAI Agents SDK adapter (may delegate to packaged `exo-adapter-openai`)
+- `src/runtime/openai_agents_runtime.py` — re-export shim for `exo-adapter-openai`
 - `src/runtime/openai_compatible_runtime.py`, `src/runtime/custom_runtime.py` — additional adapter shapes
 - `src/modules/provider_management/service.py` — provider registration persistence seam
 - `src/modules/session_runtime/service.py` — session create + runtime cache (`src/api/routers/sessions.py`)
 
-**Packaged adapters (authoritative releases):** [`packages/eXo_adapters/`](../../packages/eXo_adapters/) → PyPI (`exo-brain-adapter-sdk`, `exo-adapter-openai`, `exo-adapter-echo`, etc.). Canonical `adapter_class_ref` table: [adapter-installation.md](../operations/adapter-installation.md).
+**Packaged adapters (authoritative releases):** [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) on PyPI. Canonical `adapter_class_ref` table: [adapter-installation.md](../operations/adapter-installation.md).
 
 ## Primary Tests
 
@@ -52,7 +52,7 @@ Notes:
   - `submit_tool_results` (orchestrator-owned continuation — see [submit-tool-results-orchestrator-only.md](../decisions/submit-tool-results-orchestrator-only.md))
   - `get_capabilities`
   - `healthcheck`
-- Provider-specific code stays in **adapter modules** only (in-repo or PyPI); core/policies/tools must not import SDKs.
+- Provider-specific code stays in **adapter packages** (PyPI) or thin **shims** under `src/runtime/*`; core/policies/tools must not import SDKs.
 - Mode selection is **capability + policy** driven, never provider-name hardcoded.
 - Runtime adapters normalize provider output to internal events; they do **not** own ingress or tool policy decisions.
 

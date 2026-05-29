@@ -51,7 +51,7 @@ Maintainer-facing contracts for the **modular monolith** under `src/`. Customer 
 | Audit trail | `src/audit/` | `tests/modules/audit/` | Chain + signed bundles |
 | MCP | `src/mcp/` | `tests/modules/mcp/` | Optional tool transport adapters |
 
-Published **provider runtime adapters:** [`packages/eXo_adapters/`](../../packages/eXo_adapters/) (PyPI); load via `src/runtime/adapter_factory.py` — see [`adapter-installation.md`](../operations/adapter-installation.md).
+Published **provider runtime adapters:** [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) on PyPI; load via `src/runtime/adapter_factory.py` — see [`adapter-installation.md`](../operations/adapter-installation.md).
 
 ## Module doc template (required sections)
 

@@ -6,7 +6,7 @@ Used By:
  - Maintainers splitting the monorepo
  - Implementers in the adapter repo
 Depends On:
- - **eXo_adapters** repository (`packages/*` layout); optional local copy under `packages/` or `moving_to_adapters_project/packages/` for dev
+ - **eXo_adapters** repository (`packages/*` layout inside that repo)
  - scripts/packages/external_install_smoke.py
  - tests/packages/*
  - src/runtime/adapter_factory.py
@@ -18,7 +18,7 @@ Notes:
 
 # Adapter packages extraction handoff (`packages/` → **eXo_adapters**)
 
-**Status (2026-05-29):** **Core extraction done.** Portable packages live in [`packages/eXo_adapters/`](../../packages/eXo_adapters/) (in-tree copy of [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters)); eXo-brain pins **PyPI 0.1.1** in `requirements.txt` / `requirements-adapters.txt`. **Completion summary:** [docs/handoffs/exo_adapters_pypi_handoff.md](../handoffs/exo_adapters_pypi_handoff.md). **Operators:** [adapter-installation.md](../operations/adapter-installation.md). **Open:** §9 checklist items for optional removal of in-tree `packages/` and factory fallback cleanup.
+**Status (2026-05-29):** **Complete.** Adapter source lives in [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters); eXo-brain consumes **PyPI lockstep** pins in `requirements.txt` / `requirements-adapters.txt` (no in-tree `packages/`). **Completion summary:** [docs/handoffs/exo_adapters_pypi_handoff.md](../handoffs/exo_adapters_pypi_handoff.md). **Operators:** [adapter-installation.md](../operations/adapter-installation.md).
 
 ---
 
@@ -119,33 +119,25 @@ Assertions inside the smoke script today:
 
 ## 5. Control plane coupling (eXo-brain — what you must preserve)
 
-### 5.1 `src/runtime/adapter_factory.py`
+### 5.1 `src/runtime/adapter_factory.py` (current — post-extraction)
 
 - **Canonical class refs:**
   - `exo_adapter_openai.runtime.OpenAIAgentsRuntimeAdapter`
   - `exo_adapter_echo.runtime.EchoRuntimeAdapter`
-- **Fallback chains** (try in order until one loads):
-  - OpenAI: package class → `src.runtime.openai_agents_runtime.OpenAIAgentsRuntimeAdapter` → `exo_adapter_openai.OpenAIAgentsRuntimeAdapter`
-  - Echo: package class → `src.runtime.openai_compatible_runtime.OpenAICompatibleRuntimeAdapter`
+- **Loading:** `importlib` only — **no in-tree adapter fallback**. Missing wheels raise `ImportError` with install hints (`requirements.txt` / `install_adapter_dependencies.sh`).
 - **Type check:** `_load_adapter_class` uses **`issubclass(cls, RuntimeAdapter)`** where **`src.runtime.runtime_adapter.RuntimeAdapter`** is the **same class object** as **`exo_brain_core_contracts.runtime_adapter.RuntimeAdapter`** (re-export; see **STP-W4-002**).
 
-**Remaining technical debt (post–STP-W4-003):**
+**Remaining control-plane-only envelopes (not in contracts package):**
 
-- **`src/schemas/outputs.py`**, **`workflow_schema.py`**, and other non-runtime envelopes remain in-tree only (no contracts package today).
-- If `exo_adapter_openai` is **not** importable (typical bare venv), the factory **falls back** through **`_ADAPTER_LOAD_FALLBACKS`** to the **in-tree** `OpenAIAgentsRuntimeAdapter` / echo-compatible adapter.
+- **`src/schemas/outputs.py`**, **`workflow_schema.py`**, and other non-runtime envelopes remain in-tree only.
 
-**Extraction exit criterion:** With **only** pip-installed packages (no in-tree duplicate), `load_adapter("exo_adapter_openai.runtime.OpenAIAgentsRuntimeAdapter", provider_id=...)` must succeed and orchestration must work.
+**Extraction exit criterion:** **Met** — with pip-installed packages only, `load_adapter("exo_adapter_openai.runtime.OpenAIAgentsRuntimeAdapter", provider_id=...)` succeeds and orchestration works.
 
-### 5.2 In-tree duplicates (related, not in `packages/`)
+### 5.2 Control-plane re-exports (not duplicate adapters)
 
 - `src/runtime/runtime_adapter.py` — **re-exports** published `RuntimeAdapter` / `SessionHandle` (no parallel ABC).
-- `src/schemas/events.py`, `src/schemas/tool_io.py`, `src/runtime/capability_map.py` — **re-exports** published envelopes (**STP-W4-003**).
-- `src/runtime/openai_agents_runtime.py` — **in-tree** OpenAI adapter used when package import fails or as fallback.
-
-**Post-extraction strategy (choose one):**
-
-1. Keep in-tree implementations as **deprecated** shims until package-only path is proven; then delete.  
-2. Make in-tree modules **thin wrappers** that delegate to installed packages (single source of truth).
+- `src/schemas/events.py`, `src/schemas/tool_io.py`, `src/runtime/capability_map.py` — **re-exports** published envelopes (**STP-W4-003**); drift guarded by `tests/modules/runtime/test_contract_drift.py`.
+- `src/runtime/openai_agents_runtime.py` — **thin shim** re-exporting `exo_adapter_openai.runtime.OpenAIAgentsRuntimeAdapter` (stable import path for notebooks/tests).
 
 ### 5.3 Provider registration / hydration
 
@@ -155,29 +147,29 @@ No change to **API shape** required for extraction if **dotted class paths** sta
 
 ### 5.4 Architecture enforcement in eXo-brain
 
-- `scripts/architecture/scan_forbidden_imports.py` — scans `packages/exo-adapter-*/src` for `src.*` imports. After removal of `packages/`, **delete or narrow** this branch.
-- `.github/workflows/architecture-fitness.yml` — job `package_workspace_tests` runs `pytest tests/packages`; replace with **published-package** smoke or **matrix job** against `ai-adapters-sdk` checkout.
+- `scripts/architecture/scan_forbidden_imports.py` — **narrowed** after extraction (no in-tree `packages/exo-adapter-*/src` scan).
+- `.github/workflows/architecture-fitness.yml` — installs adapters from PyPI via `install_adapter_dependencies.sh`; runs `pytest tests/packages` against **installed** wheels.
 
 ---
 
-## 6. Documentation and matrices to update after move
+## 6. Documentation and matrices (post-move — **done 2026-05-29**)
 
-| Doc | Update |
+| Doc | Status |
 |-----|--------|
-| `docs/strategy/adapter-compatibility-matrix.md` | §1 “Published packages” → repo URL + PyPI; CI anchors. |
-| `docs/strategy/adapter-strategy.md` | Paths `packages/*` → new repo. |
-| `docs/architecture/ARCHITECTURE.md` | Adapter plane points to external repo + pins. |
-| `README.md` | “Transitional `packages/`” → “install adapters from …”. |
-| `docs/strategy/traceability-matrix.md` | Code anchors for adapter split. |
+| `docs/strategy/adapter-compatibility-matrix.md` | Updated — PyPI **0.1.2**, eXo_adapters repo |
+| `docs/strategy/adapter-strategy.md` | Updated — extraction complete |
+| `docs/architecture/ARCHITECTURE.md` | Updated — PyPI adapter plane |
+| `README.md` | Updated — PyPI install path |
+| `docs/strategy/traceability-matrix.md` | Updated — no transitional `packages/` |
 
 ---
 
-## 7. Suggested `ai-adapters-sdk` repository layout
+## 7. eXo_adapters repository layout (actual)
 
 Single repo, multiple distributions (matches current mental model):
 
 ```text
-ai-adapters-sdk/
+eXo_adapters/
   packages/exo-brain-core-contracts/   # or flatten to exo-brain-core-contracts/ at root
   packages/exo-brain-adapter-sdk/
   packages/exo-adapter-openai/
@@ -207,11 +199,11 @@ Alternatively: **one** `pyproject.toml` with **workspace** / multiple packages (
 
 1. [x] New repo created; all sources + tests + smoke script migrated; CI green (`packages/eXo_adapters/`).  
 2. [x] `external_install_smoke` / adapter repo smoke passes (`packages/eXo_adapters/scripts/external_install_smoke.py`).  
-3. [ ] eXo-brain **`load_adapter`** uses package path **without** relying on in-tree fallback (or fallback explicitly deprecated).  
+3. [x] eXo-brain **`load_adapter`** uses package path **without** relying on in-tree fallback (or fallback explicitly deprecated).  
 4. [x] **Published runtime type identity** — **STP-W4-002** + **STP-W4-003** (contracts **0.1.1+**).  
-5. [x] `requirements.txt` / `requirements-adapters.txt` pin PyPI **0.1.1**; Docker uses `install_adapter_dependencies.sh`.  
-6. [ ] Remove `packages/eXo_adapters/` from eXo-brain (optional: dev uses sibling clone); keep or slim `tests/packages`.  
-7. [ ] Narrow `scan_forbidden_imports` / CI `packages/**` triggers once vendored tree is dev-only.  
+5. [x] `requirements.txt` / `requirements-adapters.txt` pin PyPI **0.1.2**; Docker uses `install_adapter_dependencies.sh`.  
+6. [x] Remove `packages/eXo_adapters/` from eXo-brain; dev uses sibling clone or PyPI.  
+7. [x] Narrow `scan_forbidden_imports` / CI `packages/**` triggers once vendored tree is dev-only.  
 8. [x] Operator docs: `adapter-installation.md`, `adapter-repos-and-pypi.md`, handoff status doc.
 
 ---
@@ -220,10 +212,10 @@ Alternatively: **one** `pyproject.toml` with **workspace** / multiple packages (
 
 | Distribution | Version (today) | `requires-python` | Runtime deps (declared) |
 |--------------|-----------------|-------------------|-------------------------|
-| `exo-brain-core-contracts` | 0.1.1+ | >=3.11 | — |
-| `exo-brain-adapter-sdk` | 0.1.1 | >=3.11 | `exo-brain-core-contracts` |
-| `exo-adapter-openai` | 0.1.1 | >=3.11 | `exo-brain-core-contracts`, `openai`, `openai-agents` |
-| `exo-adapter-echo` | 0.1.1 | >=3.11 | `exo-brain-core-contracts` |
+| `exo-brain-core-contracts` | 0.1.2 | >=3.11 | — |
+| `exo-brain-adapter-sdk` | 0.1.2 | >=3.11 | `exo-brain-core-contracts` |
+| `exo-adapter-openai` | 0.1.2 | >=3.11 | `exo-brain-core-contracts`, `openai`, `openai-agents` |
+| `exo-adapter-echo` | 0.1.2 | >=3.11 | `exo-brain-core-contracts` |
 
 ---
 
@@ -231,7 +223,7 @@ Alternatively: **one** `pyproject.toml` with **workspace** / multiple packages (
 
 | Date | Change |
 |------|--------|
-| 2026-03-27 | **STP-W4-003:** Contracts **0.1.1** — `RuntimeEvent` factories + `blocked_result` in package; `src/schemas/events.py`, `tool_io.py`, `src/runtime/capability_map.py` re-export; handoff §2.1 + §9 item 4 + version table. |
+| 2026-05-29 | PyPI-only eXo-brain: in-tree `packages/` removed; lockstep **0.1.2**; checklist §9 items 3, 5, 7 closed; §10 version table updated. |
 | 2026-03-27 | **STP-W4-002:** `requirements.txt` + Dockerfile install editable `exo-brain-core-contracts`; `runtime_adapter.py` re-exports published ABC; factory uses single `issubclass`; checklist §9 item 4 closed for RuntimeAdapter identity; §5.1–5.2 refreshed. |
 | 2026-03-27 | Factory: `_is_acceptable_runtime_adapter_subclass` accepts published `exo_brain_core_contracts.RuntimeAdapter` when importable (STP-W4-001); handoff §5.1 debt note refreshed. |
 | 2026-03-24 | Initial handoff: full inventory, install order, smoke script contract, factory coupling, dual-ABC debt, migration phases. |

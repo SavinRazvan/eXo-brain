@@ -46,7 +46,7 @@ Use `docs/archive/README.md` for the archive metadata contract.
 
 | Archived file | Canonical replacement |
 |---|---|
-| `docs/archive/handoffs/exo_adapters_pypi_handoff-mission.md` | `docs/handoffs/exo_adapters_pypi_handoff.md`, `packages/eXo_adapters/README.md`, `docs/operations/adapter-installation.md` |
+| `docs/archive/handoffs/exo_adapters_pypi_handoff-mission.md` | `docs/handoffs/exo_adapters_pypi_handoff.md`, [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters), `docs/operations/adapter-installation.md` |
 
 ## Operations Archives
 
