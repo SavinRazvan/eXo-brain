@@ -34,27 +34,16 @@ _archive/*
 _archive/
 .tmp_tools/*
 .tmp_tools
-# Top-level eXo_adapters/ (legacy sibling-clone fallback path) — always ignored.
+# Top-level eXo_adapters/ (optional sibling clone for adapter development) — always ignored.
 eXo_adapters/
 
-# packages/eXo_adapters/ holds a local sibling clone of the (private) eXo_adapters repo.
-# Only the vendored exo-brain-core-contracts subtree is tracked for public CI.
-# Everything else under packages/eXo_adapters/ is ignored to prevent accidental publishing.
-packages/eXo_adapters/*
-!packages/eXo_adapters/packages/
-packages/eXo_adapters/packages/*
-!packages/eXo_adapters/packages/exo-brain-core-contracts/
-!packages/eXo_adapters/packages/exo-brain-adapter-sdk/
-!packages/eXo_adapters/packages/exo-adapter-echo/
-!packages/eXo_adapters/packages/exo-adapter-openai/
-packages/eXo_adapters/packages/**/**.egg-info/
+# Legacy local adapter trees — do not commit
+packages/
+packages/eXo_adapters_old/
 
 # Local Cursor / agent IDE config — not published (keep on disk only)
 .agents/
 .cursor/
-
-# Legacy local adapter clone — do not commit (nested .agents/.cursor/.local)
-packages/eXo_adapters_old/
 
 # private research corpus (kept off-git by maintainer policy)
 _research_results/

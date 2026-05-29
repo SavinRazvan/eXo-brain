@@ -1,0 +1,13 @@
+{
+  "venvPath": "..",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "basic",
+  "extraPaths": [
+    "..",
+    "../../eXo_adapters/packages/exo-brain-core-contracts/src",
+    "../../eXo_adapters/packages/exo-brain-adapter-sdk/src",
+    "../../eXo_adapters/packages/exo-adapter-openai/src",
+    "../../eXo_adapters/packages/exo-adapter-echo/src"
+  ]
+}

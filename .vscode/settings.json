@@ -1,0 +1,21 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "jupyter.notebookFileRoot": "${workspaceFolder}",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}",
+    "${workspaceFolder}/../eXo_adapters/packages/exo-brain-core-contracts/src",
+    "${workspaceFolder}/../eXo_adapters/packages/exo-brain-adapter-sdk/src",
+    "${workspaceFolder}/../eXo_adapters/packages/exo-adapter-openai/src",
+    "${workspaceFolder}/../eXo_adapters/packages/exo-adapter-echo/src"
+  ],
+  "basedpyright.analysis.extraPaths": [
+    "${workspaceFolder}",
+    "${workspaceFolder}/../eXo_adapters/packages/exo-brain-core-contracts/src",
+    "${workspaceFolder}/../eXo_adapters/packages/exo-brain-adapter-sdk/src",
+    "${workspaceFolder}/../eXo_adapters/packages/exo-adapter-openai/src",
+    "${workspaceFolder}/../eXo_adapters/packages/exo-adapter-echo/src"
+  ],
+  "basedpyright.analysis.venvPath": ".",
+  "basedpyright.analysis.venv": ".venv",
+  "basedpyright.analysis.diagnosticMode": "workspace"
+}
