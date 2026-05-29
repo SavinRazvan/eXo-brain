@@ -3,6 +3,7 @@ File: customer-api-integration-guide.md
 Path: docs/api/customer-api-integration-guide.md
 Role: Tier-aware API contract documentation for customer onboarding across chat/agents/workflow and governance ingress surfaces.
 Used By:
+ - docs/api/README.md
  - docs/plans/docs-inventory-master.md
  - docs/strategy/traceability-matrix.md
  - README.md
@@ -15,6 +16,7 @@ Depends On:
  - src/api/routers/audit.py
  - src/api/routers/providers.py
  - src/api/routers/openai_gateway.py
+ - src/api/routers/sessions.py
  - src/observability/telemetry_export.py
  - src/api/routers/prometheus_metrics.py
  - src/api/bootstrap.py
@@ -28,6 +30,7 @@ Depends On:
  - docs/strategy/foundation-tier-adoption-checklist.md
 Notes:
  - Keep tier labels in sync with docs/strategy/entitlement-matrix.md.
+ - Tenant-scoped routes use the /tenants mount prefix (see docs/api/README.md).
  - All safety and governance controls are server-side and non-bypassable regardless of tier.
  - **Telemetry export — partial (productized baseline):** optional OTLP HTTP traces/metrics via env (`telemetry_export.py`, wired from `bootstrap.py`) and optional `GET /metrics` (Prometheus text, minimal `exo_build_info`) when `EXO_ENABLE_PROMETHEUS_METRICS=1` (`prometheus_metrics.py`). Not a full enterprise observability product: no guaranteed collector E2E in CI, limited metric catalog vs roadmap. See §9.2.
 -->
@@ -38,8 +41,8 @@ Notes:
 
 - Status: `active`
 - Owner: `Savin I. Razvan`
-- Version: `1.8.0`
-- Last Reviewed: `2026-04-12`
+- Version: `1.9.0`
+- Last Reviewed: `2026-05-29`
 - Review Cadence: `on architecture change`
 
 ---
@@ -54,7 +57,18 @@ Integration boundary:
 - customers can keep provider credentials and **provider runtime adapter** configuration in their own deployment environment (outbound connectivity to models),
 - eXo-brain owns the **control plane** governed execution boundary: policy, deterministic tool execution, audit, runtime control, and operational visibility.
 
-**Vocabulary (enterprise / partner conversations):** Do not overload “adapter.” **Provider runtime adapters** are how the *platform* reaches providers (`packages/*`, `src/runtime/*`). **Customer bridge** surfaces are how *your* apps call the control plane with less integration friction — today optional **`POST /v1/chat/completions`** (§4.0); a future thin SDK must share the same governance spine. Canonical definitions: [`docs/strategy/governed-execution-positioning.md`](../strategy/governed-execution-positioning.md), [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
+**Vocabulary (enterprise / partner conversations):** Do not overload “adapter.” **Provider runtime adapters** are how the *platform* reaches providers (published wheels under [`packages/eXo_adapters/`](../../packages/eXo_adapters/) / PyPI; in-repo wiring in `src/runtime/*` — see [`adapter-installation.md`](../operations/adapter-installation.md)). **Customer bridge** surfaces are how *your* apps call the control plane with less integration friction — today optional **`POST /v1/chat/completions`** (§4.0); a future thin SDK must share the same governance spine. Canonical definitions: [`docs/strategy/governed-execution-positioning.md`](../strategy/governed-execution-positioning.md), [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
+
+### 1.2 URL layout
+
+| Scope | Prefix | Examples |
+|---|---|---|
+| **System** | (root) | `GET /health`, `GET /ready`; optional `GET /metrics` when `EXO_ENABLE_PROMETHEUS_METRICS=1` |
+| **Global control plane** | (root) | `POST /providers`, `POST /admin/keys` |
+| **Tenant-scoped** | `/tenants` | `POST /tenants/{tenant_id}/sessions`, `POST /tenants/{tenant_id}/sessions/{session_id}/turns` |
+| **Customer bridge** | `/v1` | `POST /v1/chat/completions` (feature-flagged) |
+
+OpenAPI is available in development/test when enabled (`EXO_ENABLE_OPENAPI` or default `EXO_ENV=development`). Index: [`docs/api/README.md`](README.md).
 
 ### 1.1 Self-serve governance documentation spine
 
@@ -115,12 +129,23 @@ When **`EXO_ENABLE_OPENAI_COMPAT_GATEWAY=1`**, the platform exposes a **non-stre
 
 Full URL map, middleware order, and non-goals: [`docs/archive/plans/northbound-v1-gateway.md`](../archive/plans/northbound-v1-gateway.md).
 
-### 4.1) SSE Turn
+### 4.1) Sessions (Foundation)
+
+Create and inspect sessions before submitting turns (required for SSE, WebSocket, and the OpenAI gateway header).
+
+```
+POST /tenants/{tenant_id}/sessions
+GET  /tenants/{tenant_id}/sessions/{session_id}
+```
+
+**Create body** (abbreviated): `agent_id`, `provider_id`, optional `correlation_id`. Returns `session_id`.
+
+### 4.2) SSE Turn
 
 Submit a turn and receive a streaming Server-Sent Events response.
 
 ```
-POST /{tenant_id}/sessions/{session_id}/turns
+POST /tenants/{tenant_id}/sessions/{session_id}/turns
 Content-Type: application/json
 Authorization: Bearer <token>
 Accept: text/event-stream
@@ -150,22 +175,22 @@ Accept: text/event-stream
 
 If the gate chain returns `deny`, the stream emits a `403` response with a reason code. If a timeout occurs with `fail_closed` mode, the turn is rejected. With `fail_open`, the turn proceeds and a budget alert event is emitted.
 
-#### 4.1.1) Non-ALLOW ingress vs tool policy (same progression rule)
+#### 4.2.1) Non-ALLOW ingress vs tool policy (same progression rule)
 
 For both **ingress** decisions and **tool-level** policy decisions on the governed turn path, any outcome **other than `allow`** means **that step does not progress** to the next stage in the sense of executing the risky work:
 
 - **Ingress** (`allow` / `deny` / `escalate`): a **non-`allow`** ingress decision **stops the HTTP/SSE/WebSocket turn** before model streaming and before `Orchestrator.run_turn` side effects (see [`docs/architecture/governed-execution-pipeline.md`](../architecture/governed-execution-pipeline.md)). **`escalate`** here is a **review signal** with reason metadata in audit/events; it is **not** an approval callback API.
 - **Tool policy** (after a tool intent is emitted): a **non-`allow`** decision yields a **blocked tool result** submitted back through the runtime adapter; the registered deterministic handler does **not** run. **`escalate`** carries **`review_required`** / channel metadata for operators; end-to-end **approve/reject** action APIs are **planned** (traceability matrix: Human approval workflow surface).
 
-### 4.2) WebSocket Turn
+### 4.3) WebSocket Turn
 
 ```
-WS /{tenant_id}/sessions/{session_id}/ws
+WS /tenants/{tenant_id}/sessions/{session_id}/ws
 ```
 
 Semantics are equivalent to the SSE path. The WebSocket connection receives the same typed event sequence.
 
-### 4.3) Ingress Profiles
+### 4.4) Ingress Profiles
 
 The ingress gate chain is profile-scoped. Available predefined profiles:
 
@@ -175,7 +200,7 @@ The ingress gate chain is profile-scoped. Available predefined profiles:
 | `strict` | Moderate | Higher-sensitivity workloads |
 | `hardened` | Maximum | Compliance-sensitive or high-risk sessions |
 
-Profile is set via the tenant policy overlay (`PUT /{tenant_id}/policy`). The active profile is reflected in `turn_ingress_decision` audit events and ingress budget observations.
+Profile is set via the tenant policy overlay (`PUT /tenants/{tenant_id}/policy`). The active profile is reflected in `turn_ingress_decision` audit events and ingress budget observations.
 
 ---
 
@@ -202,17 +227,18 @@ Provider registration is metadata for governed execution and routing. In product
 Manage tenant-scoped tools. All tool registration paths enforce upload policy gates (size, dependency scan).
 
 ```
-POST   /{tenant_id}/tools                          # register tool
-POST   /{tenant_id}/tools/upload                   # upload tool package
-POST   /{tenant_id}/tools/import-schema            # import tool schema from URL
-GET    /{tenant_id}/tools                          # list tools
-GET    /{tenant_id}/tools/{name}                   # get tool
-DELETE /{tenant_id}/tools/{name}                   # unregister tool
-GET    /{tenant_id}/tools/versions/{tool_name}     # list versions
-GET    /{tenant_id}/tools/validate/{tool_name}     # validate version
-POST   /{tenant_id}/tools/{name}/deactivate/{ver}  # deactivate version
-POST   /{tenant_id}/tools/{name}/rollback          # rollback to prior version
-DELETE /{tenant_id}/tools/{name}/versions/{ver}    # revoke version
+POST   /tenants/{tenant_id}/tools                                    # register tool
+POST   /tenants/{tenant_id}/tools/upload                             # upload tool package
+POST   /tenants/{tenant_id}/tools/import-schema                      # import tool schema from URL
+GET    /tenants/{tenant_id}/tools                                    # list tools
+GET    /tenants/{tenant_id}/tools/{name}                             # get tool
+DELETE /tenants/{tenant_id}/tools/{name}                             # unregister tool
+GET    /tenants/{tenant_id}/tools/versions/{tool_name}               # list versions
+GET    /tenants/{tenant_id}/tools/version/{tool_name}                # alias (singular path)
+GET    /tenants/{tenant_id}/tools/validate/{tool_name}               # validate active version
+POST   /tenants/{tenant_id}/tools/versions/{tool_name}/{version}/deactivate
+POST   /tenants/{tenant_id}/tools/versions/{tool_name}/rollback      # body: target_version
+DELETE /tenants/{tenant_id}/tools/versions/{tool_name}/{version}     # revoke; ?force=true if active
 ```
 
 Tool state changes produce audit events in the turn audit chain.
@@ -224,14 +250,14 @@ Tool state changes produce audit events in the turn audit chain.
 Manage tenant-scoped agents. Advanced routing and fallback controls are Pro-tier.
 
 ```
-POST   /{tenant_id}/agents                  # register agent (Foundation)
-GET    /{tenant_id}/agents                  # list agents (Foundation)
-GET    /{tenant_id}/agents/{agent_id}       # get agent (Foundation)
-DELETE /{tenant_id}/agents/{agent_id}       # unregister agent (Foundation)
-POST   /{tenant_id}/agents/routes           # add handoff route (Pro)
-GET    /{tenant_id}/agents/routes           # list handoff routes (Pro)
-POST   /{tenant_id}/agents/fallback         # set fallback policy (Pro)
-GET    /{tenant_id}/agents/fallback         # list fallback policies (Pro)
+POST   /tenants/{tenant_id}/agents                  # register agent (Foundation)
+GET    /tenants/{tenant_id}/agents                  # list agents (Foundation)
+GET    /tenants/{tenant_id}/agents/{agent_id}       # get agent (Foundation)
+DELETE /tenants/{tenant_id}/agents/{agent_id}       # unregister agent (Foundation)
+POST   /tenants/{tenant_id}/agents/routes           # add handoff route (Pro)
+GET    /tenants/{tenant_id}/agents/routes           # list handoff routes (Pro)
+POST   /tenants/{tenant_id}/agents/fallback         # set fallback policy (Pro)
+GET    /tenants/{tenant_id}/agents/fallback         # list fallback policies (Pro)
 ```
 
 Routing/fallback operations are gated by `entitlement_decision` at the API layer.
@@ -245,8 +271,8 @@ Routing/fallback operations are gated by `entitlement_decision` at the API layer
 Get and set the tenant's active governance policy, including ingress profile, quota, and custom gate rules.
 
 ```
-GET  /{tenant_id}/policy     # get current policy overlay
-PUT  /{tenant_id}/policy     # set/update policy overlay
+GET  /tenants/{tenant_id}/policy     # get current policy overlay
+PUT  /tenants/{tenant_id}/policy     # set/update policy overlay
 ```
 
 **Policy overlay fields** (abbreviated):
@@ -277,8 +303,8 @@ Policy changes emit `tenant_policy_ingress_profile_configured` audit events.
 Apply a packaged risk-profile template. Templates cannot override locked ingress fields.
 
 ```
-GET  /{tenant_id}/policy/templates                          # list available templates
-POST /{tenant_id}/policy/templates/{template_id}/apply     # apply template
+GET  /tenants/{tenant_id}/policy/templates                          # list available templates
+POST /tenants/{tenant_id}/policy/templates/{template_id}/apply   # apply template
 ```
 
 Apply modes: `merge` (extends existing policy) or `replace` (replaces policy).
@@ -286,8 +312,8 @@ Apply modes: `merge` (extends existing policy) or `replace` (replaces policy).
 ### 8.3) Quota Controls (Foundation)
 
 ```
-GET /{tenant_id}/quota    # get current quota settings
-PUT /{tenant_id}/quota    # update quota settings
+GET /tenants/{tenant_id}/quota    # get current quota settings
+PUT /tenants/{tenant_id}/quota    # update quota settings
 ```
 
 Quota controls enforce per-tenant turn rate limits, upload rate limits, and active-run concurrency caps.
@@ -299,14 +325,14 @@ Quota controls enforce per-tenant turn rate limits, upload rate limits, and acti
 Pro-tier controls for operational visibility and run management.
 
 ```
-GET    /{tenant_id}/admin/runtime/stats                    # runtime stats
-GET    /{tenant_id}/admin/runtime/cleanup-events           # cleanup events log
-POST   /{tenant_id}/admin/runtime/cancel                   # request cancellation
-DELETE /{tenant_id}/admin/runtime/cancel                   # clear cancellation
-GET    /{tenant_id}/admin/runtime/runs                     # list active runs
-GET    /{tenant_id}/admin/runtime/runs/{run_id}            # get run
-POST   /{tenant_id}/admin/runtime/runs/{run_id}/cancel     # cancel run
-GET    /{tenant_id}/admin/runtime/ingress-budget           # per-profile ingress budget summary
+GET    /tenants/{tenant_id}/admin/runtime/control-stats              # runtime control stats
+GET    /tenants/{tenant_id}/admin/runtime/cleanup-events             # cleanup events log
+POST   /tenants/{tenant_id}/admin/runtime/cancellations              # request cancellation (body: call_id)
+DELETE /tenants/{tenant_id}/admin/runtime/cancellations/{call_id}    # clear cancellation
+GET    /tenants/{tenant_id}/admin/runtime/runs                       # list active runs
+GET    /tenants/{tenant_id}/admin/runtime/runs/{run_id}              # get run
+POST   /tenants/{tenant_id}/admin/runtime/runs/{run_id}/cancel       # cancel run
+GET    /tenants/{tenant_id}/admin/runtime/ingress-budget             # per-profile ingress budget summary
 ```
 
 ### 9.1) Ingress Budget Summary
@@ -361,9 +387,9 @@ Runtime visibility **today** also remains available through runtime-control APIs
 
 Integrators should carry **one correlation identifier per logical turn** from the client through streams and into audit queries:
 
-1. **SSE turns** — Optional `correlation_id` in the JSON body of `POST /{tenant_id}/sessions/{session_id}/turns`. If omitted, the server generates a short id. Streamed `data:` JSON events repeat `correlation_id` on payloads where the field applies (errors, tool progress, completion). Implementation: `src/api/routers/turns.py`, `src/api/schemas/turn_schemas.py`.
+1. **SSE turns** — Optional `correlation_id` in the JSON body of `POST /tenants/{tenant_id}/sessions/{session_id}/turns`. If omitted, the server generates a short id. Streamed `data:` JSON events repeat `correlation_id` on payloads where the field applies (errors, tool progress, completion). Implementation: `src/api/routers/turns.py`, `src/api/schemas/turn_schemas.py`.
 2. **WebSocket turns** — For `{"type":"turn", ...}` messages, the server uses `run_id` from the message (or a generated id) as the correlation id for governance and audit on that turn (same router module).
-3. **Audit lookup** — `GET /{tenant_id}/admin/audit/events?correlation_id=<id>` returns tenant-scoped rows whose `correlation_id` matches, including ingress decisions (`turn_ingress_decision`), rate-limit and concurrency outcomes where emitted, and tool lifecycle events that reused the same id. Foundation tier; no alternate “shadow” audit path.
+3. **Audit lookup** — `GET /tenants/{tenant_id}/admin/audit/events?correlation_id=<id>` returns tenant-scoped rows whose `correlation_id` matches, including ingress decisions (`turn_ingress_decision`), rate-limit and concurrency outcomes where emitted, and tool lifecycle events that reused the same id. Foundation tier; no alternate “shadow” audit path.
 
 **Regression anchors (do not remove without replacement coverage):**
 
@@ -377,10 +403,10 @@ For optional OTLP/Prometheus export (additive, partial product surface), see §9
 Authoritative row: **Core audit events/report access** (Foundation, **Enforceable**) in [`docs/strategy/entitlement-matrix.md`](../strategy/entitlement-matrix.md).
 
 ```
-GET  /{tenant_id}/admin/audit/events     # list audit events (filterable)
-GET  /{tenant_id}/admin/audit/report     # summary audit report
-POST /{tenant_id}/admin/audit/cleanup    # cleanup old events
-GET  /{tenant_id}/admin/audit/export     # JSON audit bundle (limit query param; includes chain fingerprint + server signature fields)
+GET  /tenants/{tenant_id}/admin/audit/events     # list audit events (filterable)
+GET  /tenants/{tenant_id}/admin/audit/report     # summary audit report
+POST /tenants/{tenant_id}/admin/audit/cleanup    # cleanup old events
+GET  /tenants/{tenant_id}/admin/audit/export     # JSON audit bundle (limit query param; includes chain fingerprint + server signature fields)
 ```
 
 The **`GET .../export`** response includes `records`, `chain_valid`, `last_record_hash`, `signature_version`, and `signature` (server-computed over the bundle). It uses the same **authenticated** access pattern as events/report in the shipping API (not the Enterprise-only entitlement middleware used by §10.2). **Commercial tier labeling** for this route must stay consistent with your packaging; the matrix explicitly maps the **compliance-grade file export + verify workflow** to **Enterprise** in §10.2 — do not conflate the two rows when making enforceability claims.
@@ -389,11 +415,11 @@ The **`GET .../export`** response includes `records`, `chain_valid`, `last_recor
 
 ### 10.2) Signed audit file export and verification (Enterprise)
 
-Authoritative row: **Signed audit export and verification workflow** — **Enterprise**, **Enforceable (tier-gated)**, endpoints **`POST /{tenant_id}/admin/audit/export-file`** and **`POST /{tenant_id}/admin/audit/verify`**, with entitlement checks in `src/api/routers/audit.py` and feature key `governance.audit.signed_export_verify` (`EntitledFeature.GOVERNANCE_AUDIT_SIGNED_EXPORT_VERIFY`). Source of truth: [`docs/strategy/entitlement-matrix.md`](../strategy/entitlement-matrix.md).
+Authoritative row: **Signed audit export and verification workflow** — **Enterprise**, **Enforceable (tier-gated)**, endpoints **`POST /tenants/{tenant_id}/admin/audit/export-file`** and **`POST /tenants/{tenant_id}/admin/audit/verify`**, with entitlement checks in `src/api/routers/audit.py` and feature key `governance.audit.signed_export_verify` (`EntitledFeature.GOVERNANCE_AUDIT_SIGNED_EXPORT_VERIFY`). Source of truth: [`docs/strategy/entitlement-matrix.md`](../strategy/entitlement-matrix.md).
 
 ```
-POST /{tenant_id}/admin/audit/export-file       # write signed JSON bundle under the server-managed audit export directory
-POST /{tenant_id}/admin/audit/verify            # verify a bundle (inline JSON body and/or `file_path` under that directory)
+POST /tenants/{tenant_id}/admin/audit/export-file       # write signed JSON bundle under the server-managed audit export directory
+POST /tenants/{tenant_id}/admin/audit/verify            # verify a bundle (inline JSON body and/or `file_path` under that directory)
 ```
 
 **Behavior**
@@ -444,14 +470,15 @@ Regardless of tier or configuration, the following are always enforced server-si
 For tenants operating BYOC worker pools:
 
 ```
-POST /{tenant_id}/admin/runtime/byoc/worker-token          # issue worker token
-POST /{tenant_id}/admin/runtime/byoc/claim-job             # claim pending job
-POST /{tenant_id}/admin/runtime/byoc/submit-result         # submit job result
-POST /{tenant_id}/admin/runtime/byoc/webhook-result        # submit result via webhook
-POST /{tenant_id}/admin/runtime/byoc/cleanup-retention     # clean up retention
-GET  /{tenant_id}/admin/runtime/byoc/dead-letter           # list dead-letter jobs
-POST /{tenant_id}/admin/runtime/byoc/dead-letter/replay    # replay dead-letter job
-GET  /{tenant_id}/admin/byoc/governance-metrics            # BYOC governance analytics (Pro)
+POST /tenants/{tenant_id}/admin/byoc/worker-token              # issue worker token
+POST /tenants/{tenant_id}/admin/byoc/jobs/claim                # claim pending job
+POST /tenants/{tenant_id}/admin/byoc/jobs/submit                 # submit job result
+POST /tenants/{tenant_id}/admin/byoc/webhook/jobs/submit         # submit result via webhook
+POST /tenants/{tenant_id}/admin/byoc/cleanup                     # clean up retention
+GET  /tenants/{tenant_id}/admin/byoc/dlq                         # list dead-letter jobs
+POST /tenants/{tenant_id}/admin/byoc/dlq/{job_id}/replay         # replay one DLQ job
+POST /tenants/{tenant_id}/admin/byoc/dlq/replay                  # bulk replay (optional body)
+GET  /tenants/{tenant_id}/admin/byoc/governance-metrics          # BYOC governance analytics (Pro)
 ```
 
 ---
@@ -483,30 +510,48 @@ Common governance-related reason codes:
 
 ## 15) Integration Quickstart
 
+Abbreviated examples; `adapter_class_ref` values: [`adapter-installation.md`](../operations/adapter-installation.md).
+
 ### Step 1: Register a provider
 
 ```bash
 curl -X POST https://<host>/providers \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"provider_id": "openai-gpt4o", "backend_id": "openai", "model": "gpt-4o"}'
+  -d '{
+    "provider_id": "openai-gpt4o-mini",
+    "display_name": "OpenAI GPT-4o mini",
+    "adapter_class_ref": "<see adapter-installation.md>",
+    "api_key_env_var": "OPENAI_API_KEY",
+    "model": "gpt-4o-mini"
+  }'
 ```
 
 This step registers the provider surface for governed execution. Keep provider credentials and provider-native connectivity in your adapter/deployment configuration according to your deployment model.
 
-### Step 2: Register a tool
+### Step 2: Register a tool and agent, create a session
 
 ```bash
-curl -X POST https://<host>/tenant-123/tools \
+curl -X POST https://<host>/tenants/tenant-123/tools \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"name": "weather", "description": "Get current weather", "handler_ref": "tools.weather:get_weather", "schema": {...}}'
+  -d '{"name": "weather", "description": "Get current weather", "handler_ref": "tools.weather:get_weather", "schema": {}}'
+
+curl -X POST https://<host>/tenants/tenant-123/agents \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "assistant", "role": "weather-assistant", "capability_tags": ["tool_use"]}'
+
+curl -X POST https://<host>/tenants/tenant-123/sessions \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "assistant", "provider_id": "openai-gpt4o-mini"}'
 ```
 
 ### Step 3: Submit a turn (SSE)
 
 ```bash
-curl -N -X POST https://<host>/tenant-123/sessions/session-abc/turns \
+curl -N -X POST https://<host>/tenants/tenant-123/sessions/<session_id>/turns \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -H "Accept: text/event-stream" \
@@ -516,7 +561,7 @@ curl -N -X POST https://<host>/tenant-123/sessions/session-abc/turns \
 ### Step 4: Set an ingress profile
 
 ```bash
-curl -X PUT https://<host>/tenant-123/policy \
+curl -X PUT https://<host>/tenants/tenant-123/policy \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"ingress_profile": "strict"}'
@@ -526,6 +571,7 @@ curl -X PUT https://<host>/tenant-123/policy \
 
 ## 16) References
 
+- `docs/api/README.md` — API doc index and `/tenants` path convention
 - `docs/strategy/entitlement-matrix.md` — authoritative tier-to-feature mapping
 - `docs/strategy/interface-strategy.md` — API-first design rules and safety constraints
 - `docs/strategy/governed-execution-positioning.md` — product boundary and customer/deployment ownership model
