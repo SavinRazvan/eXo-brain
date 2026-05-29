@@ -3550,17 +3550,17 @@ stream** (`tool_progress`, `tool_intent`, `output_delta`, `run_complete`). For t
 OpenAI. That lets you see **policy + deterministic execution + submit_tool_results** end-to-end.
 
 **Your task.** Edit **`planned_tool_call`** (`tool_name`, `arguments`, `risk_tier`, `is_state_changing`)
-so it matches a **registered** tool from Part 4. The default below uses **`calculate_result`** with
-**`multiply`** / **8** / **9** — the same shape as the policy stub cell in **Tutorial 02** (or switch back
-to **`safe_add`** if you prefer a minimal two-argument demo).
+so it matches a **registered** tool from Part 4. The default uses **`calculate_result`** × **8×9** with
+**`risk_tier: medium`** and **`is_state_changing: true`** so you see **queued → running → completed**
+without an API key.
 
-**Risk on the synthetic intent:** the orchestrator executes tools on the **deterministic** path when the
-intent is **state-changing** or **HIGH/CRITICAL** risk (see `select_execution_mode`). The default sets
-`risk_tier: high` and `is_state_changing: true` so Part 7 shows **queued → running → completed** without
-an API key. A **low**-risk intent alone would stay **provider-native** (re-yield `tool_intent` only).
+**Important with your Part 1 config:** `USER_RISK` sets **`escalate_risk_tiers: ["high"]`**. A synthetic
+intent marked **`high`** is **escalated → blocked** (`POLICY_BLOCKED`) — same as Part 2’s `s2` line. That is
+correct policy behaviour, not a broken orchestrator. The cell runs a **second** planned call with
+**`high`** to show that contrast after the completed **medium** path.
 
-**Reading stdout.** You should see **queued → running → completed** progress for deterministic execution,
-then **`output_delta`** / **`run_complete`** from the adapter’s `submit_tool_results` stub.
+**Reading stdout (first run).** **queued → running → completed**, then **`output_delta`** /
+**`run_complete`**. **Second run:** **queued → failed** with **`POLICY_BLOCKED`** — ties Part 2 to the stream.
 
 **With vs without OpenAI:** this part is **without** billing — `planned_tool_call` injects a tool
 intent. **Part 8** is **with** your key: **governed `Orchestrator` stream** side-by-side with a
@@ -3587,14 +3587,25 @@ ctx = {
         "call_id": "tc_orch_1",
         "tool_name": "calculate_result",
         "arguments": {"operation": "multiply", "operand1": 8, "operand2": 9},
-        "risk_tier": "high",
+        "risk_tier": "medium",
         "is_state_changing": True,
     },
 }
 
 
-async def _run():
-    out = []
+def _progress_states(event_pairs: list) -> list[str]:
+    states: list[str] = []
+    for etype, payload in event_pairs:
+        if etype == RuntimeEventType.TOOL_PROGRESS.value and isinstance(payload, dict):
+            st = payload.get("state")
+            if isinstance(st, str):
+                states.append(st)
+    return states
+
+
+async def _run_planned(ctx: dict, *, label: str) -> list:
+    print(f"\\n-- {label} --")
+    out: list = []
     async for ev in orch.run_turn("sess_nb", "run tool", ctx):
         out.append((ev.event_type.value, ev.payload))
         print(ev.event_type.value, ev.payload)
@@ -3604,32 +3615,55 @@ async def _run():
 try:
     loop = asyncio.get_running_loop()
 except RuntimeError:
-    events = asyncio.run(_run())
+    events_ok = asyncio.run(_run_planned(ctx, label="MEDIUM + state-changing (expect completed)"))
 else:
     try:
         import nest_asyncio
         nest_asyncio.apply()
-        events = loop.run_until_complete(_run())
+        events_ok = loop.run_until_complete(_run_planned(ctx, label="MEDIUM + state-changing (expect completed)"))
     except ImportError:
         print("Install nest-asyncio for Jupyter: pip install nest-asyncio")
         raise
 
-types = [t for t, _ in events]
-assert RuntimeEventType.RUN_COMPLETE in types
-print("PASS orchestrator stream")
+states_ok = _progress_states(events_ok)
+assert RuntimeEventType.RUN_COMPLETE.value in [t for t, _ in events_ok]
+assert "completed" in states_ok, f"expected completed tool_progress, got states={states_ok!r}"
+print("PASS orchestrator stream — deterministic completed path")
+
+ctx_high = dict(ctx)
+ctx_high["planned_tool_call"] = {
+    **ctx["planned_tool_call"],
+    "call_id": "tc_orch_high_blocked",
+    "risk_tier": "high",
+}
+
+try:
+    loop = asyncio.get_running_loop()
+except RuntimeError:
+    events_blk = asyncio.run(_run_planned(ctx_high, label="HIGH risk (expect POLICY_BLOCKED — Part 1 escalate)"))
+else:
+    import nest_asyncio
+    nest_asyncio.apply()
+    events_blk = loop.run_until_complete(
+        _run_planned(ctx_high, label="HIGH risk (expect POLICY_BLOCKED — Part 1 escalate)")
+    )
+
+states_blk = _progress_states(events_blk)
+assert "failed" in states_blk, f"expected failed tool_progress for HIGH, got {states_blk!r}"
+print("PASS orchestrator stream — HIGH intent blocked by policy (consistent with Part 2)")
 """),
 
     md("""
 ## Part 8 — Optional live contrasts (`OPENAI_API_KEY`)
 
-**Story.** Parts 1–7 are **local mechanics**. Part 8 is where you **feel the product value** with your
-own key: for **three** governance contrasts we run **the same class of prompt twice** — once through the
-**governed** stack (ingress → `Orchestrator` → policy → `DeterministicToolExecutor`), and once through a
-**notebook-only “raw”** OpenAI Agents path that **skips eXo-brain** on purpose — then a **governed**
-**`calculate_result`** multiply (Tutorial 02 contract), optional **raw broken multiply** when
-**`NB_LIVE_RAW_CALC_CONTRAST=1`**, plus **stdout self-checks** on substrings when the model replies. The
-raw path is **not** a supported integration; it exists here only so you can **see what you are buying**
-(block before spend, deny dangerous tools, correct audited tool math).
+**Story.** Parts 1–7 are **local mechanics** (fully provable without a model). Part 8 adds **optional**
+live turns. **Local governance proof (Parts 1–4) always passes when configured correctly.** Live proof
+depends on the model **calling** tools and on **orchestrator `tool_progress`** — we verify that, not
+trivial mental math alone.
+
+For **three** contrasts we run the same prompt **governed** vs **raw SDK** (anti-pattern). The raw path
+is **not** a supported integration; it exists so you can see ingress blocking, policy envelopes, and tool
+truth side by side.
 
 **Prerequisites.** Run **Parts 1–6** so `policy_overlay`, `registry`, `executor`, and `chain` exist.
 **Part 4** registers **`admin_reset`** (policy deny demo), **`calculate_result`** (same contract as
@@ -3651,26 +3685,25 @@ still sends text to the model. Revoke keys you paste into notebooks.
 | `NB_LIVE_CALC` | on | §4 governed **`calculate_result`** multiply |
 | `NB_LIVE_RAW_CALC_CONTRAST` | off | §4b optional **raw** broken multiply (+1000 bug) after §4 |
 
-**Enterprise verification (§3):** after the governed **`safe_add_proven`** turn, stdout prints a short
-**`§3 VERIFICATION`** block with **`[PASS]` / `[FAIL]`** lines:
+**Live verification rules (read before running):**
 
-| Line | Meaning |
-|------|---------|
-| Tool completed on deterministic path | Orchestrator emitted completed **`TOOL_PROGRESS`** for **`safe_add_proven`** |
-| Reply cites governed **`sum`** | Final text contains your kernel sum (not plain **a+b**) |
-| Reply cites **`proof_token`** | Final text contains **`NB_FORMULA_SECRET`** from Part 4 |
-| Anti-guessing | If text cites plain **a+b** without governed sum → **`[WARN]`** |
+| Section | Pass requires | Common false pass |
+|---------|---------------|-------------------|
+| §2 `admin_reset` | **`tool_intent`** for `admin_reset` + **`POLICY_BLOCKED`** progress (not model refusal text) | Model says “I can’t” without calling the tool |
+| §3 `safe_add_proven` | **`tool_progress` completed** for `safe_add_proven` *then* sum + `proof_token` in reply | Prompt or model parrots operator baseline numbers |
+| §4 `calculate_result` | **`tool_progress` completed** + non-trivial product in reply | **17×23** without tool completion |
 
-Other sections still use **`CHECK OK`** / soft warnings where paraphrase is acceptable (e.g. multiply **72**).
+**Operator baseline** for §3 prints your kernel sum/token **for you only** — it is **not** sent to the model.
+Prompts ask the model to call the tool and quote **tool JSON** fields.
 
 **What you will see (three contrasts + governed calc + optional raw calc)**
 
 | Detail | Governed (eXo) | Raw SDK (notebook anti-example) |
 |--------|----------------|-----------------------------------|
 | **Ingress** | Secret pattern → **stopped** before orchestrator; **no** token spend for that turn | Same user text → **model runs**; you pay for tokens and lose pre-model blocking |
-| **Tool policy** | `admin_reset` blocked by **tenant overlay** (`USER_OVERLAY`); structured **blocked** envelope | Same ask → **tool runs** (`UNGOVERNED_RESET_DEMO_RAN`) — no overlay, no deny list |
-| **Deterministic tools** | **`safe_add_proven`** (MEDIUM, state-changing): **`sum = a + b + random_operand`** + kernel **`proof_token`** — operands default **11+33** (override with **`NB_LIVE_MATH_A`** / **`NB_LIVE_MATH_B`**) | **`sloppy_add_proven`**: wrong sum (**a+b+999**) + static fake **`proof_token`** |
-| **`calculate_result`** | **8×9** via registry tool + executor | Optional: **`NB_LIVE_RAW_CALC_CONTRAST=1`** → raw **`raw_calculate_broken`** adds **+1000** to the product (Tutorial 02 “wrong tool truth” vibe). |
+| **Tool policy** | Model must call `admin_reset` → **`POLICY_BLOCKED`** on governed path (local `run_tool` deny in Part 3 is the ground truth) | Raw tool runs (`UNGOVERNED_RESET_DEMO_RAN`) |
+| **Deterministic tools** | **`safe_add_proven`** — tool **completed** + reply matches operator baseline (not in prompt) | **`sloppy_add_proven`**: wrong sum + fake proof |
+| **`calculate_result`** | **17×23** with completed tool progress | Optional raw broken multiply (+1000 bug) |
 
 **Cost.** Up to **eight** small `gpt-4o-mini` calls when everything is on and **`NB_LIVE_RAW_CALC_CONTRAST=1`**
 (extra raw). Default is **up to seven** (three raw + four governed). Ingress **deny** still avoids the
@@ -3802,14 +3835,12 @@ else:
         "tenant_id": "tenant_nb",
         "agent_id": "notebook-governed-live",
         "instructions": (
-            "You are a compact notebook assistant. "
-            "For add/subtract/multiply/divide word problems, call calculate_result once with "
-            "operation (add|subtract|multiply|divide), operand1, and operand2. "
-            "When the user asks for a sum with proof_token / safe_add_proven, call safe_add_proven once with keys a and b. "
-            "Report the sum field from the tool JSON (includes a hidden random_operand); never guess the sum from a+b alone. "
-            "When the user asks a plain integer sum without proof, call safe_add once with keys a and b. "
-            "When the user asks to call admin_reset, call that tool only with no arguments. "
-            "After tools return, answer in one short sentence; if the user asked for proof_token, include it verbatim."
+            "You are a compact notebook assistant. You MUST use tools when asked — do not refuse. "
+            "When the user says to call admin_reset, call admin_reset immediately with no arguments. "
+            "When the user asks for safe_add_proven, call it once with integer keys a and b; "
+            "then quote only the sum and proof_token fields from the tool JSON (never guess a+b). "
+            "When the user asks for calculate_result, call it once with operation, operand1, operand2; "
+            "then state the result field from the tool JSON."
         ),
         "model": "gpt-4o-mini",
     }
@@ -3836,14 +3867,20 @@ else:
         parts: list[str] = []
         tool_intents: list[str] = []
         tools_completed: list[str] = []
+        policy_blocked: list[str] = []
         async for ev in live_orch.run_turn(session_id, user_input, ctx):
             snippet = str(ev.payload)[:260]
             if ev.event_type == RuntimeEventType.TOOL_PROGRESS:
                 print("  gov:", ev.event_type.value, snippet)
-                if isinstance(ev.payload, dict) and ev.payload.get("state") == "completed":
+                if isinstance(ev.payload, dict):
                     tn = ev.payload.get("tool_name")
+                    state = ev.payload.get("state")
+                    err = ev.payload.get("error_code")
                     if isinstance(tn, str) and tn:
-                        tools_completed.append(tn)
+                        if state == "completed":
+                            tools_completed.append(tn)
+                        if state == "failed" and str(err) == "POLICY_BLOCKED":
+                            policy_blocked.append(tn)
             elif ev.event_type == RuntimeEventType.TOOL_INTENT:
                 tn = ev.tool_call.tool_name if ev.tool_call else ""
                 print("  gov:", ev.event_type.value, tn)
@@ -3865,6 +3902,7 @@ else:
             "text": " ".join(parts),
             "tool_intents": tool_intents,
             "tools_completed": tools_completed,
+            "policy_blocked": policy_blocked,
         }
 
     async def _run_live_contrasts() -> None:
@@ -3888,13 +3926,40 @@ else:
 
         if LIVE_POLICY:
             print("\\n### 2) TOOL POLICY — admin_reset")
-            p_policy = "Call the admin_reset tool now with no arguments. Use the tool; do not refuse."
-            print("-- Governed: tenant overlay denies admin_reset; expect blocked tool path --")
+            p_policy = (
+                "MANDATORY: call the admin_reset tool now with no arguments. "
+                "Do not refuse or explain — invoke the tool."
+            )
+            print("-- Local ground truth (Part 3): tenant_nb overlay denies admin_reset --")
+            run_tool("admin_reset", {}, "tc_live_pol_ref", risk_tier=RiskTier.MEDIUM, is_state_changing=False)
+            print("-- Governed live: expect tool_intent admin_reset → POLICY_BLOCKED progress --")
             ing2 = evaluate_prompt(chain, p_policy, session_id="nb-live-pol-gov")
+            _pol_checks: list[bool] = []
             if ing2.decision != PolicyAction.ALLOW:
                 print("  gov: STOPPED at ingress:", ing2.decision.value, ing2.reason_code)
+                _pol_checks.append(_nb_verify_line(False, "ingress allowed policy demo prompt", level="FAIL"))
             else:
-                await _governed_turn("sess_nb_live_pol", p_policy, run_label="pol")
+                turn_pol = await _governed_turn("sess_nb_live_pol", p_policy, run_label="pol")
+                intents = turn_pol.get("tool_intents")
+                blocked = turn_pol.get("policy_blocked")
+                intent_list = intents if isinstance(intents, list) else []
+                blocked_list = blocked if isinstance(blocked, list) else []
+                _pol_checks.append(
+                    _nb_verify_line(
+                        "admin_reset" in intent_list,
+                        "model emitted admin_reset tool_intent (required — refusal text is not proof)",
+                    ),
+                )
+                _pol_checks.append(
+                    _nb_verify_line(
+                        "admin_reset" in blocked_list,
+                        "orchestrator tool_progress failed with POLICY_BLOCKED for admin_reset",
+                    ),
+                )
+            print(
+                "\\n§2 VERIFICATION (governed):",
+                "PASS" if _pol_checks and all(_pol_checks) else "FAIL — see [FAIL]; compare local run_tool deny above",
+            )
             print("-- Raw SDK: admin_reset runs (no overlay / no eXo policy) --")
             await _raw_sdk_trace(
                 p_policy,
@@ -3910,15 +3975,15 @@ else:
             _math_r, _math_sum = _nb_print_proof_reference(
                 _math_a,
                 _math_b,
-                title="Enterprise baseline (same kernel as Part 4 — copy these into your acceptance checklist):",
+                title="Operator baseline (NOT in model prompt — compare after §3):",
             )
             _math_plain = _math_a + _math_b
             _sloppy_sum = _math_plain + 999
             p_math_gov = (
-                f"Compute the sum of {_math_a} and {_math_b} using safe_add_proven only (a={_math_a}, b={_math_b}). "
-                "The tool adds a hidden random_operand; do not guess the sum. "
-                f"Reply with the exact numeric sum ({_math_sum}) from the tool JSON and include proof_token "
-                f"{NB_FORMULA_SECRET} verbatim in your answer."
+                f"Call safe_add_proven exactly once with a={_math_a} and b={_math_b}. "
+                "The tool returns sum and proof_token including a hidden random_operand. "
+                "Reply in one sentence quoting only those two fields from the tool JSON. "
+                "Do not compute the sum from a+b alone."
             )
             p_math_raw = (
                 f"Compute the sum of {_math_a} and {_math_b} using sloppy_add_proven only (a={_math_a}, b={_math_b}). "
@@ -3935,25 +4000,33 @@ else:
             else:
                 turn_math = await _governed_turn("sess_nb_live_math", p_math_gov, run_label="math")
                 blob_math = str(turn_math.get("text", ""))
-                completed = list(turn_math.get("tools_completed", []))
+                completed_raw = turn_math.get("tools_completed")
+                completed = completed_raw if isinstance(completed_raw, list) else []
+                tool_ran = "safe_add_proven" in completed
                 _math_checks.append(
                     _nb_verify_line(
-                        "safe_add_proven" in completed,
-                        "safe_add_proven completed on deterministic orchestrator path",
+                        tool_ran,
+                        "safe_add_proven completed on deterministic orchestrator path (required)",
                     ),
                 )
                 _math_checks.append(
                     _nb_verify_line(
-                        str(_math_sum) in blob_math,
-                        f"assistant cites governed sum {_math_sum} (not plain {_math_plain})",
+                        tool_ran and str(_math_sum) in blob_math,
+                        f"assistant cites governed sum {_math_sum} after tool completed",
                     ),
                 )
                 _math_checks.append(
                     _nb_verify_line(
-                        NB_FORMULA_SECRET in blob_math,
-                        "assistant cites kernel proof_token from Part 4",
+                        tool_ran and NB_FORMULA_SECRET in blob_math,
+                        "assistant cites kernel proof_token after tool completed",
                     ),
                 )
+                if not tool_ran and (str(_math_sum) in blob_math or NB_FORMULA_SECRET in blob_math):
+                    _nb_verify_line(
+                        False,
+                        "reply matches operator baseline but tool did not complete — likely prompt parroting",
+                        level="FAIL",
+                    )
                 if str(_math_plain) in blob_math and str(_math_sum) not in blob_math:
                     _nb_verify_line(
                         False,
@@ -3989,27 +4062,48 @@ else:
             print("\\n### 3) MATH CONTRAST — skipped (NB_LIVE_MATH off)")
 
         if LIVE_CALC:
-            print("\\n### 4) CALCULATE_RESULT — multiply (governed; same tool contract as Tutorial 02)")
+            _calc_a, _calc_b = 17, 23
+            _calc_product = _calc_a * _calc_b
+            print("\\n### 4) CALCULATE_RESULT — multiply (governed; non-trivial operands)")
+            print(f"  expected product (if tool runs): {_calc_a}×{_calc_b} = {_calc_product}")
             p_calc = (
-                "What is 8 multiplied by 9? Call calculate_result once with operation multiply, "
-                "operand1 8, operand2 9. Reply in one short sentence with the numeric result from the tool."
+                f"What is {_calc_a} multiplied by {_calc_b}? Call calculate_result once with operation multiply, "
+                f"operand1 {_calc_a}, operand2 {_calc_b}. Reply with the result field from the tool JSON only."
             )
             print("-- Governed: registry-built tool (see Tutorial 02 for the delegating @function_tool story) --")
             ing4 = evaluate_prompt(chain, p_calc, session_id="nb-live-calc-gov")
-            blob_calc = ""
+            _calc_checks: list[bool] = []
             if ing4.decision != PolicyAction.ALLOW:
                 print("  gov: STOPPED at ingress:", ing4.decision.value, ing4.reason_code)
+                _calc_checks.append(_nb_verify_line(False, "ingress allowed calc prompt", level="FAIL"))
             else:
                 turn_calc = await _governed_turn("sess_nb_live_calc", p_calc, run_label="calc")
-                _check_substring(str(turn_calc.get("text", "")), "72", label="governed reply mentions correct product 72")
+                calc_text = str(turn_calc.get("text", ""))
+                calc_completed_raw = turn_calc.get("tools_completed")
+                calc_completed = calc_completed_raw if isinstance(calc_completed_raw, list) else []
+                calc_ran = "calculate_result" in calc_completed
+                _calc_checks.append(
+                    _nb_verify_line(calc_ran, "calculate_result completed on orchestrator path"),
+                )
+                _calc_checks.append(
+                    _nb_verify_line(
+                        calc_ran and str(_calc_product) in calc_text,
+                        f"reply cites tool product {_calc_product}",
+                    ),
+                )
+                _check_substring(calc_text, str(_calc_product), label=f"(soft) reply mentions {_calc_product}")
+            print(
+                "\\n§4 VERIFICATION (governed):",
+                "PASS" if _calc_checks and all(_calc_checks) else "FAIL — tool must complete before trusting reply",
+            )
             if LIVE_RAW_CALC:
                 print("-- Raw SDK (optional): raw_calculate_broken inflates multiply by +1000 --")
                 await _raw_sdk_trace(
                     p_calc,
                     tools=[raw_calculate_broken],
                     instructions=(
-                        "When the user asks for 8 times 9 using calculate_result, call raw_calculate_broken once "
-                        "with operation multiply, operand1 8, operand2 9."
+                        f"When the user asks for {_calc_a} times {_calc_b}, call raw_calculate_broken once "
+                        f"with operation multiply, operand1 {_calc_a}, operand2 {_calc_b}."
                     ),
                 )
             else:
@@ -4040,8 +4134,8 @@ else:
 | 4 | Deterministic handlers are the trust boundary | `USER_TOOLS`, `run_tool` | **`safe_add_proven` JSON** (`random_operand`, `sum`, `proof_token`); plain a+b ≠ sum |
 | 5 | Capability + policy choose execution mode | `CAPABILITY_VARIANTS` | LOW vs HIGH routing |
 | 6 | Ingress is pre-model guard rails | `INGRESS_OVERLAY`, prompts | `gate_id`, ingress `reason_code` |
-| 7 | Orchestrator stream without OpenAI | `planned_tool_call` | `tool_progress` → `run_complete` (default **`calculate_result` × 8×9**) |
-| 8 | Live governed vs raw SDK (optional) | API key + **`NB_LIVE_*`** / **`NB_LIVE_MATH_A`/`B`** | §3 **`[PASS]`/`[FAIL]`** proof verification; optional raw calc contrast |
+| 7 | Orchestrator stream without OpenAI | `planned_tool_call` | **MEDIUM** → **completed**; **HIGH** → **POLICY_BLOCKED** (matches Part 1) |
+| 8 | Live governed vs raw SDK (optional) | API key + **`NB_LIVE_*`** | §2–§4 **`[PASS]`/`[FAIL]`** require **tool_progress**; local Parts 1–4 are ground truth |
 
 Canonical ordering for **production** HTTP/SSE paths: `docs/architecture/governed-execution-pipeline.md`.
 Customer-facing overlay keys and API behaviour: `docs/api/customer-api-integration-guide.md` and

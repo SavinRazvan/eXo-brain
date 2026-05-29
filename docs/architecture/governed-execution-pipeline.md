@@ -94,7 +94,7 @@ The governed lab notebook [`notebooks/tutorial_08_governed_execution_sandbox.ipy
 
 Regenerate the notebook from [`notebooks/build_tutorials.py`](../../notebooks/build_tutorials.py) after editing the lab; see [`notebooks/README.md`](../../notebooks/README.md) and [`notebooks/EVALUATOR_GUIDE.md`](../../notebooks/EVALUATOR_GUIDE.md).
 
-**Enterprise acceptance (Part 4 local, Part 8 §3 live):** Part 4 prints **`[PASS] Part 4 local proof`** when handler JSON matches the kernel baseline. With **`OPENAI_API_KEY`**, Part 8 §3 prints **`§3 VERIFICATION (governed): PASS`** only when the orchestrator completes **`safe_add_proven`** on the deterministic path and the assistant cites your kernel **`sum`** and **`proof_token`** (not plain **a+b**). Override operands via **`NB_LIVE_MATH_A`** / **`NB_LIVE_MATH_B`** when needed.
+**Enterprise acceptance (Part 4 local, Part 8 optional live):** Part 4 prints **`[PASS] Part 4 local proof`** when handler JSON matches the kernel baseline. Part 8 live checks require **`tool_progress` completed** for the tool under test (not model text alone). Operator baseline sum/token are **not** included in model prompts. §3 **`PASS`** only when **`safe_add_proven`** completes and the reply then matches your kernel values. §2 requires **`admin_reset`** intent plus **`POLICY_BLOCKED`** progress.
 
 ## Related documents
 
