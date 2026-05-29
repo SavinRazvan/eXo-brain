@@ -42,6 +42,12 @@ Use `docs/archive/README.md` for the archive metadata contract.
 | `docs/archive/plans/adapter-ecosystem-gateway-hygiene-todos.md` | Same as `adapter-ecosystem-gateway-hygiene-plan.md` (granular checklist snapshot) |
 | `docs/archive/plans/control-plane-product-alignment-baseline-slice-closed.md` | `docs/plans/control-plane-product-alignment-plan.md` (§1 executive snapshot + §3–§6 L-phases and ownership) |
 
+## Handoff Archives
+
+| Archived file | Canonical replacement |
+|---|---|
+| `docs/archive/handoffs/exo_adapters_pypi_handoff-mission.md` | `docs/handoffs/exo_adapters_pypi_handoff.md`, `packages/eXo_adapters/README.md`, `docs/operations/adapter-installation.md` |
+
 ## Operations Archives
 
 | Archived file | Canonical replacement |

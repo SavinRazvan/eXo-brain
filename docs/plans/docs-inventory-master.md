@@ -20,7 +20,15 @@ Notes:
 |---|---|
 | `README.md` | Project entrypoint and developer quick-start |
 | `docs/README.md` | Top-level documentation index (reading spine, module/API/plan pointers) |
-| `docs/api/customer-api-integration-guide.md` | Tier-aware API contract documentation for customer onboarding (chat/agents/workflow + governance ingress) |
+| `docs/modules/README.md` | P0 module doc index; map to `src/` trees, `src/modules/` slices, and tests |
+| `docs/modules/core.md` | Orchestrator, scheduler, session, workflow — provider-neutral core |
+| `docs/modules/runtime.md` | RuntimeAdapter, adapter_factory, tenant runtime, packaged adapters |
+| `docs/modules/tools.md` | Deterministic executor, sandbox, BYOC, tool HTTP governance |
+| `docs/modules/policies.md` | Ingress gates, policy middleware, entitlements, templates |
+| `docs/modules/tenancy.md` | Policy overlay, quotas, rate limits, tenant isolation |
+| `docs/modules/api.md` | FastAPI transport, `AppModules` composition root, `/tenants` mounts |
+| `docs/api/README.md` | API folder index, `/tenants` path convention, reading order |
+| `docs/api/customer-api-integration-guide.md` | Tier-aware API contract documentation for customer onboarding (chat/agents/workflow + governance ingress); endpoint paths aligned with `src/api/app.py` mounts |
 | `docs/api/governance-preview-and-testing.md` | **Planned (file not in repo yet)** — self-serve governance testing patterns, feedback loop, simulation/dry-run APIs (`traceability-matrix.md`) |
 | `docs/strategy/customer-self-serve-governance-journey.md` | Canonical customer self-serve governance product contract and implementer checklist |
 | `docs/strategy/foundation-tier-adoption-checklist.md` | Foundation-tier API adoption steps with Pro/Enterprise deltas |
@@ -28,27 +36,47 @@ Notes:
 | `docs/operations/governance-reason-code-catalog.md` | **Planned (file not in repo yet)** — reason-code ownership and discovery process (`traceability-matrix.md`) |
 | `docs/architecture/beginner-workflow.md` | Beginner-friendly plain-language walkthrough of the platform workflow |
 | `docs/architecture/mvp.md` | Layer architecture and design intent (canonical) |
-| `docs/architecture_mvp.md` | Redirect stub → `docs/architecture/mvp.md` |
+| `docs/architecture_mvp.md` | Redirect stub → `docs/architecture/mvp.md` (last reviewed 2026-05-29) |
 | `docs/architecture/workspace-architecture.md` | Workspace doctrine (adapters, policy, enterprise controls) |
 | `docs/architecture/ARCHITECTURE.md` | Consolidated map: planes, Option C/strategy vocabulary, mermaid A–C, layers, modules, plans × concerns, maintainer checklist §14 |
-| `docs/architecture/governed-execution-pipeline.md` | Canonical control-plane ordering: entitlements, ingress, orchestrator, tool policy, deterministic execution vs provider-native; direct-`Orchestrator` bypass warning |
-| `docs/strategy/README.md` | Strategy package index (product direction, entitlements, traceability) |
+| `docs/architecture/README.md` | Architecture folder index and recommended reading order |
+| `docs/architecture/governed-execution-pipeline.md` | Canonical control-plane ordering: entitlements, ingress, orchestrator, tool policy, deterministic execution vs provider-native; direct-`Orchestrator` bypass warning; Hands-on proof ↔ `tutorial_08` |
+| `docs/strategy/README.md` | Strategy package index, reading order, shipped vs planned snapshot |
+| `docs/strategy/goal.md` | Product north star and platform boundary |
+| `docs/strategy/core.md` | Core invariants and governance model |
+| `docs/strategy/adapter-strategy.md` | Adapter ecosystem, lanes, certification |
+| `docs/strategy/adapter-compatibility-matrix.md` | Published package versions (0.1.1), semver, M0/M1 status |
+| `docs/strategy/monetization-strategy.md` | Monetization and tier value capture |
 | `docs/strategy/governed-execution-positioning.md` | Product boundary, ICP, monetization posture, and messaging guardrails for governed execution |
+| `docs/strategy/entitlement-matrix.md` | Feature-to-tier enforcement matrix |
+| `docs/strategy/compliance-profile-matrix.md` | Compliance waves and control mapping |
+| `docs/strategy/deployment-models.md` | Deployment packaging and support boundaries |
+| `docs/strategy/interface-strategy.md` | API-first interface strategy |
+| `docs/strategy/traceability-matrix.md` | Strategy ↔ code ↔ test traceability and gaps |
+| `docs/strategy/next-directions.md` | Tiered next implementation directions |
+| `docs/strategy/execution-board-12-gaps.md` | Execution board for 12 priority gaps |
 | `docs/operations/workflow-complete.md` | Maintainer workflow checklist (durable) |
 | `docs/operations/agent-workflow-procedures.md` | Audit/PR dedup procedures; **§3b** git commit vs PR artifact provenance sync list |
 | `docs/operations/local-workspace-layout.md` | Gitignored `.local/` layout; git trailers vs `.local/workflow-artifacts/pr/*` |
 | `docs/operations/documentation-maintenance-checklist.md` | Maintainer checklist when architecture, API, tenancy, or workflow docs change |
 | `docs/operations/logging-and-errors.md` | Logging rollout plan |
+| `docs/governance/README.md` | Governance folder index (charter, source owners, drift prevention) |
 | `docs/governance/folder-charter.md` | `docs/` vs `.local/` charter |
 | `docs/governance/path-migration-map.md` | Old → new path map |
 | `docs/governance/workflow-source-owners.md` | Script-first ownership map |
 | `docs/governance/drift-prevention.md` | Lightweight drift process |
 | `docs/governance/rollout-phases.md` | IA rollout phase notes |
 | `docs/governance/rules-overlap-matrix.md` | Cursor rules inventory / Track D |
-| `docs/runtime_contracts.md` | Runtime adapter contract and behavior |
-| `docs/mcp_integration.md` | MCP integration boundaries |
-| `docs/plugin_lifecycle.md` | Plugin lifecycle contract |
-| `docs/workflow_loading.md` | Workflow loading semantics |
+| `docs/roadmap/README.md` | Roadmap index: alignment audits + module hardening program |
+| `docs/roadmap/alignment-audit-schema.md` | Advisory alignment finding schema (P0/P1/P2, categories, precedence) |
+| `docs/roadmap/alignment-audit-report-template.md` | Starter for `.local/workflow-artifacts/alignment/alignment-audit.md` |
+| `docs/roadmap/alignment-todos-template.md` | Starter for `.local/workflow-artifacts/alignment/alignment-todos.md` |
+| `docs/roadmap/enterprise-module-hardening-integration-plan.md` | Phased module hardening program and slice tracking table |
+| `docs/roadmap/module-hardening-slice-checklist.md` | Per-PR hardening checklist (gates, PR artifacts, docs) |
+| `docs/runtime_contracts.md` | RuntimeAdapter ABC (exo-brain-core-contracts), mode selection, northbound/southbound; links ADR submit_tool_results |
+| `docs/mcp_integration.md` | MCP registry/trust/health/policy-gated adapter; integration status vs default API path |
+| `docs/plugin_lifecycle.md` | Tool + agent plugin managers (load/unload/reload/compatibility) |
+| `docs/workflow_loading.md` | WorkflowLoader JSON/YAML registry; error codes; orchestration wiring status |
 | `docs/plans/tenant-tool-execution-architecture.md` | Canonical current implementation status and execution architecture |
 | `docs/plans/option-c-contract-freeze.md` | Option C contract freeze source |
 | `docs/plans/option-c-worker-isolation-contract.md` | Option C worker isolation contract |
@@ -61,6 +89,16 @@ Notes:
 | `docs/operations/byoc-artifact-integrity-dashboard.md` | BYOC integrity operations guidance |
 | `docs/plans/short-long-term-execution-plan.md` | Short vs long execution horizons; companion to `next-directions.md` Tier emphasis |
 | `docs/plans/short-long-term-execution-plan.plan.md` | Implementer companion (W1–W4+S4, checklists, slice boilerplate) |
+| `docs/plans/notebook-standards.md` | Notebook categories, builders, CI, ownership map |
+| `notebooks/README.md` | Notebook index (14), prerequisites, per-notebook breakdown |
+| `notebooks/EVALUATOR_GUIDE.md` | Time-boxed evaluator paths (15 min / 90 min / security / smoke) |
+| `docs/decisions/README.md` | Architecture decision index (ADR-style) |
+| `docs/decisions/submit-tool-results-orchestrator-only.md` | OpenAI adapter `submit_tool_results` / continuation decision |
+| `docs/handoffs/README.md` | Handoff index (completed missions → canonical ops docs) |
+| `docs/handoffs/exo_adapters_pypi_handoff.md` | Adapter extraction **completion status** (not a live mission playbook) |
+| `docs/operations/adapter-installation.md` | Operator install of published adapter wheels |
+| `docs/operations/adapter-repos-and-pypi.md` | GitHub/PyPI layout (eXo-brain vs eXo_adapters) |
+| `docs/plans/adapter-packages-extraction-handoff.md` | Package inventory + §9 cleanup checklist |
 
 ## Planned / Working
 
@@ -69,7 +107,6 @@ Notes:
 | `docs/plans/docs-inventory-master.md` | Lifecycle inventory and classification table |
 | `docs/plans/docs-authority-map.md` | Authority and precedence map for docs |
 | `docs/plans/docs-archive-index.md` | Archive index and replacement mapping |
-| `docs/plans/notebook-standards.md` | Notebook standards and ownership |
 | `docs/plans/control-plane-product-alignment-plan.md` | Control plane vs adapter vs customer bridge narrative |
 | `docs/plans/adapter-packages-extraction-handoff.md` | Adapter packages extraction checklist (separate repos) |
 

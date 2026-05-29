@@ -25,11 +25,12 @@ Notes:
 3. **Canonical active docs**
    - `README.md`
    - `docs/strategy/README.md` (strategy package index)
-   - Customer self-serve governance spine: `docs/strategy/customer-self-serve-governance-journey.md`, `docs/strategy/foundation-tier-adoption-checklist.md`, `docs/plans/governance-configuration-reference-model.md`, `docs/api/governance-preview-and-testing.md`, `docs/operations/governance-reason-code-catalog.md` (with `docs/api/customer-api-integration-guide.md` for wire contracts)
+   - Customer self-serve governance spine: `docs/strategy/customer-self-serve-governance-journey.md`, `docs/strategy/foundation-tier-adoption-checklist.md`, `docs/plans/governance-configuration-reference-model.md`, `docs/api/governance-preview-and-testing.md`, `docs/operations/governance-reason-code-catalog.md` (with `docs/api/README.md` + `docs/api/customer-api-integration-guide.md` for wire contracts)
    - `docs/architecture/mvp.md` (see `docs/architecture_mvp.md` stub for legacy links)
    - `docs/architecture/workspace-architecture.md`
    - `docs/runtime_contracts.md`
    - `docs/plans/tenant-tool-execution-architecture.md`
+   - `docs/plans/notebook-standards.md`; hands-on index `notebooks/README.md`; evaluator paths `notebooks/EVALUATOR_GUIDE.md`
    - `docs/operations/release-candidate-signoff-checklist.md`
    - `docs/operations/workflow-complete.md`
    - `docs/governance/folder-charter.md`

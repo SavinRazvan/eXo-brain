@@ -16,6 +16,8 @@ Notes:
 > Canonical replacement: `docs/plans/docs-inventory-master.md`
 > Archived on: 2026-03-25
 > Archive reason: superseded
+>
+> **Notebook names in § Canonical Guidance Target below are obsolete.** Current suite: `tutorial_01`–`tutorial_08`, `check_01`–`check_04`, `edge_01`–`edge_02` — see `notebooks/README.md` and `docs/plans/notebook-standards.md`.
 
 ## Impacted Documents
 

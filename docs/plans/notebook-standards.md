@@ -14,6 +14,13 @@ Notes:
 
 # Notebook standards
 
+**Status:** active  
+**Owner:** Maintainer (Savin I. Razvan)  
+**Last reviewed:** 2026-05-29
+
+Canonical index: **[notebooks/README.md](../../notebooks/README.md)** (14 notebooks).  
+Evaluator paths: **[notebooks/EVALUATOR_GUIDE.md](../../notebooks/EVALUATOR_GUIDE.md)**.
+
 ## Categories (current)
 
 | Prefix | Purpose | Audience |
@@ -72,12 +79,14 @@ Naming: `<category>_<NN>_<slug>.ipynb` — numbers are sequential **within** eac
 
 ## CI
 
-- `tutorial_08` is executed via `nbconvert` in `architecture-fitness.yml` (no API key; Part 8 skips live)
-- Other notebooks: maintainer / evaluator runs locally
+- Workflow: `.github/workflows/architecture-fitness.yml`, job **`automated_test_suite`**
+- Command: `jupyter nbconvert --execute notebooks/tutorial_08_governed_execution_sandbox.ipynb` with `OPENAI_API_KEY` empty (Part 8 skips live)
+- Trigger: PRs touching `notebooks/**` (among other paths in that workflow)
+- Other notebooks: maintainer / evaluator runs locally (`check_*` + `edge_*` after ingress/tool changes)
 
 ## Evaluator entry point
 
-See **`notebooks/EVALUATOR_GUIDE.md`** for time-boxed paths (15 min / 90 min / security focus).
+See **`notebooks/EVALUATOR_GUIDE.md`** for 15 min / 90 min / extended / security / OpenAI-integration / maintainer smoke paths.
 
 ## Ownership map (logical)
 
