@@ -22,6 +22,14 @@ Run this checklist when a PR changes architecture, runtime contracts, policies, 
 ## PR Checklist (required)
 
 - [ ] Confirm canonical docs impacted by the change are updated (`README`, plans, operations, module docs).
+- [ ] If `notebooks/**` or notebook builders change: sync `notebooks/README.md`, `notebooks/EVALUATOR_GUIDE.md`, and `docs/plans/notebook-standards.md`; re-run affected notebooks for outputs; confirm `docs/architecture/governed-execution-pipeline.md` **Hands-on proof** still matches `tutorial_08` when that lab changes.
+- [ ] If `packages/eXo_adapters/**` or adapter PyPI versions change: sync `requirements.txt` / `requirements-adapters.txt`, `docs/operations/adapter-installation.md`, `docs/handoffs/exo_adapters_pypi_handoff.md`, and `packages/eXo_adapters/CHANGELOG.md` / `RELEASE.md` as applicable.
+- [ ] If `src/api/routers/**` paths or mounts change: sync `docs/api/customer-api-integration-guide.md`, `docs/api/README.md`, and `docs/modules/api.md`; spot-check `docs/strategy/foundation-tier-adoption-checklist.md` step table.
+- [ ] If `src/core/`, `src/runtime/`, `src/tools/`, `src/policies/`, or `src/tenancy/` contracts change: update the matching `docs/modules/*.md` (and `docs/modules/README.md` map if ownership shifts); run `python scripts/docs/check_docs_metadata.py`.
+- [ ] If alignment audit categories, merge-gate expectations, or hardening program phases change: sync `docs/roadmap/*` and `.cursor/skills/enterprise-architecture-audit/SKILL.md` references to `alignment-audit-schema.md`.
+- [ ] If tiers, entitlements, adapter versions, or product boundaries change: sync `docs/strategy/entitlement-matrix.md`, `adapter-compatibility-matrix.md`, `traceability-matrix.md`, `next-directions.md`, and `docs/api/customer-api-integration-guide.md`.
+- [ ] If workflow gates, `.cursor/rules`, PR artifact paths, or doc IA change: sync `docs/governance/workflow-source-owners.md`, `docs/governance/drift-prevention.md`, `docs/governance/rules-overlap-matrix.md`, and run `python scripts/architecture/check_governance_consistency.py`.
+- [ ] If `src/runtime/*`, `src/mcp/*`, plugin managers, or `workflow_loader` behavior changes: sync `docs/runtime_contracts.md`, `docs/mcp_integration.md`, `docs/plugin_lifecycle.md`, `docs/workflow_loading.md`, and `docs/modules/*` as needed.
 - [ ] Verify no contradictions against:
   - `.cursor/rules/*.mdc`
   - `.agents/skills/PR_WORKFLOW.md`
