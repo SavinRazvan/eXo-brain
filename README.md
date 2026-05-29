@@ -156,6 +156,16 @@ python scripts/architecture/validate_layers.py
 python scripts/architecture/scan_forbidden_imports.py
 ```
 
+### Environment (local)
+
+Copy `.env.template` to `.env` and set at least what you use:
+
+- **API + default OpenAI provider:** `OPENAI_API_KEY` (with `EXO_ENV=development`, the platform bootstraps `exo_adapter_openai` automatically).
+- **Another vendor (Groq, Ollama, Azure OpenAI, etc.):** use the commented **OpenAI-compatible** profile in `.env.template` (`EXO_DEFAULT_PROVIDER_*` + a vendor-specific `*_API_KEY` env name), or register providers via `POST /providers`.
+- **Notebooks only:** `OPENAI_API_KEY` is enough for live tutorial cells; no need to duplicate unused template variables.
+
+The old names `APP_ENV`, `DEFAULT_PROVIDER_ID`, `FALLBACK_PROVIDER_ID`, and `OPENAI_COMPATIBLE_*` in earlier drafts are **not** read by this repo — use `EXO_*` and `EXO_DEFAULT_PROVIDER_*` instead.
+
 ### Run Locally with Docker Compose
 
 ```bash
