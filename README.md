@@ -156,6 +156,13 @@ python scripts/architecture/validate_layers.py
 python scripts/architecture/scan_forbidden_imports.py
 ```
 
+### Explore (notebooks)
+
+Deterministic tutorials and smoke checks live under `notebooks/`. Start with
+[notebooks/EVALUATOR_GUIDE.md](notebooks/EVALUATOR_GUIDE.md) (15 min or 90 min paths) or
+[notebooks/README.md](notebooks/README.md) for the full index. Regenerate content from
+`notebooks/build_tutorials.py` and `notebooks/build_checks.py` — do not hand-edit `.ipynb` JSON.
+
 ### Environment (local)
 
 Copy `.env.template` to `.env` and set at least what you use:
@@ -189,6 +196,7 @@ use it as a deployment blueprint without a separate hardening pass.
 - `src/persistence/` - in-memory and SQLite persistence adapters.
 - `src/mcp/` - MCP registry and tool-adapter bridge.
 - `tests/` - module-aligned regression suites and architecture checks.
+- `notebooks/` - tutorials, module smoke checks, and edge proofs ([README](notebooks/README.md), [evaluator guide](notebooks/EVALUATOR_GUIDE.md)).
 - `docs/strategy/` - product boundary, governance posture, monetization and
   deployment thinking.
 - `docs/architecture/` - architecture references and governed execution order.

@@ -13,7 +13,8 @@
 5. `docs/strategy/customer-self-serve-governance-journey.md` — tenant-driven governance config, API spine, agent implementation rules (with `docs/plans/governance-configuration-reference-model.md`, `docs/api/governance-preview-and-testing.md`)  
 
 Abbreviations: `docs/operations/abbreviations-notepad.md`  
-Gitignored workspace map: **`docs/operations/local-workspace-layout.md`** (what lives under `.local/`, what to open vs ignore; includes **git commits vs `.local` PR artifacts**).
+Gitignored workspace map: **`docs/operations/local-workspace-layout.md`** (what lives under `.local/`, what to open vs ignore; includes **git commits vs `.local` PR artifacts**).  
+Hands-on evaluators: **`notebooks/EVALUATOR_GUIDE.md`** + **`notebooks/README.md`**; standards: **`docs/plans/notebook-standards.md`**.
 
 ## Rules (always applied in Cursor)
 
