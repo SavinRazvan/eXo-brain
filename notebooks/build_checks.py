@@ -40,6 +40,7 @@ from notebook_common import (
     OPENAI_ADAPTER_IDENTITY_ASSERT,
     PORTABLE_KERNELSPEC,
     join_notebook_code,
+    write_github_compatible_notebook,
 )
 
 
@@ -995,7 +996,7 @@ def main() -> None:
         (NB_DIR / "edge_02_tool_error_envelopes.ipynb", build_edge_02()),
     ]
     for path, notebook in outputs:
-        nbf.write(notebook, path)
+        write_github_compatible_notebook(notebook, path)
         print(f"wrote: {path}")
         if args.execute:
             _execute_notebook(path)

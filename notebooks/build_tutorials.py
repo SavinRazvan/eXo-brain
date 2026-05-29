@@ -24,6 +24,7 @@ from notebook_common import (
     LANGUAGE_INFO,
     OPENAI_ADAPTER_IDENTITY_ASSERT,
     PORTABLE_KERNELSPEC,
+    write_github_compatible_notebook,
 )
 
 NB_DIR = Path(__file__).parent
@@ -4304,14 +4305,14 @@ p6 = NB_DIR / "tutorial_06_background_workflows.ipynb"
 p7 = NB_DIR / "tutorial_07_governance_and_anomaly.ipynb"
 p8 = NB_DIR / "tutorial_08_governed_execution_sandbox.ipynb"
 
-nbf.write(nb1, p1)
-nbf.write(nb2, p2)
-nbf.write(nb3, p3)
-nbf.write(nb4, p4)
-nbf.write(nb5, p5)
-nbf.write(nb6, p6)
-nbf.write(nb7, p7)
-nbf.write(nb8, p8)
+write_github_compatible_notebook(nb1, p1)
+write_github_compatible_notebook(nb2, p2)
+write_github_compatible_notebook(nb3, p3)
+write_github_compatible_notebook(nb4, p4)
+write_github_compatible_notebook(nb5, p5)
+write_github_compatible_notebook(nb6, p6)
+write_github_compatible_notebook(nb7, p7)
+write_github_compatible_notebook(nb8, p8)
 
 print(f"wrote: {p1}")
 print(f"wrote: {p2}")

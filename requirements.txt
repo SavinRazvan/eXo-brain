@@ -34,6 +34,9 @@ pytest-asyncio>=1.3.0
 pytest-cov>=7.1.0
 
 # ── Notebooks ─────────────────────────────────────────────────────────────────
+# Local dev + CI (nbconvert execute). GitHub in-browser preview uses its own nbformat/nbconvert
+# stack; if preview fails with "An error occurred Using nbformat v5.10.4...", run:
+#   python scripts/dev/normalize_notebooks_for_github.py
 notebook>=7.5.6
 nbformat>=5.10.4
 nbconvert>=7.17.1

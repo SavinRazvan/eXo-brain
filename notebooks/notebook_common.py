@@ -5,15 +5,23 @@ Role: Shared bootstrap, adapter wheel probe, and notebook metadata for build scr
 Used By:
  - notebooks/build_checks.py
  - notebooks/build_tutorials.py
+ - scripts/dev/normalize_notebooks_for_github.py
 Depends On:
- - TBD
+ - nbformat (write helper)
 Notes:
  - Single source for portable kernelspec, sys.path bootstrap, and PyPI adapter verification snippets.
+ - GitHub preview prefers nbformat 4.4 (no cell ids); local Jupyter upgrades on open.
 """
 
 from __future__ import annotations
 
+import copy
 import textwrap
+from pathlib import Path
+from typing import Any
+
+import nbformat as nbf
+from nbformat.validator import normalize, validate
 
 PORTABLE_KERNELSPEC = {
     "display_name": "Python 3 (eXo-brain venv)",
@@ -97,3 +105,24 @@ assert EchoRuntimeAdapter.__module__.startswith("exo_adapter_echo."), (
 def join_notebook_code(*parts: str) -> str:
     """Join notebook code fragments; dedent each part separately before concatenation."""
     return "\n\n".join(textwrap.dedent(part).strip() for part in parts if part.strip())
+
+
+def prepare_notebook_for_github(nb: Any) -> None:
+    """Normalize notebook metadata for GitHub preview (nbformat 4.4, portable kernel)."""
+    nb.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
+    nb.metadata.setdefault("language_info", dict(LANGUAGE_INFO))
+    nb.nbformat = 4
+    nb.nbformat_minor = 4
+    for cell in nb.cells:
+        cell.metadata.pop("execution", None)
+        if "id" in cell:
+            del cell["id"]
+
+
+def write_github_compatible_notebook(nb: Any, path: Path) -> None:
+    """Write a notebook using GitHub-friendly nbformat 4.4 metadata."""
+    prepared = copy.deepcopy(nb)
+    prepare_notebook_for_github(prepared)
+    normalize(prepared)
+    validate(prepared)
+    nbf.write(prepared, path, version=4)

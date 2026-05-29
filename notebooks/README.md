@@ -123,6 +123,20 @@ After regenerating, re-run notebook cells to refresh outputs, then commit the bu
 `jupyter nbconvert --execute` on **`tutorial_08_governed_execution_sandbox.ipynb`** with
 `OPENAI_API_KEY` empty (Part 8 skips live calls). Triggered on PRs that touch `notebooks/**` (among other paths).
 
+### GitHub in-browser preview
+
+GitHub renders notebooks with **its own** nbformat/nbconvert stack. If you see
+`An error occurred Using nbformat v5.10.4 and nbconvert v7.17.1`, that banner is **GitHub’s**
+renderer failing — it is **not** fixed by changing `requirements.txt` (those pins are for local dev and CI only).
+
+| Symptom | What to do |
+|---------|------------|
+| Generic render error on any `.ipynb` | Retry later; use [nbviewer](https://nbviewer.org/) or open locally with `.venv` |
+| `tutorial_08` “took too long to render” | Expected for the largest lab — run locally or use nbviewer |
+| Before push (metadata normalize) | `python scripts/dev/normalize_notebooks_for_github.py` |
+
+Committed notebooks use **nbformat 4.4** (no cell ids) and portable kernelspec metadata for better GitHub compatibility.
+
 ---
 
 ## Notebook Index
