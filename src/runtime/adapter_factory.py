@@ -12,7 +12,7 @@ Notes:
  - Validates the loaded class with ``issubclass(..., RuntimeAdapter)`` where ``RuntimeAdapter`` is the
    published ABC re-exported from ``src.runtime.runtime_adapter`` (same type as adapter packages).
  - Canonical OpenAI ref: "exo_adapter_openai.runtime.OpenAIAgentsRuntimeAdapter"
- - Requires published adapter wheels (see requirements-adapters.txt).
+ - Requires published adapter wheels (see requirements.txt).
 """
 
 from __future__ import annotations
@@ -92,7 +92,7 @@ def load_adapter(adapter_class_ref: str, provider_id: str, **kwargs) -> RuntimeA
         raise ImportError(
             f"Could not load adapter class for {adapter_class_ref!r} "
             f"(canonical={canonical_ref!r}). Install adapter packages: "
-            "pip install -r requirements-adapters.txt "
+            "pip install -r requirements.txt "
             "or bash scripts/dev/install_adapter_dependencies.sh"
         ) from exc
     return cls(provider_id=provider_id, **kwargs)  # type: ignore[call-arg]

@@ -5,11 +5,11 @@ Role: Unit tests for runtime tool wiring function wrappers.
 Used By:
  - pytest
 Depends On:
- - src/runtime/tool_wiring.py
+ - exo_adapter_openai.tool_wiring (via src/runtime/tool_wiring.py re-export)
  - src/tools/registry.py
  - src/schemas/tool_io.py
 Notes:
- - Validates success/error/input parsing paths for generated FunctionTool callbacks.
+ - Validates success/error/input parsing paths for packaged OpenAI tool wiring.
 """
 
 from __future__ import annotations

@@ -9,7 +9,9 @@ Used By:
 Depends On:
  - exo_brain_core_contracts.runtime_adapter
 Notes:
- - Canonical ABC: distribution ``exo-brain-core-contracts`` (**eXo_adapters**). In-tree adapters subclass these symbols; ``adapter_factory`` validates with ``issubclass(..., RuntimeAdapter)``.
+ - Canonical ABC: distribution ``exo-brain-core-contracts`` (SavinRazvan/eXo_adapters, PyPI).
+ - Stub adapters in ``custom_runtime`` / ``openai_compatible_runtime`` subclass this symbol;
+   production OpenAI/echo adapters load from PyPI via ``adapter_factory``.
 """
 
 from __future__ import annotations

@@ -17,6 +17,8 @@ import threading
 import time
 from pathlib import Path
 
+from tests.constants import BYOC_WORKER_JWT_SECRET
+
 from src.schemas.tool_io import ToolCallContext, ToolStatus
 from src.tools.byoc.connector_runtime import TenantByocConnectorRuntime
 from src.tools.byoc.job_contracts import ByocResultStatus, ByocToolJobEnvelope, ByocToolResultEnvelope
@@ -116,7 +118,7 @@ def test_byoc_runtime_sqlite_restart_recovery(tmp_path) -> None:
     db_path = str(tmp_path / "byoc_runtime_recovery.db")
 
     runtime_a = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         job_store=SQLiteByocJobQueueStore(db_path),
         result_store=SQLiteByocResultStore(db_path),
         replay_guard=SQLiteReplayGuard(db_path),
@@ -134,7 +136,7 @@ def test_byoc_runtime_sqlite_restart_recovery(tmp_path) -> None:
 
     # Simulate worker-side process restart by creating a fresh runtime instance against same DB.
     runtime_b = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         job_store=SQLiteByocJobQueueStore(db_path),
         result_store=SQLiteByocResultStore(db_path),
         replay_guard=SQLiteReplayGuard(db_path),
@@ -309,14 +311,14 @@ def test_sqlite_job_store_lease_expiry_storm_routes_to_dlq(tmp_path: Path) -> No
 def test_byoc_runtime_sqlite_restart_race_recovers_under_parallel_load(tmp_path: Path) -> None:
     db_path = str(tmp_path / "byoc_restart_race.db")
     runtime_a = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         job_store=SQLiteByocJobQueueStore(db_path),
         result_store=SQLiteByocResultStore(db_path),
         replay_guard=SQLiteReplayGuard(db_path),
         lease_ttl_seconds=2,
     )
     runtime_b = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         job_store=SQLiteByocJobQueueStore(db_path),
         result_store=SQLiteByocResultStore(db_path),
         replay_guard=SQLiteReplayGuard(db_path),
@@ -380,7 +382,7 @@ def test_byoc_runtime_sqlite_restart_race_recovers_under_parallel_load(tmp_path:
 def test_byoc_runtime_sqlite_replay_collision_under_submit_pressure(tmp_path: Path) -> None:
     db_path = str(tmp_path / "byoc_replay_collision.db")
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         job_store=SQLiteByocJobQueueStore(db_path),
         result_store=SQLiteByocResultStore(db_path),
         replay_guard=SQLiteReplayGuard(db_path),

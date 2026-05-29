@@ -18,6 +18,7 @@ from src.core.orchestrator import Orchestrator
 from src.policies.middleware import DeterministicFirstPolicyMiddleware, PolicyMiddleware
 from src.runtime.openai_agents_runtime import OpenAIAgentsRuntimeAdapter
 from src.schemas.events import RuntimeEventType
+from tests.constants import BYOC_WORKER_JWT_SECRET
 from src.schemas.tool_io import (
     PolicyAction,
     PolicyDecision,
@@ -128,7 +129,7 @@ def test_orchestrator_emits_byoc_adapter_progress_states() -> None:
             timeout_ms=3000,
         )
     )
-    byoc_adapter = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    byoc_adapter = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     policy = DeterministicFirstPolicyMiddleware()
     orchestrator = Orchestrator(
         runtime_adapter=OpenAIAgentsRuntimeAdapter(),

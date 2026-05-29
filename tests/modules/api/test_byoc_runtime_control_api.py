@@ -16,11 +16,21 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+from typing import cast
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from tests.constants import BYOC_WORKER_JWT_SECRET
 
 from src.api.bootstrap import build_test_app
 from src.config.settings import AppSettings, RuntimeSettings
+from src.schemas.tool_io import ToolResult, ToolStatus
+
+
+def _fastapi_app(client: TestClient) -> FastAPI:
+    """TestClient.app is typed as a generic ASGI wrapper; tests always use FastAPI."""
+    return cast(FastAPI, client.app)
 
 
 def _headers(tenant_id: str = "t1", roles: list[str] | None = None) -> dict[str, str]:
@@ -63,7 +73,7 @@ def _byoc_client(
             allowed_provider_ids=["openai-test"],
             require_provider_healthcheck_on_start=False,
             enable_byoc_tool_runtime=True,
-            byoc_worker_jwt_secret="test-secret",
+            byoc_worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
             byoc_lease_ttl_seconds=lease_ttl_seconds,
             byoc_max_claim_attempts_before_dlq=max_claim_attempts_before_dlq,
             byoc_enable_cost_window_policy=enable_cost_window_policy,
@@ -90,7 +100,7 @@ def _byoc_client(
 
 def test_byoc_runtime_control_issue_claim_submit_happy_path() -> None:
     client = _byoc_client()
-    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    ctx = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
     adapter = ctx.tool_executor.execution_adapter()
     assert adapter is not None
 
@@ -111,7 +121,7 @@ def test_byoc_runtime_control_issue_claim_submit_happy_path() -> None:
         tenant_id="t1",
     )
     descriptor = ToolDescriptor(name="echo_tool", handler=lambda x: x, timeout_ms=1500)
-    result_holder: dict[str, object] = {}
+    result_holder: dict[str, ToolResult] = {}
 
     def _execute() -> None:
         result_holder["result"] = adapter.execute(call, descriptor)
@@ -163,12 +173,12 @@ def test_byoc_runtime_control_issue_claim_submit_happy_path() -> None:
     assert submit_resp.status_code == 200
     assert submit_resp.json()["accepted"] is True
     thread.join(timeout=2.0)
-    assert result_holder["result"].status.value == "success"
+    assert result_holder["result"].status == ToolStatus.SUCCESS
 
 
 def test_byoc_governance_metrics_requires_pro_entitlement_and_emits_audit() -> None:
     client = _byoc_client()
-    app = client.app
+    app = _fastapi_app(client)
     resp = client.get(
         "/tenants/t1/admin/byoc/governance-metrics",
         headers=_headers("t1", roles=["admin"]),
@@ -244,7 +254,7 @@ def test_byoc_admin_routes_return_409_when_only_hosted_runtime_enabled() -> None
 
 def test_byoc_dlq_bulk_replay_ingests_partial_failure_summary() -> None:
     client = _byoc_client()
-    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    ctx = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
     adapter = ctx.tool_executor.execution_adapter()
     assert adapter is not None
 
@@ -274,7 +284,7 @@ def test_byoc_dlq_bulk_replay_ingests_partial_failure_summary() -> None:
 
 def test_byoc_dlq_bulk_replay_falls_back_to_single_replay_when_bulk_missing() -> None:
     client = _byoc_client()
-    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    ctx = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
     adapter = ctx.tool_executor.execution_adapter()
     assert adapter is not None
     adapter.replay_dead_letter_jobs = None  # type: ignore[assignment]
@@ -299,7 +309,7 @@ def test_byoc_dlq_bulk_replay_falls_back_to_single_replay_when_bulk_missing() ->
 
 def test_byoc_dlq_bulk_replay_returns_empty_summary_when_no_job_ids_resolved() -> None:
     client = _byoc_client()
-    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    ctx = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
     adapter = ctx.tool_executor.execution_adapter()
     assert adapter is not None
 
@@ -347,7 +357,7 @@ def test_byoc_runtime_control_replayed_nonce_rejected() -> None:
 
 def test_byoc_runtime_control_duplicate_submit_reports_duplicate() -> None:
     client = _byoc_client()
-    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    ctx = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
     adapter = ctx.tool_executor.execution_adapter()
     assert adapter is not None
     from src.schemas.tool_io import ToolCallContext
@@ -424,7 +434,7 @@ def test_byoc_runtime_control_duplicate_submit_reports_duplicate() -> None:
 
 def test_byoc_runtime_control_submit_rejects_artifact_integrity_mismatch() -> None:
     client = _byoc_client()
-    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    ctx = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
     adapter = ctx.tool_executor.execution_adapter()
     assert adapter is not None
     from src.schemas.tool_io import ToolCallContext
@@ -535,8 +545,8 @@ def test_byoc_runtime_control_stats_include_fairness_timeout_indicators_per_tena
     from src.schemas.tool_io import ToolCallContext
     from src.tools.registry import ToolDescriptor
 
-    ctx_t1 = client.app.state.tenant_factory.get_or_create("t1")
-    ctx_t2 = client.app.state.tenant_factory.get_or_create("t2")
+    ctx_t1 = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
+    ctx_t2 = _fastapi_app(client).state.tenant_factory.get_or_create("t2")
     adapter_t1 = ctx_t1.tool_executor.execution_adapter()
     adapter_t2 = ctx_t2.tool_executor.execution_adapter()
     assert adapter_t1 is not None
@@ -590,7 +600,7 @@ def test_byoc_runtime_control_stats_include_fairness_timeout_indicators_per_tena
 
 def test_byoc_webhook_submit_happy_path_and_auth_failure() -> None:
     client = _byoc_client()
-    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    ctx = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
     adapter = ctx.tool_executor.execution_adapter()
     assert adapter is not None
     from src.schemas.tool_io import ToolCallContext
@@ -652,7 +662,7 @@ def test_byoc_webhook_submit_happy_path_and_auth_failure() -> None:
     good_resp = client.post(
         "/tenants/t1/admin/byoc/webhook/jobs/submit",
         json={
-            "webhook_secret": "test-secret",
+            "webhook_secret": BYOC_WORKER_JWT_SECRET,
             "webhook_request_id": "api-webhook-rid-002",
             "result": {
                 "job_id": job["job_id"],
@@ -675,7 +685,7 @@ def test_byoc_webhook_submit_happy_path_and_auth_failure() -> None:
 
 def test_byoc_dlq_list_and_replay_api_flow() -> None:
     client = _byoc_client(max_claim_attempts_before_dlq=1, lease_ttl_seconds=1)
-    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    ctx = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
     adapter = ctx.tool_executor.execution_adapter()
     assert adapter is not None
     from src.schemas.tool_io import ToolCallContext
@@ -771,7 +781,7 @@ def test_byoc_dlq_list_and_replay_api_flow() -> None:
 
 def test_byoc_dlq_bulk_replay_returns_deterministic_summary() -> None:
     client = _byoc_client(max_claim_attempts_before_dlq=1, lease_ttl_seconds=1)
-    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    ctx = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
     adapter = ctx.tool_executor.execution_adapter()
     assert adapter is not None
     from src.schemas.tool_io import ToolCallContext
@@ -929,7 +939,7 @@ def test_byoc_provider_partition_cost_limit_is_tenant_isolated() -> None:
     descriptor = ToolDescriptor(name="echo_tool", handler=lambda x: x, timeout_ms=1500)
 
     def _execute_success(tenant_id: str, call_suffix: str) -> None:
-        ctx = client.app.state.tenant_factory.get_or_create(tenant_id)
+        ctx = _fastapi_app(client).state.tenant_factory.get_or_create(tenant_id)
         adapter = ctx.tool_executor.execution_adapter()
         assert adapter is not None
         call = ToolCallContext(
@@ -945,7 +955,7 @@ def test_byoc_provider_partition_cost_limit_is_tenant_isolated() -> None:
             arguments={"x": 1},
             tenant_id=tenant_id,
         )
-        result_holder: dict[str, object] = {}
+        result_holder: dict[str, ToolResult] = {}
         thread = threading.Thread(target=lambda: result_holder.setdefault("result", adapter.execute(call, descriptor)))
         thread.start()
         token_resp = client.post(
@@ -983,11 +993,11 @@ def test_byoc_provider_partition_cost_limit_is_tenant_isolated() -> None:
         assert submit_resp.status_code == 200
         assert submit_resp.json()["accepted"] is True
         thread.join(timeout=2.0)
-        assert result_holder["result"].status.value == "success"
+        assert result_holder["result"].status == ToolStatus.SUCCESS
 
     _execute_success("t1", "1")
 
-    t1_ctx = client.app.state.tenant_factory.get_or_create("t1")
+    t1_ctx = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
     t1_adapter = t1_ctx.tool_executor.execution_adapter()
     assert t1_adapter is not None
     blocked_call = ToolCallContext(
@@ -1057,7 +1067,7 @@ def test_byoc_governance_metrics_export_includes_anomaly_findings_when_threshold
 
 def test_byoc_governance_metrics_export_includes_conflict_counts() -> None:
     client = _byoc_client()
-    ctx = client.app.state.tenant_factory.get_or_create("t1")
+    ctx = _fastapi_app(client).state.tenant_factory.get_or_create("t1")
     adapter = ctx.tool_executor.execution_adapter()
     assert adapter is not None
 
