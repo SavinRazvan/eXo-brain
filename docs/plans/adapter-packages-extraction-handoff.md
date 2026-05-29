@@ -18,6 +18,10 @@ Notes:
 
 # Adapter packages extraction handoff (`packages/` → **eXo_adapters**)
 
+**Status (2026-05-29):** **Core extraction done.** Portable packages live in [`packages/eXo_adapters/`](../../packages/eXo_adapters/) (in-tree copy of [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters)); eXo-brain pins **PyPI 0.1.1** in `requirements.txt` / `requirements-adapters.txt`. **Completion summary:** [docs/handoffs/exo_adapters_pypi_handoff.md](../handoffs/exo_adapters_pypi_handoff.md). **Operators:** [adapter-installation.md](../operations/adapter-installation.md). **Open:** §9 checklist items for optional removal of in-tree `packages/` and factory fallback cleanup.
+
+---
+
 ## 1. Goal
 
 Portable adapter artifacts live in the **eXo_adapters** repository (multi-package layout, same PyPI distribution names). The eXo-brain repo remains **control plane only**; it **consumes** `exo-brain-core-contracts` (and optional adapters) via **pip** (git or PyPI) and loads runtime implementations via **`adapter_class_ref`** (`src/runtime/adapter_factory.py`).
@@ -201,14 +205,14 @@ Alternatively: **one** `pyproject.toml` with **workspace** / multiple packages (
 
 ## 9. Refactor checklist (before deleting `packages/` from eXo-brain)
 
-1. [ ] New repo created; all sources + tests + smoke script migrated; CI green.  
-2. [ ] `external_install_smoke` passes in **clean** venv from new repo.  
-3. [ ] eXo-brain installs adapters from new location; **`load_adapter`** uses package path **without** relying on in-tree fallback (or fallback explicitly deprecated).  
-4. [x] **Published runtime type identity** — **STP-W4-002** (`RuntimeAdapter` / `SessionHandle` re-export) + **STP-W4-003** (`events`, `tool_io`, `capability_map` re-exports; event factories + `blocked_result` in contracts **0.1.1+**).  
-5. [ ] Update `requirements.txt` / Docker image to include adapter packages.  
-6. [ ] Remove `packages/` from eXo-brain; remove `tests/packages` or replace with integration smoke.  
-7. [ ] Update `scan_forbidden_imports`, `architecture-fitness.yml`, `check_governance_consistency` inputs if they reference `packages/**`.  
-8. [ ] Refresh strategy/architecture docs and `adapter-compatibility-matrix.md` with **new repo URL** and release process.
+1. [x] New repo created; all sources + tests + smoke script migrated; CI green (`packages/eXo_adapters/`).  
+2. [x] `external_install_smoke` / adapter repo smoke passes (`packages/eXo_adapters/scripts/external_install_smoke.py`).  
+3. [ ] eXo-brain **`load_adapter`** uses package path **without** relying on in-tree fallback (or fallback explicitly deprecated).  
+4. [x] **Published runtime type identity** — **STP-W4-002** + **STP-W4-003** (contracts **0.1.1+**).  
+5. [x] `requirements.txt` / `requirements-adapters.txt` pin PyPI **0.1.1**; Docker uses `install_adapter_dependencies.sh`.  
+6. [ ] Remove `packages/eXo_adapters/` from eXo-brain (optional: dev uses sibling clone); keep or slim `tests/packages`.  
+7. [ ] Narrow `scan_forbidden_imports` / CI `packages/**` triggers once vendored tree is dev-only.  
+8. [x] Operator docs: `adapter-installation.md`, `adapter-repos-and-pypi.md`, handoff status doc.
 
 ---
 
@@ -217,9 +221,9 @@ Alternatively: **one** `pyproject.toml` with **workspace** / multiple packages (
 | Distribution | Version (today) | `requires-python` | Runtime deps (declared) |
 |--------------|-----------------|-------------------|-------------------------|
 | `exo-brain-core-contracts` | 0.1.1+ | >=3.11 | — |
-| `exo-brain-adapter-sdk` | 0.1.0 | >=3.11 | `exo-brain-core-contracts` |
-| `exo-adapter-openai` | 0.1.0 | >=3.11 | `exo-brain-core-contracts`, `openai`, `openai-agents` |
-| `exo-adapter-echo` | 0.1.0 | >=3.11 | `exo-brain-core-contracts` |
+| `exo-brain-adapter-sdk` | 0.1.1 | >=3.11 | `exo-brain-core-contracts` |
+| `exo-adapter-openai` | 0.1.1 | >=3.11 | `exo-brain-core-contracts`, `openai`, `openai-agents` |
+| `exo-adapter-echo` | 0.1.1 | >=3.11 | `exo-brain-core-contracts` |
 
 ---
 

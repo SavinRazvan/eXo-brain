@@ -5,7 +5,7 @@ Role: Clarify GitHub/PyPI layout — one adapters repo, four wheels; how eXo-bra
 Used By:
  - Operators and maintainers wiring pip install
 Depends On:
- - packages/repo_for_pipy (canonical publish tree → SavinRazvan/eXo_adapters)
+ - packages/eXo_adapters (in-tree copy of SavinRazvan/eXo_adapters)
 Notes:
  - You do not need a separate GitHub repo per package name.
 -->
@@ -24,7 +24,7 @@ Notes:
 
 ```text
 SavinRazvan/eXo-brain          → control plane (orchestrator, API, policy, tools)
-SavinRazvan/eXo_adapters       → four PyPI packages (authoring tree: packages/repo_for_pipy in dev)
+SavinRazvan/eXo_adapters       → four PyPI packages (in eXo-brain dev: packages/eXo_adapters/packages/)
 ```
 
 **Four PyPI distribution names (lockstep 0.1.1):**
