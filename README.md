@@ -32,6 +32,20 @@ adapters, tenant-scoped governance, audit events, and runtime control.
 > Build model: **AI-assisted implementation**, with human-owned architecture,
 > review, and evidence. See `MAINTAINER_STATUS.md` § “How This Project Is Built”.
 
+## Start here (onboarding)
+
+Pick one path — deeper reading lives in [docs/README.md](docs/README.md).
+
+| You are… | Start with | Then |
+|---|---|---|
+| **Evaluator** (15–90 min, no production claims) | [notebooks/EVALUATOR_GUIDE.md](notebooks/EVALUATOR_GUIDE.md) | [notebooks/README.md](notebooks/README.md) → `tutorial_01` → `tutorial_08` |
+| **Architecture reader** (plain language) | [docs/architecture/beginner-workflow.md](docs/architecture/beginner-workflow.md) | [governed-execution-pipeline.md](docs/architecture/governed-execution-pipeline.md) → [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) |
+| **API / integration** (tier-aware contract) | [docs/api/customer-api-integration-guide.md](docs/api/customer-api-integration-guide.md) | [foundation-tier-adoption-checklist.md](docs/strategy/foundation-tier-adoption-checklist.md) |
+| **Contributor / maintainer** | [AGENTS.md](AGENTS.md) (first reads + gates) | [docs/operations/workflow-complete.md](docs/operations/workflow-complete.md) |
+| **Adapter operator** (PyPI wheels) | [docs/operations/adapter-installation.md](docs/operations/adapter-installation.md) | [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) |
+
+This README is **enterprise-grade documentation** for a **reference implementation** — not a claim of enterprise product support, SLAs, or certified compliance. See [What This Is Not](#what-this-is-not) and [STATUS.md](STATUS.md).
+
 ## What This Is
 
 - A **control-plane reference implementation** for governed agent execution:
@@ -142,11 +156,19 @@ The current public posture is intentionally conservative:
 
 ### Install
 
+Adapter runtime packages (`exo-brain-core-contracts`, `exo-brain-adapter-sdk`,
+`exo-adapter-echo`, `exo-adapter-openai`) install from **PyPI** via
+`requirements.txt` — there is no in-tree `packages/eXo_adapters` mirror.
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+# or: bash scripts/dev/install_adapter_dependencies.sh
 ```
+
+See [docs/operations/adapter-installation.md](docs/operations/adapter-installation.md)
+for operator notes and provider registration.
 
 ### Run Tests
 
@@ -200,6 +222,7 @@ use it as a deployment blueprint without a separate hardening pass.
 - `docs/strategy/` - product boundary, governance posture, monetization and
   deployment thinking.
 - `docs/architecture/` - architecture references and governed execution order.
+- `docs/README.md` - documentation index and recommended reading spine.
 - `.cursor/` and `.agents/` - maintainer workflow rules and agent skills.
 
 
