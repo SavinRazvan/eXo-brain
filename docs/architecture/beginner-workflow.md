@@ -123,8 +123,8 @@ This is where the system talks to the model provider.
 
 In the codebase, this is mainly:
 
-- `src/runtime/*`
-- `packages/*`
+- `src/runtime/*` (factory, shims, registry hydration)
+- PyPI adapter wheels (`exo-adapter-*`) loaded via `adapter_class_ref`
 
 ### 6. The AI may ask for a tool
 
@@ -201,7 +201,7 @@ In the codebase, this is mainly:
 | Security | Checks identity and tenant scope | `src/api/middleware/auth.py`, `src/api/dependencies.py`, `src/identity/*` |
 | Rules desk | Decides what is allowed, denied, or escalated (ingress + entitlements on API path) | `src/api/routers/turns.py`, `src/policies/ingress_*`, `src/api/middleware/entitlements.py`, `src/policies/*` |
 | Dispatcher | Coordinates the whole request | `src/core/*` |
-| Specialist phone lines | Connections to model providers | `src/runtime/*`, `packages/*` |
+| Specialist phone lines | Connections to model providers | `src/runtime/*`, PyPI `exo-adapter-*` |
 | Secure tool room | Safe execution of tools and side effects | `src/tools/*` |
 | Tenant walls | Separation between customers | `src/tenancy/*`, `src/runtime/tenant_runtime.py` |
 | Filing cabinets | Saved operational state | `src/persistence/*` |

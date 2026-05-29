@@ -5,9 +5,9 @@ Role: Clarify GitHub/PyPI layout — one adapters repo, four wheels; how eXo-bra
 Used By:
  - Operators and maintainers wiring pip install
 Depends On:
- - packages/eXo_adapters (in-tree copy of SavinRazvan/eXo_adapters)
+ - SavinRazvan/eXo_adapters (GitHub + PyPI)
 Notes:
- - You do not need a separate GitHub repo per package name.
+ - eXo-brain does not vend adapter source; install wheels via pip only.
 -->
 
 # Adapter repos and PyPI — what you need
@@ -16,18 +16,18 @@ Notes:
 
 | Question | Answer |
 |----------|--------|
-| Separate repo for **contracts**? | **No.** `exo-brain-core-contracts` is one of **four wheels** in the **same** adapters repo. |
-| Separate repo for **SDK**? | **No** (unless you keep a legacy fork). Publish **`exo-brain-adapter-sdk`** from **`SavinRazvan/eXo_adapters`** with the other three packages. |
-| What does **eXo-brain** need? | This repo only — install wheels via pip; no vendored adapter source required after PyPI publish. |
+| Separate repo for **contracts**? | **No.** `exo-brain-core-contracts` is one of **four wheels** in **`SavinRazvan/eXo_adapters`**. |
+| Separate repo for **SDK**? | **No.** Publish **`exo-brain-adapter-sdk`** from the same adapters repo. |
+| What does **eXo-brain** need? | `pip install -r requirements.txt` — four lockstep pins, no local `packages/` tree. |
 
 ## Repository map
 
 ```text
-SavinRazvan/eXo-brain          → control plane (orchestrator, API, policy, tools)
-SavinRazvan/eXo_adapters       → four PyPI packages (in eXo-brain dev: packages/eXo_adapters/packages/)
+SavinRazvan/eXo-brain     → control plane (orchestrator, API, policy, tools)
+SavinRazvan/eXo_adapters  → four PyPI packages (authoring, tests, releases)
 ```
 
-**Four PyPI distribution names (lockstep 0.1.1):**
+**Four PyPI distribution names (lockstep; see `requirements.txt` for current pin):**
 
 1. `exo-brain-core-contracts`
 2. `exo-brain-adapter-sdk`
@@ -36,61 +36,35 @@ SavinRazvan/eXo_adapters       → four PyPI packages (in eXo-brain dev: package
 
 ## Install commands (eXo-brain environment)
 
-**Minimum (control plane + shared types):**
+**Full dev / CI / Docker:**
 
 ```bash
 pip install -r requirements.txt
-# includes exo-brain-core-contracts==0.1.1
-```
-
-**Full runtime (OpenAI + echo adapters):**
-
-```bash
-pip install -r requirements.txt
-pip install -r requirements-adapters.txt
-```
-
-Equivalent one-liner after publish:
-
-```bash
-pip install exo-brain-core-contracts==0.1.1 \
-  exo-brain-adapter-sdk==0.1.1 \
-  exo-adapter-echo==0.1.1 \
-  exo-adapter-openai==0.1.1
-```
-
-Or from eXo-brain root:
-
-```bash
+# or
 bash scripts/dev/install_adapter_dependencies.sh
 ```
 
-## Register in eXo-brain
-
-| Provider | `adapter_class_ref` |
-|----------|---------------------|
-| OpenAI | `exo_adapter_openai.runtime.OpenAIAgentsRuntimeAdapter` |
-| Echo | `exo_adapter_echo.runtime.EchoRuntimeAdapter` |
-
-Set `OPENAI_API_KEY` for live OpenAI turns.
-
-## Live verification (you have an API key)
+**Adapter wheels only** (same four pins as `requirements.txt`):
 
 ```bash
-export OPENAI_API_KEY="sk-..."
-export EXO_RUN_LIVE_OPENAI=1
-pytest tests/modules/runtime/test_openai_live_integration.py -q
+pip install -r requirements-adapters.txt
 ```
 
-## If you already have `exo-brain-adapter-sdk` as its own repo
+**Install (PyPI only):**
 
-Merge or mirror it into **`eXo_adapters`** under `packages/exo-brain-adapter-sdk/`. PyPI expects the **distribution name** `exo-brain-adapter-sdk`, not a second control-plane repo. eXo-brain should **not** publish contracts from the control-plane repo long term.
+```bash
+pip install -r requirements.txt
+```
 
-## Publish checklist (maintainer)
+Adapter source is authored in **`SavinRazvan/eXo_adapters`** and published to PyPI. eXo-brain never installs from that repo path directly.
 
-1. Push `packages/repo_for_pipy` → `SavinRazvan/eXo_adapters`
-2. Tag `v0.1.1` → GitHub `release.yml` → PyPI (Trusted Publishing)
-3. Confirm: `pip install exo-adapter-openai==0.1.1` in a **clean** venv
-4. Run eXo-brain: `bash scripts/dev/install_adapter_dependencies.sh` and targeted pytest
+Operator details: [adapter-installation.md](adapter-installation.md).
 
-See also [`adapter-installation.md`](adapter-installation.md).
+## Maintainer releases
+
+1. Change adapter source in **`SavinRazvan/eXo_adapters`**
+2. Tag lockstep release → publish four wheels to PyPI
+3. Bump pins in eXo-brain `requirements.txt` / `requirements-adapters.txt`
+4. Run `python scripts/packages/external_install_smoke.py` and full pytest
+
+See [eXo_adapters RELEASE.md](https://github.com/SavinRazvan/eXo_adapters/blob/main/RELEASE.md).

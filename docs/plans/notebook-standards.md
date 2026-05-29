@@ -8,6 +8,7 @@ Used By:
 Depends On:
  - notebooks/build_tutorials.py
  - notebooks/build_checks.py
+ - notebooks/notebook_common.py
 Notes:
  - Supersedes legacy names (01_idea_validation, 1x_*_checks).
 -->
@@ -43,7 +44,7 @@ Naming: `<category>_<NN>_<slug>.ipynb` — numbers are sequential **within** eac
 ## Required structure — tutorials
 
 1. **Title cell** — what it covers, API key policy, time estimate when relevant
-2. **Bootstrap** — `.env` optional load, `sys.path`, vendored contracts `src` when present
+2. **Bootstrap** — `.env` optional load, `sys.path`, `pip install -r requirements.txt` (four PyPI adapter wheels)
 3. **Concept markdown** — architecture diagram or story before heavy code
 4. **Section markdown** — numbered steps (“We will…”)
 5. **Code + interpretation** — stdout is evidence
@@ -93,7 +94,7 @@ See **`notebooks/EVALUATOR_GUIDE.md`** for 15 min / 90 min / extended / security
 | Notebook | Primary validation |
 |---|---|
 | `tutorial_01`, `check_01` | Core orchestration |
-| `tutorial_02`, `check_03` | Runtime adapter |
+| `tutorial_02`, `check_03` | Runtime adapter (PyPI OpenAI + Echo) |
 | `tutorial_03`, `edge_01` | Ingress policy |
 | `tutorial_04`, `edge_02` | Audit / tool envelopes |
 | `tutorial_05`, `check_04` | Tenancy / limits |

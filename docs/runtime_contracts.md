@@ -6,7 +6,7 @@ Used By:
  - docs/README.md
  - docs/modules/runtime.md
  - docs/plans/option-c-contract-freeze.md
- - packages/eXo_adapters/packages/exo-brain-core-contracts/
+ - exo_brain_core_contracts (PyPI)
 Depends On:
  - exo_brain_core_contracts.runtime_adapter (PyPI: exo-brain-core-contracts)
  - src/runtime/runtime_adapter.py
@@ -23,7 +23,7 @@ Notes:
 
 ## RuntimeAdapter (southbound provider boundary)
 
-The canonical ABC lives in **`exo-brain-core-contracts`** ([`packages/eXo_adapters/packages/exo-brain-core-contracts/`](packages/eXo_adapters/packages/exo-brain-core-contracts/)). The control plane re-exports it from `src/runtime/runtime_adapter.py` so orchestration and in-tree adapters share one type identity.
+The canonical ABC lives in **`exo-brain-core-contracts`** ([SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters)). The control plane re-exports it from `src/runtime/runtime_adapter.py` so orchestration and **PyPI adapter wheels** share one type identity.
 
 All provider runtimes implement `RuntimeAdapter`:
 

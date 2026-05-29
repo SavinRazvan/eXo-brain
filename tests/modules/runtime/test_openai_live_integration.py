@@ -7,8 +7,8 @@ Used By:
 Depends On:
  - exo_adapter_openai, OPENAI_API_KEY
 Notes:
- - Skipped in CI unless EXO_RUN_LIVE_OPENAI=1 is set.
- - Run: EXO_RUN_LIVE_OPENAI=1 pytest tests/modules/runtime/test_openai_live_integration.py -q
+ - Opt-in only: pytest -m live (requires EXO_RUN_LIVE_OPENAI=1 and OPENAI_API_KEY).
+ - Skipped in default runs via skipif when env vars are unset.
 """
 
 from __future__ import annotations
@@ -18,13 +18,8 @@ import os
 
 import pytest
 
-from tests.adapter_package_paths import packaged_adapters_installed
-
 pytestmark = [
-    pytest.mark.skipif(
-        not packaged_adapters_installed(),
-        reason="Install adapters: bash scripts/dev/install_adapter_dependencies.sh",
-    ),
+    pytest.mark.live,
     pytest.mark.skipif(
         not os.getenv("OPENAI_API_KEY"),
         reason="Set OPENAI_API_KEY for live OpenAI adapter test",

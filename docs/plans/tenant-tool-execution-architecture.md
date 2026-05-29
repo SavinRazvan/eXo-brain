@@ -67,7 +67,7 @@ This file stays the **implementation status source** for tenant tools and the go
   - Backlog reconciliation v3 queue is closed after full gates + UI validation handoff.
   - Backlog reconciliation v4 queue is closed in `docs/archive/plans/backlog-reconciliation-v4-execution-board.md`.
   - Current active implementation track is Option C next-phase:
-    - adapter packaging execution (`packages/exo-brain-core-contracts`, `packages/exo-brain-adapter-sdk`, `packages/exo-adapter-openai`)
+    - adapter packaging **shipped (2026-05):** PyPI lockstep **0.1.1** from **eXo_adapters**; eXo-brain PyPI-only
     - shared control-state backend patterns (`SQLiteRunControlRegistry`, `SQLiteTenantRateLimiter`, sqlite fairness backend)
     - blocking SLO gate enforcement for release promotion (`scripts/perf/option_c_load_profiles.py --enforce`)
   - Next queued slice after current Option C closures (aligned with `docs/strategy/next-directions.md` Tier 1 gateway row):

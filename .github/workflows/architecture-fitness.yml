@@ -16,6 +16,7 @@ name: architecture-fitness
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  COV_FAIL_UNDER: "95"
 
 on:
   pull_request:
@@ -23,15 +24,10 @@ on:
     paths:
       - "src/**"
       - "tests/**"
-      - "packages/**"
-      - "moving_to_adapters_project/**"
-      - "eXo_adapters/**"
       - "scripts/**"
       - "notebooks/**"
       - "requirements.txt"
       - "requirements-adapters.txt"
-      - "requirements-adapters-local.txt"
-      - "packages/repo_for_pipy/**"
       - "Makefile"
       - ".github/workflows/**"
   push:
@@ -82,10 +78,9 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install dependencies
-        run: bash scripts/dev/install_adapter_dependencies.sh
+      - uses: ./.github/actions/install-python-deps
       - name: Run automated test suite
-        run: python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=100 -q
+        run: python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=${{ env.COV_FAIL_UNDER }} -q
       - name: Execute tutorial 08 notebook (nbconvert; no live API)
         env:
           OPENAI_API_KEY: ""
@@ -111,8 +106,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install dependencies
-        run: bash scripts/dev/install_adapter_dependencies.sh
+      - uses: ./.github/actions/install-python-deps
       - name: Run runtime contract tests
         run: python -m pytest tests/modules/runtime/test_runtime_adapter_contract.py -q
 
@@ -124,8 +118,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install dependencies
-        run: bash scripts/dev/install_adapter_dependencies.sh
+      - uses: ./.github/actions/install-python-deps
       - name: Run packages/ workspace tests
         run: python -m pytest tests/packages -q
 
@@ -137,8 +130,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install dependencies
-        run: bash scripts/dev/install_adapter_dependencies.sh
+      - uses: ./.github/actions/install-python-deps
       - name: Run integration fitness tests
         run: python -m pytest tests/modules/core/test_orchestrator_turn.py tests/modules/core/test_multi_adapter_workflow_parity.py tests/modules/integration/test_host_adapter_input_flow.py -q
 

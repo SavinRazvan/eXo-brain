@@ -80,7 +80,7 @@ As AI becomes **infrastructure** inside products, teams need a **repeatable gove
 
 ### Repository scope (control plane only)
 
-The **primary codebase** for this product is the **control plane** (API, core, policies, tools, tenancy, audit). **Adapter SDK**, **published contracts**, and **provider adapter packages** are **separate deliverables** in **other repositories** — not a long-term monorepo beside the control plane. Any in-tree `packages/` is **transitional** until extraction completes (`governed-execution-positioning.md`, **Repository boundary**).
+The **primary codebase** for this product is the **control plane** (API, core, policies, tools, tenancy, audit). **Adapter SDK**, **published contracts**, and **provider adapter packages** are **separate deliverables** published from **[SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters)** and consumed via PyPI — not a long-term monorepo beside the control plane (`governed-execution-positioning.md`, **Repository boundary**).
 
 ---
 

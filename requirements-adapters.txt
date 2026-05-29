@@ -1,7 +1,9 @@
-# Optional provider runtime adapters (PyPI lockstep line 0.1.1).
-# Install with: pip install -r requirements-adapters.txt
-# Or use scripts/dev/install_adapter_dependencies.sh (PyPI with local fallback).
+# All four eXo_adapters PyPI distributions (lockstep 0.1.1).
+# Same pins as requirements.txt lines 7–10.
+# Use this file only when installing adapters on top of an env that already has
+# control-plane deps but not the adapter wheels. For dev/CI, `pip install -r requirements.txt` is enough.
 
+exo-brain-core-contracts==0.1.1
 exo-brain-adapter-sdk==0.1.1
 exo-adapter-echo==0.1.1
 exo-adapter-openai==0.1.1

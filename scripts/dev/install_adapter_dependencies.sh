@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-# Install eXo-brain requirements plus adapter ecosystem packages (PyPI or local fallback).
+# File: install_adapter_dependencies.sh
+# Path: scripts/dev/install_adapter_dependencies.sh
+# Role: Install requirements.txt including all four adapter PyPI wheels.
+# Used By:
+#  - CI, Dockerfile, local dev
+# Notes:
+#  - PyPI wheels only. No git, editable, or sibling-repo installs.
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -11,59 +18,48 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
 fi
 
 "$PYTHON" -m pip install --upgrade pip
+"$PYTHON" -m pip install -r requirements.txt
 
-TMP_REQ="$(mktemp)"
-grep -v '^exo-brain-core-contracts' requirements.txt | grep -v '^#.*exo-brain-core-contracts' >"$TMP_REQ" || true
-"$PYTHON" -m pip install -r "$TMP_REQ"
-rm -f "$TMP_REQ"
+"$PYTHON" <<'PY'
+import re
+import sys
+from importlib import import_module
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
-_install_editable_if_present() {
-  local label="$1"
-  shift
-  for path in "$@"; do
-    if [[ -f "${path}/pyproject.toml" ]]; then
-      echo "Installing ${label} from ${path}"
-      "$PYTHON" -m pip install -e "${path}"
-      return 0
-    fi
-  done
-  return 1
-}
+req = Path("requirements.txt").read_text(encoding="utf-8")
+packages = (
+    ("exo-brain-core-contracts", "exo_brain_core_contracts"),
+    ("exo-brain-adapter-sdk", "exo_brain_adapter_sdk"),
+    ("exo-adapter-echo", "exo_adapter_echo"),
+    ("exo-adapter-openai", "exo_adapter_openai"),
+)
+errors: list[str] = []
+for dist, module_name in packages:
+    match = re.search(rf"^{re.escape(dist)}==(\S+)", req, re.MULTILINE)
+    if not match:
+        errors.append(f"missing pin for {dist} in requirements.txt")
+        continue
+    pinned = match.group(1)
+    try:
+        installed = version(dist)
+    except PackageNotFoundError:
+        errors.append(f"{dist} not installed (pip install -r requirements.txt)")
+        continue
+    if installed != pinned:
+        errors.append(f"{dist} installed {installed!r} != pinned {pinned!r}")
+        continue
+    mod = import_module(module_name)
+    mod_file = (mod.__file__ or "").replace("\\", "/")
+    if "site-packages" not in mod_file and "dist-packages" not in mod_file:
+        errors.append(f"{dist} must be a PyPI wheel in site-packages, got {mod.__file__}")
+    if "/eXo_adapters/" in mod_file or mod_file.endswith("/eXo_adapters"):
+        errors.append(f"{dist} must not load from sibling eXo_adapters checkout: {mod.__file__}")
 
-if "$PYTHON" -m pip install "exo-brain-core-contracts==0.1.1"; then
-  echo "Installed exo-brain-core-contracts from PyPI"
-elif _install_editable_if_present "exo-brain-core-contracts" \
-  packages/eXo_adapters/packages/exo-brain-core-contracts \
-  packages/repo_for_pipy/packages/exo-brain-core-contracts; then
-  :
-else
-  echo "ERROR: exo-brain-core-contracts not on PyPI and no local package tree found" >&2
-  exit 1
-fi
-
-if "$PYTHON" -m pip install -r requirements-adapters.txt; then
-  echo "Installed adapter packages from PyPI"
-else
-  adapter_roots=(
-    packages/eXo_adapters/packages
-    packages/repo_for_pipy/packages
-  )
-  installed_adapters=false
-  for root in "${adapter_roots[@]}"; do
-    if [[ -f "${root}/exo-adapter-openai/pyproject.toml" ]]; then
-      echo "Installing adapter packages from ${root}"
-      "$PYTHON" -m pip install \
-        -e "${root}/exo-brain-adapter-sdk" \
-        -e "${root}/exo-adapter-echo" \
-        -e "${root}/exo-adapter-openai"
-      installed_adapters=true
-      break
-    fi
-  done
-  if [[ "${installed_adapters}" != true ]]; then
-    echo "ERROR: adapter packages not on PyPI and no local adapter package tree found" >&2
-    exit 1
-  fi
-fi
-
-"$PYTHON" -c "import exo_brain_core_contracts, exo_adapter_openai, exo_adapter_echo"
+if errors:
+    print("Adapter PyPI verification failed:", file=sys.stderr)
+    for err in errors:
+        print(f"  - {err}", file=sys.stderr)
+    sys.exit(1)
+print("Adapter wheels OK (PyPI only; all four match requirements.txt pins)")
+PY

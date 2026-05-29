@@ -13,8 +13,7 @@ Notes:
 
 from __future__ import annotations
 
-from dataclasses import replace
-
+from src.core.session_context import SessionContext
 from src.persistence.contracts import (
     CheckpointRecord,
     CheckpointStoreContract,
@@ -24,17 +23,45 @@ from src.persistence.contracts import (
 )
 
 
+def _clone_session_record(record: SessionRecord) -> SessionRecord:
+    session = record.session
+    return SessionRecord(
+        session=SessionContext(
+            session_id=session.session_id,
+            run_id=session.run_id,
+            job_id=session.job_id,
+            task_id=session.task_id,
+            agent_id=session.agent_id,
+            provider_id=session.provider_id,
+            correlation_id=session.correlation_id,
+            identity=session.identity,
+            metadata=dict(session.metadata),
+        ),
+        tenant_id=record.tenant_id,
+        state=record.state,
+        data=dict(record.data),
+    )
+
+
+def _clone_checkpoint_record(checkpoint: CheckpointRecord) -> CheckpointRecord:
+    return CheckpointRecord(
+        job_id=checkpoint.job_id,
+        node_id=checkpoint.node_id,
+        status=checkpoint.status,
+        tenant_id=checkpoint.tenant_id,
+        attempt=checkpoint.attempt,
+        reason_code=checkpoint.reason_code,
+        payload=dict(checkpoint.payload),
+    )
+
+
 class InMemoryPostgresDriver:
     def __init__(self) -> None:
         self._sessions: dict[tuple[str, str], SessionRecord] = {}
         self._checkpoints: dict[tuple[str, str, str], CheckpointRecord] = {}
 
     def save_session(self, record: SessionRecord) -> None:
-        self._sessions[(record.tenant_id, record.session.session_id)] = replace(
-            record,
-            session=replace(record.session, metadata=dict(record.session.metadata)),
-            data=dict(record.data),
-        )
+        self._sessions[(record.tenant_id, record.session.session_id)] = _clone_session_record(record)
 
     def get_session(self, session_id: str, tenant_id: str = "default") -> SessionRecord | None:
         record = self._sessions.get((tenant_id, session_id))
@@ -55,11 +82,7 @@ class InMemoryPostgresDriver:
                 tenant_id=record.tenant_id,
                 requested_tenant_id=tenant_id,
             )
-        return replace(
-            record,
-            session=replace(record.session, metadata=dict(record.session.metadata)),
-            data=dict(record.data),
-        )
+        return _clone_session_record(record)
 
     def count_active_sessions_by_provider(self, provider_id: str) -> int:
         return sum(
@@ -69,14 +92,13 @@ class InMemoryPostgresDriver:
         )
 
     def save_checkpoint(self, checkpoint: CheckpointRecord) -> None:
-        self._checkpoints[(checkpoint.tenant_id, checkpoint.job_id, checkpoint.node_id)] = replace(
-            checkpoint,
-            payload=dict(checkpoint.payload),
+        self._checkpoints[(checkpoint.tenant_id, checkpoint.job_id, checkpoint.node_id)] = (
+            _clone_checkpoint_record(checkpoint)
         )
 
     def list_checkpoints(self, job_id: str, tenant_id: str = "default") -> list[CheckpointRecord]:
         rows = [
-            replace(record, payload=dict(record.payload))
+            _clone_checkpoint_record(record)
             for (stored_tenant_id, stored_job_id, _), record in self._checkpoints.items()
             if stored_tenant_id == tenant_id and stored_job_id == job_id
         ]
@@ -101,7 +123,7 @@ class InMemoryPostgresDriver:
                 tenant_id=record.tenant_id,
                 requested_tenant_id=tenant_id,
             )
-        return replace(record, payload=dict(record.payload))
+        return _clone_checkpoint_record(record)
 
 
 class PostgresSessionStore(SessionStore):

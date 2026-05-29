@@ -1,11 +1,10 @@
 <!--
 File: exo_adapters_pypi_handoff.md
 Path: docs/handoffs/exo_adapters_pypi_handoff.md
-Role: Completion status for adapter package extraction — points to in-tree packages and operator docs.
+Role: Completion status for adapter package extraction — PyPI-only consumption in eXo-brain.
 Used By:
  - docs/handoffs/README.md
 Depends On:
- - packages/eXo_adapters/
  - docs/operations/adapter-repos-and-pypi.md
  - docs/operations/adapter-installation.md
  - docs/plans/adapter-packages-extraction-handoff.md
@@ -15,8 +14,7 @@ Notes:
 
 # Adapter packages handoff — **completed**
 
-**Status:** Done for the core mission (2026-05).  
-**Do not use this file as an implementation playbook** — use the canonical docs below.
+**Status:** Done for the core mission (2026-05). In-tree `packages/eXo_adapters/` removed; eXo-brain installs wheels from PyPI only.
 
 ---
 
@@ -24,14 +22,13 @@ Notes:
 
 | Deliverable | Location |
 |---|---|
-| **Four PyPI distributions** (lockstep **0.1.1**) | `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-echo`, `exo-adapter-openai` |
-| **Authoring / publish tree** | [`packages/eXo_adapters/`](../../packages/eXo_adapters/) (in-tree copy of the adapter ecosystem repo) |
-| **Public GitHub repo** | [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) |
-| **eXo-brain consumes contracts from PyPI** | `requirements.txt` → `exo-brain-core-contracts==0.1.1` |
-| **Optional adapters from PyPI** | `requirements-adapters.txt` (all three adapter distributions at 0.1.1) |
-| **Dev install fallback** | `scripts/dev/install_adapter_dependencies.sh` → editable installs under `packages/eXo_adapters/packages/` |
+| **Four PyPI distributions** (lockstep; see `requirements.txt`) | `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-echo`, `exo-adapter-openai` |
+| **Authoring / publish repo** | [SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters) |
+| **eXo-brain install** | `requirements.txt` (all four distributions; current lockstep **0.1.1**) |
+| **Optional adapters-only file** | `requirements-adapters.txt` (when contracts already satisfied) |
+| **Dev install** | `bash scripts/dev/install_adapter_dependencies.sh` → PyPI via `requirements.txt` |
 | **Conformance tests in control plane** | `tests/packages/test_*_adapter_conformance.py` |
-| **Conformance + CI in adapter tree** | `packages/eXo_adapters/tests/`, `packages/eXo_adapters/scripts/` |
+| **Conformance + CI in adapter repo** | `eXo_adapters/tests/`, `eXo_adapters/scripts/` |
 
 ---
 
@@ -41,8 +38,8 @@ Notes:
 |---|---|
 | **Operators** (pip install, register providers) | [docs/operations/adapter-installation.md](../operations/adapter-installation.md) |
 | **Repo / PyPI layout** | [docs/operations/adapter-repos-and-pypi.md](../operations/adapter-repos-and-pypi.md) |
-| **Adapter maintainers** (authoring, releases) | [packages/eXo_adapters/README.md](../../packages/eXo_adapters/README.md), [RELEASE.md](../../packages/eXo_adapters/RELEASE.md) |
-| **Inventory + remaining cleanup** | [docs/plans/adapter-packages-extraction-handoff.md](../plans/adapter-packages-extraction-handoff.md) |
+| **Adapter maintainers** (authoring, releases) | [eXo_adapters README](https://github.com/SavinRazvan/eXo_adapters/blob/main/README.md), [RELEASE.md](https://github.com/SavinRazvan/eXo_adapters/blob/main/RELEASE.md) |
+| **Inventory + cleanup history** | [docs/plans/adapter-packages-extraction-handoff.md](../plans/adapter-packages-extraction-handoff.md) |
 | **Runtime ADR** (`submit_tool_results`) | [docs/decisions/submit-tool-results-orchestrator-only.md](../decisions/submit-tool-results-orchestrator-only.md) |
 
 ---
@@ -60,14 +57,11 @@ Loaded via [`src/runtime/adapter_factory.py`](../../src/runtime/adapter_factory.
 
 ## Optional follow-ups (not blocking “handoff done”)
 
-Tracked in [adapter-packages-extraction-handoff.md](../plans/adapter-packages-extraction-handoff.md) §9:
-
-- Remove in-tree `packages/eXo_adapters/` from eXo-brain once every environment uses PyPI-only installs (dev clones can use a sibling checkout of `eXo_adapters`).
-- Narrow `scan_forbidden_imports` / CI paths that still scan vendored `packages/**`.
-- Decide long-term fate of in-tree `src/runtime/openai_agents_runtime.py` fallback when package-only path is proven everywhere.
+- Publish automation hardening in `eXo_adapters`.
+- Lane A universal adapter package.
 
 ---
 
 ## Historical mission playbook
 
-The original “create repo + publish PyPI + wire eXo-brain” step-by-step mission is **archived**: [docs/archive/handoffs/exo_adapters_pypi_handoff-mission.md](../archive/handoffs/exo_adapters_pypi_handoff-mission.md).
+The original “create repo + publish PyPI + wire eXo-brain” step-by-step mission is **archived**: [docs/archive/handoffs/exo_adapters_pypi_handoff-mission.md](../archive/handoffs/exo_adapters_pypi_handoff.md).

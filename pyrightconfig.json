@@ -4,15 +4,19 @@
   "pythonVersion": "3.12",
   "typeCheckingMode": "basic",
   "extraPaths": [
-    ".",
-    "packages/eXo_adapters/packages/exo-brain-core-contracts/src",
-    "packages/eXo_adapters/packages/exo-adapter-openai/src",
-    "packages/eXo_adapters/packages/exo-adapter-echo/src",
-    "packages/eXo_adapters/packages/exo-brain-adapter-sdk/src"
+    "."
+  ],
+  "executionEnvironments": [
+    {
+      "root": "notebooks",
+      "extraPaths": [
+        "."
+      ],
+      "pythonVersion": "3.12"
+    }
   ],
   "exclude": [
     ".exo_env",
-    "packages/*/src/*.egg-info",
     "**/__pycache__"
   ]
 }

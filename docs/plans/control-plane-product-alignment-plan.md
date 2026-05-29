@@ -23,7 +23,7 @@ Notes:
 
 | Surface | What it is | Primary docs / code |
 |--------|------------|---------------------|
-| **A — Provider runtime adapter** | How the **hosted runtime** reaches a provider/model **outbound**, behind the adapter wall. **Source** lives in **separate adapter repos**; this control-plane repo owns `src/runtime/*` and contracts consumption only (`packages/*` **transitional** until extraction). | `docs/strategy/adapter-strategy.md`, `src/runtime/*` |
+| **A — Provider runtime adapter** | How the **hosted runtime** reaches a provider/model **outbound**, behind the adapter wall. **Source** lives in **[SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters)**; this control-plane repo owns `src/runtime/*` and PyPI consumption only. | `docs/strategy/adapter-strategy.md`, `src/runtime/*` |
 | **B — Control plane API** | Authoritative **ingress** for tenants: sessions, turns, policy, tools, agents, audit, providers (REST / SSE / WS). | `docs/strategy/interface-strategy.md`, `src/api/routers/*`, `docs/api/customer-api-integration-guide.md` |
 | **C — Customer bridge** | How **customer apps** attach their loop: native API integration today; optional OpenAI-shaped **`POST /v1/chat/completions`** (`EXO_ENABLE_OPENAI_COMPAT_GATEWAY`); **planned** thin client SDK with **same governance spine** as HTTP (no bypass path). | `docs/archive/plans/northbound-v1-gateway.md`, `src/api/routers/openai_gateway.py` |
 

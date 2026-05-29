@@ -39,7 +39,7 @@ Do not point `pages.json` tab `file` entries at HTML audit files (tabs expect Ma
 When implementing or documenting integrations, use the same terms as `README.md` and `docs/strategy/`:
 
 - **Control plane** — authoritative API enforcement (policy, audit, deterministic tools, entitlements).
-- **Provider runtime adapter** — outbound model/provider connectivity (`packages/*`, `src/runtime/*`).
+- **Provider runtime adapter** — outbound model/provider connectivity (PyPI `exo-adapter-*`, `src/runtime/*`).
 - **Customer bridge** — optional OpenAI-shaped `POST /v1/chat/completions` (`EXO_ENABLE_OPENAI_COMPAT_GATEWAY`) or a future thin SDK; same governance spine as native APIs.
 
 Canonical links: [`docs/strategy/governed-execution-positioning.md`](../../strategy/governed-execution-positioning.md), [`docs/plans/control-plane-product-alignment-plan.md`](../../plans/control-plane-product-alignment-plan.md). Customer contracts: [`docs/api/customer-api-integration-guide.md`](../../api/customer-api-integration-guide.md).

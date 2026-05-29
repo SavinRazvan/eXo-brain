@@ -6,7 +6,7 @@ Used By:
  - pytest
 Depends On:
  - tests.adapter_package_paths
- - exo-brain-adapter-sdk, exo-adapter-echo trees
+ - exo-brain-adapter-sdk, exo-adapter-echo (PyPI)
 Notes:
  - Mirrors tests/packages/test_openai_adapter_conformance.py for a second external adapter.
 """
@@ -14,32 +14,19 @@ Notes:
 from __future__ import annotations
 
 import asyncio
-import sys
 
 import pytest
 
-from tests.adapter_package_paths import local_portable_adapters_present, package_src
+from tests.adapter_package_paths import installed_package_root, local_portable_adapters_present
 
-requires_local_adapter_packages = pytest.mark.skipif(
+requires_installed_adapters = pytest.mark.skipif(
     not local_portable_adapters_present(),
-    reason="Portable adapter sources live in eXo_adapters; add a local packages/ tree or sibling checkout to run these tests.",
+    reason="Install adapter packages: pip install -r requirements.txt",
 )
 
 
-def _add_package_paths() -> None:
-    paths = [
-        package_src("exo-brain-core-contracts"),
-        package_src("exo-brain-adapter-sdk"),
-        package_src("exo-adapter-echo"),
-    ]
-    for path in reversed(paths):
-        sys.path.insert(0, str(path))
-
-
-@requires_local_adapter_packages
+@requires_installed_adapters
 def test_echo_adapter_package_conformance() -> None:
-    _add_package_paths()
-
     from exo_adapter_echo import EchoRuntimeAdapter
     from exo_brain_adapter_sdk import assert_runtime_adapter_contract
 
@@ -47,10 +34,8 @@ def test_echo_adapter_package_conformance() -> None:
     assert_runtime_adapter_contract(adapter)
 
 
-@requires_local_adapter_packages
+@requires_installed_adapters
 def test_echo_adapter_portability_smoke_run_turn() -> None:
-    _add_package_paths()
-
     from exo_adapter_echo import EchoRuntimeAdapter
 
     adapter = EchoRuntimeAdapter(provider_id="echo-test")
@@ -72,9 +57,9 @@ def test_echo_adapter_portability_smoke_run_turn() -> None:
     assert "run_complete" in event_types
 
 
-@requires_local_adapter_packages
+@requires_installed_adapters
 def test_echo_package_has_no_monorepo_imports() -> None:
-    base = package_src("exo-adapter-echo") / "exo_adapter_echo"
+    base = installed_package_root("exo-adapter-echo")
     package_files = [
         base / "__init__.py",
         base / "runtime.py",

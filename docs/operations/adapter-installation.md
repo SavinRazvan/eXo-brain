@@ -18,12 +18,12 @@ Notes:
 
 | Install surface | Contents |
 |-----------------|----------|
-| `pip install -r requirements.txt` | Control plane + **`exo-brain-core-contracts==0.1.1`** (no provider SDKs) |
-| `pip install -r requirements-adapters.txt` | **`exo-brain-adapter-sdk`**, **`exo-adapter-openai`**, **`exo-adapter-echo`** at **0.1.1** |
+| `pip install -r requirements.txt` | Control plane + all four adapter distributions (lockstep pin in file) |
+| `pip install -r requirements-adapters.txt` | All four adapter distributions only (same pins as above) |
 
-Development / CI without PyPI: `bash scripts/dev/install_adapter_dependencies.sh` (PyPI first, editable fallback from `packages/repo_for_pipy/`).
+Development / CI / Docker: `bash scripts/dev/install_adapter_dependencies.sh` or `pip install -r requirements.txt`.
 
-Docker images run the same script during build.
+**PyPI only.** No git, editable, or sibling-repo adapter installs in this repository.
 
 ## Canonical `adapter_class_ref` values
 
@@ -41,7 +41,7 @@ Register via `POST /providers` (see [`foundation-tier-adoption-checklist.md`](..
 
 ## Version pairing
 
-Adapter distributions **0.1.1** are tested with eXo-brain **v0.1.0+**. See [`adapter-compatibility-matrix.md`](../strategy/adapter-compatibility-matrix.md) before bumping pins.
+Adapter distributions are tested with eXo-brain **v0.1.0+**. See [`adapter-compatibility-matrix.md`](../strategy/adapter-compatibility-matrix.md) before bumping pins.
 
 ## Maintainer releases
 

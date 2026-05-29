@@ -7,6 +7,7 @@
 #  - requirements.txt
 # Notes:
 #  - Not a production or enterprise deployment template.
+#  - Adapter wheels install from PyPI via install_adapter_dependencies.sh.
 #  - Set EXO_ENV and secrets via orchestrator env, not baked into the image.
 
 FROM python:3.12-slim AS runtime
@@ -20,9 +21,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt requirements-adapters.txt requirements-adapters-local.txt ./
+COPY requirements.txt ./
 COPY scripts/dev/install_adapter_dependencies.sh ./scripts/dev/install_adapter_dependencies.sh
-COPY packages/eXo_adapters/packages ./packages/eXo_adapters/packages
 RUN chmod +x scripts/dev/install_adapter_dependencies.sh \
     && ./scripts/dev/install_adapter_dependencies.sh
 

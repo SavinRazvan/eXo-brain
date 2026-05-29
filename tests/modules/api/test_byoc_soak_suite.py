@@ -22,6 +22,8 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.constants import BYOC_WORKER_JWT_SECRET
+
 from src.api.bootstrap import build_test_app
 from src.config.settings import AppSettings, RuntimeSettings
 from src.schemas.tool_io import ToolCallContext, ToolStatus
@@ -45,7 +47,7 @@ def _runtime_settings() -> RuntimeSettings:
         allowed_provider_ids=["openai-test"],
         require_provider_healthcheck_on_start=False,
         enable_byoc_tool_runtime=True,
-        byoc_worker_jwt_secret="soak-secret",
+        byoc_worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         byoc_lease_ttl_seconds=5,
         byoc_enable_cost_window_policy=True,
         byoc_cost_window_seconds=2,

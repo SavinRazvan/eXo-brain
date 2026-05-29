@@ -8,8 +8,8 @@ Used By:
  - AGENTS.md
  - docs/plans/tenant-tool-execution-architecture.md
 Depends On:
- - packages/eXo_adapters/ (in-tree mirror of SavinRazvan/eXo_adapters)
- - PyPI: exo-brain-core-contracts, exo-brain-adapter-sdk, exo-adapter-* (0.1.1)
+ - SavinRazvan/eXo_adapters (GitHub + PyPI)
+ - PyPI: exo-brain-core-contracts, exo-brain-adapter-sdk, exo-adapter-* (lockstep; see requirements.txt)
  - src/runtime/*
  - src/core/*
  - src/policies/*
@@ -17,7 +17,7 @@ Depends On:
 Notes:
  - Keep aligned with API-first Option C.
  - Keep adapter packaging decisions compatible with contract versioning policy.
- - Adapter **package source** is **`SavinRazvan/eXo_adapters`** (PyPI **0.1.1** shipped); in-tree `packages/eXo_adapters/` is a dev mirror — [`adapter-packages-extraction-handoff.md`](../plans/adapter-packages-extraction-handoff.md), [`exo_adapters_pypi_handoff.md`](../handoffs/exo_adapters_pypi_handoff.md).
+ - Adapter **package source** is **`SavinRazvan/eXo_adapters`** (PyPI lockstep); eXo-brain installs wheels only — [`exo_adapters_pypi_handoff.md`](../handoffs/exo_adapters_pypi_handoff.md).
 -->
 
 # Adapter Strategy
@@ -68,7 +68,7 @@ Customers choose providers and fallbacks, but core remains the trust boundary.
 
 The **provider runtime adapter** (this document’s focus) is **outbound from eXo-brain’s runtime** to a model/provider. It is **not** the same as the **customer bridge** (how customer apps connect **to** the control plane via HTTP/SDK). Confusing the two breaks enterprise conversations and RFPs.
 
-- **Provider runtime adapter:** portable distributions `exo-adapter-*`, `exo-brain-adapter-sdk`, `exo-brain-core-contracts` — **authored** in **`ai-adapters-sdk`** (target); **transitional** copies may still live under eXo-brain `packages/` until extraction. Loaded at runtime by `src/runtime/*` (`adapter_factory`, registry hydration).
+- **Provider runtime adapter:** portable distributions `exo-adapter-*`, `exo-brain-adapter-sdk`, `exo-brain-core-contracts` — **authored** in **[SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters)** and consumed via **PyPI** (`requirements.txt`). Loaded at runtime by `src/runtime/*` (`adapter_factory`, registry hydration).
 - **Customer bridge:** control plane REST/SSE/WS, optional `/v1` OpenAI-shaped ingress, future thin SDK — see `interface-strategy.md`, `governed-execution-positioning.md`, and [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 
 ---
@@ -109,19 +109,12 @@ Recommended package names:
 
 ## 4) Repository and Packaging Model
 
-**Strategic boundary:** the **eXo-brain** repository is **control plane only** (`governed-execution-positioning.md`, **Repository boundary**). **Adapter package source** belongs in a **separate** multi-package repository (working name **`ai-adapters-sdk`**). Full inventory, smoke script, tests, and control-plane coupling are in [`docs/plans/adapter-packages-extraction-handoff.md`](../plans/adapter-packages-extraction-handoff.md).
+**Strategic boundary:** the **eXo-brain** repository is **control plane only** (`governed-execution-positioning.md`, **Repository boundary**). **Adapter package source** lives in **[SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters)** (multi-package layout). Inventory, smoke scripts, and migration history: [`docs/plans/adapter-packages-extraction-handoff.md`](../plans/adapter-packages-extraction-handoff.md). **Status (2026-05-29):** extraction **complete** — eXo-brain has **no** in-tree adapter source tree.
 
-**Transitional (until extraction):** eXo-brain still carries under `packages/`:
-
-- `exo-brain-core-contracts`
-- `exo-brain-adapter-sdk`
-- `exo-adapter-openai`
-- `exo-adapter-echo`
-
-**Target authoring layout** inside **`ai-adapters-sdk`** (one repo, many distributions — same as today’s `packages/*` layout or equivalent):
+**Authoring layout** inside **eXo_adapters** (one repo, many distributions):
 
 ```text
-ai-adapters-sdk/
+eXo_adapters/
   packages/exo-brain-core-contracts/
   packages/exo-brain-adapter-sdk/
   packages/exo-adapter-openai/

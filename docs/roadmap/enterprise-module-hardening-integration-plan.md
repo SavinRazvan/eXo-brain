@@ -88,7 +88,7 @@ Each slice follows:
 - Shared contracts stable and consumed by downstream modules without ambiguity.
 
 ### Phase 1 - Tools + Runtime Safety Core
-**Modules:** `src/tools`, `src/runtime`, packaged adapters (`packages/eXo_adapters/` / PyPI)
+**Modules:** `src/tools`, `src/runtime`, packaged adapters (PyPI via SavinRazvan/eXo_adapters)
 
 **Objective**
 - Ensure tool execution and runtime adapters fail deterministically and observably.

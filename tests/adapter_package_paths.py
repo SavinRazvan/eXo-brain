@@ -1,68 +1,56 @@
 """
 File: adapter_package_paths.py
 Path: tests/adapter_package_paths.py
-Role: Detect installed or local portable adapter packages for conformance tests.
+Role: Detect installed adapter packages for conformance tests.
 Used By:
  - tests/packages/test_echo_adapter_conformance.py
  - tests/packages/test_openai_adapter_conformance.py
  - tests/modules/runtime/test_adapter_factory.py
 Depends On:
- - importlib (installed wheels) or packages/repo_for_pipy (dev fallback)
+ - importlib (installed wheels from PyPI)
 Notes:
- - Prefer PyPI/editable installs; local src trees are dev-only fallback.
+ - Adapter source lives in SavinRazvan/eXo_adapters; eXo-brain installs wheels via requirements.txt.
 """
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-_CONTRACTS_DIR = "exo-brain-core-contracts"
-_MARKER = _CONTRACTS_DIR + "/pyproject.toml"
-_PORTABLE_ADAPTER_PACKAGE_DIRS = (
-    "exo-brain-adapter-sdk",
-    "exo-adapter-echo",
-    "exo-adapter-openai",
-)
+
+_MODULE_BY_DISTRIBUTION = {
+    "exo-brain-core-contracts": "exo_brain_core_contracts",
+    "exo-brain-adapter-sdk": "exo_brain_adapter_sdk",
+    "exo-adapter-echo": "exo_adapter_echo",
+    "exo-adapter-openai": "exo_adapter_openai",
+}
 
 
 def packaged_adapters_installed() -> bool:
-    """True when adapter wheels are importable (PyPI or editable install)."""
+    """True when adapter wheels are importable (PyPI install)."""
     return importlib.util.find_spec("exo_adapter_openai") is not None
 
 
-def _local_adapter_workspace() -> Path | None:
-    for candidate in (
-        REPO_ROOT / "packages" / "repo_for_pipy" / "packages",
-        REPO_ROOT / "eXo_adapters" / "packages",
-        REPO_ROOT / "packages" / "eXo_adapters" / "packages",
-        REPO_ROOT / "moving_to_adapters_project" / "packages",
-        REPO_ROOT / "packages",
-    ):
-        if (candidate / _MARKER).is_file():
-            return candidate
-    return None
-
-
 def local_portable_adapters_present() -> bool:
-    if packaged_adapters_installed():
-        return True
-    workspace = _local_adapter_workspace()
-    if workspace is None:
-        return False
-    return all((workspace / package_name / "src").is_dir() for package_name in _PORTABLE_ADAPTER_PACKAGE_DIRS)
+    """Alias for CI skip guards — requires PyPI adapter wheels."""
+    return packaged_adapters_installed()
+
+
+def installed_package_root(distribution_name: str) -> Path:
+    """Return the on-disk root directory for an installed distribution."""
+    module_name = _MODULE_BY_DISTRIBUTION.get(distribution_name)
+    if module_name is None:
+        raise KeyError(f"Unknown distribution: {distribution_name}")
+    mod = importlib.import_module(module_name)
+    return Path(mod.__file__).resolve().parent
 
 
 def package_src(package_name: str) -> Path:
-    """Return local src tree for sys.path injection (legacy dev fallback only)."""
-    workspace = _local_adapter_workspace()
-    if workspace is None:
+    """Return installed package root (legacy name kept for test call sites)."""
+    if not packaged_adapters_installed() and package_name != "exo-brain-core-contracts":
         raise FileNotFoundError(
-            "Portable adapter packages not found. Install with "
-            "bash scripts/dev/install_adapter_dependencies.sh"
+            "Adapter packages not installed. Run: pip install -r requirements.txt"
         )
-    src_root = workspace / package_name / "src"
-    if not src_root.is_dir():
-        raise FileNotFoundError(f"Expected package src tree: {src_root}")
-    return src_root
+    return installed_package_root(package_name)

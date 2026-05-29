@@ -19,13 +19,13 @@ Notes:
 
 Enduring vocabulary for **control plane** monetization and **integration surfaces** (provider runtime adapter vs control plane API vs customer bridge) lives in `docs/strategy/governed-execution-positioning.md`, `docs/strategy/goal.md` (section 5a), and the cross-cutting plan [`docs/plans/control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md). Use that language in module boundaries and PR discussions so “adapter” is not overloaded.
 
-**Repository scope:** This workspace is the **control-plane** codebase. **Adapter package source** belongs in **separate repositories**; any in-tree `packages/` is **transitional** per `governed-execution-positioning.md` (**Repository boundary**).
+**Repository scope:** This workspace is the **control-plane** codebase. **Adapter package source** lives in **[SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters)**; eXo-brain consumes **PyPI wheels** only (`governed-execution-positioning.md`, **Repository boundary**).
 
 ## Enterprise separation of concerns (engineering view)
 
 - **Subscription / entitlements (commercial layer):** Maps to tier-enforced API and middleware behavior; must not leak into provider adapters as “special SDK paths.”
 - **Trust boundary (control plane):** Module responsibilities below (`tenant_governance`, `turn_execution`, `audit_observability`, etc.) implement **non-bypassable** governance — the layer you **monetize for safety**.
-- **Connectivity (provider runtime adapters):** `adapter_contracts`, `provider_management`, and **out-of-repo** adapter artifacts loaded at runtime — **portability**, not pricing moat by itself. (Transitional: `packages/` until extraction.)
+- **Connectivity (provider runtime adapters):** `adapter_contracts`, `provider_management`, and **PyPI** adapter wheels loaded at runtime — **portability**, not pricing moat by itself.
 - **Customer attach (northbound):** `src/api/*` and optional customer bridge; same policy spine as any other entrypoint.
 
 Full four-layer table and messaging guardrails: `docs/strategy/governed-execution-positioning.md`.

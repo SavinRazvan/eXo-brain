@@ -14,6 +14,8 @@ Notes:
 
 from __future__ import annotations
 
+from tests.constants import BYOC_WORKER_JWT_SECRET
+
 from src.schemas.tool_io import ToolCallContext, ToolStatus
 from src.tools.byoc.connector_runtime import TenantByocConnectorRuntime
 from src.tools.registry import ToolDescriptor
@@ -21,7 +23,7 @@ from src.tools.registry import ToolDescriptor
 
 def test_byoc_execute_non_blocking_returns_queued_payload() -> None:
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="dev-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         non_blocking_execute=True,
     )
     call = ToolCallContext(

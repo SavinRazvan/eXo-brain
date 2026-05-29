@@ -16,6 +16,8 @@ from __future__ import annotations
 import threading
 import time
 
+from tests.constants import BYOC_WORKER_JWT_SECRET
+
 from src.schemas.tool_io import ToolCallContext, ToolStatus
 from src.tools.byoc.connector_runtime import TenantByocConnectorRuntime
 from src.tools.byoc.job_contracts import ByocResultStatus, ByocToolResultEnvelope
@@ -59,7 +61,7 @@ def _wait_claim(runtime: TenantByocConnectorRuntime, token: str, nonce_prefix: s
 
 
 def test_byoc_runtime_enqueue_claim_submit_happy_path() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     call = _call()
     descriptor = _descriptor()
     token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-1")
@@ -101,7 +103,7 @@ def test_byoc_runtime_enqueue_claim_submit_happy_path() -> None:
 
 
 def test_byoc_claim_includes_active_version_metadata() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     call = _call()
     descriptor = ToolDescriptor(
         name="echo_tool",
@@ -153,7 +155,7 @@ def test_byoc_claim_includes_active_version_metadata() -> None:
 
 
 def test_byoc_runtime_duplicate_submit_is_idempotent_noop() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     call = _call()
     descriptor = _descriptor()
     token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-1")
@@ -209,7 +211,7 @@ def test_byoc_runtime_duplicate_submit_is_idempotent_noop() -> None:
 
 
 def test_byoc_runtime_rejects_invalid_worker_token() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     try:
         runtime.claim_next_job(
             tenant_id="t1",
@@ -224,7 +226,7 @@ def test_byoc_runtime_rejects_invalid_worker_token() -> None:
 
 def test_byoc_runtime_requeues_expired_lease_then_reclaims() -> None:
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         lease_ttl_seconds=1,
     )
     call = _call()
@@ -273,7 +275,7 @@ def test_byoc_runtime_requeues_expired_lease_then_reclaims() -> None:
 
 
 def test_byoc_runtime_rejects_replayed_nonce() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-1")
     first = runtime.claim_next_job(
         tenant_id="t1",
@@ -294,7 +296,7 @@ def test_byoc_runtime_rejects_replayed_nonce() -> None:
 
 
 def test_byoc_runtime_duplicate_callback_race_is_idempotent() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     call = _call()
     descriptor = _descriptor()
     token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-race")
@@ -345,7 +347,7 @@ def test_byoc_runtime_duplicate_callback_race_is_idempotent() -> None:
 
 
 def test_byoc_runtime_progress_events_include_job_and_lease_metadata() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     call = _call()
     descriptor = _descriptor()
     token = runtime.issue_worker_token(tenant_id="t1", worker_id="worker-progress")
@@ -386,7 +388,7 @@ def test_byoc_runtime_progress_events_include_job_and_lease_metadata() -> None:
 
 
 def test_byoc_result_maps_artifact_integrity_metadata_into_runtime_payload() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     call = _call()
     descriptor = ToolDescriptor(
         name="echo_tool",
@@ -440,7 +442,7 @@ def test_byoc_result_maps_artifact_integrity_metadata_into_runtime_payload() -> 
 
 
 def test_byoc_submit_rejects_artifact_integrity_mismatch() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     call = _call()
     descriptor = ToolDescriptor(
         name="echo_tool",
@@ -482,7 +484,7 @@ def test_byoc_submit_rejects_artifact_integrity_mismatch() -> None:
 
 
 def test_byoc_submit_rejects_signature_version_mismatch() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="test-secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     call = _call()
     descriptor = ToolDescriptor(
         name="echo_tool",
@@ -525,7 +527,7 @@ def test_byoc_submit_rejects_signature_version_mismatch() -> None:
 
 def test_byoc_runtime_moves_expired_lease_to_dlq_and_replays() -> None:
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         lease_ttl_seconds=1,
         max_claim_attempts_before_dlq=1,
     )
@@ -585,7 +587,7 @@ def test_byoc_runtime_moves_expired_lease_to_dlq_and_replays() -> None:
 
 def test_byoc_runtime_emits_tenant_cost_counters() -> None:
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         cost_success_microunits=7,
         cost_error_microunits=11,
         cost_timeout_microunits=13,
@@ -630,7 +632,7 @@ def test_byoc_runtime_emits_tenant_cost_counters() -> None:
 
 def test_byoc_runtime_rejects_execute_when_cost_limit_exceeded() -> None:
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         enforce_cost_limit=True,
         cost_limit_microunits_per_tenant=1,
         cost_success_microunits=2,
@@ -676,7 +678,7 @@ def test_byoc_runtime_rejects_execute_when_cost_limit_exceeded() -> None:
 
 def test_byoc_runtime_windowed_cost_limit_resets_and_enforces_window_reason() -> None:
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         enforce_cost_limit=True,
         enable_cost_window_policy=True,
         cost_window_seconds=1,
@@ -752,7 +754,7 @@ def test_byoc_runtime_windowed_cost_limit_resets_and_enforces_window_reason() ->
 
 def test_byoc_runtime_per_tool_partition_limit_enforced_and_window_resets() -> None:
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         enforce_cost_limit=True,
         enable_cost_window_policy=True,
         cost_window_seconds=1,
@@ -824,13 +826,13 @@ def test_byoc_runtime_per_tool_partition_limit_enforced_and_window_resets() -> N
 
 def test_byoc_runtime_fair_admission_timeout_under_cross_tenant_contention() -> None:
     runtime_t1 = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         fair_admission_enabled=True,
         fair_admission_max_inflight_global=1,
         fair_admission_wait_timeout_ms=50,
     )
     runtime_t2 = TenantByocConnectorRuntime(
-        worker_jwt_secret="test-secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         fair_admission_enabled=True,
         fair_admission_max_inflight_global=1,
         fair_admission_wait_timeout_ms=50,

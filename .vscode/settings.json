@@ -1,0 +1,13 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "jupyter.notebookFileRoot": "${workspaceFolder}",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}"
+  ],
+  "basedpyright.analysis.extraPaths": [
+    "${workspaceFolder}"
+  ],
+  "basedpyright.analysis.venvPath": ".",
+  "basedpyright.analysis.venv": ".venv",
+  "basedpyright.analysis.diagnosticMode": "workspace"
+}

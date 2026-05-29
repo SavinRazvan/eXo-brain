@@ -73,11 +73,11 @@ Narrative and smoke evidence for evaluators and contributors — **not** a subst
 ## Handoffs (`docs/handoffs/`)
 
 - [docs/handoffs/README.md](handoffs/README.md) — completed missions + pointers
-- [exo_adapters_pypi_handoff.md](handoffs/exo_adapters_pypi_handoff.md) — **adapter packages done** → use `packages/eXo_adapters/` + [adapter-installation.md](operations/adapter-installation.md)
+- [exo_adapters_pypi_handoff.md](handoffs/exo_adapters_pypi_handoff.md) — **adapter packages on PyPI** → [adapter-installation.md](operations/adapter-installation.md)
 
-## Adapter packages (in-tree)
+## Adapter packages (PyPI)
 
-- [packages/eXo_adapters/README.md](../packages/eXo_adapters/README.md) — authoring, tests, releases (mirror of public repo)
+- [eXo_adapters on GitHub](https://github.com/SavinRazvan/eXo_adapters) — adapter authoring, tests, releases (no in-tree mirror in eXo-brain)
 - [docs/operations/adapter-installation.md](operations/adapter-installation.md) — operator `pip install` + `adapter_class_ref`
 - [docs/operations/adapter-repos-and-pypi.md](operations/adapter-repos-and-pypi.md) — one repo, four wheels
 

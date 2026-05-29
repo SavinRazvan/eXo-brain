@@ -6,10 +6,10 @@ Used By:
  - tests/modules/runtime/test_runtime_adapter_contract.py
  - tests/modules/core/test_multi_adapter_workflow_parity.py
 Depends On:
- - src/runtime/runtime_adapter.py
- - src/runtime/capability_map.py
- - src/schemas/events.py
- - src/schemas/tool_io.py
+ - exo_brain_core_contracts.runtime_adapter
+ - exo_brain_core_contracts.capability_map
+ - exo_brain_core_contracts.events
+ - exo_brain_core_contracts.tool_io
 Notes:
  - Serves as baseline adapter template for providers outside OpenAI-compatible APIs.
 """
@@ -19,10 +19,10 @@ from __future__ import annotations
 import uuid
 from typing import Any, AsyncIterator
 
-from src.runtime.capability_map import HealthState, HealthStatus, ProviderCapabilityMap, SecurityTier
-from src.runtime.runtime_adapter import RuntimeAdapter, SessionHandle
-from src.schemas.events import RuntimeEvent
-from src.schemas.tool_io import ToolResult
+from exo_brain_core_contracts.capability_map import HealthState, HealthStatus, ProviderCapabilityMap, SecurityTier
+from exo_brain_core_contracts.events import RuntimeEvent
+from exo_brain_core_contracts.runtime_adapter import RuntimeAdapter, SessionHandle
+from exo_brain_core_contracts.tool_io import ToolResult
 
 
 class CustomRuntimeAdapter(RuntimeAdapter):

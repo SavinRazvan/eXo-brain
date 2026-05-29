@@ -14,6 +14,8 @@ Notes:
 
 from __future__ import annotations
 
+from tests.constants import BYOC_WORKER_JWT_SECRET
+
 from src.schemas.tool_io import ToolStatus
 from src.tools.byoc.connector_runtime import TenantByocConnectorRuntime, _metric_token
 from src.tools.byoc.job_contracts import ByocResultStatus, ByocToolJobEnvelope, ByocToolResultEnvelope
@@ -109,7 +111,7 @@ class _ResultStoreDouble(ByocResultStore):
 
 
 def test_connector_runtime_nonce_and_webhook_replay_guards() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     token = runtime.issue_worker_token(tenant_id="t1", worker_id="w1")
     try:
         runtime.claim_next_job(tenant_id="t1", worker_token=token, request_nonce="  ")
@@ -133,7 +135,7 @@ def test_connector_runtime_nonce_and_webhook_replay_guards() -> None:
     try:
         runtime.submit_result_webhook(
             tenant_id="t1",
-            webhook_secret="secret",
+            webhook_secret=BYOC_WORKER_JWT_SECRET,
             webhook_request_id="",
             result=_result_envelope(),
         )
@@ -145,7 +147,7 @@ def test_connector_runtime_nonce_and_webhook_replay_guards() -> None:
     try:
         runtime.submit_result_webhook(
             tenant_id="t1",
-            webhook_secret="secret",
+            webhook_secret=BYOC_WORKER_JWT_SECRET,
             webhook_request_id="req-1",
             result=_result_envelope(tenant_id="other"),
         )
@@ -156,7 +158,7 @@ def test_connector_runtime_nonce_and_webhook_replay_guards() -> None:
     try:
         runtime.submit_result_webhook(
             tenant_id="t1",
-            webhook_secret="secret",
+            webhook_secret=BYOC_WORKER_JWT_SECRET,
             webhook_request_id="req-1",
             result=_result_envelope(),
         )
@@ -170,7 +172,7 @@ def test_connector_runtime_ingest_after_auth_branch_matrix() -> None:
     job_store = _JobStoreDouble()
     result_store = _ResultStoreDouble()
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         job_store=job_store,
         result_store=result_store,
         replay_guard=_ReplayGuardDouble(),
@@ -209,7 +211,7 @@ def test_connector_runtime_ingest_after_auth_branch_matrix() -> None:
 
 def test_connector_runtime_misc_helper_branches_and_sqlite_coordinator() -> None:
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         fair_admission_backend="sqlite",
         fair_admission_sqlite_db_path=":memory:",
         cost_limit_microunits_per_tenant=0,
@@ -250,7 +252,7 @@ def test_connector_runtime_misc_helper_branches_and_sqlite_coordinator() -> None
 def test_connector_runtime_dead_letter_failure_paths_increment_counters() -> None:
     job_store = _JobStoreDouble()
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         job_store=job_store,
         result_store=_ResultStoreDouble(),
         replay_guard=_ReplayGuardDouble(),
@@ -263,7 +265,7 @@ def test_connector_runtime_dead_letter_failure_paths_increment_counters() -> Non
 
 
 def test_connector_runtime_submit_replay_and_webhook_auth_paths() -> None:
-    runtime = TenantByocConnectorRuntime(worker_jwt_secret="secret")
+    runtime = TenantByocConnectorRuntime(worker_jwt_secret=BYOC_WORKER_JWT_SECRET)
     token = runtime.issue_worker_token(tenant_id="t1", worker_id="w1")
     first = runtime.submit_result(
         tenant_id="t1",
@@ -321,7 +323,7 @@ def test_connector_runtime_request_cancel_true_and_conflict_metrics_paths() -> N
             ]
 
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         fair_admission_enabled=True,
         fair_admission_max_inflight_global=2,
         budget_partition_scope="provider",
@@ -353,7 +355,7 @@ def test_connector_runtime_replay_success_and_provider_partition_limit_resolutio
             return job_id == "job_ok"
 
     runtime = TenantByocConnectorRuntime(
-        worker_jwt_secret="secret",
+        worker_jwt_secret=BYOC_WORKER_JWT_SECRET,
         budget_partition_scope="per_provider",
         budget_partition_limits_microunits={"provider:openai-test": 11},
         job_store=_JobStoreReplaySuccess(),

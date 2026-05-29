@@ -77,7 +77,7 @@ Use this **four-layer** view in architecture reviews, security questionnaires, a
 
 Those artifacts belong in **separate adapter-ecosystem repositories** (true multi-repo boundary). Customers and partners install adapters **against** the control plane’s **stable contracts** and registry/factory loading — they do not fork the control plane to ship an adapter.
 
-**Transitional note:** A `packages/` tree may remain **temporarily** in this repository only for **migration, CI conformance, and extraction sequencing**. Treat it as **not** part of the stated product boundary; new adapter portfolio work should assume **out-of-repo** packages. When extraction completes, this repository should contain **no** adapter product source trees.
+**Extraction complete (2026-05-29):** eXo-brain contains **no** adapter product source trees. Adapter wheels are published from **[SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters)** and pinned in `requirements.txt`. New adapter portfolio work targets that repository.
 
 ## Product Definition
 
@@ -101,7 +101,7 @@ Do **not** conflate these three **integration surfaces** (all may appear in RFPs
 
 | Surface | Role | Monetization note |
 |--------|------|-------------------|
-| **Provider runtime adapter** | Lets the **hosted eXo-brain runtime** call a specific provider/model implementation **outbound**, behind the adapter wall (`src/runtime/*` + **separate** adapter repos; any in-tree `packages/` is **transitional**). Keeps core **provider-neutral**. | Adoption and portability; **not** the primary paid differentiator. |
+| **Provider runtime adapter** | Lets the **hosted eXo-brain runtime** call a specific provider/model implementation **outbound**, behind the adapter wall (`src/runtime/*` + **PyPI** wheels from **eXo_adapters**). Keeps core **provider-neutral**. | Adoption and portability; **not** the primary paid differentiator. |
 | **Control plane API** | **Authoritative** customer-facing surface (REST, SSE, WebSocket) for sessions, turns, policy, tools, agents, audit, providers. | **Primary** subscription-scoped enforcement locus for governance depth. |
 | **Customer bridge** | How **customer applications** insert eXo-brain into **their** AI loop: integrate via control plane APIs today; optionally use OpenAI-shaped **`POST /v1/chat/completions`** when `EXO_ENABLE_OPENAI_COMPAT_GATEWAY` is enabled; **planned** thin client SDK that uses the **same** turn/policy/audit spine as HTTP (no parallel “shadow” execution path). | Same trust boundary as Layer B; bridge is **transport ergonomics**, not a safety bypass. |
 

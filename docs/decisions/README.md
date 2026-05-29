@@ -19,7 +19,7 @@ Short, durable decisions that explain **why** the code behaves a certain way. Fo
 
 | Decision | Status | Topic |
 |---|---|---|
-| [submit-tool-results-orchestrator-only.md](submit-tool-results-orchestrator-only.md) | Accepted (adapter **0.1.1**) | OpenAI adapter: orchestrator-owned tool continuation vs in-stream Agents SDK resume |
+| [submit-tool-results-orchestrator-only.md](submit-tool-results-orchestrator-only.md) | Accepted (adapter **0.1.1+**, current **0.1.1**) | OpenAI adapter: orchestrator-owned tool continuation vs in-stream Agents SDK resume |
 
 ## Related
 

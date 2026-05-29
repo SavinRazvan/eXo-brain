@@ -1,23 +1,22 @@
 """
 File: external_install_smoke.py
 Path: scripts/packages/external_install_smoke.py
-Role: Validates that all eXo packages install and import cleanly in an isolated virtualenv.
+Role: Validates that all eXo adapter packages install and import cleanly from PyPI in an isolated venv.
 Used By:
  - CI gates
  - scripts/release/rc_signoff.py (optional gate)
  - make targets
 Depends On:
- - Optional local workspace: ``packages/eXo_adapters/packages/``, ``eXo_adapters/packages/``, ``moving_to_adapters_project/packages/``, or legacy ``packages/`` (with ``exo-brain-core-contracts`` at the root).
+ - PyPI distributions at pins matching requirements-adapters.txt
 Notes:
- - **Canonical** multi-package smoke lives in **eXo_adapters**; this script is a no-op (exit 0) when no local tree exists.
- - Creates a throwaway venv in /tmp, installs all four packages, runs import + conformance assertions.
+ - Creates a throwaway venv in /tmp, installs all four packages from PyPI only, runs assertions.
  - Exit code 0 = pass, non-zero = fail.
- - Safe to run repeatedly; cleans up the temp venv on exit.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -27,34 +26,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-
-def _local_adapter_workspace() -> Path | None:
-    for candidate in (
-        REPO_ROOT / "eXo_adapters" / "packages",
-        REPO_ROOT / "packages" / "eXo_adapters" / "packages",
-        REPO_ROOT / "moving_to_adapters_project" / "packages",
-        REPO_ROOT / "packages",
-    ):
-        if (candidate / "exo-brain-core-contracts" / "pyproject.toml").is_file():
-            return candidate
-    return None
-
-
-def _packages_install_order(root: Path) -> list[Path]:
-    return [
-        root / "exo-brain-core-contracts",
-        root / "exo-brain-adapter-sdk",
-        root / "exo-adapter-echo",
-        root / "exo-adapter-openai",
-    ]
-
 ASSERTION_SCRIPT = textwrap.dedent(
     """
     import sys, json
 
     results = {}
 
-    # --- core contracts import ---
     try:
         from exo_brain_core_contracts import (
             RuntimeAdapter, ProviderCapabilityMap, ToolCallContext,
@@ -64,7 +41,6 @@ ASSERTION_SCRIPT = textwrap.dedent(
     except Exception as exc:
         results["core_contracts_import"] = f"FAIL: {exc}"
 
-    # --- adapter sdk import ---
     try:
         from exo_brain_adapter_sdk import (
             assert_runtime_adapter_contract,
@@ -75,21 +51,18 @@ ASSERTION_SCRIPT = textwrap.dedent(
     except Exception as exc:
         results["adapter_sdk_import"] = f"FAIL: {exc}"
 
-    # --- openai adapter import ---
     try:
         from exo_adapter_openai import OpenAIAgentsRuntimeAdapter, load_adapter, build_agent_tools
         results["openai_adapter_import"] = "PASS"
     except Exception as exc:
         results["openai_adapter_import"] = f"FAIL: {exc}"
 
-    # --- echo adapter import (second portable package) ---
     try:
         from exo_adapter_echo import EchoRuntimeAdapter, load_adapter as load_echo_adapter
         results["echo_adapter_import"] = "PASS"
     except Exception as exc:
         results["echo_adapter_import"] = f"FAIL: {exc}"
 
-    # --- module origin check (must NOT start with src.) ---
     try:
         from exo_adapter_openai import OpenAIAgentsRuntimeAdapter
         module = OpenAIAgentsRuntimeAdapter.__module__
@@ -100,7 +73,6 @@ ASSERTION_SCRIPT = textwrap.dedent(
     except Exception as exc:
         results["module_origin"] = f"FAIL: {exc}"
 
-    # --- conformance contract check ---
     try:
         from exo_adapter_openai import load_adapter
         from exo_brain_adapter_sdk import assert_runtime_adapter_contract
@@ -112,7 +84,6 @@ ASSERTION_SCRIPT = textwrap.dedent(
     except Exception as exc:
         results["conformance_contract"] = f"FAIL: {exc}"
 
-    # --- echo adapter conformance ---
     try:
         from exo_adapter_echo import load_adapter as load_echo_adapter
         from exo_brain_adapter_sdk import assert_runtime_adapter_contract
@@ -123,7 +94,6 @@ ASSERTION_SCRIPT = textwrap.dedent(
     except Exception as exc:
         results["echo_conformance_contract"] = f"FAIL: {exc}"
 
-    # --- async run_turn event shape ---
     try:
         import asyncio
         from exo_adapter_openai import OpenAIAgentsRuntimeAdapter
@@ -150,19 +120,24 @@ ASSERTION_SCRIPT = textwrap.dedent(
 ).strip()
 
 
+def _read_pypi_pins() -> tuple[str, ...]:
+    req_path = REPO_ROOT / "requirements-adapters.txt"
+    pins = [
+        line.strip()
+        for line in req_path.read_text(encoding="utf-8").splitlines()
+        if re.match(r"^exo-(brain-|adapter-)", line.strip())
+    ]
+    if len(pins) != 4:
+        raise RuntimeError(f"expected 4 adapter pins in {req_path}, got {len(pins)}")
+    return tuple(pins)
+
+
 def _run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, capture_output=True, text=True, check=check)
 
 
 def main() -> int:
-    workspace = _local_adapter_workspace()
-    if workspace is None:
-        print(
-            "[smoke] SKIP: no local adapter package workspace under eXo_adapters/packages/, "
-            "moving_to_adapters_project/packages/, or packages/. Run from eXo_adapters repo root instead."
-        )
-        return 0
-
+    pypi_pins = _read_pypi_pins()
     venv_dir = Path(tempfile.mkdtemp(prefix="exo_external_smoke_"))
     try:
         print(f"[smoke] Creating isolated venv: {venv_dir}")
@@ -171,12 +146,13 @@ def main() -> int:
         pip = str(venv_dir / "bin" / "pip")
         python = str(venv_dir / "bin" / "python3")
 
-        for pkg_path in _packages_install_order(workspace):
-            print(f"[smoke] Installing {pkg_path.name} ...")
-            result = _run([pip, "install", "-e", str(pkg_path), "-q"], check=False)
+        for pin in pypi_pins:
+            print(f"[smoke] Installing {pin} from PyPI ...")
+            result = _run([pip, "install", pin, "-q"], check=False)
             if result.returncode != 0:
-                print(f"[smoke] FAIL: pip install {pkg_path.name}")
-                print(result.stderr)
+                print(f"[smoke] FAIL: PyPI install failed for {pin}")
+                if result.stderr:
+                    print(result.stderr)
                 return 1
 
         print("[smoke] Running assertion script ...")
@@ -188,7 +164,7 @@ def main() -> int:
                 print(result.stderr)
             return 1
 
-        print("[smoke] PASS: all checks passed")
+        print("[smoke] PASS: all checks passed (PyPI install)")
         return 0
 
     finally:

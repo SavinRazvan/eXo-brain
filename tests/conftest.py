@@ -1,22 +1,29 @@
 """
 File: conftest.py
 Path: tests/conftest.py
-Role: Auto-assign module markers and provide optional duplicate-name guardrails.
+Role: Auto-assign module markers, verify adapter wheels, optional duplicate-name guardrails.
 Used By:
  - pytest test collection
 Depends On:
  - pytest
- - Python ast/pathlib standard library
+ - tests/constants.py
 Notes:
  - Module markers are inferred from `src.<module>` imports in each test file.
+ - Session start fails fast when PyPI adapter pins from requirements.txt are missing or mismatched.
 """
 
 from __future__ import annotations
 
 import ast
+import re
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import pytest
+
+from tests.constants import ADAPTER_DISTRIBUTIONS, ADAPTER_IMPORT_MODULES
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _KNOWN_MODULES: set[str] = {
     "access_control",
@@ -38,6 +45,55 @@ _KNOWN_MODULES: set[str] = {
     "tenancy",
     "tools",
 }
+
+
+def _pinned_adapter_versions() -> dict[str, str]:
+    req = (_REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
+    pins: dict[str, str] = {}
+    for dist in ADAPTER_DISTRIBUTIONS:
+        match = re.search(rf"^{re.escape(dist)}==(\S+)", req, re.MULTILINE)
+        if match:
+            pins[dist] = match.group(1)
+    return pins
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Fail fast when any of the four adapter wheels are missing or wrong version."""
+    del session
+    pins = _pinned_adapter_versions()
+    if len(pins) != len(ADAPTER_DISTRIBUTIONS):
+        pytest.exit("requirements.txt must pin all four exo adapter distributions", returncode=2)
+
+    errors: list[str] = []
+    for dist, pinned in pins.items():
+        try:
+            installed = version(dist)
+        except PackageNotFoundError:
+            errors.append(f"{dist} not installed (pip install -r requirements.txt)")
+            continue
+        if installed != pinned:
+            errors.append(
+                f"{dist} installed {installed!r} != pinned {pinned!r} "
+                "(run: bash scripts/dev/install_adapter_dependencies.sh)"
+            )
+            continue
+        module_name = ADAPTER_IMPORT_MODULES[dist]
+        try:
+            mod = __import__(module_name)
+        except ImportError as exc:
+            errors.append(f"{dist} import {module_name!r} failed: {exc}")
+            continue
+        mod_file = (mod.__file__ or "").replace("\\", "/")
+        if "site-packages" not in mod_file and "dist-packages" not in mod_file:
+            errors.append(f"{dist} must be installed from PyPI wheel (site-packages), got {mod.__file__}")
+        elif "/eXo_adapters/" in mod_file:
+            errors.append(
+                f"{dist} must not load from eXo_adapters checkout — "
+                f"pip uninstall and pip install -r requirements.txt: {mod.__file__}"
+            )
+
+    if errors:
+        pytest.exit("Adapter wheel preflight failed:\n  - " + "\n  - ".join(errors), returncode=2)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

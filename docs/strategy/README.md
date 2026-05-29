@@ -30,7 +30,7 @@ Notes:
 
 Strategic documents define product direction, non-negotiable boundaries, monetization posture, and traceability to code/tests. They prevent direction drift while implementation evolves.
 
-**Canonical product model:** eXo-brain is the **control plane** for governed execution; **monetization targets safety and governance**, not raw model resale. **Repository boundary:** this repo is **control plane only** — adapter packages live in **`SavinRazvan/eXo_adapters`** (in-tree dev mirror: [`packages/eXo_adapters/`](../../packages/eXo_adapters/)). See **Repository boundary** in [`governed-execution-positioning.md`](governed-execution-positioning.md).
+**Canonical product model:** eXo-brain is the **control plane** for governed execution; **monetization targets safety and governance**, not raw model resale. **Repository boundary:** this repo is **control plane only** — adapter packages live in **[SavinRazvan/eXo_adapters](https://github.com/SavinRazvan/eXo_adapters)** (PyPI). See **Repository boundary** in [`governed-execution-positioning.md`](governed-execution-positioning.md).
 
 **Integration surfaces:** provider runtime adapters (southbound), control plane API (`/tenants/...` + global routes — [customer-api-integration-guide.md](../api/customer-api-integration-guide.md)), optional customer bridge `POST /v1/chat/completions`. Executable cross-cutting plan: [`control-plane-product-alignment-plan.md`](../plans/control-plane-product-alignment-plan.md).
 

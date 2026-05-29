@@ -115,15 +115,15 @@ Use these as **epic buckets**; each PR/slice should still be small and reversibl
 
 | Item | Implementer focus | Evidence |
 |------|-------------------|----------|
-| Contracts + SDK | Packages isolated; no `src.*` from adapters | [`scripts/packages/external_install_smoke.py`](../../scripts/packages/external_install_smoke.py), package tests under `packages/` |
+| Contracts + SDK | PyPI packages isolated; no `src.*` from adapters | [`scripts/packages/external_install_smoke.py`](../../scripts/packages/external_install_smoke.py), `tests/packages/` against installed wheels |
 | OpenAI adapter | Register provider → governed turn | Conformance + API smoke (`build_test_app` / playground tests) |
-| Handoff doc | Extraction and CI expectations | [`adapter-packages-extraction-handoff.md`](adapter-packages-extraction-handoff.md) |
+| Handoff doc | Extraction complete; PyPI-only consumption | [`adapter-packages-extraction-handoff.md`](adapter-packages-extraction-handoff.md), [`exo_adapters_pypi_handoff.md`](../handoffs/exo_adapters_pypi_handoff.md) |
 
-**Primary artifacts:** `packages/exo-brain-core-contracts`, `packages/exo-brain-adapter-sdk`, `packages/exo-adapter-openai`; `src/runtime/` adapter loading; [`next-directions.md`](../strategy/next-directions.md) Tier 1.
+**Primary artifacts:** PyPI `exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-openai`, `exo-adapter-echo` (lockstep **0.1.1**); `src/runtime/` adapter loading; [`next-directions.md`](../strategy/next-directions.md) Tier 1.
 
-**Suggested tests touchpoints:** `tests/modules/runtime/`, `scripts/packages/external_install_smoke.py` (CI), integration tests that register `openai-test` / playground paths.
+**Suggested tests touchpoints:** `tests/modules/runtime/`, `scripts/packages/external_install_smoke.py`, integration tests that register `openai-test` / playground paths.
 
-**Rolling status:** **STP-W4-003** (2026-03-27) — contracts **0.1.1**: `RuntimeEvent` factory classmethods + `blocked_result` in package; `src/schemas/events.py`, `tool_io.py`, `src/runtime/capability_map.py` re-export. Prior: **STP-W4-002** (editable contracts + `runtime_adapter` re-export), **STP-W4-001** (factory dual-check, superseded for type identity).
+**Rolling status:** **Shipped (2026-05-29):** extraction complete; eXo-brain PyPI-only; lockstep **0.1.1**. Prior: **STP-W4-003** (contracts **0.1.1+** re-exports), **STP-W4-002** (`runtime_adapter` re-export), **STP-W4-001** (factory dual-check, superseded).
 
 ---
 

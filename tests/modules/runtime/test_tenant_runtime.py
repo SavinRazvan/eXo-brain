@@ -24,6 +24,8 @@ from typing import Any
 
 import pytest
 
+from tests.constants import BYOC_WORKER_JWT_SECRET
+
 from src.agents.contracts import AgentCapabilityTag, AgentSpec, HandoffFallbackPolicy, HandoffRoute
 from src.agents.registry import AgentRegistry
 from src.config.provider_registry import (
@@ -277,7 +279,7 @@ def test_tenant_factory_uses_byoc_runtime_when_flag_enabled() -> None:
     settings = _make_settings()
     settings.runtime.enable_hosted_tool_runtime = True
     settings.runtime.enable_byoc_tool_runtime = True
-    settings.runtime.byoc_worker_jwt_secret = "test-secret"
+    settings.runtime.byoc_worker_jwt_secret = BYOC_WORKER_JWT_SECRET
     factory = TenantRuntimeFactory(
         provider_registry=_make_provider_registry(),
         settings=settings,
@@ -293,7 +295,7 @@ def test_tenant_factory_byoc_invalid_conflict_strategy_falls_back_to_first_write
 ) -> None:
     settings = _make_settings()
     settings.runtime.enable_byoc_tool_runtime = True
-    settings.runtime.byoc_worker_jwt_secret = "test-secret"
+    settings.runtime.byoc_worker_jwt_secret = BYOC_WORKER_JWT_SECRET
     settings.runtime.byoc_result_conflict_strategy = "not-a-valid-strategy"
     settings.runtime.byoc_store_backend = "sqlite"
     settings.runtime.byoc_sqlite_db_path = str(tmp_path / "byoc_conflict.db")
@@ -309,7 +311,7 @@ def test_tenant_factory_byoc_invalid_conflict_strategy_falls_back_to_first_write
 def test_tenant_factory_byoc_in_memory_invalid_conflict_strategy_falls_back() -> None:
     settings = _make_settings()
     settings.runtime.enable_byoc_tool_runtime = True
-    settings.runtime.byoc_worker_jwt_secret = "test-secret"
+    settings.runtime.byoc_worker_jwt_secret = BYOC_WORKER_JWT_SECRET
     settings.runtime.byoc_store_backend = "memory"
     settings.runtime.byoc_result_conflict_strategy = "@@@"
     factory = TenantRuntimeFactory(
@@ -328,7 +330,7 @@ def test_tenant_factory_uses_sqlite_backed_byoc_stores_when_configured(tmp_path)
     settings.runtime.enable_byoc_tool_runtime = True
     settings.runtime.byoc_store_backend = "sqlite"
     settings.runtime.byoc_sqlite_db_path = str(tmp_path / "tenant_byoc.db")
-    settings.runtime.byoc_worker_jwt_secret = "test-secret"
+    settings.runtime.byoc_worker_jwt_secret = BYOC_WORKER_JWT_SECRET
     factory = TenantRuntimeFactory(
         provider_registry=_make_provider_registry(),
         settings=settings,

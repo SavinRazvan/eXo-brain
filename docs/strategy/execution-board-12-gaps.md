@@ -242,8 +242,8 @@ Weighted Need formula:
   - per-tenant provider allowlist and ordered fallback.
   - per-provider kill switch and staged rollout percentage.
 - Integration anchors:
-  - `packages/exo-brain-adapter-sdk/*`
-  - `packages/exo-adapter-openai/*`
+  - `exo-brain-adapter-sdk` (PyPI; authored in eXo_adapters)
+  - `exo-adapter-openai` (PyPI)
   - planned adapter packages (`exo-adapter-*`)
   - `src/runtime/adapter_factory.py`
 - Acceptance evidence:
