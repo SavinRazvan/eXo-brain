@@ -90,4 +90,4 @@ See **`notebooks/EVALUATOR_GUIDE.md`** for time-boxed paths (15 min / 90 min / s
 | `tutorial_05`, `check_04` | Tenancy / limits |
 | `tutorial_06` | Background workflows |
 | `tutorial_07` | Governance anomaly / fairness |
-| `tutorial_08` | Full governed execution lab |
+| `tutorial_08` | Full governed execution lab; **`safe_add_proven`** three-operand sum proof (see `governed-execution-pipeline.md` **Hands-on proof**) |
