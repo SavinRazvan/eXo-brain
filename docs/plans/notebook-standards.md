@@ -19,7 +19,7 @@ Notes:
 **Owner:** Maintainer (Savin I. Razvan)  
 **Last reviewed:** 2026-05-29
 
-Canonical index: **[notebooks/README.md](../../notebooks/README.md)** (14 notebooks).  
+Canonical index: **[notebooks/README.md](../../notebooks/README.md)** (15 notebooks).  
 Evaluator paths: **[notebooks/EVALUATOR_GUIDE.md](../../notebooks/EVALUATOR_GUIDE.md)**.
 
 ## Categories (current)
@@ -36,7 +36,7 @@ Naming: `<category>_<NN>_<slug>.ipynb` — numbers are sequential **within** eac
 
 | Generates | Script |
 |---|---|
-| `tutorial_01` … `tutorial_08` | `python notebooks/build_tutorials.py` |
+| `tutorial_01` … `tutorial_09` | `python notebooks/build_tutorials.py` |
 | `check_01` … `check_04`, `edge_01`, `edge_02` | `python notebooks/build_checks.py` |
 
 **Do not hand-edit `.ipynb` files** for content changes — edit the build script, regenerate, re-run cells for outputs, commit both.
@@ -81,7 +81,7 @@ Naming: `<category>_<NN>_<slug>.ipynb` — numbers are sequential **within** eac
 ## CI
 
 - Workflow: `.github/workflows/architecture-fitness.yml`, job **`automated_test_suite`**
-- Command: `jupyter nbconvert --execute notebooks/tutorial_08_governed_execution_sandbox.ipynb` with `OPENAI_API_KEY` empty (Part 8 skips live)
+- Command: `jupyter nbconvert --execute notebooks/tutorial_08_governed_execution_sandbox.ipynb` with `OPENAI_API_KEY` empty (local lab only; live cells are in `tutorial_09`)
 - Trigger: PRs touching `notebooks/**` (among other paths in that workflow)
 - Other notebooks: maintainer / evaluator runs locally (`check_*` + `edge_*` after ingress/tool changes)
 
@@ -100,4 +100,5 @@ See **`notebooks/EVALUATOR_GUIDE.md`** for 15 min / 90 min / extended / security
 | `tutorial_05`, `check_04` | Tenancy / limits |
 | `tutorial_06` | Background workflows |
 | `tutorial_07` | Governance anomaly / fairness |
-| `tutorial_08` | Full governed execution lab; **`safe_add_proven`** three-operand sum proof (see `governed-execution-pipeline.md` **Hands-on proof**) |
+| `tutorial_08` | Local governed execution lab (Parts 1–7); **`safe_add_proven`** three-operand sum proof (see `governed-execution-pipeline.md` **Hands-on proof**) |
+| `tutorial_09` | Optional live governed contrasts (§1–§6); requires `OPENAI_API_KEY` |

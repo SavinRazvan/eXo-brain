@@ -83,7 +83,7 @@ For **ingress** policy, a non-`ALLOW` ingress decision (including **`ESCALATE`**
 
 ## Hands-on proof: why deterministic tools matter
 
-The governed lab notebook [`notebooks/tutorial_08_governed_execution_sandbox.ipynb`](../../notebooks/tutorial_08_governed_execution_sandbox.ipynb) includes a deliberate **anti-guessing** demo (Part **4** locally, Part **8** §3 optional live):
+The governed lab notebook [`notebooks/tutorial_08_governed_execution_sandbox.ipynb`](../../notebooks/tutorial_08_governed_execution_sandbox.ipynb) includes a deliberate **anti-guessing** demo (Part **4** locally). Optional live §3 proof: [`notebooks/tutorial_09_governed_execution_live.ipynb`](../../notebooks/tutorial_09_governed_execution_live.ipynb).
 
 | What the model sees | What only the handler knows |
 |---------------------|-----------------------------|
@@ -94,15 +94,16 @@ The governed lab notebook [`notebooks/tutorial_08_governed_execution_sandbox.ipy
 
 1. **Plain mental math is wrong on purpose** — answering **44** for “11+33” without calling the tool proves the model **did not** use your governed runtime.
 2. **Deterministic execution is the source of truth** — policy + `DeterministicToolExecutor` run **your** Python handler; the model only narrates typed **`ToolResult`** JSON.
-3. **Governed vs raw contrast (Part 8, optional live)** — **§1 ingress** on the real chain; **§2–§4** use **`planned_tool_call`** through `Orchestrator` (same reliable stream as Part 7) plus raw SDK anti-patterns. Optional **`NB_LIVE_MODEL_DRIVEN=1`** tests model-initiated tools (often no `TOOL_INTENT` on the OpenAI delegating path).
+3. **Governed vs raw contrast (tutorial_09, optional live)** — **§1 ingress** on the real chain; **§2–§4** use **`planned_tool_call`** through `Orchestrator` (same reliable stream as tutorial_08 Part 7) plus raw SDK anti-patterns. Optional **`NB_LIVE_MODEL_DRIVEN=1`** tests model-initiated tools (often no `TOOL_INTENT` on the OpenAI delegating path).
 
 Regenerate the notebook from [`notebooks/build_tutorials.py`](../../notebooks/build_tutorials.py) after editing the lab; see [`notebooks/README.md`](../../notebooks/README.md) and [`notebooks/EVALUATOR_GUIDE.md`](../../notebooks/EVALUATOR_GUIDE.md).
 
-**Enterprise acceptance (Part 4 local; Part 8 optional live):** Part 4 prints **`[PASS] Part 4 local proof`** when handler JSON matches the kernel baseline. Part 8 **§2–§4** use **`planned_tool_call`** through `Orchestrator` (same as Part 7) — **`PASS`** requires **`tool_progress` completed** (or **`POLICY_BLOCKED`** for §2) on that stream; matching assistant text without completion is **`FAIL`**. Operator baseline sum/token are **not** in model prompts. §3 **`PASS`** when **`safe_add_proven`** completes then cites kernel sum/token. Optional **`NB_LIVE_MODEL_DRIVEN=1`** (Part 8.5) is diagnostic only — model-initiated tools often skip **`TOOL_INTENT`** on the OpenAI delegating path.
+**Enterprise acceptance (Part 4 local; tutorial_09 optional live):** Part 4 prints **`[PASS] Part 4 local proof`** when handler JSON matches the kernel baseline. tutorial_09 **§2–§4** use **`planned_tool_call`** through `Orchestrator` (same as Part 7) — **`PASS`** requires **`tool_progress` completed** (or **`POLICY_BLOCKED`** for §2) on that stream; matching assistant text without completion is **`FAIL`**. Operator baseline sum/token are **not** in model prompts. §3 **`PASS`** when **`safe_add_proven`** completes then cites kernel sum/token. Optional **`NB_LIVE_MODEL_DRIVEN=1`** (§5) is diagnostic only — model-initiated tools often skip **`TOOL_INTENT`** on the OpenAI delegating path.
 
 ## Related documents
 
 - [`docs/api/customer-api-integration-guide.md`](../api/customer-api-integration-guide.md) — wire-level turn and tier behavior.
 - [`docs/strategy/traceability-matrix.md`](../strategy/traceability-matrix.md) — row-level code and test anchors.
 - [`docs/plans/tenant-tool-execution-architecture.md`](../plans/tenant-tool-execution-architecture.md) — tool platform and slice status.
-- [`notebooks/tutorial_08_governed_execution_sandbox.ipynb`](../../notebooks/tutorial_08_governed_execution_sandbox.ipynb) — story-driven lab with the three-operand **`safe_add_proven`** proof (see **Hands-on proof** above).
+- [`notebooks/tutorial_08_governed_execution_sandbox.ipynb`](../../notebooks/tutorial_08_governed_execution_sandbox.ipynb) — local lab with the three-operand **`safe_add_proven`** proof (see **Hands-on proof** above).
+- [`notebooks/tutorial_09_governed_execution_live.ipynb`](../../notebooks/tutorial_09_governed_execution_live.ipynb) — optional live governed contrasts (§1–§6).

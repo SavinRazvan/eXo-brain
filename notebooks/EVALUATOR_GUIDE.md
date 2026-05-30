@@ -4,13 +4,13 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 
 | Resource | Role |
 |---|---|
-| [README.md](README.md) | Full index (14 notebooks), prerequisites, per-notebook detail |
+| [README.md](README.md) | Full index (15 notebooks), prerequisites, per-notebook detail |
 | [docs/plans/notebook-standards.md](../docs/plans/notebook-standards.md) | Regeneration contract, structure, CI |
-| [docs/architecture/governed-execution-pipeline.md](../docs/architecture/governed-execution-pipeline.md) | Production turn ordering; **Hands-on proof** ↔ `tutorial_08` |
+| [docs/architecture/governed-execution-pipeline.md](../docs/architecture/governed-execution-pipeline.md) | Production turn ordering; **Hands-on proof** ↔ `tutorial_08` (local) + `tutorial_09` (optional live) |
 
 **Runtime:** Python **3.12+**, project `.venv`, `pip install -r requirements.txt` from repo root. Launch: `jupyter lab notebooks/`. Use the venv-backed **`python3`** kernel (see README).
 
-**Adapters (PyPI):** Install all four wheels from `requirements.txt` (`exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-echo`, `exo-adapter-openai`). Notebooks import via `src/*` shims or `exo_adapter_*` directly. Bootstrap cells in tutorials **01, 02, 05, 08** and checks **01, 03** print wheel paths to confirm PyPI provenance — not in-tree packages.
+**Adapters (PyPI):** Install all four wheels from `requirements.txt` (`exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-echo`, `exo-adapter-openai`). Notebooks import via `src/*` shims or `exo_adapter_*` directly. Bootstrap cells in tutorials **01, 02, 05, 08, 09** and checks **01, 03** print wheel paths to confirm PyPI provenance — not in-tree packages.
 
 **Naming cheat sheet:**
 
@@ -18,11 +18,13 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 |---|---|---|
 | **BYO configuration** | `tutorial_03` | Ingress / governance overlay dicts (no adapter code) |
 | **BYOC** | `tutorial_07` | Bring Your Own Compute — anomaly + fair admission |
+| **Governance lab (local)** | `tutorial_08` | Parts 1–7; **`safe_add_proven`** proof; stub `planned_tool_call` |
+| **Governance lab (live)** | `tutorial_09` | Optional §1–§6 after `tutorial_08`; `planned_tool_call` live proofs |
 | **Runtime adapter** | `tutorial_02`, `check_03` | PyPI `exo-adapter-openai` + `exo-adapter-echo` |
 
 ---
 
-## Notebook inventory (14)
+## Notebook inventory (15)
 
 | ID | API key | Best for |
 |---|---|---|
@@ -33,7 +35,8 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 | `tutorial_05` | Optional (Part 6) | Sessions, timeline, quotas; Part 2 = local `SessionAdapter`; Part 6 = live PyPI adapter |
 | `tutorial_06` | No | Background DAG, retry, checkpoint |
 | `tutorial_07` | No | **BYOC** anomaly advisory + fair admission |
-| `tutorial_08` | Part 8 only | Governance lab; Part 8 §1–§4 use `planned_tool_call` live proofs |
+| `tutorial_08` | No | Local governance lab (Parts 1–7) |
+| `tutorial_09` | Optional | Live governed contrasts; §1–§4 use `planned_tool_call` proofs |
 | `check_01`–`check_04` | No | Maintainer smoke (~30 s total); `check_01`/`check_03` verify PyPI wheels |
 | `edge_01`, `edge_02` | No | Ingress ordering + tool envelopes |
 
@@ -53,6 +56,23 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 
 **Proof without a key:** In `tutorial_08` Part **4**, read **`safe_add_proven` JSON** — `sum` includes kernel-only **`random_operand`**. Plain **11+33=44** or **2+3=5** without that JSON means the model did not use your handler boundary.
 
+**Optional (+10–15 min with API key):** After the skim, run **`tutorial_09`** §1–§4 only if you need live **`§N VERIFICATION (governed): PASS`** lines — not required for the executive path.
+
+---
+
+## Governed execution lab (`tutorial_08` → optional `tutorial_09`)
+
+| Phase | Notebook | Time | API key |
+|---|---|---|---|
+| Local story + proof | `tutorial_08` Parts 1–7 | ~10–20 min | No |
+| Live contrasts | `tutorial_09` §1–§6 | ~10–15 min | Optional |
+
+**Order:** Always **`tutorial_08` first** (same kernel). **`tutorial_09`** can replay tutorial_08 defaults via its consolidated prereq cell if you open it standalone.
+
+**CI:** Only **`tutorial_08`** is executed in `architecture-fitness` (no key). **`tutorial_09`** is evaluator-local.
+
+**Split rationale:** Smaller notebooks render on GitHub and keep CI fast; live OpenAI cells are isolated in **`tutorial_09`**.
+
 ---
 
 ## 90-minute technical evaluation (no API key)
@@ -63,15 +83,15 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 | 2 | `tutorial_03_bring_your_own_config.ipynb` | 20 min |
 | 3 | `tutorial_04_audit_trail.ipynb` | 15 min |
 | 4 | `edge_02_tool_error_envelopes.ipynb` | 10 min |
-| 5 | `tutorial_08` Parts 1–7 (emphasize **Part 4**) | 25 min |
+| 5 | `tutorial_08` Parts 1–7 (emphasize **Part 4** + **Checkpoint**) | ~20 min |
 
-**Optional with API key:** `tutorial_02` `[REQUIRES API KEY]` cells; `tutorial_08` Part 8 (run **8.1**, then **§1–§4**).
+**Optional with API key (+15 min):** `tutorial_02` `[REQUIRES API KEY]` cells; **`tutorial_09`** after **`tutorial_08`** (live setup → **§1–§4**; skip §5 unless diagnosing model-initiated tools).
 
-**Part 8 expectations (if you use a key):**
+**tutorial_09 expectations (if you use a key):**
 
-- **§1–§4 governed proofs** use **`planned_tool_call`** through `Orchestrator` (same as Part 7) — not model-initiated tool choice.
+- **§1–§4 governed proofs** use **`planned_tool_call`** through `Orchestrator` (same as tutorial_08 Part 7) — not model-initiated tool choice.
 - **`§N VERIFICATION (governed): PASS`** requires completed `tool_progress` (or ingress deny / `POLICY_BLOCKED` for §2) plus expected assistant text where applicable.
-- **8.5** (`NB_LIVE_MODEL_DRIVEN=1`, off by default) explores model-initiated tools — often **no `TOOL_INTENT`** on the delegating path; treat as diagnostic only.
+- **§5** (`NB_LIVE_MODEL_DRIVEN=1`, off by default) explores model-initiated tools — often **no `TOOL_INTENT`** on the delegating path; treat as diagnostic only.
 - Set `NB_LIVE_*=0` to skip blocks; align §3 operands with Part 4 via `NB_LIVE_MATH_A` / `NB_LIVE_MATH_B` when not using 11+33.
 
 ---
@@ -84,6 +104,8 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 | `tutorial_07_governance_and_anomaly.ipynb` | 15 min | BYOC anomaly + fair admission + Part 6b waiter |
 | `edge_01_ingress_policy_conflicts.ipynb` | 10 min | First non-ALLOW gate ordering |
 
+**Optional with API key (+10–15 min):** `tutorial_09` §1–§6 after completing **`tutorial_08`**.
+
 ---
 
 ## Security / governance focus
@@ -94,7 +116,7 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 | 2 | `edge_01` |
 | 3 | `tutorial_04` |
 | 4 | `tutorial_07` (BYOC fairness / anomaly) |
-| 5 | `tutorial_08` (Parts 1–7 minimum; Part 8 optional) |
+| 5 | `tutorial_08` (Parts 1–7 minimum); **`tutorial_09`** optional live |
 
 **Cross-read:** `docs/architecture/governed-execution-pipeline.md`
 
@@ -106,7 +128,8 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 |---|---|---|
 | 1 | `tutorial_02_openai_adapter.ipynb` | Inline `OpenAIAgentsSDKAdapter` teaches the pattern; summary links to PyPI wheel |
 | 2 | `check_03_runtime_adapter.ipynb` | Proves `exo-adapter-openai` + `exo-adapter-echo` load and healthcheck |
-| 3 | `tutorial_08` Part 8 (optional live) | Governed `planned_tool_call` proofs |
+| 3 | `tutorial_08` Part 7 | Stub `planned_tool_call` stream (no key) — bridge before live |
+| 4 | `tutorial_09` (optional live) | Governed `planned_tool_call` proofs §1–§4 |
 
 **Bring your own adapter:** Implement `RuntimeAdapter` (`exo-brain-core-contracts`), pip-install your package, pass to `Orchestrator` or register via API `adapter_class_ref`. Notebooks default to shipped PyPI adapters.
 
@@ -142,7 +165,7 @@ Shared bootstrap and wheel probes live in `notebooks/notebook_common.py`. Re-run
 
 - Not a production deployment guide (see `MAINTAINER_STATUS.md`; `docker-compose.yml` is dev-oriented)
 - Not a formal compliance certification pack
-- Not a replacement for CI (`architecture-fitness` runs full pytest with coverage floor + executes `tutorial_08` without a live key)
+- Not a replacement for CI (`architecture-fitness` runs full pytest with coverage floor + executes **`tutorial_08` only** without a live key; **`tutorial_09`** is not in CI)
 
 ---
 

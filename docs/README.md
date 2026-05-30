@@ -33,12 +33,12 @@ Narrative and smoke evidence for evaluators and contributors — **not** a subst
 
 | Entry | Role |
 |---|---|
-| [notebooks/README.md](../notebooks/README.md) | Full index (14 notebooks), build scripts, per-notebook detail |
+| [notebooks/README.md](../notebooks/README.md) | Full index (15 notebooks), build scripts, per-notebook detail |
 | [notebooks/EVALUATOR_GUIDE.md](../notebooks/EVALUATOR_GUIDE.md) | Time-boxed paths (15 min / 90 min / security / maintainer smoke) |
 | [docs/plans/notebook-standards.md](plans/notebook-standards.md) | Regeneration contract, structure, CI, ownership map |
 | [docs/architecture/governed-execution-pipeline.md](architecture/governed-execution-pipeline.md) | Production turn ordering; **Hands-on proof** ↔ `tutorial_08` |
 
-**Learning order:** `tutorial_01` → `02` → `03` → `04`; then `05`–`07` as needed; `tutorial_08` for the full governance lab.
+**Learning order:** `tutorial_01` → `02` → `03` → `04`; then `05`–`07` as needed; `tutorial_08` for the local governance lab; `tutorial_09` for optional live contrasts.
 
 ## Strategy (`docs/strategy/`)
 

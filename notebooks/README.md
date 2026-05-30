@@ -6,9 +6,11 @@ live outputs, and hands-on exploration that pytest does not.
 
 **New here?** Start with `tutorial_01` → `tutorial_02` → `tutorial_03` → `tutorial_04` in order.
 Each tutorial builds on the previous one. `tutorial_05`, `tutorial_06`, and `tutorial_07` are
-standalone deep-dives you can run in any order after `tutorial_03`. **`tutorial_08`** is a
-**governed-execution lab** (story + code): edit policy, ingress, and tool knobs, read stdout like
-operator traces, and optionally run **live** governed contrasts with `OPENAI_API_KEY`. The `check_`
+standalone deep-dives you can run in any order after `tutorial_03`. **`tutorial_08`** is the
+**local governed-execution lab** (Parts 1–7, no API key). **`tutorial_09`** is the optional
+**live** companion (ingress + governed contrasts with `OPENAI_API_KEY`). Run **`tutorial_08` first**;
+**`tutorial_09`** continues in the same kernel (or uses a consolidated prereq cell). The split keeps
+**`tutorial_08`** small enough for GitHub preview and CI (`nbconvert --execute` without a key). The `check_`
 notebooks are independent smoke tests (~5 seconds each). The `edge_` notebooks are deterministic
 boundary proofs.
 
@@ -18,9 +20,18 @@ boundary proofs.
 
 **Architecture (notebooks):** eXo-brain **core** (orchestrator, policy, tools, tenancy) runs against pluggable **runtime adapters** from PyPI. Notebooks use the shipped wheels via `src/*` shims — not in-tree `packages/`. Custom adapters implement the same `RuntimeAdapter` contract (`exo-brain-core-contracts`); see Tutorial 02 and `check_03`.
 
+### Governed execution lab (`tutorial_08` → optional `tutorial_09`)
+
+| Step | Notebook | API key | What you get |
+|---|---|---|---|
+| 1 | `tutorial_08_governed_execution_sandbox.ipynb` | No | Full local story: risk gates, tenant overlay, **`safe_add_proven`** three-operand proof, execution mode, ingress, stub **`planned_tool_call`** stream |
+| 2 | `tutorial_09_governed_execution_live.ipynb` | Optional | Live **§1–§4** governed proofs + raw SDK contrasts; **§5** model-driven diagnostic (off by default); **§6** summary table |
+
+Cross-read: [`docs/architecture/governed-execution-pipeline.md`](../docs/architecture/governed-execution-pipeline.md) (**Hands-on proof**).
+
 ---
 
-## Inventory (14 notebooks)
+## Inventory (15 notebooks)
 
 | Notebook | Category | API key | Typical runtime |
 |---|---|---|---|
@@ -31,7 +42,8 @@ boundary proofs.
 | `tutorial_05_multi_turn_sessions.ipynb` | tutorial | Optional (Part 6) | ~20 min |
 | `tutorial_06_background_workflows.ipynb` | tutorial | No | ~20 min |
 | `tutorial_07_governance_and_anomaly.ipynb` | tutorial | No | ~15 min |
-| `tutorial_08_governed_execution_sandbox.ipynb` | tutorial | No (Parts 1–7); Part 8 optional | ~15–25 min |
+| `tutorial_08_governed_execution_sandbox.ipynb` | tutorial | No (Parts 1–7) | ~10–20 min |
+| `tutorial_09_governed_execution_live.ipynb` | tutorial | Optional (§1–§6; skip if unset) | ~10–15 min |
 | `check_01_core_orchestrator.ipynb` | check | No | under 5 s |
 | `check_02_policy_middleware.ipynb` | check | No | under 5 s |
 | `check_03_runtime_adapter.ipynb` | check | No | under 5 s |
@@ -102,9 +114,9 @@ This pulls all **four PyPI adapter wheels** (lockstep pin in `requirements.txt`)
 | `exo-adapter-echo` | `exo_adapter_echo` | Deterministic reference adapter |
 | `exo-adapter-openai` | `exo_adapter_openai` | OpenAI Agents SDK adapter |
 
-Tutorials **01, 02, 05, 08** and checks **01, 03** print wheel paths at bootstrap to confirm PyPI provenance.
+Tutorials **01, 02, 05, 08, 09** and checks **01, 03** print wheel paths at bootstrap to confirm PyPI provenance.
 
-**API keys:** Cells marked **`[REQUIRES API KEY]`** (or tutorial Part 8) skip gracefully when
+**API keys:** Cells marked **`[REQUIRES API KEY]`** (or **`tutorial_09`**) skip gracefully when
 `OPENAI_API_KEY` is unset. Everything else is deterministic and needs no live provider.
 
 ---
@@ -114,14 +126,14 @@ Tutorials **01, 02, 05, 08** and checks **01, 03** print wheel paths at bootstra
 | Script | Generates | Command |
 |---|---|---|
 | `notebook_common.py` | Shared bootstrap, wheel probe, kernelspec | Imported by builders (do not run directly) |
-| `build_tutorials.py` | `tutorial_01_*` … `tutorial_08_*` | `python notebooks/build_tutorials.py` |
+| `build_tutorials.py` | `tutorial_01_*` … `tutorial_09_*` | `python notebooks/build_tutorials.py` |
 | `build_checks.py` | `check_01_*` … `check_04_*`, `edge_01_*`, `edge_02_*` | `python notebooks/build_checks.py` (`--execute` to refresh outputs) |
 
 After regenerating, re-run notebook cells to refresh outputs, then commit the builder(s), `notebook_common.py` (if changed), and `.ipynb` together.
 
 **CI:** In `.github/workflows/architecture-fitness.yml`, job **`automated_test_suite`** runs
 `jupyter nbconvert --execute` on **`tutorial_08_governed_execution_sandbox.ipynb`** with
-`OPENAI_API_KEY` empty (Part 8 skips live calls). Triggered on PRs that touch `notebooks/**` (among other paths).
+`OPENAI_API_KEY` empty (live cells in `tutorial_09` are not executed in CI). Triggered on PRs that touch `notebooks/**` (among other paths).
 
 ### GitHub in-browser preview
 
@@ -132,7 +144,7 @@ renderer failing — it is **not** fixed by changing `requirements.txt` (those p
 | Symptom | What to do |
 |---------|------------|
 | Generic render error on any `.ipynb` | Retry later; use [nbviewer](https://nbviewer.org/) or open locally with `.venv` |
-| `tutorial_08` “took too long to render” | Expected for the largest lab — run locally or use nbviewer |
+| `tutorial_08` / `tutorial_09` slow or fail on GitHub preview | Run locally or use [nbviewer](https://nbviewer.org/) — split keeps `tutorial_08` CI-sized |
 | Before push (metadata normalize) | `python scripts/dev/normalize_notebooks_for_github.py` |
 
 Committed notebooks use **nbformat 4.4** (no cell ids) and portable kernelspec metadata for better GitHub compatibility.
@@ -303,21 +315,71 @@ tool proofs are **Tutorial 02** / **Tutorial 08**, not required here).
 
 #### `tutorial_08_governed_execution_sandbox.ipynb`
 
-**Purpose:** Story-driven governance lab — ingress, risk policy, deterministic tools, execution mode,
-stub orchestrator, optional live contrasts.
+**Title:** Tutorial 08 — Governed execution: **local lab**.
 
-**API key:** **No** for Parts 1–7. **Part 8** optional when `OPENAI_API_KEY` is set (otherwise skip text).
+**Purpose:** Story-driven **local** governance lab — ingress, risk policy, deterministic tools,
+execution mode, stub orchestrator (Parts 1–7). No live OpenAI calls.
+
+**API key:** **No.**
+
+**What you will do:**
+
+1. Bootstrap — repo path, `.env`, PyPI wheel provenance
+2. **Parts 1–2** — `RiskGateConfig` knobs + synthetic `before_tool_call` probes
+3. **Part 3** — tenant policy overlay (`DENY` vs `ESCALATE`)
+4. **Part 4** — register tools, `run_tool`, divide-by-zero envelope, **`safe_add_proven`** kernel proof
+5. **Part 5** — execution mode sweep (capability map + policy)
+6. **Part 6** — ingress gate chain on representative prompts
+7. **Checkpoint** — verify globals before orchestrator
+8. **Part 7** — one-turn stub orchestrator with **`planned_tool_call`** (no API key)
 
 **Flagship proof — `safe_add_proven`:** Model supplies `a` and `b`; handler adds hidden `random_operand`
 per kernel → `sum` and `proof_token`. Plain **a+b** (e.g. 44 for 11+33) without tool JSON is **not** the trust boundary.
 
 **Part 4:** Prints handler JSON and **`[PASS] Part 4 local proof`** when sum/token match the kernel.
 
-**Part 8 (optional live):** Run **8.1 setup**, then **§1–§4** cells. Governed proofs use **`planned_tool_call`**
-(same mechanism as Part 7) — §2–§4 do **not** depend on the model choosing tools. **8.5** (`NB_LIVE_MODEL_DRIVEN=1`,
-off by default) is model-driven diagnostic only; **8.6** prints the live summary table.
+**Requires:** `pip install -r requirements.txt` (all four PyPI wheels). Bootstrap prints wheel paths and asserts OpenAI adapter provenance.
+**`nest-asyncio`** in requirements for Jupyter async in Part 7.
 
-**Part 8 env controls (default on unless noted; set `0`/`false`/`off` to skip):**
+**Next step:** Optional live contrasts in **`tutorial_09_governed_execution_live.ipynb`** (same kernel recommended).
+
+**Cross-read:** `docs/architecture/governed-execution-pipeline.md` (**Hands-on proof** — local section)
+
+**Modules:** `src/policies/risk_gates`, `src/policies/middleware`, `src/tenancy/policy_overlay`,
+`src/tools/registry`, `src/tools/executor`, `src/observability/metrics`, `src/runtime/capability_map`,
+`src/runtime/mode_selector`, `src/policies/ingress_gates`, `src/core/orchestrator`, `src/runtime/openai_agents_runtime`
+
+---
+
+#### `tutorial_09_governed_execution_live.ipynb`
+
+**Title:** Tutorial 09 — Governed execution: **live contrasts**.
+
+**Purpose:** Optional **live** governed vs **raw SDK** contrasts when **`OPENAI_API_KEY`** is set.
+Governed **§2–§4** use **`planned_tool_call`** through `Orchestrator` (same reliable mechanism as tutorial_08 Part 7).
+
+**API key:** **Optional** — cells skip with guidance when unset. Only post-setup cells may call OpenAI.
+
+**Prerequisites:**
+
+1. **Recommended:** Run **`tutorial_08`** top-to-bottom in this kernel, then continue here.
+2. **Standalone:** Bootstrap + **consolidated prereq** cell (rebuilds tutorial_08 defaults).
+
+**Cell flow:**
+
+| Step | Section | Notes |
+|---|---|---|
+| Bootstrap | paths, wheels, `.env` | Same pattern as other tutorials |
+| Consolidated prereq | skip if globals exist | Replays tutorial_08 Parts 1–4 + 6 defaults |
+| Live setup | `HAS_OPENAI_KEY`, `NB_LIVE_*` flags | Prints flag matrix; skip live cells if no key |
+| §1 | Ingress deny on secret pattern | Governed path stops pre-model |
+| §2 | `admin_reset` policy block | **`POLICY_BLOCKED`** or **`PASS`** via `planned_tool_call` |
+| §3 | `safe_add_proven` / `sloppy_add_proven` | **`§3 VERIFICATION (governed): PASS`** when tool completes + cites kernel sum |
+| §4 | `calculate_result` multiply | Governed multiply vs optional raw broken contrast |
+| §5 | Model-driven diagnostic | **`NB_LIVE_MODEL_DRIVEN=1`** only; not used for §2–§4 PASS/FAIL |
+| §6 | Live summary table | One line per section from `_live_gov_summary` |
+
+**Env controls (default on unless noted; set `0`/`false`/`off` to skip):**
 
 | Variable | Default | Skips |
 |---|---|---|
@@ -327,21 +389,11 @@ off by default) is model-driven diagnostic only; **8.6** prints the live summary
 | `NB_LIVE_MATH_A` / `NB_LIVE_MATH_B` | 11 / 33 | §3 operands (match Part 4 kernel if re-testing 2+3) |
 | `NB_LIVE_CALC` | on | §4 governed `calculate_result` multiply |
 | `NB_LIVE_RAW_CALC_CONTRAST` | off | §4 optional raw broken multiply |
-| `NB_LIVE_MODEL_DRIVEN` | off | §8.5 model-initiated diagnostic turns |
+| `NB_LIVE_MODEL_DRIVEN` | off | §5 model-initiated diagnostic turns |
 
-**Requires:** `pip install -r requirements.txt` (all four PyPI wheels). Bootstrap prints wheel paths and asserts OpenAI adapter provenance.
-**`nest-asyncio`** in requirements for Jupyter async in Parts 7–8.
+**Cross-read:** `docs/architecture/governed-execution-pipeline.md` (**Hands-on proof** — live section)
 
-**Parts map:** 1–2 risk + scenarios; 3 tenant overlay; 4 tools; 5 execution mode; 6 ingress; 7 stub orchestrator;
-8 optional live (8.1 setup → §1–§4 `planned_tool_call` proofs → optional 8.5 model-driven → 8.6 summary).
-
-**Cross-read:** `docs/architecture/governed-execution-pipeline.md` (**Hands-on proof**)
-
-**Modules:** `src/policies/risk_gates`, `src/policies/middleware`, `src/tenancy/policy_overlay`,
-`src/tools/registry`, `src/tools/executor`, `src/observability/metrics`, `src/runtime/capability_map`,
-`src/runtime/mode_selector`, `src/policies/ingress_gates`, `src/core/orchestrator`, `src/runtime/openai_agents_runtime`
-
----
+**Modules:** same governance stack as tutorial_08 (`src/core/orchestrator`, `src/policies/*`, `src/tools/*`, `src/runtime/openai_agents_runtime`)
 
 ### Checks
 
@@ -414,5 +466,5 @@ Deterministic scenario notebooks. Final line: **`All edge_XX scenarios: PASS`**.
 4. Add builder to `build_tutorials.py` or `build_checks.py` (reuse `notebook_common.py` for bootstrap/probes)
 5. Update this README, `EVALUATOR_GUIDE.md` if evaluator-facing, and `docs/plans/notebook-standards.md` ownership table
 6. **Checks/edges:** deterministic, assert + explicit PASS lines, no API key
-7. **Tutorials:** story before code; skip guards for optional live sections
+7. **Tutorials:** story before code; skip guards for optional live sections (`tutorial_09`, `[REQUIRES API KEY]` cells)
 8. Commit builder + `.ipynb` + doc updates together
