@@ -18,6 +18,9 @@ __pycache__/
 venv/
 env/
 
+# accidental local npm installs (eXo-brain is Python; type-check via IDE / optional pip pyright)
+node_modules/
+
 # local runtime artifacts
 .exo_data/
 
