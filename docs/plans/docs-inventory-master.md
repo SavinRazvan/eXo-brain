@@ -90,7 +90,7 @@ Notes:
 | `docs/plans/short-long-term-execution-plan.md` | Short vs long execution horizons; companion to `next-directions.md` Tier emphasis |
 | `docs/plans/short-long-term-execution-plan.plan.md` | Implementer companion (W1–W4+S4, checklists, slice boilerplate) |
 | `docs/plans/notebook-standards.md` | Notebook categories, builders, CI, ownership map |
-| `notebooks/README.md` | Notebook index (14), prerequisites, per-notebook breakdown |
+| `notebooks/README.md` | Notebook index (15), proof/evidence model, prerequisites, per-notebook breakdown |
 | `notebooks/EVALUATOR_GUIDE.md` | Time-boxed evaluator paths (15 min / 90 min / security / smoke) |
 | `docs/decisions/README.md` | Architecture decision index (ADR-style) |
 | `docs/decisions/submit-tool-results-orchestrator-only.md` | OpenAI adapter `submit_tool_results` / continuation decision |

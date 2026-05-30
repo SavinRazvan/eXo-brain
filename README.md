@@ -38,7 +38,7 @@ Pick one path — deeper reading lives in [docs/README.md](docs/README.md).
 
 | You are… | Start with | Then |
 |---|---|---|
-| **Evaluator** (15–90 min, no production claims) | [notebooks/EVALUATOR_GUIDE.md](notebooks/EVALUATOR_GUIDE.md) | [notebooks/README.md](notebooks/README.md) → `tutorial_01` → `tutorial_08` |
+| **Evaluator** (15–90 min, no production claims) | [notebooks/EVALUATOR_GUIDE.md](notebooks/EVALUATOR_GUIDE.md) | [notebooks/README.md](notebooks/README.md) → **`tutorial_08`** (proof lab) or `tutorial_01` → `tutorial_08` |
 | **Architecture reader** (plain language) | [docs/architecture/beginner-workflow.md](docs/architecture/beginner-workflow.md) | [governed-execution-pipeline.md](docs/architecture/governed-execution-pipeline.md) → [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) |
 | **API / integration** (tier-aware contract) | [docs/api/customer-api-integration-guide.md](docs/api/customer-api-integration-guide.md) | [foundation-tier-adoption-checklist.md](docs/strategy/foundation-tier-adoption-checklist.md) |
 | **Contributor / maintainer** | [AGENTS.md](AGENTS.md) (first reads + gates) | [docs/operations/workflow-complete.md](docs/operations/workflow-complete.md) |
@@ -179,12 +179,18 @@ python scripts/architecture/validate_layers.py
 python scripts/architecture/scan_forbidden_imports.py
 ```
 
-### Explore (notebooks)
+### Explore (notebooks — hands-on proof)
 
-Deterministic tutorials and smoke checks live under `notebooks/`. Start with
-[notebooks/EVALUATOR_GUIDE.md](notebooks/EVALUATOR_GUIDE.md) (15 min or 90 min paths) or
-[notebooks/README.md](notebooks/README.md) for the full index. Regenerate content from
-`notebooks/build_tutorials.py` and `notebooks/build_checks.py` — do not hand-edit `.ipynb` JSON.
+**15 notebooks** under `notebooks/` complement pytest with **narrative plus assertion-backed evidence** — committed outputs, explicit **PASS** lines, and checks on policy decisions, `ToolResult` envelopes, and orchestrator streams. They are meant for evaluators and design partners who want to **see the work**, not only read architecture docs.
+
+| Start here | Role |
+|---|---|
+| [notebooks/EVALUATOR_GUIDE.md](notebooks/EVALUATOR_GUIDE.md) | 15 min / 90 min paths; what PASS lines mean |
+| [notebooks/README.md](notebooks/README.md) | Full index (15 notebooks), build scripts, per-notebook detail |
+| **`tutorial_08`** | Flagship **local governed-execution lab** (no API key; **CI-executed** on PRs) |
+| **`tutorial_09`** | Optional live OpenAI contrasts (evaluator-local) |
+
+Regenerate content from `notebooks/build_tutorials.py` and `notebooks/build_checks.py` — do not hand-edit `.ipynb` JSON. Cross-read: [governed-execution-pipeline.md](docs/architecture/governed-execution-pipeline.md) (**Hands-on proof**).
 
 ### Environment (local)
 

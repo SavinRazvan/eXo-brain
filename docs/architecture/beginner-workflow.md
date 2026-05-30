@@ -316,13 +316,14 @@ A simple reading order is:
 
 ## If you want hands-on proof (optional)
 
-Notebooks complement `tests/` with narrative, printable evidence:
+Notebooks complement `tests/` with narrative plus **assertion-backed, committed outputs** (PASS lines enforced by in-cell checks):
 
 | Goal | Start here |
 |---|---|
-| 15 min executive skim (no API key) | [notebooks/EVALUATOR_GUIDE.md](../../notebooks/EVALUATOR_GUIDE.md) |
-| Full index and learning order | [notebooks/README.md](../../notebooks/README.md) |
-| Governed execution + `safe_add_proven` proof | `notebooks/tutorial_08_governed_execution_sandbox.ipynb` (see pipeline doc **Hands-on proof**) |
+| What notebooks prove (15 min skim, no API key) | [notebooks/EVALUATOR_GUIDE.md](../../notebooks/EVALUATOR_GUIDE.md) |
+| Full index and evidence model | [notebooks/README.md](../../notebooks/README.md) |
+| Flagship governed execution + `safe_add_proven` proof (CI on PRs) | `notebooks/tutorial_08_governed_execution_sandbox.ipynb` (see pipeline doc **Hands-on proof**) |
+| Optional live OpenAI contrasts | `notebooks/tutorial_09_governed_execution_live.ipynb` (after `tutorial_08`) |
 
 This guide is intentionally plain-language first.  
 It explains the workflow and the idea behind the system, not every technical detail.

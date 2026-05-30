@@ -29,16 +29,16 @@ Notes:
 
 ## Hands-on validation (notebooks)
 
-Narrative and smoke evidence for evaluators and contributors — **not** a substitute for `pytest`.
+**Assertion-backed evidence** for evaluators and contributors — complements `pytest`, does not replace it. Committed notebook outputs show **PASS lines** backed by in-cell assertions (policy codes, `ToolResult` fields, ingress gates, orchestrator streams).
 
 | Entry | Role |
 |---|---|
-| [notebooks/README.md](../notebooks/README.md) | Full index (15 notebooks), build scripts, per-notebook detail |
-| [notebooks/EVALUATOR_GUIDE.md](../notebooks/EVALUATOR_GUIDE.md) | Time-boxed paths (15 min / 90 min / security / maintainer smoke) |
+| [notebooks/README.md](../notebooks/README.md) | Full index (15 notebooks), evidence model, build scripts, per-notebook detail |
+| [notebooks/EVALUATOR_GUIDE.md](../notebooks/EVALUATOR_GUIDE.md) | Time-boxed paths (15 min / 90 min / security / maintainer smoke); what to look for |
 | [docs/plans/notebook-standards.md](plans/notebook-standards.md) | Regeneration contract, structure, CI, ownership map |
-| [docs/architecture/governed-execution-pipeline.md](architecture/governed-execution-pipeline.md) | Production turn ordering; **Hands-on proof** ↔ `tutorial_08` |
+| [docs/architecture/governed-execution-pipeline.md](architecture/governed-execution-pipeline.md) | Production turn ordering; **Hands-on proof** ↔ **`tutorial_08`** (CI) + optional **`tutorial_09`** |
 
-**Learning order:** `tutorial_01` → `02` → `03` → `04`; then `05`–`07` as needed; `tutorial_08` for the local governance lab; `tutorial_09` for optional live contrasts.
+**Learning order:** `tutorial_01` → `02` → `03` → `04`; then `05`–`07` as needed; **`tutorial_08`** for the local governance proof lab; **`tutorial_09`** for optional live contrasts.
 
 ## Strategy (`docs/strategy/`)
 

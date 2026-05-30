@@ -73,10 +73,12 @@ Naming: `<category>_<NN>_<slug>.ipynb` — numbers are sequential **within** eac
 
 ## Expected output quality
 
-- Assertions fail fast with clear messages
+- Assertions fail fast with clear messages (same spirit as [nbval](https://arxiv.org/abs/2001.04808): execute cells and treat outputs as tests)
 - Checks and edges end with explicit **PASS** lines
-- API-key cells skip gracefully when `OPENAI_API_KEY` is unset
-- Reason codes and gate IDs printed where relevant (enterprise evidence)
+- Tutorials use **`[PASS]`**, **`§N VERIFICATION (governed): PASS`**, or exact dict/`ToolResult` equality — not print-only banners
+- API-key cells skip gracefully when `OPENAI_API_KEY` is unset; raw SDK contrast errors are non-fatal in **`tutorial_09`**
+- Reason codes, gate IDs, and submitted tool envelopes asserted where the notebook claims proof
+- Committed `.ipynb` outputs are **reference evidence** after maintainer re-execution
 
 ## CI
 

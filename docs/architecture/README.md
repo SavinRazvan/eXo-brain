@@ -26,7 +26,7 @@ Notes:
 | 4 | [mvp.md](mvp.md) | One-page layers + guardrails |
 | 5 | [workspace-architecture.md](workspace-architecture.md) | Modular monolith doctrine |
 
-**Hands-on (optional):** [notebooks/EVALUATOR_GUIDE.md](../../notebooks/EVALUATOR_GUIDE.md) (15 min / 90 min); full index [notebooks/README.md](../../notebooks/README.md). Standards: [notebook-standards.md](../plans/notebook-standards.md).
+**Hands-on (optional):** [notebooks/EVALUATOR_GUIDE.md](../../notebooks/EVALUATOR_GUIDE.md) — assertion-backed proof paths; full index [notebooks/README.md](../../notebooks/README.md). Standards: [notebook-standards.md](../plans/notebook-standards.md). Flagship lab: **`tutorial_08`** (CI).
 
 ---
 

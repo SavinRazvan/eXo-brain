@@ -1,8 +1,19 @@
 # eXo-brain Notebooks
 
 Interactive notebooks for exploring, validating, and demonstrating eXo-brain's core modules.
-They complement the automated test suite (`tests/`) — notebooks provide narrative context,
-live outputs, and hands-on exploration that pytest does not.
+They complement the automated test suite (`tests/`) with **narrative context plus assertion-backed
+evidence**: committed cell outputs, explicit **`PASS`** lines, and exact checks on `ToolResult`
+envelopes, policy decisions, and stream events.
+
+**Why these exist for evaluators:** You can read or re-run notebooks to see **how the architecture
+behaves**, not only that pytest passes. Tutorials tell the story; **`check_*`** and **`edge_*`**
+notebooks are fast module proofs; **`tutorial_08`** is the **flagship local governed-execution lab**
+(CI-executed on PRs). Optional **`tutorial_09`** adds live OpenAI contrasts when you have a key.
+
+**Evidence model:** Content is generated from `build_tutorials.py` / `build_checks.py`. After edits,
+maintainers re-execute notebooks and commit refreshed outputs so GitHub (or local Jupyter) shows
+the same proofs reviewers would get from `nbconvert --execute`. Weak print-only cells are avoided —
+PASS criteria are enforced with assertions that fail the notebook if behaviour drifts.
 
 **New here?** Start with `tutorial_01` → `tutorial_02` → `tutorial_03` → `tutorial_04` in order.
 Each tutorial builds on the previous one. `tutorial_05`, `tutorial_06`, and `tutorial_07` are
@@ -71,7 +82,8 @@ Rules:
 - Slugs are lowercase with underscores.
 - Each notebook must be listed in this README index and have a builder in the matching build script.
 - **Content source of truth:** `build_tutorials.py` / `build_checks.py` — regenerate `.ipynb` after edits.
-- Outputs may be committed when they serve as reference evidence (tutorials); clear stale outputs before commit when content changed.
+- Outputs may be committed when they serve as **reference evidence** (tutorials, checks, edges); clear stale outputs before commit when content changed.
+- **Assertion-backed:** Prefer exact assertions (`ToolResult` fields, policy `reason_code`, event order) over print-only “PASS” banners. Checks/edges must end with an explicit **PASS** line; tutorials use **`[PASS]`** / **`§N VERIFICATION (governed): PASS`** where applicable.
 
 ---
 
@@ -114,7 +126,7 @@ This pulls all **four PyPI adapter wheels** (lockstep pin in `requirements.txt`)
 | `exo-adapter-echo` | `exo_adapter_echo` | Deterministic reference adapter |
 | `exo-adapter-openai` | `exo_adapter_openai` | OpenAI Agents SDK adapter |
 
-Tutorials **01, 02, 05, 08, 09** and checks **01, 03** print wheel paths at bootstrap to confirm PyPI provenance.
+Tutorials **01, 02, 05, 08, 09** and checks **01, 03** confirm PyPI adapter provenance at bootstrap (`<site-packages>/…` markers + module assert).
 
 **API keys:** Cells marked **`[REQUIRES API KEY]`** (or **`tutorial_09`**) skip gracefully when
 `OPENAI_API_KEY` is unset. Everything else is deterministic and needs no live provider.
@@ -170,7 +182,8 @@ Narrative walkthroughs. Run top-to-bottom unless noted.
 1. Confirm four adapter wheels load (bootstrap probe)
 2. Register a tool in `ToolRegistry` (HIGH risk, `is_state_changing=True`)
 3. Wire `Orchestrator` with `DeterministicFirstPolicyMiddleware` and `DeterministicToolExecutor`
-4. Inject `planned_tool_call` and stream events: `TOOL_INTENT`, `TOOL_PROGRESS`, `OUTPUT_DELTA`, `RUN_COMPLETE`
+4. Inject `planned_tool_call` and stream events: `TOOL_PROGRESS`, `OUTPUT_DELTA`, `RUN_COMPLETE`
+   (adapter emits `TOOL_INTENT` internally; orchestrator surfaces deterministic progress)
 5. Build a `fetch → process` DAG with `BackgroundRuntime`; inspect outcomes, metrics, timeline, logs
 
 **Key insight:** Model output is intent; eXo-brain executes deterministically with an audit trail. The adapter is real (PyPI); the turn is deterministic injection, not a live provider call.
@@ -294,20 +307,20 @@ tool proofs are **Tutorial 02** / **Tutorial 08**, not required here).
 
 #### `tutorial_07_governance_and_anomaly.ipynb`
 
-**Purpose:** **BYOC** (Bring Your Own Compute) — advisory anomaly detection vs deterministic fair admission. Independent of ingress (Tutorial 03).
+**Purpose:** **BYOC** (Bring Your Own Compute) — advisory anomaly detection vs deterministic process-local fair admission. Independent of ingress (Tutorial 03).
 
 **API key:** No.
 
 **What you will do (Parts 1–7, including 6b):**
 
 1. Metric snapshots for `tenant-a` / `tenant-b` (healthy) and `tenant-c` (anomalous)
-2. `detect_governance_anomalies` — tenant-c typically yields **three** codes:
+2. `detect_governance_anomalies` — tenant-c yields exactly **three** codes (asserted):
    `BYOC_COST_UTILIZATION_SPIKE`, `BYOC_REJECTION_RATE_SPIKE`, `BYOC_REJECTION_REASON_DOMINANCE`
-3. `ByocFairAdmissionCoordinator(max_inflight_global=3)` — fourth `acquire` → `None`; `release` frees a slot
-4. Part **6b** — background thread blocked in `acquire()` wakes on `release()`
-5. `TenantPolicyOverlayStore` — per-tenant overlays
+3. `ByocFairAdmissionCoordinator(max_inflight_global=3)` — exact token/stat assertions; fourth `acquire` → `None`; `release` frees a slot
+4. Part **6b** — background thread blocked in `acquire()` wakes on `release()` (`threading.Event` sync)
+5. `TenantPolicyOverlayStore` — per-tenant overlays with retrieval + copy-isolation assertions
 
-**Key insight:** Anomaly detection advises; fair admission enforces global inflight caps.
+**Key insight:** Anomaly detection advises; fair admission enforces global inflight caps. Grant ordering under contention is covered by unit tests, not re-run here.
 
 **Modules:** `src/policies/governance_anomaly_detector`, `src/policies/byoc_fairness`, `src/tenancy/policy_overlay`
 
@@ -336,14 +349,17 @@ execution mode, stub orchestrator (Parts 1–7). No live OpenAI calls.
 **Flagship proof — `safe_add_proven`:** Model supplies `a` and `b`; handler adds hidden `random_operand`
 per kernel → `sum` and `proof_token`. Plain **a+b** (e.g. 44 for 11+33) without tool JSON is **not** the trust boundary.
 
-**Part 4:** Prints handler JSON and **`[PASS] Part 4 local proof`** when sum/token match the kernel.
+**Part 4:** `run_tool(...)` returns **`ToolResult`**; asserts exact success/error/blocked envelopes and metrics counters. Prints **`[PASS] Part 4 local proof`** when governed executor JSON matches the kernel baseline (not plain mental math).
 
-**Requires:** `pip install -r requirements.txt` (all four PyPI wheels). Bootstrap prints wheel paths and asserts OpenAI adapter provenance.
-**`nest-asyncio`** in requirements for Jupyter async in Part 7.
+**Part 7:** Stub orchestrator with **`CapturingOpenAIAgentsRuntimeAdapter`** — asserts event order, stream text, and submitted **`ToolResult`** fields (completed path + HIGH → **`POLICY_BLOCKED`**).
+
+**Proof summary:** This notebook proves the **local governed execution path** (policy, deterministic tools, ingress, stub orchestrator) — not raw SDK comparison or model choice. Tutorial 09 covers optional live contrasts.
+
+**Requires:** `pip install -r requirements.txt` (all four PyPI wheels). Bootstrap confirms PyPI provenance. **`nest-asyncio`** in requirements for Jupyter async in Part 7.
 
 **Next step:** Optional live contrasts in **`tutorial_09_governed_execution_live.ipynb`** (same kernel recommended).
 
-**Cross-read:** `docs/architecture/governed-execution-pipeline.md` (**Hands-on proof** — local section)
+**Cross-read:** [`docs/architecture/governed-execution-pipeline.md`](../docs/architecture/governed-execution-pipeline.md) (**Hands-on proof** — local section)
 
 **Modules:** `src/policies/risk_gates`, `src/policies/middleware`, `src/tenancy/policy_overlay`,
 `src/tools/registry`, `src/tools/executor`, `src/observability/metrics`, `src/runtime/capability_map`,
@@ -372,12 +388,14 @@ Governed **§2–§4** use **`planned_tool_call`** through `Orchestrator` (same 
 | Bootstrap | paths, wheels, `.env` | Same pattern as other tutorials |
 | Consolidated prereq | skip if globals exist | Replays tutorial_08 Parts 1–4 + 6 defaults |
 | Live setup | `HAS_OPENAI_KEY`, `NB_LIVE_*` flags | Prints flag matrix; skip live cells if no key |
-| §1 | Ingress deny on secret pattern | Governed path stops pre-model |
-| §2 | `admin_reset` policy block | **`POLICY_BLOCKED`** or **`PASS`** via `planned_tool_call` |
-| §3 | `safe_add_proven` / `sloppy_add_proven` | **`§3 VERIFICATION (governed): PASS`** when tool completes + cites kernel sum |
-| §4 | `calculate_result` multiply | Governed multiply vs optional raw broken contrast |
+| §1 | Ingress deny on secret pattern | Governed path stops pre-model (exact gate/reason asserted) |
+| §2 | `admin_reset` policy block | **`tool_progress` `POLICY_BLOCKED`** + captured **`ToolResult`** (orchestrator consumes `TOOL_INTENT` internally) |
+| §3 | `safe_add_proven` / `sloppy_add_proven` | **`§3 VERIFICATION (governed): PASS`** — completed tool + kernel sum/token in reply + submitted `ToolResult` |
+| §4 | `calculate_result` multiply | Governed multiply + submitted product **391**; optional raw broken contrast |
 | §5 | Model-driven diagnostic | **`NB_LIVE_MODEL_DRIVEN=1`** only; not used for §2–§4 PASS/FAIL |
-| §6 | Live summary table | One line per section from `_live_gov_summary` |
+| §6 | Live summary table | One line per section; **asserts no failures** among required §1–§4 when key present |
+
+**Evidence:** Governed §1–§4 use **`CapturingGovernedLiveOpenAIAdapter`** (tenant_id injection on planned calls, submitted results captured). Raw SDK blocks are **observational** — API errors are non-fatal. Consolidated prereq asserts local **`admin_reset`** block via `run_tool` → **`ToolResult`**.
 
 **Env controls (default on unless noted; set `0`/`false`/`off` to skip):**
 
@@ -402,10 +420,10 @@ Fast module smoke checks. Each opens with **purpose, prerequisites, related tuto
 
 | File | What it checks | PASS condition |
 |---|---|---|
-| `check_01_core_orchestrator.ipynb` | PyPI wheel probe + HIGH-risk `planned_tool_call` through orchestrator | Wheels load; `run_complete` + `tool_progress` `state=completed`; `PASS: orchestrator deterministic tool path` |
-| `check_02_policy_middleware.ipynb` | `DeterministicFirstPolicyMiddleware` pre/post | `before_tool_call` allow; bad SUCCESS → `POLICY_POSTCHECK_FAILED`; `PASS: policy middleware checks` |
-| `check_03_runtime_adapter.ipynb` | PyPI OpenAI + Echo adapters; health + planned tool intent | Both adapters healthy; `tool_intent` emitted; `PASS: runtime adapter planned tool-intent path` |
-| `check_04_tenant_and_limits.ipynb` | Quota + in-memory and SQLite rate limiters | `TENANT_QUOTA_EXCEEDED`; in-memory blocks 3rd request, SQLite (max=1) blocks 2nd; `PASS: tenancy and limits checks` |
+| `check_01_core_orchestrator.ipynb` | PyPI wheel probe + HIGH-risk `planned_tool_call` through orchestrator | Wheels load; progress `queued→running→completed`; `ToolResult` `SUCCESS` + `mode_used=DETERMINISTIC`; `PASS: orchestrator deterministic tool path` |
+| `check_02_policy_middleware.ipynb` | `DeterministicFirstPolicyMiddleware` pre/post | `ALLOW` + `LOW_RISK_ALLOWED`; bad SUCCESS → `POLICY_POSTCHECK_FAILED`; expanded PASS line |
+| `check_03_runtime_adapter.ipynb` | PyPI OpenAI + Echo adapters; health + planned tool intent | Wheels load; health `HEALTHY`; exact `TOOL_INTENT` fields match `planned_tool_call`; PASS line |
+| `check_04_tenant_and_limits.ipynb` | Quota + fixed-window rate limiters | Hard/soft quota codes; exact remaining/retry; tenant + limiter isolation; PASS line |
 
 ---
 
@@ -429,7 +447,7 @@ Deterministic scenario notebooks. Final line: **`All edge_XX scenarios: PASS`**.
 4. Injection phrase + custom rule → `ingress-prompt-injection-heuristic` first
 5. Clean prompt → ALLOW
 
-**Gate order:** `EmptyInput → MaxChars → ClassifierHeuristic → PromptInjectionHeuristic → CustomRules`
+**Gate order:** `EmptyInput → MaxChars → ClassifierHeuristic (or external routing) → PromptInjection → CustomRules → SignedPlugin`
 
 **Modules:** `src/policies/ingress_gates`, `src/policies/ingress_profiles`
 

@@ -1,6 +1,20 @@
 # eXo-brain Notebook Evaluator Guide
 
-Quick paths for **technical evaluators**, **security reviewers**, and **design partners** exploring the repo on GitHub.
+Quick paths for **technical evaluators**, **security reviewers**, and **design partners** exploring the repo on GitHub or locally.
+
+## What these notebooks prove
+
+The **15 notebooks** under `notebooks/` are a **hands-on evidence layer** alongside `tests/`:
+
+| Layer | What you get |
+|---|---|
+| **`tests/`** (~1,210 automated tests) | Regression coverage, CI gates, module contracts |
+| **Notebooks** | Readable stories **plus assertion-backed outputs** — policy reason codes, `ToolResult` envelopes, ingress gate IDs, orchestrator event order |
+| **Committed outputs** | Saved stdout from last `nbconvert --execute` so GitHub preview shows the same PASS lines you would see locally |
+
+**Flagship proof:** **`tutorial_08`** (local governed execution, no API key) — CI runs it on PRs touching `notebooks/**`. **`tutorial_09`** (optional live contrasts) extends §1–§4 when `OPENAI_API_KEY` is set. **`check_*`** / **`edge_*`** are fast deterministic smokes (~30 s total for checks).
+
+**How to read evidence:** Look for **`PASS`**, **`[PASS]`**, **`§N VERIFICATION (governed): PASS`**, or **`All edge_XX scenarios: PASS`**. Those lines are backed by assertions in the same cell — if behaviour drifts, the notebook fails on re-run.
 
 | Resource | Role |
 |---|---|
@@ -10,7 +24,7 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 
 **Runtime:** Python **3.12+**, project `.venv`, `pip install -r requirements.txt` from repo root. Launch: `jupyter lab notebooks/`. Use the venv-backed **`python3`** kernel (see README).
 
-**Adapters (PyPI):** Install all four wheels from `requirements.txt` (`exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-echo`, `exo-adapter-openai`). Notebooks import via `src/*` shims or `exo_adapter_*` directly. Bootstrap cells in tutorials **01, 02, 05, 08, 09** and checks **01, 03** print wheel paths to confirm PyPI provenance — not in-tree packages.
+**Adapters (PyPI):** Install all four wheels from `requirements.txt` (`exo-brain-core-contracts`, `exo-brain-adapter-sdk`, `exo-adapter-echo`, `exo-adapter-openai`). Notebooks import via `src/*` shims or `exo_adapter_*` directly. Bootstrap cells in tutorials **01, 02, 05, 08, 09** and checks **01, 03** confirm PyPI provenance (`<site-packages>/…` + module assert) — not in-tree packages.
 
 **Naming cheat sheet:**
 
@@ -40,7 +54,7 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 | `check_01`–`check_04` | No | Maintainer smoke (~30 s total); `check_01`/`check_03` verify PyPI wheels |
 | `edge_01`, `edge_02` | No | Ingress ordering + tool envelopes |
 
-**Not a substitute for pytest:** the repo has **~1,210** automated tests under `tests/` (plus 2 opt-in skipped: soak + live OpenAI); notebooks add **narrative and printable evidence**.
+**Not a substitute for pytest:** the repo has **~1,210** automated tests under `tests/` (plus 2 opt-in skipped: soak + live OpenAI); notebooks add **narrative and printable, assertion-backed evidence** you can skim on GitHub without running code.
 
 ---
 
@@ -90,9 +104,12 @@ Quick paths for **technical evaluators**, **security reviewers**, and **design p
 **tutorial_09 expectations (if you use a key):**
 
 - **§1–§4 governed proofs** use **`planned_tool_call`** through `Orchestrator` (same as tutorial_08 Part 7) — not model-initiated tool choice.
-- **`§N VERIFICATION (governed): PASS`** requires completed `tool_progress` (or ingress deny / `POLICY_BLOCKED` for §2) plus expected assistant text where applicable.
+- **`§N VERIFICATION (governed): PASS`** requires ingress deny (§1), **`tool_progress` blocked + submitted `ToolResult`** (§2), completed tool + kernel sum/token + captured result (§3), or product **391** + captured result (§4).
+- **§2 note:** The orchestrator **consumes** `TOOL_INTENT` internally — you see **`tool_progress` `POLICY_BLOCKED`** and a blocked **`ToolResult`**, not a forwarded intent event on the client stream.
 - **§5** (`NB_LIVE_MODEL_DRIVEN=1`, off by default) explores model-initiated tools — often **no `TOOL_INTENT`** on the delegating path; treat as diagnostic only.
+- **§6** fails the notebook if any required §1–§4 section did not PASS when the key was present.
 - Set `NB_LIVE_*=0` to skip blocks; align §3 operands with Part 4 via `NB_LIVE_MATH_A` / `NB_LIVE_MATH_B` when not using 11+33.
+- Raw SDK contrast cells are observational; network/API errors there do not fail governed proofs.
 
 ---
 
@@ -161,11 +178,17 @@ Shared bootstrap and wheel probes live in `notebooks/notebook_common.py`. Re-run
 
 ---
 
+## What these notebooks are
+
+- **Portfolio and evaluation artifacts** — show governed execution, ingress, audit, tenancy, and adapter boundaries with **PASS-backed outputs**
+- **Design-partner demos** — especially **`tutorial_08`** Part 4 (`safe_add_proven`) and optional **`tutorial_09`** live contrasts
+- **Maintainer smoke** — `check_*` + `edge_*` after ingress/tool/orchestrator changes
+
 ## What these notebooks are not
 
 - Not a production deployment guide (see `MAINTAINER_STATUS.md`; `docker-compose.yml` is dev-oriented)
 - Not a formal compliance certification pack
-- Not a replacement for CI (`architecture-fitness` runs full pytest with coverage floor + executes **`tutorial_08` only** without a live key; **`tutorial_09`** is not in CI)
+- Not a replacement for CI (`architecture-fitness` runs full pytest with coverage floor + executes **`tutorial_08` only** without a live key; **`tutorial_09`** is evaluator-local)
 
 ---
 
