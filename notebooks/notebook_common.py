@@ -125,4 +125,4 @@ def write_github_compatible_notebook(nb: Any, path: Path) -> None:
     prepare_notebook_for_github(prepared)
     normalize(prepared)
     validate(prepared)
-    nbf.write(prepared, path, version=4)
+    nbf.write(prepared, path)

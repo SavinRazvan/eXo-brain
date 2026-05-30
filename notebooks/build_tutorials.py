@@ -1,7 +1,7 @@
 """
 File: build_tutorials.py
 Path: notebooks/build_tutorials.py
-Role: Generates tutorial notebooks (tutorial_01 through tutorial_08) from source.
+Role: Generates tutorial notebooks (tutorial_01 through tutorial_09) from source.
 Used By:
  - developers regenerating notebooks after content updates
 Depends On:
@@ -37,7 +37,8 @@ TUTORIAL_FOOTER = """
 | Previous / next in learning path | See `notebooks/README.md` index |
 | Fast module smoke after a code change | `check_01` … `check_04` |
 | Ingress or tool boundary proofs | `edge_01`, `edge_02` |
-| Full governance lab (story + optional live) | `tutorial_08_governed_execution_sandbox.ipynb` |
+| Local governance lab (no API key) | `tutorial_08_governed_execution_sandbox.ipynb` |
+| Live governance contrasts (optional API key) | `tutorial_09_governed_execution_live.ipynb` |
 | Evaluator time-boxed paths | `notebooks/EVALUATOR_GUIDE.md` |
 
 **Regenerate notebooks:** edit this build script, then `python notebooks/build_tutorials.py` (do not hand-edit `.ipynb` JSON).
@@ -55,30 +56,31 @@ def code(text: str) -> nbf.NotebookNode:
 def build_part8_cells(md, code):  # noqa: ANN001 — md/code are notebook cell constructors
     return [
         md("""
-## Part 8 — Optional live contrasts (`OPENAI_API_KEY`)
+## Live contrasts (`OPENAI_API_KEY`)
 
-**Story.** Parts **1–7** are fully local. Part **8** is optional: real ingress, governed orchestrator
-streams with **`planned_tool_call`** (same as Part 7), and **raw SDK** anti-patterns for contrast.
+**Story.** **`tutorial_08`** is the local lab (Parts 1–7). This notebook is optional: real ingress,
+governed orchestrator streams with **`planned_tool_call`** (same as tutorial_08 Part 7), and **raw SDK**
+anti-patterns for contrast.
 
-**Prerequisites:** Parts **1–6** (`policy_overlay`, `registry`, `executor`, `chain`). Part **4** registers
-`admin_reset`, `safe_add_proven`, `calculate_result`.
+**Prerequisites:** Run **`tutorial_08`** in this kernel **or** the consolidated setup cell below
+(`policy_overlay`, `registry`, `executor`, `chain`, tools from Part 4).
 
-**Skip without a key:** Run **8.1** once; later cells print skip if `OPENAI_API_KEY` is unset (CI-safe).
+**Skip without a key:** Run **setup** once; later cells print skip if `OPENAI_API_KEY` is unset (CI-safe).
 
 **Cost flags:** `NB_LIVE_INGRESS`, `NB_LIVE_POLICY`, `NB_LIVE_MATH`, `NB_LIVE_CALC` (default on);
 `NB_LIVE_RAW_CALC_CONTRAST`, `NB_LIVE_MODEL_DRIVEN` (default off). Set any to `0` / `false` / `off` to skip.
 """),
         md("""
-### Part 8.0 — Bridge from Part 7
+### Bridge from tutorial_08 Part 7
 
-| Part 7 (no API) | Part 8 (optional API) |
-|-----------------|------------------------|
+| tutorial_08 Part 7 (no API) | This notebook (optional API) |
+|-----------------------------|------------------------------|
 | `planned_tool_call` → `tool_intent` / `tool_progress` | Same orchestrator mechanism |
 | Stub / local stream | Plus ingress evaluate + raw Agents SDK contrast |
 | Proves policy + executor | §2–§4 **PASS** when `planned_tool_call` is injected (reliable) |
 
 **Not the same as “ask the model nicely”.** OpenAI **delegating** tools (`FunctionTool` wrappers) often run
-handlers without emitting `TOOL_INTENT` on the orchestrator stream. Part **8.6** (optional) explores that;
+handlers without emitting `TOOL_INTENT` on the orchestrator stream. **§5** (optional) explores that;
 **§2–§4 verification** uses **`planned_tool_call`** only.
 """),
         code("""
@@ -100,7 +102,7 @@ def _nb_live_on(name: str, default: str = "1") -> bool:
 
 
 if not HAS_OPENAI_KEY:
-    print("Part 8 setup — skip live cells until OPENAI_API_KEY is set in .env")
+    print("Live setup — skip live cells until OPENAI_API_KEY is set in .env")
     LIVE_INGRESS = LIVE_POLICY = LIVE_MATH = LIVE_CALC = False
     LIVE_RAW_CALC = LIVE_MODEL_DRIVEN = False
 else:
@@ -300,16 +302,16 @@ else:
             nest_asyncio.apply()
             loop.run_until_complete(coro)
 
-    print("Part 8.1 setup OK — run §1–§4 cells next (or 8.6 optional model-driven).")
+    print("Live setup OK — run §1–§4 cells next (or §5 optional model-driven).")
 """),
         md("""
-### Part 8.1 — §1 Ingress (pre-model)
+### §1 Ingress (pre-model)
 
 **Pass:** governed path **stops** at ingress (`gate_id`, `reason_code`); raw SDK still runs the model on the same text.
 """),
         code("""
 if not HAS_OPENAI_KEY:
-    print("Skip §1 — run Part 8.1 setup with OPENAI_API_KEY.")
+    print("Skip §1 — run live setup with OPENAI_API_KEY.")
 elif not LIVE_INGRESS:
     print("§1 skipped (NB_LIVE_INGRESS off).")
 else:
@@ -335,14 +337,14 @@ else:
     _nb8_run(_section_ingress())
 """),
         md("""
-### Part 8.2 — §2 Tool policy (`admin_reset`)
+### §2 Tool policy (`admin_reset`)
 
 **Pass:** `planned_tool_call` → `tool_intent` + `tool_progress` **`POLICY_BLOCKED`** (tenant overlay from Part 3).
 Raw SDK runs the ungoverned tool.
 """),
         code("""
 if not HAS_OPENAI_KEY:
-    print("Skip §2 — run Part 8.1 setup with OPENAI_API_KEY.")
+    print("Skip §2 — run live setup with OPENAI_API_KEY.")
 elif not LIVE_POLICY:
     print("§2 skipped (NB_LIVE_POLICY off).")
 else:
@@ -395,14 +397,14 @@ else:
     _nb8_run(_section_policy())
 """),
         md("""
-### Part 8.3 — §3 Deterministic proof (`safe_add_proven`)
+### §3 Deterministic proof (`safe_add_proven`)
 
 **Pass:** `planned_tool_call` → **`tool_progress` completed** + assistant cites kernel **sum** and **proof_token**
 (operator baseline printed below — not sent to the model). Raw **`sloppy_add_proven`** shows wrong math + fake proof.
 """),
         code("""
 if not HAS_OPENAI_KEY:
-    print("Skip §3 — run Part 8.1 setup with OPENAI_API_KEY.")
+    print("Skip §3 — run live setup with OPENAI_API_KEY.")
 elif not LIVE_MATH:
     print("§3 skipped (NB_LIVE_MATH off).")
 else:
@@ -468,14 +470,14 @@ else:
     _nb8_run(_section_math())
 """),
         md("""
-### Part 8.4 — §4 `calculate_result` multiply
+### §4 `calculate_result` multiply
 
 **Pass:** `planned_tool_call` for **17×23** → completed + product **391** in follow-up. Optional raw broken multiply when
 `NB_LIVE_RAW_CALC_CONTRAST=1`.
 """),
         code("""
 if not HAS_OPENAI_KEY:
-    print("Skip §4 — run Part 8.1 setup with OPENAI_API_KEY.")
+    print("Skip §4 — run live setup with OPENAI_API_KEY.")
 elif not LIVE_CALC:
     print("§4 skipped (NB_LIVE_CALC off).")
 else:
@@ -542,16 +544,16 @@ else:
     _nb8_run(_section_calc())
 """),
         md("""
-### Part 8.5 — Optional model-driven governed turns (diagnostic)
+### §5 Optional model-driven governed turns (diagnostic)
 
 **Off by default** (`NB_LIVE_MODEL_DRIVEN=0`). Natural-language prompts on the OpenAI delegating path — often
 **no `TOOL_INTENT`** on the orchestrator stream even when tools run. Compare to **§2–§4** `planned_tool_call` proofs.
 """),
         code("""
 if not HAS_OPENAI_KEY:
-    print("Skip 8.5 — run Part 8.1 setup with OPENAI_API_KEY.")
+    print("Skip §5 — run live setup with OPENAI_API_KEY.")
 elif not LIVE_MODEL_DRIVEN:
-    print("Part 8.5 skipped — set NB_LIVE_MODEL_DRIVEN=1 to run model-initiated diagnostic turns.")
+    print("§5 skipped — set NB_LIVE_MODEL_DRIVEN=1 to run model-initiated diagnostic turns.")
 else:
     async def _section_model_driven() -> None:
         print("### Model-driven diagnostic (not used for §2–§4 PASS/FAIL)")
@@ -580,23 +582,325 @@ else:
     _nb8_run(_section_model_driven())
 """),
         md("""
-### Part 8.6 — Live governed summary
+### §6 Live governed summary
 
-Run after §1–§4 (and optional 8.5). Prints one line per section from `_live_gov_summary`.
+Run after §1–§4 (and optional §5). Prints one line per section from `_live_gov_summary`.
 """),
         code("""
-print("### Part 8 live governed summary")
-print("Local Parts 1–7 are ground truth; below is what optional live cells recorded:")
+print("### Live governed summary")
+print("tutorial_08 Parts 1–7 are ground truth; below is what optional live cells recorded:")
 if _live_gov_summary:
     for sec, msg in _live_gov_summary.items():
         print(f"  {sec}: {msg}")
 else:
     print("  (empty — run §1–§4 or enable NB_LIVE_* flags)")
 print(
-    "\\nInterpretation: §1–§4 governed proofs use orchestrator + planned_tool_call (Part 7). "
+    "\\nInterpretation: §1–§4 governed proofs use orchestrator + planned_tool_call (tutorial_08 Part 7). "
     "Raw SDK blocks are ungoverned contrasts only."
 )
-print("Part 8 complete.")
+print("tutorial_09 complete.")
+"""),
+    ]
+
+
+def live_prereq_setup_cell(code_fn):  # noqa: ANN001
+    return code_fn("""
+# Defaults match tutorial_08 Parts 1–4 and 6. Skip if you already ran tutorial_08 in this kernel.
+if all(name in globals() for name in ("policy_overlay", "registry", "executor", "chain", "run_tool")):
+    print("Prereq OK — tutorial_08 globals already loaded; skip rebuild.")
+else:
+    import secrets
+
+    from src.observability.metrics import RuntimeMetrics
+    from src.policies.ingress_gates import IngressGateChain, IngressTurnContext
+    from src.policies.ingress_profiles import resolve_ingress_profile_settings
+    from src.policies.middleware import DeterministicFirstPolicyMiddleware
+    from src.policies.risk_gates import RiskGateConfig
+    from src.policies.ingress_gates import build_ingress_gate_chain_from_overlay
+    from src.schemas.tool_io import PolicyAction, RiskTier, ToolCallContext
+    from src.tenancy.policy_overlay import TenantPolicyOverlayStore
+    from src.tools.executor import DeterministicToolExecutor
+    from src.tools.registry import ToolDescriptor, ToolRegistry
+
+    USER_RISK = {
+        "deny_risk_tiers": [],
+        "escalate_risk_tiers": ["high"],
+        "deny_tools": [],
+        "escalate_tools": [],
+        "escalate_state_changing": False,
+        "review_channel": "notebook-review",
+    }
+
+    def _tiers(keys: list[str]) -> set[RiskTier]:
+        out: set[RiskTier] = set()
+        for k in keys:
+            try:
+                out.add(RiskTier(str(k)))
+            except ValueError:
+                print("skip unknown RiskTier:", k)
+        return out
+
+    risk_cfg = RiskGateConfig(
+        deny_risk_tiers=_tiers(USER_RISK["deny_risk_tiers"]),
+        escalate_risk_tiers=_tiers(USER_RISK["escalate_risk_tiers"]),
+        deny_tools=set(USER_RISK["deny_tools"]),
+        escalate_tools=set(USER_RISK["escalate_tools"]),
+        escalate_state_changing=bool(USER_RISK["escalate_state_changing"]),
+        review_channel=str(USER_RISK["review_channel"]),
+    )
+
+    USER_OVERLAY = {
+        "deny_tools": ["admin_reset"],
+        "escalate_state_changing": False,
+        "review_channel": "tenant-security",
+    }
+    overlays = TenantPolicyOverlayStore()
+    overlays.set_overlay("tenant_nb", USER_OVERLAY)
+    policy_overlay = DeterministicFirstPolicyMiddleware(
+        risk_gate_config=risk_cfg,
+        tenant_policy_overlays=overlays,
+    )
+
+    def admin_reset() -> str:
+        return "admin-reset-handler-ran"
+
+    NB_FORMULA_SECRET = secrets.token_hex(8)
+
+    def _nb_random_operand() -> int:
+        return 100 + (int(NB_FORMULA_SECRET[:8], 16) % 8900)
+
+    def safe_add_proven(a: int, b: int) -> dict[str, object]:
+        a_i, b_i = int(a), int(b)
+        random_operand = _nb_random_operand()
+        total = a_i + b_i + random_operand
+        return {
+            "operand_a": a_i,
+            "operand_b": b_i,
+            "random_operand": random_operand,
+            "sum": total,
+            "proof_token": NB_FORMULA_SECRET,
+            "formula": f"{a_i}+{b_i}+{random_operand}=={total}",
+        }
+
+    def _nb_calculate_result(operation: str, operand1: float, operand2: float) -> dict[str, object]:
+        op = str(operation).strip().lower()
+        if op == "add":
+            value = float(operand1) + float(operand2)
+        elif op == "subtract":
+            value = float(operand1) - float(operand2)
+        elif op == "multiply":
+            value = float(operand1) * float(operand2)
+        elif op == "divide":
+            if float(operand2) == 0:
+                raise ValueError("division by zero is not allowed")
+            value = float(operand1) / float(operand2)
+        else:
+            raise ValueError(f"unknown operation: {operation!r}")
+        return {
+            "operation": op,
+            "operand1": float(operand1),
+            "operand2": float(operand2),
+            "result": value,
+        }
+
+    def _nb_print_proof_reference(a: int, b: int, *, title: str) -> tuple[int, int]:
+        r = _nb_random_operand()
+        governed = a + b + r
+        plain = a + b
+        print(title)
+        print(f"  random_operand (handler-only): {r}")
+        print(f"  governed sum {a}+{b}+{r} => {governed}  |  plain {a}+{b} => {plain} (wrong without tool)")
+        print(f"  proof_token (this kernel): {NB_FORMULA_SECRET}")
+        return r, governed
+
+    _CALCULATE_RESULT_SCHEMA: dict[str, object] = {
+        "type": "object",
+        "properties": {
+            "operation": {"type": "string"},
+            "operand1": {"type": "number"},
+            "operand2": {"type": "number"},
+        },
+        "required": ["operation", "operand1", "operand2"],
+    }
+    _SAFE_ADD_PROVEN_SCHEMA: dict[str, object] = {
+        "type": "object",
+        "properties": {
+            "a": {"type": "integer"},
+            "b": {"type": "integer"},
+        },
+        "required": ["a", "b"],
+    }
+
+    USER_TOOLS = [
+        {
+            "name": "safe_add_proven",
+            "risk": RiskTier.MEDIUM,
+            "state": True,
+            "fn": safe_add_proven,
+            "description": "Adds a and b plus hidden random_operand; returns sum and proof_token.",
+            "parameters_schema": _SAFE_ADD_PROVEN_SCHEMA,
+        },
+        {
+            "name": "calculate_result",
+            "risk": RiskTier.LOW,
+            "state": False,
+            "fn": _nb_calculate_result,
+            "description": "Basic arithmetic.",
+            "parameters_schema": _CALCULATE_RESULT_SCHEMA,
+        },
+        {"name": "admin_reset", "risk": RiskTier.MEDIUM, "state": True, "fn": admin_reset},
+    ]
+
+    registry = ToolRegistry()
+    for spec in USER_TOOLS:
+        registry.register(
+            ToolDescriptor(
+                name=spec["name"],
+                handler=spec["fn"],
+                risk_tier=spec["risk"],
+                is_state_changing=spec["state"],
+                description=str(spec.get("description", "")),
+                parameters_schema=dict(spec.get("parameters_schema") or {}),
+            )
+        )
+
+    metrics = RuntimeMetrics()
+    executor = DeterministicToolExecutor(
+        registry=registry,
+        policy=policy_overlay,
+        metrics=metrics,
+    )
+
+    def run_tool(
+        name: str,
+        args: dict,
+        call_id: str,
+        *,
+        risk_tier: RiskTier = RiskTier.LOW,
+        is_state_changing: bool = False,
+    ) -> None:
+        call = ToolCallContext(
+            schema_version="1.0",
+            call_id=call_id,
+            session_id="nb_sess",
+            run_id="nb_run",
+            job_id="nb_job",
+            task_id="nb_task",
+            agent_id="nb_agent",
+            provider_id="demo",
+            tool_name=name,
+            arguments=args,
+            tenant_id="tenant_nb",
+            risk_tier=risk_tier,
+            is_state_changing=is_state_changing,
+        )
+        pre = policy_overlay.before_tool_call(call)
+        print("before:", pre.decision.value, pre.reason_code)
+        out = executor.execute(call)
+        print("execute status:", out.status.value)
+        err = out.error
+        err_code = getattr(err, "code", None) if err is not None else None
+        err_msg = getattr(err, "message", "") if err is not None else ""
+        if err_msg is None:
+            err_msg = ""
+        print("  error:", err_code, str(err_msg)[:200])
+        print("  mode_used:", out.execution.mode_used)
+
+    def evaluate_prompt(
+        chain: IngressGateChain,
+        prompt: str,
+        session_id: str = "nb-ingress",
+    ):
+        from src.policies.ingress_gates import IngressDecision
+
+        ctx = IngressTurnContext(
+            tenant_id="tenant_nb",
+            session_id=session_id,
+            correlation_id="corr-" + session_id,
+            transport="notebook",
+            user_input=prompt,
+        )
+        decision = chain.evaluate(ctx)
+        msg = decision.message or ""
+        print(decision.decision.value, decision.gate_id, decision.reason_code, "|", msg[:100])
+        return decision
+
+    INGRESS_OVERLAY = {
+        "ingress_profile": "baseline",
+        "ingress_classifier_mode": "off",
+        "ingress_custom_rules": [
+            {
+                "rule_id": "nb-block-secret",
+                "action": "deny",
+                "match_type": "contains_any",
+                "patterns": ["SECRET_KEY", "BEGIN PRIVATE KEY"],
+                "reason_code": "NB_SECRET_PATTERN",
+                "message": "Blocked in notebook demo.",
+            },
+        ],
+    }
+    resolve_ingress_profile_settings(INGRESS_OVERLAY)
+    chain = build_ingress_gate_chain_from_overlay(INGRESS_OVERLAY)
+    print("Consolidated prereq built — policy_overlay, registry, executor, chain, run_tool ready.")
+""")
+
+
+def tutorial_08_bootstrap_cell(code_fn):  # noqa: ANN001
+    return code_fn(
+        """
+import asyncio
+import traceback
+
+"""
+        + BOOTSTRAP_WITH_DOTENV
+        + """
+
+print("repo root:", _root)
+"""
+        + ADAPTER_WHEEL_PROBE
+        + OPENAI_ADAPTER_IDENTITY_ASSERT
+    )
+
+
+def build_tutorial_09_cells(md_fn, code_fn):  # noqa: ANN001
+    return [
+        md_fn("""
+# Tutorial 09 — Governed execution: live contrasts
+
+Optional companion to **`tutorial_08_governed_execution_sandbox.ipynb`**. Run **tutorial_08** first
+(same kernel recommended) for the full local story — risk gates, overlays, deterministic tools,
+ingress, and stub orchestrator.
+
+**This notebook** adds **live** governed vs **raw SDK** contrasts when **`OPENAI_API_KEY`** is set.
+
+**Requires:** `pip install -r requirements.txt` (all four PyPI adapter wheels).
+
+**Further reading:** `docs/architecture/governed-execution-pipeline.md`
+"""),
+        md_fn("""
+## Prerequisites
+
+1. **Recommended:** Run **`tutorial_08`** top to bottom in this kernel, then continue here.
+2. **Standalone:** Run the **bootstrap** and **consolidated prereq** cells below (defaults match tutorial_08).
+
+**Cost:** Only cells after live **setup** may call OpenAI. Use **`NB_LIVE_*`** env flags to skip sections.
+"""),
+        tutorial_08_bootstrap_cell(code_fn),
+        live_prereq_setup_cell(code_fn),
+        *build_part8_cells(md_fn, code_fn),
+        md_fn("""
+## Summary — live takeaways
+
+| Section | Story in one line | What to notice |
+|---------|-------------------|----------------|
+| §1 | Ingress before model spend | Governed stop vs raw SDK on secret text |
+| §2 | Tenant overlay blocks tool | `planned_tool_call` → **POLICY_BLOCKED** on `admin_reset` |
+| §3 | Deterministic proof tool | Completed tool + kernel **sum** / **proof_token** in reply |
+| §4 | Registry parity calc | **17×23** product from tool JSON |
+| §5 | Model-driven (optional) | Diagnostic only — not PASS/FAIL for integrators |
+
+Local ground truth: **`tutorial_08`** Parts 1–7. Canonical production ordering:
+`docs/architecture/governed-execution-pipeline.md`.
 """),
     ]
 
@@ -713,14 +1017,18 @@ print("✓ imports ok")
 """),
 
     code("""
+from src.schemas.tool_io import RiskTier
+from src.tools.registry import ToolDescriptor, ToolRegistry
+
 registry = ToolRegistry()
 
-registry.register(ToolDescriptor(
+my_tool = ToolDescriptor(
     name="my_tool",
     handler=lambda x: {"output": x * 2},   # doubles the input
     risk_tier=RiskTier.HIGH,
     is_state_changing=True,
-))
+)
+registry.register(my_tool)
 
 print(f"✓ registered tools: {registry.list_tools()}")
 """),
@@ -958,6 +1266,9 @@ job = await run_dag()
     code("""
 job_id = "demo_job"
 
+assert job.status == JobStatus.COMPLETED
+assert job.result is not None
+
 print("── node outcomes ─────────────────────────────────────────")
 for node_id, outcome in job.result.outcomes.items():
     print(f"  {node_id:10s}  status={outcome.status.value:10s}  output={outcome.output}")
@@ -975,7 +1286,6 @@ for record in logger.records():
     if record.correlation_id == job_id:
         print(f"  [{record.level.value:5s}] {record.event:40s}  {record.context}")
 
-assert job.status == JobStatus.COMPLETED
 print("\\n✓ PASS")
 """),
 
@@ -2688,12 +2998,13 @@ async def publish_handler(payload: dict) -> dict:
     enriched = deps.get("enrich", {}).get("enriched_records", 0)
     return {"published": True, "records_published": enriched}
 
-graph = TaskGraph(nodes=[
+_dag_nodes = [
     TaskNode(node_id="fetch",    handler=fetch_handler),
     TaskNode(node_id="validate", handler=validate_handler, depends_on=["fetch"]),
     TaskNode(node_id="enrich",   handler=enrich_handler,   depends_on=["validate"]),
     TaskNode(node_id="publish",  handler=publish_handler,  depends_on=["enrich"]),
-])
+]
+graph = TaskGraph(nodes=_dag_nodes)
 
 print("DAG nodes:", graph.node_ids())
 """),
@@ -2760,12 +3071,13 @@ cancelled. The `TaskOutcome` carries `status=FAILED`, `reason_code`, and `error_
 async def failing_validate(payload: dict) -> dict:
     print("  [validate] raising ValueError...")
     raise ValueError("Schema mismatch: field 'id' missing")
-graph_fail = TaskGraph(nodes=[
+_fail_nodes = [
     TaskNode(node_id="fetch",    handler=fetch_handler),
     TaskNode(node_id="validate", handler=failing_validate, depends_on=["fetch"]),
     TaskNode(node_id="enrich",   handler=enrich_handler,   depends_on=["validate"]),
     TaskNode(node_id="publish",  handler=publish_handler,  depends_on=["enrich"]),
-])
+]
+graph_fail = TaskGraph(nodes=_fail_nodes)
 
 runtime_fail, _, _ = make_runtime()
 job_fail = asyncio.run(run_job(graph_fail, runtime_fail, job_id="job-fail-001"))
@@ -2809,12 +3121,13 @@ async def flaky_validate(payload: dict) -> dict:
 
 _flaky_call_count = 0  # reset before run
 
-graph_retry = TaskGraph(nodes=[
+_retry_nodes = [
     TaskNode(node_id="fetch",    handler=fetch_handler),
     TaskNode(node_id="validate", handler=flaky_validate, depends_on=["fetch"], retry_limit=2),
     TaskNode(node_id="enrich",   handler=enrich_handler, depends_on=["validate"]),
     TaskNode(node_id="publish",  handler=publish_handler, depends_on=["enrich"]),
-])
+]
+graph_retry = TaskGraph(nodes=_retry_nodes)
 
 runtime_retry, _, _ = make_runtime()
 job_retry = asyncio.run(run_job(graph_retry, runtime_retry, job_id="job-retry-001"))
@@ -2855,26 +3168,28 @@ async def fetch_tracked(payload: dict) -> dict:
     print(f"  [fetch] executing (run #{_fetch_run_count}) — would return 999 if this ran")
     return dict(_EXECUTED_FETCH)
 
-graph_resume = TaskGraph(nodes=[
+_resume_nodes = [
     TaskNode(node_id="fetch",    handler=fetch_tracked),
     TaskNode(node_id="validate", handler=validate_handler, depends_on=["fetch"]),
     TaskNode(node_id="enrich",   handler=enrich_handler,   depends_on=["validate"]),
     TaskNode(node_id="publish",  handler=publish_handler,  depends_on=["enrich"]),
-])
+]
+graph_resume = TaskGraph(nodes=_resume_nodes)
 
 JOB_ID = "job-resume-001"
 
 pre_store = InMemoryCheckpointStore()
 
 async def prepopulate():
-    await pre_store.save_checkpoint(CheckpointRecord(
+    fetch_checkpoint = CheckpointRecord(
         job_id=JOB_ID,
         node_id="fetch",
         status=CheckpointStatus.COMPLETED,
         tenant_id="default",
         attempt=1,
         payload=dict(_CHECKPOINT_FETCH),
-    ))
+    )
+    await pre_store.save_checkpoint(fetch_checkpoint)
 
 asyncio.run(prepopulate())
 
@@ -3275,11 +3590,14 @@ nb8.metadata["language_info"] = dict(LANGUAGE_INFO)
 nb8.cells = [
 
     md("""
-# Tutorial 08 — Governed execution: story, config, and live checks
+# Tutorial 08 — Governed execution: local lab
 
 This is a **guided lab**, not a dump of printouts. Each block has a short **story** (why the layer
 exists), a **knob** you can edit (`USER_*`, overlays, prompts), and **stdout** you read like an
 operator would read logs and policy traces.
+
+**Optional live contrasts** (API key, governed vs raw SDK) are in
+**`tutorial_09_governed_execution_live.ipynb`** — run this notebook first.
 
 **What you will understand**
 
@@ -3297,8 +3615,7 @@ operator would read logs and policy traces.
 
 - Run **top to bottom** the first time so `policy_overlay`, `registry`, `executor`, and `chain` exist.
 - **Parts 1–7** need **no API key** (local policy, ingress, stub orchestrator, and `planned_tool_call`).
-- **Part 8** is optional: set **`OPENAI_API_KEY`** for live contrasts (**8.1 setup**, then **§1–§4** cells).
-  Governed proofs use **`planned_tool_call`** (same as Part 7); **8.6** prints the summary table.
+- Continue with **`tutorial_09`** for optional live OpenAI contrasts.
 
 **Requires:** `pip install -r requirements.txt` (all four PyPI wheels: `exo-brain-core-contracts`,
 `exo-brain-adapter-sdk`, `exo-adapter-echo`, `exo-adapter-openai`).
@@ -3328,11 +3645,11 @@ racking up model and tool spend with **no trace** of who allowed what.
 | **Proof** | Allow/deny decisions carry **reasons** you can show support, security, or auditors. |
 | **Cost discipline** | Problems caught **early** mean fewer wasted tokens and tool calls. |
 
-### The “three numbers” proof (Part 4 + optional Part 8)
+### The “three numbers” proof (Part 4 + optional tutorial_09)
 
 Imagine asking for **11 + 33**. A model can say **44** from memory. In this lab, the real answer is
 **11 + 33 + a secret third addend** only your server knows — plus a **proof code** the model cannot invent.
-Part **4** prints **`[PASS] Part 4 local proof`** when handler JSON matches your kernel. Part **8** §3
+Part **4** prints **`[PASS] Part 4 local proof`** when handler JSON matches your kernel. **tutorial_09** §3
 prints **`§3 VERIFICATION (governed): PASS`** when **`planned_tool_call`** shows **`tool_progress` completed**
 *and* the assistant cites kernel **sum** + **proof_token** (not mental math).
 
@@ -3345,8 +3662,8 @@ prints **`§3 VERIFICATION (governed): PASS`** when **`planned_tool_call`** show
 ### Two ways to use this notebook
 
 1. **Executive path (~3 minutes):** this box → **Map** table below → each Part’s **Story** only.
-2. **Hands-on path (~20 minutes):** run **top to bottom**; tweak **Your task** knobs and watch stdout.
-   **Part 8** is optional and is the only part that may charge a small OpenAI fee if a key is set.
+2. **Hands-on path (~15 minutes):** run **top to bottom**; tweak **Your task** knobs and watch stdout.
+   Continue with **`tutorial_09`** for optional live contrasts (OpenAI API key).
 
 ### Jargon cheat sheet (plain words ↔ what engineers say)
 
@@ -3357,11 +3674,10 @@ prints **`§3 VERIFICATION (governed): PASS`** when **`planned_tool_call`** show
 | Deterministic tools | The work ran in **our** code path so the **answer is checkable**. |
 | Tenant overlay | **Extra rules for one customer** without changing everyone else’s defaults. |
 
-With an API key, **Part 8** runs short **governed vs raw** comparisons (ingress, blocked tool, proof math,
+With an API key, **`tutorial_09`** runs short **governed vs raw** comparisons (ingress, blocked tool, proof math,
 optional calc). **`§N VERIFICATION (governed): PASS/FAIL`** lines report each section; **§2–§4** use
 **`planned_tool_call`** (same as Part 7) so governed proofs do **not** depend on the model choosing tools.
-Use **`NB_LIVE_*`** env flags to skip sections and save tokens; CI runs this notebook **without** a key
-(Part 8 prints skip).
+Use **`NB_LIVE_*`** env flags to skip sections and save tokens.
 """),
 
     md("""
@@ -3375,12 +3691,10 @@ Use **`NB_LIVE_*`** env flags to skip sections and save tokens; CI runs this not
 3. **“With vs without”** appears in several code cells: the notebook prints **two** behaviours side by
    side (strict vs relaxed policy, overlay on vs off, direct Python vs governed executor). That is
    intentional so you see *what the framework adds*.
-4. **Part 8** is the only part that may charge your OpenAI account. If you skip the key, you still learn
-   the full local story in Parts 1–7. With a key, set **`NB_LIVE_MATH=0`** (etc.) to turn off individual
-   live blocks — see the Part 8 **Cost controls** table.
+4. **No API key required here.** Optional live contrasts are in **`tutorial_09`**.
 
-**Typical first run:** ~10–20 minutes without an API key (includes **Checkpoint** + divide-by-zero demo);
-add a few more minutes with Part 8 enabled (fewer if you disable some **`NB_LIVE_*`** flags).
+**Typical first run:** ~10–20 minutes without an API key (includes **Checkpoint** + divide-by-zero demo).
+Add **`tutorial_09`** for live contrasts (~5–10 minutes with a key).
 """),
 
     md("""
@@ -3388,26 +3702,26 @@ add a few more minutes with Part 8 enabled (fewer if you disable some **`NB_LIVE
 
 | Stage | You configure (examples) | This notebook |
 |-------|--------------------------|----------------|
-| Ingress | `INGRESS_OVERLAY`, profiles, custom rules | **Part 6** (and **Part 8** before a live call) |
+| Ingress | `INGRESS_OVERLAY`, profiles, custom rules | **Part 6** |
 | Tool policy | `USER_RISK`, `USER_OVERLAY`, tenant id on `ToolCallContext` | **Parts 1–3** |
 | Deterministic tools | `USER_TOOLS`; **`safe_add_proven`** (3-operand sum + proof) and **`calculate_result`** | **Part 4** |
 | Execution mode | Capability map + policy `enforced_mode` | **Part 5** |
-| Orchestrator stream | `planned_tool_call` (stub) or live adapter | **Parts 7–8** |
+| Orchestrator stream | `planned_tool_call` (stub) | **Part 7** |
+| Live contrasts (optional) | `OPENAI_API_KEY`, `NB_LIVE_*` flags | **`tutorial_09`** |
 
 **Integrator note:** Calling `Orchestrator.run_turn` directly **skips** HTTP-only steps (some entitlements,
-budgets). Here we **explicitly** run ingress before Part 8 to mirror the *spirit* of the pipeline doc;
+budgets). Here we **explicitly** run ingress before live contrasts (**`tutorial_09`**) to mirror the *spirit* of the pipeline doc;
 production traffic should still go through **`src/api/routers/turns.py`** (SSE/WebSocket turn execution)
 when you integrate — that router applies the full ingress + orchestration stack for real tenants.
 
-**CI:** On pull requests touching `notebooks/**`, CI executes this notebook with **`nbconvert`** (no API
-key; Part 8 prints skip). If execution fails, fix **`notebooks/build_tutorials.py`** and regenerate
-**`tutorial_08_*.ipynb`**.
+**CI:** On pull requests touching `notebooks/**`, CI executes **`tutorial_08`** with **`nbconvert`**
+(no API key). If execution fails, fix **`notebooks/build_tutorials.py`** and regenerate notebooks.
 """),
 
     md("""
 ## Orientation — table of contents and pipeline (read once)
 
-**Rough time per part** (reading Story + running code; Part 8 adds a few minutes if a key is set):
+**Rough time per part** (reading Story + running code):
 
 | Part | Topic | ~Time |
 |------|--------|------|
@@ -3419,7 +3733,8 @@ key; Part 8 prints skip). If execution fails, fix **`notebooks/build_tutorials.p
 | 6 | Ingress gate chain | 3 min |
 | **Checkpoint** | verify globals before orchestrator | 30 s |
 | 7 | Stub orchestrator stream | 2 min |
-| 8 | Live contrasts (optional `$`) | 3–8 min |
+
+**Optional:** **`tutorial_09_governed_execution_live.ipynb`** — live contrasts (~5–10 min with API key).
 
 **Happy-path pipeline** (this notebook mirrors the middle layers; HTTP adds more gates upstream):
 
@@ -3459,20 +3774,7 @@ the **next** model token is grounded in **your** truth, which is what operators 
 agent response.
 """),
 
-    code(
-        """
-import asyncio
-import traceback
-
-"""
-        + BOOTSTRAP_WITH_DOTENV
-        + """
-
-print("repo root:", _root)
-"""
-        + ADAPTER_WHEEL_PROBE
-        + OPENAI_ADAPTER_IDENTITY_ASSERT
-    ),
+    tutorial_08_bootstrap_cell(code),
 
     md("""
 ## Part 1 — Risk gate knobs (`RiskGateConfig`)
@@ -3694,7 +3996,7 @@ in-process, and returns a **`ToolResult`**. That is the path you rely on for **m
 
 **Your task.** Edit **`USER_TOOLS`**: each item is `{"name", "risk", "state", "fn"}` with **`fn`** a
 plain Python callable. Optional keys: **`description`**, **`parameters_schema`** (JSON Schema for the
-OpenAI tool surface — used when you go live in Part 8). Re-run `run_tool(...)` at the bottom or add
+OpenAI tool surface — used when you go live in **tutorial_09**). Re-run `run_tool(...)` at the bottom or add
 your own.
 
 **Reading stdout.** `before:` shows policy on the intent. `execute status:` shows executor reality
@@ -3721,7 +4023,7 @@ The model supplies **`a`** and **`b`** only; the handler adds **`random_operand`
 | Proof | **`proof_token`** matches **`NB_FORMULA_SECRET`** | Missing or invented token |
 | Path | `run_tool` → **`mode_used: DETERMINISTIC`** | Direct `safe_add_proven(...)` only (no policy shell) |
 
-**Part 8 §3 (optional, API key):** replays **11+33** live and prints **`[PASS]` / `[FAIL]`** lines — pass
+**tutorial_09 §3 (optional, API key):** replays **11+33** live and prints **`[PASS]` / `[FAIL]`** lines — pass
 requires **`safe_add_proven` completed** on the orchestrator path *then* **your** kernel **`sum`** and
 **`proof_token`** in the reply (not **44** from mental math or parroting the operator baseline).
 
@@ -3939,7 +4241,7 @@ if _proven_payload.get("sum") == _demo_sum and _proven_payload.get("proof_token"
     print("  [PASS] Part 4 local proof — sum and proof_token match kernel baseline")
 else:
     print("  [FAIL] Part 4 local proof — JSON does not match kernel baseline (unexpected)")
-print("  → Part 8 §3 will require the live model to cite this sum and proof_token (not plain 5).")
+    print("  → tutorial_09 §3 will require the live model to cite this sum and proof_token (not plain 5).")
 run_tool(
     "calculate_result",
     {"operation": "multiply", "operand1": 8, "operand2": 9},
@@ -3958,7 +4260,7 @@ run_tool(
 run_tool("risky_echo", {"msg": "hello"}, "tc_echo", risk_tier=RiskTier.HIGH, is_state_changing=True)
 run_tool("admin_reset", {}, "tc_denied", risk_tier=RiskTier.MEDIUM, is_state_changing=False)
 print("metrics counters:", metrics.counters)
-print("NB_FORMULA_SECRET for this kernel (compare to live model reply in Part 8):", NB_FORMULA_SECRET)
+print("NB_FORMULA_SECRET for this kernel (compare to live model reply in tutorial_09):", NB_FORMULA_SECRET)
 
 print()
 print("Contrast — same math, no policy / no executor / no metrics (not a supported agent path):")
@@ -4066,8 +4368,7 @@ and a **sensitive** string containing `SECRET_KEY` (should **deny** with your cu
 simplest **with vs without** story for ingress: same chain, different user text, opposite outcomes —
 and **no** model spend on the denied line.
 
-**Part 8 reuse.** The same `chain` object is reused when an API key is present so you can show a live
-turn **blocked at ingress** vs **allowed through to the model**.
+**tutorial_09 reuse.** The same `chain` object is reused in **tutorial_09** when an API key is present.
 """),
 
     code("""
@@ -4152,7 +4453,7 @@ if _missing:
     raise RuntimeError(
         "Checkpoint failed — re-run notebook from bootstrap through Part 6. Missing: " + ", ".join(_missing)
     )
-print("CHECKPOINT OK — continue to Part 7 (stub orchestrator) and optional Part 8 (live API).")
+print("CHECKPOINT OK — continue to Part 7 (stub orchestrator). Optional live: tutorial_09.")
 """),
 
     md("""
@@ -4177,8 +4478,8 @@ correct policy behaviour, not a broken orchestrator. The cell runs a **second** 
 **`run_complete`**. **Second run:** **queued → failed** with **`POLICY_BLOCKED`** — ties Part 2 to the stream.
 
 **With vs without OpenAI:** this part is **without** billing — `planned_tool_call` injects a tool
-intent. **Part 8** (optional, API key) reuses the same **`planned_tool_call`** mechanism for **§2–§4**
-governed proofs, plus ingress and raw Agents SDK contrasts; **8.5** (off by default) is model-driven
+intent. **tutorial_09** (optional, API key) reuses the same **`planned_tool_call`** mechanism for **§2–§4**
+governed proofs, plus ingress and raw Agents SDK contrasts; **§5** (off by default) is model-driven
 diagnostic only.
 """),
 
@@ -4268,8 +4569,6 @@ assert "failed" in states_blk, f"expected failed tool_progress for HIGH, got {st
 print("PASS orchestrator stream — HIGH intent blocked by policy (consistent with Part 2)")
 """),
 
-] + build_part8_cells(md, code) + [
-
     md("""
 ## Summary — takeaways for integrators
 
@@ -4281,7 +4580,8 @@ print("PASS orchestrator stream — HIGH intent blocked by policy (consistent wi
 | 5 | Capability + policy choose execution mode | `CAPABILITY_VARIANTS` | LOW vs HIGH routing |
 | 6 | Ingress is pre-model guard rails | `INGRESS_OVERLAY`, prompts | `gate_id`, ingress `reason_code` |
 | 7 | Orchestrator stream without OpenAI | `planned_tool_call` | **MEDIUM** → **completed**; **HIGH** → **POLICY_BLOCKED** (matches Part 1) |
-| 8 | Live contrasts (optional) | API key; run **8.1** then **§1–§4** | **`planned_tool_call`** proofs; **8.6** summary; raw SDK contrasts |
+
+**Optional live contrasts:** **`tutorial_09_governed_execution_live.ipynb`** (after this notebook).
 
 Canonical ordering for **production** HTTP/SSE paths: `docs/architecture/governed-execution-pipeline.md`.
 Customer-facing overlay keys and API behaviour: `docs/api/customer-api-integration-guide.md` and
@@ -4291,9 +4591,20 @@ Customer-facing overlay keys and API behaviour: `docs/api/customer-api-integrati
 ]
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Tutorial 09 — Governed Execution Live (tutorial_09_governed_execution_live.ipynb)
+# ──────────────────────────────────────────────────────────────────────────────
+
+nb9 = nbf.v4.new_notebook()
+nb9.metadata["kernelspec"] = dict(PORTABLE_KERNELSPEC)
+nb9.metadata["language_info"] = dict(LANGUAGE_INFO)
+
+nb9.cells = build_tutorial_09_cells(md, code)
+
+
 # ── write tutorial notebooks ─────────────────────────────────────────────────────
 
-for _nb in (nb1, nb2, nb3, nb4, nb5, nb6, nb7, nb8):
+for _nb in (nb1, nb2, nb3, nb4, nb5, nb6, nb7, nb8, nb9):
     _nb.cells.append(md(TUTORIAL_FOOTER))
 
 p1 = NB_DIR / "tutorial_01_core_framework.ipynb"
@@ -4304,6 +4615,7 @@ p5 = NB_DIR / "tutorial_05_multi_turn_sessions.ipynb"
 p6 = NB_DIR / "tutorial_06_background_workflows.ipynb"
 p7 = NB_DIR / "tutorial_07_governance_and_anomaly.ipynb"
 p8 = NB_DIR / "tutorial_08_governed_execution_sandbox.ipynb"
+p9 = NB_DIR / "tutorial_09_governed_execution_live.ipynb"
 
 write_github_compatible_notebook(nb1, p1)
 write_github_compatible_notebook(nb2, p2)
@@ -4313,6 +4625,7 @@ write_github_compatible_notebook(nb5, p5)
 write_github_compatible_notebook(nb6, p6)
 write_github_compatible_notebook(nb7, p7)
 write_github_compatible_notebook(nb8, p8)
+write_github_compatible_notebook(nb9, p9)
 
 print(f"wrote: {p1}")
 print(f"wrote: {p2}")
@@ -4322,3 +4635,4 @@ print(f"wrote: {p5}")
 print(f"wrote: {p6}")
 print(f"wrote: {p7}")
 print(f"wrote: {p8}")
+print(f"wrote: {p9}")
