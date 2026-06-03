@@ -51,7 +51,7 @@ nest-asyncio>=1.6.0
 typing_extensions>=4.15.0
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
-PyJWT>=2.10.1
+PyJWT>=2.13.0
 cryptography>=44.0.0
 
 # ── Observability (OTLP HTTP export when OTEL_EXPORTER_OTLP_* is set) ───────
