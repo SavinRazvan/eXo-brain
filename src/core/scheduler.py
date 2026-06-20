@@ -109,8 +109,8 @@ class TaskScheduler:
                     result.outcomes[checkpoint.node_id] = outcome
                     if checkpoint.status == CheckpointStatus.COMPLETED:
                         completed.add(checkpoint.node_id)
-                    elif checkpoint.status == CheckpointStatus.FAILED:
-                        failed.add(checkpoint.node_id)
+                    # FAILED/RUNNING/CANCELLED checkpoints are not terminal on resume;
+                    # handlers are re-executed so operators can recover failed jobs.
 
             base_payload = dict(initial_payload or {})
             while True:
