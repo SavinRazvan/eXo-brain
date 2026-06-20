@@ -55,12 +55,15 @@ def test_scheduler_resume_skips_completed_nodes() -> None:
     assert calls == {"a": 1, "b": 1}
 
 
-def test_scheduler_resume_marks_failed_checkpoint_nodes() -> None:
-    async def node_ok(_: dict) -> dict:
+def test_scheduler_resume_retries_failed_checkpoint_nodes() -> None:
+    calls = {"fragile": 0}
+
+    async def node_recoverable(_: dict) -> dict:
+        calls["fragile"] += 1
         return {"ok": True}
 
     async def _scenario() -> None:
-        graph = TaskGraph([TaskNode(node_id="fragile", handler=node_ok)])
+        graph = TaskGraph([TaskNode(node_id="fragile", handler=node_recoverable)])
         checkpoints = InMemoryCheckpointStore()
         scheduler = TaskScheduler(worker_pool=WorkerPool(max_concurrency=1), checkpoint_store=checkpoints)
         await checkpoints.save_checkpoint(
@@ -75,8 +78,9 @@ def test_scheduler_resume_marks_failed_checkpoint_nodes() -> None:
         )
         result = await scheduler.execute(job_id="job_failed_ckpt", graph=graph, resume=True)
         assert "fragile" in result.outcomes
-        assert result.outcomes["fragile"].status == TaskStatus.FAILED
-        assert result.failed is True
+        assert result.outcomes["fragile"].status == TaskStatus.COMPLETED
+        assert calls["fragile"] == 1
+        assert result.failed is False
 
     asyncio.run(_scenario())
 
