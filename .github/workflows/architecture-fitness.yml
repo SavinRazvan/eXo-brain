@@ -41,7 +41,7 @@ jobs:
   architecture_lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [architecture_lint]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [forbidden_import_scan]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [governance_consistency]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -102,7 +102,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [automated_test_suite]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -114,7 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [automated_test_suite]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -126,7 +126,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [contract_tests, package_workspace_tests]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -146,7 +146,7 @@ jobs:
       - integration_architecture_fitness
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Build architecture evidence bundle
         run: |
           mkdir -p artifacts/evidence
