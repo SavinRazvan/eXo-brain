@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Validate layer boundaries
@@ -53,7 +53,7 @@ jobs:
     needs: [architecture_lint]
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Scan forbidden imports
@@ -64,7 +64,7 @@ jobs:
     needs: [forbidden_import_scan]
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Check governance consistency
@@ -75,7 +75,7 @@ jobs:
     needs: [governance_consistency]
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - uses: ./.github/actions/install-python-deps
@@ -103,7 +103,7 @@ jobs:
     needs: [automated_test_suite]
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - uses: ./.github/actions/install-python-deps
@@ -115,7 +115,7 @@ jobs:
     needs: [automated_test_suite]
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - uses: ./.github/actions/install-python-deps
@@ -127,7 +127,7 @@ jobs:
     needs: [contract_tests, package_workspace_tests]
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - uses: ./.github/actions/install-python-deps
